@@ -21,7 +21,7 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - TaskList (from atomizer) is the single source of truth.
 - Prefer cheap models for exploration/summarization/mechanical work.
 - Use GPT-5.2-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
-- Enforce global handoff protocol in `opencode/agents/handoff-protocol.md` for every handoff.
+- Enforce global handoff protocol in `protocols/handoff-protocol.md` for every handoff.
 
 # FLAG PARSING PROTOCOL
 
