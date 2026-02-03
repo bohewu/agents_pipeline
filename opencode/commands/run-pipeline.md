@@ -32,6 +32,10 @@ $ARGUMENTS
 - `--test-only`
   - Only run test-runner + reviewer
 
+- `--loose-review`
+  - Reviewer does not require build/test evidence
+  - Reviewer must add a warning that results are unverified
+
 - `--budget=low|medium|high`
   - low: Prefer Gemini Flash / Pro, minimize GPT usage
   - medium: Default routing

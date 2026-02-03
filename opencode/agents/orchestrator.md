@@ -119,6 +119,7 @@ Flag semantics:
 - `--dry` -> dry_run = true
 - `--no-test` -> skip_tests = true
 - `--test-only` -> test_only = true
+- `--loose-review` -> loose_review = true
 - `--budget=low|medium|high` -> budget_mode
 
 If conflicting flags exist (e.g. --dry + --test-only):
