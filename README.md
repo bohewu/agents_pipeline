@@ -2,19 +2,24 @@
 
 ## How To Use
 
-- Agent definitions live in `.opencode/agents/` (one file per agent)
-- Global handoff rules are defined in `.opencode/agents/handoff-protocol.md`
+- Agent definitions live in `opencode/agents/` (one file per agent)
+- Global handoff rules are defined in `opencode/agents/handoff-protocol.md`
 - Use the `/run-pipeline` command in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
 
 1) Load the orchestrator and handoff protocol:
-   - `.opencode/agents/orchestrator.md`
-   - `.opencode/agents/handoff-protocol.md`
+   - `opencode/agents/orchestrator.md`
+   - `opencode/agents/handoff-protocol.md`
 2) Run `/run-pipeline` with an optional budget flag:
 
 ```text
 /run-pipeline Implement OAuth2 login --budget=medium
+```
+3) Optional smoke-check run:
+
+```text
+/run-pipeline Run tests only --test-only
 ```
 
 ## Flags
@@ -33,6 +38,9 @@ Use flags after the main task prompt. Tokens starting with `--` are treated as f
   - low: Prefer Gemini Flash / Pro, minimize GPT usage
   - medium: Default routing
   - high: Allow GPT-5.2-codex more freely
+
+Flag precedence:
+- `--dry` overrides `--test-only` when both are present.
 
 Examples:
 ```

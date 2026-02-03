@@ -21,7 +21,7 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - TaskList (from atomizer) is the single source of truth.
 - Prefer cheap models for exploration/summarization/mechanical work.
 - Use GPT-5.2-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
-- Enforce global handoff protocol in `.opencode/agents/handoff-protocol.md` for every handoff.
+- Enforce global handoff protocol in `opencode/agents/handoff-protocol.md` for every handoff.
 
 # FLAG PARSING PROTOCOL
 
@@ -82,6 +82,9 @@ Stage 9: @summarizer -> user-facing final summary
 # COST / MODEL BUDGET RULES
 
 - Default execution model: Gemini 3 Pro for normal coding tasks.
+- If budget_mode is set:
+  - low: prefer Gemini Flash/Pro, avoid GPT-5.2-codex unless required
+  - high: allow GPT-5.2-codex executor more freely
 - Use GPT-5.2-codex executor only when:
   - task is flagged "high_risk" or "complex_reasoning"
   - reviewer found subtle bug
