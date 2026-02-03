@@ -58,6 +58,12 @@ Examples:
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 
+## Naming Convention
+
+- Repo name (`agents-pipeline`) reflects the overall concept.
+- Full pipeline keeps the `*-pipeline` naming (e.g. `orchestrator.md`, `run-pipeline.md`).
+- Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
+
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
