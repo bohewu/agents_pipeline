@@ -52,6 +52,12 @@ Examples:
 /run-pipeline Improve search relevance --budget=medium
 ```
 
+## Orchestrators
+
+- Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
+- Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
+- Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
+
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
