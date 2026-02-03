@@ -120,6 +120,7 @@ Flag semantics:
 - `--no-test` -> skip_tests = true
 - `--test-only` -> test_only = true
 - `--loose-review` -> loose_review = true
+- `--decision-only` -> decision_only = true
 - `--budget=low|medium|high` -> budget_mode
 
 If conflicting flags exist (e.g. --dry + --test-only):
@@ -144,6 +145,13 @@ Stage 7: If fail -> create DeltaTaskList, re-run Stage 4-6 (max 2 retry rounds)
 Stage 8: @compressor -> ContextPack JSON (compressed summary of repo + decisions + outcomes)
 Stage 9: @summarizer -> user-facing final summary
 
+# DECISION-ONLY MODE
+
+If `decision_only = true`:
+- Stop after Stage 2 (repo-scout). Do NOT run atomizer/router/executors/tests.
+- Reviewer switches to directional review: check alignment with ProblemSpec only. No artifact completeness enforcement. No delta retries.
+- Summarizer produces the final recommendation.
+
 # RETRY POLICY
 
 - max_retry_rounds = 2
@@ -152,6 +160,16 @@ Stage 9: @summarizer -> user-facing final summary
   2) Re-run router + execute + reviewer
 - If still failing after retries:
   - Stop and report blockers, assumptions, and exact next steps.
+
+# DELTA TASK SCOPE (ANTI-GENERALIZATION)
+
+- Delta tasks MUST remain strictly bound to the original ProblemSpec and Acceptance Criteria.
+- Executors MUST NOT provide framework-agnostic, generic, or enterprise-wide designs.
+- Every delta artifact MUST reference at least one of:
+  - original component name
+  - original endpoint
+  - original acceptance criterion
+- If scope cannot be satisfied, executor must STOP and report BLOCKED.
 
 # COST / MODEL BUDGET RULES
 

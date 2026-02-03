@@ -32,6 +32,10 @@ $ARGUMENTS
 - `--test-only`
   - Only run test-runner + reviewer
 
+- `--decision-only`
+  - Stop after planning/integration design (no atomizer/router/execution)
+  - Reviewer uses directional review; no delta retries
+
 - `--loose-review`
   - Reviewer does not require build/test evidence
   - Reviewer must add a warning that results are unverified

@@ -18,6 +18,19 @@ Review TaskList + executor outputs. Enforce quality gates.
 
 - Require TaskList/DeltaTaskList to be present in the handoff. If missing, return a `fail` with a single issue: "Missing TaskList/DeltaTaskList in handoff; cannot verify DoD." Do NOT infer tasks.
 
+# ARTIFACT PRIORITY
+
+- If a valid artifact exists matching a task_id, it is the PRIMARY source of truth.
+- Evaluate artifact content, not conversational summaries.
+- Do NOT fail a task solely due to missing prose if the required artifact exists.
+
+# DECISION-ONLY MODE
+
+If the handoff includes `--decision-only` or `decision_only = true`:
+- Perform directional review only: check alignment with ProblemSpec.
+- Do NOT enforce artifact completeness.
+- Do NOT request delta retries.
+
 # LOOSE REVIEW MODE
 
 If the handoff includes `--loose-review` or `loose_review = true`:
