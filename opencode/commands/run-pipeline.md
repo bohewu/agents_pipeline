@@ -51,6 +51,7 @@ $ARGUMENTS
 - This command does NOT rely on CLI-level flag parsing
 - All behavior is enforced at orchestrator prompt level
 - Compatible with OpenCode official command system
+- The global handoff protocol is embedded in `opencode/agents/orchestrator.md` for portability. If you need it externalized, extract that section into your runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 
 ## Design Notes
 

@@ -5,14 +5,13 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 ## How To Use
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
-- Global handoff rules are defined in `opencode/agents/protocols/handoff-protocol.txt`
+- Global handoff rules are embedded in `opencode/agents/orchestrator.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 - Use the `/run-pipeline` command in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
 
-1) Load the orchestrator and handoff protocol:
+1) Load the orchestrator (handoff protocol is embedded for portability):
    - `opencode/agents/orchestrator.md`
-   - `opencode/agents/protocols/handoff-protocol.txt`
 2) Run `/run-pipeline` with an optional budget flag:
 
 ```text
