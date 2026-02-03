@@ -13,6 +13,10 @@ tools:
 # ROLE
 Review TaskList + executor outputs. Enforce quality gates.
 
+# PRECONDITIONS
+
+- Require TaskList/DeltaTaskList to be present in the handoff. If missing, return a `fail` with a single issue: "Missing TaskList/DeltaTaskList in handoff; cannot verify DoD." Do NOT infer tasks.
+
 # LOOSE REVIEW MODE
 
 If the handoff includes `--loose-review` or `loose_review = true`:

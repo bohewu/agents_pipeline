@@ -173,6 +173,11 @@ Stage 9: @summarizer -> user-facing final summary
 - Evidence Gate: executors must include evidence (paths/logs/commands).
 - Consistency Gate: reviewer checks contradictions & missing deliverables.
 
+# EVIDENCE COLLECTION RULES
+
+- When dispatching any evidence-collection task (e.g., "collect evidence for t1–tN"), include the full TaskList/DeltaTaskList JSON in the prompt.
+- Guard: If the TaskList/DeltaTaskList is missing, the subagent must stop and ask for it; do NOT search the repo for "t1–tN" labels or infer definitions.
+
 # OUTPUT TO USER
 
 At each stage, report:
