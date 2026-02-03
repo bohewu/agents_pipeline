@@ -4,17 +4,40 @@
 
 - Agent definitions live in `.opencode/agents/` (one file per agent)
 - Global handoff rules are defined in `.opencode/agents/handoff-protocol.md`
-- Use the `/run` command in `.opencode/agents/run.md` to execute the full pipeline end-to-end
+- Use the `/run-pipeline` command in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
 
 1) Load the orchestrator and handoff protocol:
    - `.opencode/agents/orchestrator.md`
    - `.opencode/agents/handoff-protocol.md`
-2) Run `/run` with an optional budget flag:
+2) Run `/run-pipeline` with an optional budget flag:
 
 ```text
-/run --budget=medium
+/run-pipeline Implement OAuth2 login --budget=medium
+```
+
+## Flags
+
+Use flags after the main task prompt. Tokens starting with `--` are treated as flags.
+
+- `--dry`
+  - Stop after `atomizer + router`
+  - Output TaskList and DispatchPlan only
+- `--no-test`
+  - Skip test-runner stage
+  - Reviewer must warn about missing verification
+- `--test-only`
+  - Only run test-runner + reviewer
+- `--budget=low|medium|high`
+  - low: Prefer Gemini Flash / Pro, minimize GPT usage
+  - medium: Default routing
+  - high: Allow GPT-5.2-codex more freely
+
+Examples:
+```
+/run-pipeline Refactor cache layer --no-test
+/run-pipeline Improve search relevance --budget=medium
 ```
 
 ## AGENT RESPONSIBILITY MATRIX
