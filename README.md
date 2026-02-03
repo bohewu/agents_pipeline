@@ -55,7 +55,7 @@ Examples:
 | orchestrator | Flow control, routing, retries, synthesis | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
-| explore | Repo discovery | Design decisions |
+| repo-scout | Repo discovery | Design decisions |
 | atomizer | Atomic task DAG | Implementation |
 | router | Cost-aware assignment | Changing tasks |
 | executor-* | Task execution | Scope expansion |

@@ -59,7 +59,7 @@ Proceed with pipeline execution according to parsed flags.
 
 Stage 0: @specifier -> ProblemSpec JSON
 Stage 1: @planner -> PlanOutline JSON
-Stage 2: @explore -> RepoFindings JSON (if codebase exists / user asks implementation)
+Stage 2: @repo-scout -> RepoFindings JSON (if codebase exists / user asks implementation)
 Stage 3: @atomizer -> TaskList JSON (atomic DAG)
 Stage 4: @router -> DispatchPlan JSON (model/agent assignment + batching + parallel lanes)
 Stage 5: Execute batches:
@@ -90,7 +90,7 @@ Stage 9: @summarizer -> user-facing final summary
   - reviewer found subtle bug
   - multi-file refactor with tricky invariants
 - Use Gemini 3 Flash for:
-  - explore summaries, quick scans, doc formatting, compression drafts
+  - repo-scout summaries, quick scans, doc formatting, compression drafts
 
 # QUALITY GATES
 
