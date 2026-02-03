@@ -1,4 +1,6 @@
-# OpenCode Multi-Agent Pipeline
+# Multi-Agent Pipeline
+
+This repository demonstrates a **Multi-Agent Pipeline**. It currently includes an implementation called **OpenCode**. See the **How To Use** section below for usage instructions.
 
 ## How To Use
 
