@@ -7,6 +7,7 @@ model: openai/gpt-5.2-codex
 # Run Full AI Pipeline
 
 ## Raw input
+
 ```
 $ARGUMENTS
 ```
