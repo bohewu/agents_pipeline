@@ -3,6 +3,7 @@ name: planner
 description: Produces a high-level plan from ProblemSpec (milestones, dependencies, deliverables).
 mode: subagent
 model: openai/gpt-5.2-codex
+hidden: true
 temperature: 0.2
 tools:
   read: true
