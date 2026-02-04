@@ -9,6 +9,28 @@ This repo assumes you have configured the required model providers in OpenCode.
 Agent model identifiers referenced in `opencode/agents/*.md` must be resolvable in your OpenCode config.
 If a model/provider is missing, update `opencode.json` (or your global OpenCode config) before running any commands.
 
+## Public Release Checklist
+
+- Confirm there are no secrets or private endpoints in the repo.
+- Review git history for removed secrets if any (history still contains them).
+- Ensure `opencode.json.example` contains no real keys.
+- Verify `LICENSE` exists and matches intended usage.
+- Verify README usage notes align with your public story.
+
+## Secret Scan (Optional)
+
+If you already have a secret scanner installed, run one of:
+
+```text
+gitleaks detect --source .
+```
+
+```text
+trufflehog filesystem .
+```
+
+Use whichever tool your team prefers.
+
 ## How To Use
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
