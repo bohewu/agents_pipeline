@@ -40,6 +40,17 @@ $ARGUMENTS
   - Reviewer does not require build/test evidence
   - Reviewer must add a warning that results are unverified
 
+- `--scout=auto|skip|force`
+  - auto: Run repo-scout if a codebase exists or implementation is requested
+  - skip: Do not run repo-scout
+  - force: Run repo-scout even without a detected codebase
+
+- `--skip-scout`
+  - Alias for `--scout=skip`
+
+- `--force-scout`
+  - Alias for `--scout=force`
+
 - `--budget=low|medium|high`
   - low: Prefer Gemini Flash / Pro, minimize GPT usage
   - medium: Default routing
@@ -52,6 +63,7 @@ $ARGUMENTS
 /run-pipeline Implement OAuth2 login --budget=low
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
+/run-pipeline Quick doc update --skip-scout
 ```
 
 ## Guarantees

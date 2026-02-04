@@ -14,8 +14,11 @@ $ARGUMENTS
 
 ## Notes
 
-- This command passes all input as the main task prompt.
-- No CLI flag parsing is performed.
+- Input before the first flag token is the main task prompt.
+- Supported flags (Flow-only, minimal):
+  - `--scout=auto|skip|force`
+  - `--skip-scout`
+  - `--force-scout`
 
 ## Flow vs Flow-Full
 

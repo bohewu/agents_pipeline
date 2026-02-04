@@ -86,10 +86,49 @@ Flow-Full:
 
 # PIPELINE (STRICT)
 
-## FLAG PARSING PROTOCOL
+## FLAG PARSING PROTOCOL (LIMITED)
 
-- No CLI flag parsing is performed.
-- All input is treated as the main task prompt.
+You are given positional parameters via the slash command.
+
+Algorithm:
+
+1. Read the raw input from `$ARGUMENTS`.
+2. Split into tokens by whitespace.
+3. Iterate tokens in order:
+   - If token starts with `--`, classify as a flag.
+   - Otherwise, append to `main_task_prompt`.
+4. Stop appending to main_task_prompt after the first flag token.
+
+Parsed result:
+
+- main_task_prompt: string
+- flags: string[]
+
+Supported flags (Flow-only, minimal):
+
+- `--scout=auto|skip|force` -> scout_mode
+- `--skip-scout` -> scout_mode = skip
+- `--force-scout` -> scout_mode = force
+
+If no scout flag is provided:
+
+- scout_mode = auto.
+
+If conflicting flags exist (e.g. --skip-scout + --force-scout):
+
+- Prefer safety: force wins.
+- Warn the user.
+
+If an invalid `--scout` value is provided:
+
+- Warn the user.
+- Fall back to scout_mode = auto.
+
+## FLOW FLAGS (QUICK REFERENCE)
+
+- `--scout=auto|skip|force`
+- `--skip-scout`
+- `--force-scout`
 
 ## Flow Pipeline (Fixed)
 
@@ -102,7 +141,11 @@ Flow-Full:
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
 
 Stage 0 — Repo Scout (optional)
-- Run @repo-scout if a repo exists or the user asks for implementation.
+- Determine scout_mode from flags (default: auto).
+- Run @repo-scout when:
+  - scout_mode = force, OR
+  - scout_mode = auto AND (repo exists OR user asks for implementation).
+- Skip @repo-scout when scout_mode = skip.
 - Output: RepoFindings JSON.
 - Use RepoFindings as input to Stage 1 and Stage 2.
 

@@ -112,11 +112,22 @@ Flag semantics:
 - `--test-only` -> test_only = true
 - `--loose-review` -> loose_review = true
 - `--decision-only` -> decision_only = true
+- `--scout=auto|skip|force` -> scout_mode
+- `--skip-scout` -> scout_mode = skip
+- `--force-scout` -> scout_mode = force
 - `--budget=low|medium|high` -> budget_mode
+
+If no scout flag is provided:
+
+- scout_mode = auto.
 
 If conflicting flags exist (e.g. --dry + --test-only):
 
 - Prefer safety: dry_run wins.
+- Warn the user.
+If conflicting scout flags exist (e.g. --skip-scout + --force-scout):
+
+- Prefer safety: force wins.
 - Warn the user.
 
 Proceed with pipeline execution according to parsed flags.
@@ -138,7 +149,7 @@ Proceed with pipeline execution according to parsed flags.
 
 Stage 0: @specifier -> ProblemSpec JSON
 Stage 1: @planner -> PlanOutline JSON
-Stage 2: @repo-scout -> RepoFindings JSON (if codebase exists / user asks implementation)
+Stage 2: @repo-scout -> RepoFindings JSON (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> TaskList JSON (atomic DAG)
 Stage 4: @router -> DispatchPlan JSON (model/agent assignment + batching + parallel lanes)
 Stage 5: Execute batches:
