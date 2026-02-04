@@ -117,6 +117,10 @@ Dispatch the following tasks (prefer executor-gemini):
 
 If `generate_mode = false`, do NOT dispatch task 5.
 
+If `generate_mode = true`:
+- If all docs `ci/ci-plan.md`, `ci/cd-plan.md`, `ci/docker-plan.md`, `ci/runbook.md` exist, SKIP tasks 1–4 and execute task 5 only.
+- If any docs are missing, generate the missing docs first, then execute task 5.
+
 Generation scope (when enabled):
 - GitHub Actions workflows under `.github/workflows/` (only if `github_mode = true`)
 - Dockerfile(s) and `docker-compose.yml` (only if `docker_mode = true`)

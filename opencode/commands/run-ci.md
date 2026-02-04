@@ -43,3 +43,8 @@ $ARGUMENTS
 /run-ci Create CI/CD plan for .NET + Vue --generate --github
 /run-ci Create CI/CD plan --generate --github --docker --deploy
 ```
+
+## Notes
+
+- In `--generate` mode, if `ci/ci-plan.md`, `ci/cd-plan.md`, `ci/docker-plan.md`, and `ci/runbook.md` already exist, the orchestrator will reuse them and skip re-planning.
+- To refresh docs, run `/run-ci` without `--generate`, review/update, then run with `--generate`.

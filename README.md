@@ -11,6 +11,8 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
+- CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
+- Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
@@ -60,6 +62,21 @@ Examples:
 /run-ci Plan CI/CD --generate --github
 /run-ci Plan CI/CD --generate --github --docker --deploy
 ```
+
+## Workflow Guidance
+
+New projects:
+
+1. `/run-init` → architecture and constraints
+2. `/run-ci` → CI/CD plans (docs)
+3. `/run-pipeline` (or `/run-flow` for small, low-risk changes)
+4. `/run-ci --generate --github --docker --deploy` when ready to publish
+
+Iterative development:
+
+1. `/run-pipeline` (or `/run-flow` for small changes)
+2. `/run-ci` when CI/CD plan needs updates
+3. Publish using `opencode/protocols/PUBLISH_SOP.md`
 
 ## Protocol Validation
 
