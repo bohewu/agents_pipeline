@@ -2,6 +2,12 @@
 
 This repository demonstrates a **Multi-Agent Pipeline**. It currently includes an implementation called **OpenCode**. See the **How To Use** section below for usage instructions.
 
+## Usage Prerequisites
+
+This repo assumes you have configured the required model providers in OpenCode.
+Agent model identifiers referenced in `opencode/agents/*.md` must be resolvable in your OpenCode config.
+If a model/provider is missing, update `opencode.json` (or your global OpenCode config) before running any commands.
+
 ## How To Use
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
