@@ -67,6 +67,33 @@ These rules apply to **all agents**.
 
 # INIT PIPELINE (STRICT)
 
+## FLAG PARSING PROTOCOL
+
+You are given positional parameters via the slash command.
+
+Algorithm:
+
+1. Read the raw input from `$ARGUMENTS`.
+2. Split into tokens by whitespace.
+3. Iterate tokens in order:
+   - If token starts with `--`, classify as a flag.
+   - Otherwise, append to `main_task_prompt`.
+4. Stop appending to main_task_prompt after the first flag token.
+
+Parsed result:
+
+- main_task_prompt: string
+- flags: string[]
+
+Flag semantics:
+
+- `--decision-only` -> decision_only = true
+- `--iterate` -> iterate_mode = true
+
+If conflicting flags exist:
+
+- decision_only disables iterate_mode.
+
 Stage 0: @specifier -> ProblemSpec JSON
 
 Stage 1: @planner -> PlanOutline JSON
@@ -86,6 +113,8 @@ Dispatch the following tasks (prefer executor-gemini):
 5) **init-roadmap** — Initial Roadmap (Phase 1)
    - Output: artifact `init/init-roadmap.md`
 
+If `decision_only = true`, dispatch ONLY tasks 1–3.
+
 Artifact Rules:
 - Each artifact filename MUST include the task_id.
 - Artifacts are documentation only; no code or config generation.
@@ -95,6 +124,13 @@ Stage 3: Synthesis
 - Collect artifacts and summarize key decisions.
 - List open questions and explicit risks.
 - Provide a short handoff note for `/run-pipeline` usage.
+
+Stage 4: Revision Loop (optional)
+
+If `iterate_mode = true`:
+- Ask the user for feedback on the produced docs.
+- Generate at most 2 revision tasks to update specific docs.
+- Re-run synthesis and stop (single revision round).
 
 # OUTPUT TO USER
 

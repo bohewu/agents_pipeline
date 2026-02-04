@@ -9,6 +9,7 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 - Agent catalog lives in `opencode/agents/AGENTS.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
+- Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
@@ -40,6 +41,11 @@ Use `/run-init` for new projects. It produces:
 - `init/init-roadmap.md`
 
 These docs should be used as reference inputs when running `/run-pipeline`.
+
+Modes:
+
+- `/run-init --decision-only` (brief + architecture + constraints only)
+- `/run-init --iterate` (one revision round after initial docs)
 
 ## Protocol Validation
 

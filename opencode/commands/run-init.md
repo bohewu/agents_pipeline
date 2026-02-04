@@ -12,8 +12,24 @@ model: openai/gpt-5.2-codex
 $ARGUMENTS
 ```
 
+## Parsing contract (for orchestrator-init)
+
+- Positional arguments `$1..$n` represent the user input split by whitespace.
+- The orchestrator-init MUST reconstruct the main task prompt by concatenating
+  all positional arguments **until the first token starting with `--`**.
+- All tokens starting with `--` are treated as flags.
+
+### Supported flags
+
+- `--decision-only`
+  - Produce only: brief, architecture, constraints
+  - Skip structure and roadmap docs
+  - No revision loop
+
+- `--iterate`
+  - Enable one revision round after initial synthesis
+  - Orchestrator asks for feedback and applies targeted updates
+
 ## Notes
 
-- This command passes all input as the main task prompt.
-- No CLI flag parsing is performed.
 - Use for greenfield projects or major re-architecture.
