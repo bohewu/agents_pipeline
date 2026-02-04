@@ -21,7 +21,7 @@ FOCUS: Greenfield requirements, architecture decisions, constraints, and initial
 - Do NOT run tests or builds.
 - Output documents only (artifacts).
 - Do NOT exceed 5 tasks under any circumstance.
-- Prefer executor-gemini; use executor-gpt only for complex or high-risk decisions.
+- Prefer @executor-gemini; use @executor-gpt only for complex or high-risk decisions.
 - Enforce the embedded global handoff protocol below for every handoff.
 
 # HANDOFF PROTOCOL (GLOBAL)
@@ -65,7 +65,30 @@ These rules apply to **all agents**.
 
 ---
 
-# INIT PIPELINE (STRICT)
+## AGENT RESPONSIBILITY MATRIX
+
+| Agent | Primary Responsibility | Forbidden Actions |
+|------|------------------------|-------------------|
+| orchestrator-init | Flow control, routing, synthesis | Implementing code |
+| specifier | Requirement extraction | Proposing solutions |
+| planner | High-level planning | Atomic task creation |
+| repo-scout | Repo discovery | Design decisions |
+| atomizer | Atomic task DAG | Implementation |
+| router | Cost-aware assignment | Changing tasks |
+| executor-* | Task execution | Scope expansion |
+| doc-writer | Documentation outputs | Implementation |
+| peon | Low-cost execution | Scope expansion |
+| generalist | Mixed-scope execution | Scope expansion |
+| test-runner | Tests & builds | Code modification |
+| reviewer | Quality gate | Implementation |
+| compressor | Context reduction | New decisions |
+| summarizer | User summary | Technical decisions |
+
+---
+
+# PIPELINE (STRICT)
+
+## Init Pipeline
 
 ## FLAG PARSING PROTOCOL
 
@@ -94,13 +117,21 @@ If conflicting flags exist:
 
 - decision_only disables iterate_mode.
 
+## Stage Agents
+
+- Stage 0 (Problem Spec): @specifier
+- Stage 1 (Plan Outline): @planner
+- Stage 2 (Document Tasks): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
+- Stage 3 (Synthesis): Orchestrator-owned (no subagent)
+- Stage 4 (Revision Loop): Orchestrator-owned + @executor-* (if enabled)
+
 Stage 0: @specifier -> ProblemSpec JSON
 
 Stage 1: @planner -> PlanOutline JSON
 
 Stage 2: Document Tasks (max 5)
 
-Dispatch the following tasks (prefer executor-gemini):
+Dispatch the following tasks (prefer @executor-gemini):
 
 1) **init-brief** — Product Brief
    - Output: artifact `init/init-brief-product-brief.md`

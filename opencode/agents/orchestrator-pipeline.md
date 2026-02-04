@@ -77,6 +77,9 @@ These rules apply to **all agents**.
 | atomizer | Atomic task DAG | Implementation |
 | router | Cost-aware assignment | Changing tasks |
 | executor-* | Task execution | Scope expansion |
+| doc-writer | Documentation outputs | Implementation |
+| peon | Low-cost execution | Scope expansion |
+| generalist | Mixed-scope execution | Scope expansion |
 | test-runner | Tests & builds | Code modification |
 | reviewer | Quality gate | Implementation |
 | compressor | Context reduction | New decisions |
@@ -119,6 +122,19 @@ If conflicting flags exist (e.g. --dry + --test-only):
 Proceed with pipeline execution according to parsed flags.
 
 # PIPELINE (STRICT)
+
+## Stage Agents
+
+- Stage 0 (Problem Spec): @specifier
+- Stage 1 (Plan Outline): @planner
+- Stage 2 (Repo Scout): @repo-scout
+- Stage 3 (Atomicization): @atomizer
+- Stage 4 (Routing): @router
+- Stage 5 (Execution): @executor-gemini / @executor-gpt / @peon / @generalist / @doc-writer
+- Stage 6 (Review): @reviewer
+- Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
+- Stage 8 (Compression): @compressor
+- Stage 9 (Summary): @summarizer
 
 Stage 0: @specifier -> ProblemSpec JSON
 Stage 1: @planner -> PlanOutline JSON

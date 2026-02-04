@@ -16,6 +16,9 @@ This catalog lists all agents, their primary role, and their default model.
 | router | Build cost-aware DispatchPlan | google/antigravity-gemini-3-flash | subagent | hidden |
 | executor-gemini | Execute one atomic task (cost-effective) | google/antigravity-gemini-3-pro | subagent | hidden |
 | executor-gpt | Execute one atomic task (high-risk/complex) | openai/gpt-5.2-codex | subagent | hidden |
+| doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | google/antigravity-gemini-3-flash | subagent | hidden |
+| peon | Low-cost executor for mechanical or repetitive tasks | google/antigravity-gemini-3-flash | subagent | hidden |
+| generalist | General-purpose executor for mixed-scope tasks | google/antigravity-gemini-3-pro | subagent | hidden |
 | test-runner | Run tests/builds/linters and collect evidence | google/antigravity-gemini-3-flash | subagent | hidden |
 | reviewer | Review outputs and enforce quality gates | openai/gpt-5.2-codex | subagent | hidden |
 | compressor | Compress repo decisions into ContextPack | google/antigravity-gemini-3-flash | subagent | hidden |
