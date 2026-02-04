@@ -5,13 +5,18 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 ## How To Use
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
-- Global handoff rules are embedded in `opencode/agents/orchestrator.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
+- Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
+- Agent catalog lives in `opencode/agents/AGENTS.md`.
+- Protocol and JSON schemas live in `opencode/protocols/`.
+  Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
+- Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
+  A template is provided in `todo-ledger.example.json`.
 - Use the `/run-pipeline` command in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
 
 1) Load the orchestrator (handoff protocol is embedded for portability):
-   - `opencode/agents/orchestrator.md`
+   - `opencode/agents/orchestrator-pipeline.md`
 2) Run `/run-pipeline` with an optional budget flag:
 
 ```text
@@ -22,6 +27,18 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 ```text
 /run-pipeline Run tests only --test-only
 ```
+
+## Protocol Validation
+
+Validate a JSON output against the protocol schemas:
+
+```text
+python opencode/scripts/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
+```
+
+## Config Example
+
+An example OpenCode config is provided at `opencode.json.example`.
 
 ## Flags
 
@@ -61,14 +78,15 @@ Examples:
 ## Naming Convention
 
 - Repo name (`agents-pipeline`) reflects the overall concept.
-- Full pipeline keeps the `*-pipeline` naming (e.g. `orchestrator.md`, `run-pipeline.md`).
+- Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
 
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
-| orchestrator | Flow control, routing, retries, synthesis | Implementing code |
+| orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
+| orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |
