@@ -118,6 +118,7 @@ If `decision_only = true`, dispatch ONLY tasks 1–3.
 Artifact Rules:
 - Each artifact filename MUST include the task_id.
 - Artifacts are documentation only; no code or config generation.
+- Artifacts MUST follow the templates in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
 
 Stage 3: Synthesis
 

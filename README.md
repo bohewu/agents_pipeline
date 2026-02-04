@@ -1,5 +1,6 @@
 # Multi-Agent Pipeline
 
+Multi-agent workflows for OpenCode: init, pipeline, CI/CD planning, and modernization.
 This repository demonstrates a **Multi-Agent Pipeline**. It currently includes an implementation called **OpenCode**. See the **How To Use** section below for usage instructions.
 
 ## Usage Prerequisites
@@ -20,6 +21,7 @@ If a model/provider is missing, update `opencode.json` (or your global OpenCode 
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
 - CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
 - Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
+- Modernize templates live in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
