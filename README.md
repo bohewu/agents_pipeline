@@ -35,7 +35,7 @@ Use whichever tool your team prefers.
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
 - Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
-- Agent catalog lives in `opencode/agents/AGENTS.md`.
+- Agent catalog lives in `AGENTS.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
