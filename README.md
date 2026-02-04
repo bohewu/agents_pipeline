@@ -18,6 +18,7 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
 - Use `/run-ci` in `opencode/commands/run-ci.md` for CI/CD planning (docs-first; optional generation).
+- Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
@@ -63,6 +64,21 @@ Examples:
 /run-ci Plan CI/CD --generate --github
 /run-ci Plan CI/CD --generate --github --docker --deploy
 ```
+
+## Modernize Pipeline (Experimental)
+
+Use `/run-modernize` for legacy modernization planning. It produces:
+
+- `modernize/modernize-current-state.md`
+- `modernize/modernize-target-vision.md`
+- `modernize/modernize-strategy.md`
+- `modernize/modernize-roadmap.md`
+- `modernize/modernize-risks.md`
+
+Modes:
+
+- `/run-modernize --decision-only` (current-state + target-vision + strategy only)
+- `/run-modernize --iterate` (one revision round after initial docs)
 
 ## Workflow Guidance
 
@@ -130,6 +146,7 @@ Examples:
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Init: `/run-init` (greenfield project initialization docs)
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
+- Modernize: `/run-modernize` (experimental modernization planning docs)
 
 ## Naming Convention
 
@@ -138,6 +155,7 @@ Examples:
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
 - Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
+- Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
 
 ## AGENT RESPONSIBILITY MATRIX
 
@@ -145,6 +163,7 @@ Examples:
 |------|------------------------|-------------------|
 | orchestrator-init | Init pipeline for greenfield projects | Implementing code |
 | orchestrator-ci | CI/CD planning pipeline | Implementing code |
+| orchestrator-modernize | Modernization planning pipeline | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
@@ -159,17 +178,3 @@ Examples:
 | summarizer | User summary | Technical decisions |
 
 ---
-
-## MISSING PIECES CHECKLIST (95% TARGET)
-
-- [x] Multi-agent pipeline
-- [x] Cost-aware routing
-- [x] Atomic DAG tasks
-- [x] Evidence-first review
-- [x] Retry / delta mechanism
-- [x] Test runner
-- [x] Context compression
-- [x] One-command entrypoint
-- [x] Handoff contracts
-- [ ] Persistent long-term memory (optional)
-- [ ] External CI integration (optional)
