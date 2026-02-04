@@ -17,7 +17,7 @@ export default tool({
   async execute(args, context) {
     const schemaPath = resolvePath(context.worktree, args.schema);
     const inputPath = resolvePath(context.worktree, args.input);
-    const scriptPath = path.join(context.worktree, ".opencode", "tools", "validate-schema.py");
+    const scriptPath = path.join(context.worktree, "opencode", "tools", "validate-schema.py");
 
     const result = await Bun.$`python ${scriptPath} --schema ${schemaPath} --input ${inputPath}`.text();
     return result.trim();
