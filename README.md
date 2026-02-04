@@ -40,10 +40,12 @@ Use whichever tool your team prefers.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
+- Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
 - CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
 - Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
 - Modernize templates live in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
+- Public checklist lives in `opencode/protocols/PUBLIC_CHECKLIST.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).

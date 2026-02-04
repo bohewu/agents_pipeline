@@ -1,6 +1,7 @@
 # Init Artifact Templates
 
 Use these templates for `/run-init` outputs to keep structure consistent.
+See `opencode/protocols/INIT_EXAMPLE.md` for a concrete example.
 If a section is not applicable, write `N/A` with a short reason.
 
 ---
