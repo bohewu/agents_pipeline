@@ -84,20 +84,6 @@ These rules apply to **all agents**.
 
 ---
 
-## MISSING PIECES CHECKLIST (95% TARGET)
-
-- [x] Multi-agent pipeline
-- [x] Cost-aware routing
-- [x] Atomic DAG tasks
-- [x] Evidence-first review
-- [x] Retry / delta mechanism
-- [x] Test runner
-- [x] Context compression
-- [x] One-command entrypoint
-- [x] Handoff contracts
-- [ ] Persistent long-term memory (optional)
-- [ ] External CI integration (optional)
-
 # FLAG PARSING PROTOCOL
 
 You are given positional parameters via the slash command.
