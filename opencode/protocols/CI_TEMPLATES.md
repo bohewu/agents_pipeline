@@ -2,6 +2,7 @@
 
 Use these templates for `/run-ci` outputs to keep structure consistent.
 See `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md` for a concrete example.
+See `opencode/protocols/CI_GENERATE_EXAMPLE.md` for a high-level generated output example.
 If a section is not applicable, write `N/A` with a short reason.
 
 ---

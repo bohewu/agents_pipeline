@@ -43,8 +43,10 @@ Use whichever tool your team prefers.
 - Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
 - CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
+- CI generated output example lives in `opencode/protocols/CI_GENERATE_EXAMPLE.md`.
 - Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
 - Modernize templates live in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
+- Modernize example lives in `opencode/protocols/MODERNIZE_EXAMPLE.md`.
 - Public checklist lives in `opencode/protocols/PUBLIC_CHECKLIST.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.

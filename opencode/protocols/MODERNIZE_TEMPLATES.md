@@ -1,6 +1,7 @@
 # Modernize Artifact Templates
 
 Use these templates for `/run-modernize` outputs to keep structure consistent.
+See `opencode/protocols/MODERNIZE_EXAMPLE.md` for a concrete example.
 If a section is not applicable, write `N/A` with a short reason.
 
 ---
