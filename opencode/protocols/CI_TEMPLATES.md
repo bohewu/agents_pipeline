@@ -1,6 +1,7 @@
 # CI/CD Artifact Templates
 
 Use these templates for `/run-ci` outputs to keep structure consistent.
+See `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md` for a concrete example.
 If a section is not applicable, write `N/A` with a short reason.
 
 ---

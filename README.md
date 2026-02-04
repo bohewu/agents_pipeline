@@ -12,6 +12,7 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
+- CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
 - Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
