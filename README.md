@@ -14,6 +14,7 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
 - Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
+- Use `/run-ci` in `opencode/commands/run-ci.md` for CI/CD planning (docs-first; optional generation).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
@@ -47,6 +48,18 @@ Modes:
 
 - `/run-init --decision-only` (brief + architecture + constraints only)
 - `/run-init --iterate` (one revision round after initial docs)
+
+## CI Pipeline
+
+Use `/run-ci` to create CI/CD plans and (optionally) generate workflows.
+
+Examples:
+
+```
+/run-ci Plan CI/CD for .NET + Vue
+/run-ci Plan CI/CD --generate --github
+/run-ci Plan CI/CD --generate --github --docker --deploy
+```
 
 ## Protocol Validation
 
@@ -98,6 +111,7 @@ Examples:
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Init: `/run-init` (greenfield project initialization docs)
+- CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 
 ## Naming Convention
 
@@ -105,12 +119,14 @@ Examples:
 - Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
 - Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
+- CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
 | orchestrator-init | Init pipeline for greenfield projects | Implementing code |
+| orchestrator-ci | CI/CD planning pipeline | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
