@@ -33,8 +33,11 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 Validate a JSON output against the protocol schemas:
 
 ```text
-python opencode/scripts/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
+python .opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
 ```
+
+If you enable custom tools, you can call the `validate-schema` tool from OpenCode
+instead of running the script manually (see `.opencode/tools/validate-schema.ts`).
 
 ## Config Example
 
