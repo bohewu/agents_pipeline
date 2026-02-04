@@ -11,7 +11,8 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
-- Use the `/run-pipeline` command in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
+- Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
+- Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 
 ## Quick Start
 
@@ -27,6 +28,18 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 ```text
 /run-pipeline Run tests only --test-only
 ```
+
+## Init Pipeline
+
+Use `/run-init` for new projects. It produces:
+
+- `init/init-brief-product-brief.md`
+- `init/init-architecture.md`
+- `init/init-constraints.md`
+- `init/init-structure.md`
+- `init/init-roadmap.md`
+
+These docs should be used as reference inputs when running `/run-pipeline`.
 
 ## Protocol Validation
 
@@ -77,17 +90,20 @@ Examples:
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
+- Init: `/run-init` (greenfield project initialization docs)
 
 ## Naming Convention
 
 - Repo name (`agents-pipeline`) reflects the overall concept.
 - Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
+- Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
+| orchestrator-init | Init pipeline for greenfield projects | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |

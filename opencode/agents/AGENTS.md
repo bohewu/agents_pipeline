@@ -4,6 +4,7 @@ This catalog lists all agents, their primary role, and their default model.
 
 | Agent | Role | Default Model | Mode | Notes |
 |------|------|---------------|------|-------|
+| orchestrator-init | Init pipeline for greenfield projects | openai/gpt-5.2-codex | primary | Documentation-only outputs |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | openai/gpt-5.2-codex | primary | Global handoff protocol embedded |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | openai/gpt-5.2-codex | primary | Bounded flow, no retries |
 | specifier | Convert user input into ProblemSpec JSON | google/antigravity-gemini-3-flash | subagent | hidden |

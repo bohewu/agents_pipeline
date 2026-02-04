@@ -23,6 +23,7 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - Use GPT-5.2-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
 - Enforce the embedded global handoff protocol below for every handoff.
 - If `todo-ledger.json` exists in the project root, surface it before Stage 0 and ask whether to include, defer, or mark items obsolete.
+- If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
