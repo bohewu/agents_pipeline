@@ -77,6 +77,10 @@ If a section is not applicable, write `N/A` with a short reason.
 
 **Initial Modules**
 
+**Repo Standard Files**
+- `.gitignore`
+- `.env.example`
+
 ---
 
 ## init/init-roadmap.md
