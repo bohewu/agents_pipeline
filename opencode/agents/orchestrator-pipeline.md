@@ -205,6 +205,7 @@ If `decision_only = true`:
 - Atomicity Gate: every task has DoD + single primary output.
 - Evidence Gate: executors must include evidence (paths/logs/commands).
 - Consistency Gate: reviewer checks contradictions & missing deliverables.
+- TDD Guidance: For high-risk behavior changes or user-facing features, prefer writing tests first; for low-risk refactors/docs, ensure at least minimal regression coverage.
 
 # EVIDENCE COLLECTION RULES
 

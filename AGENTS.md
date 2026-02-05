@@ -1,6 +1,7 @@
 # Agent Catalog
 
 This catalog lists all agents, their primary role, and their default model.
+Note: These defaults are documentation-only (opencode does not enforce them); update this table manually to match your runtime model until a future install CLI can provide selectable defaults.
 
 | Agent | Role | Default Model | Mode | Notes |
 |------|------|---------------|------|-------|
