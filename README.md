@@ -184,6 +184,16 @@ Examples:
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 - Modernize: `/run-modernize` (experimental modernization planning docs)
 
+## Choosing a Pipeline (Quick Guide)
+
+- Use `/run-committee` when:
+  - you need a recommendation/decision (architecture, tradeoffs, approach selection)
+  - you want multiple perspectives + a final judge, with budget as an explicit criterion
+- Use `/run-flow` when:
+  - the change is small, low-risk, and you mainly want a fast execution plan (max 5 atomic tasks)
+- Use `/run-pipeline` when:
+  - the change is high-risk, multi-file/systemic, or needs reviewer gates + bounded retries
+
 ## Naming Convention
 
 - Repo name (`agents-pipeline`) reflects the overall concept.
@@ -202,6 +212,7 @@ Examples:
 | orchestrator-modernize | Modernization planning pipeline | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
+| orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |

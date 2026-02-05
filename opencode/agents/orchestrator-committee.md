@@ -179,3 +179,66 @@ Examples:
 /run-committee Should we split the monolith into services now? --budget=low
 /run-committee Pick an auth approach for this repo --budget=medium --scout=force
 ```
+
+# OUTPUT EXAMPLE
+
+Example `CommitteeDecision` JSON (from @committee-judge):
+
+```json
+{
+  "decision_question": "Decide between REST vs GraphQL for our internal API",
+  "budget_mode": "medium",
+  "recommended_option": "REST + OpenAPI now; add a thin BFF only if client needs prove it",
+  "alternatives": [
+    {
+      "option": "GraphQL gateway",
+      "pros": ["Flexible client queries", "Single schema for multiple backends"],
+      "cons": ["Schema governance overhead", "New runtime/ops surface area"],
+      "budget_fit": "high"
+    },
+    {
+      "option": "REST + OpenAPI (resource-first)",
+      "pros": ["Low operational overhead", "Easy caching/monitoring", "Fits common tooling"],
+      "cons": ["More endpoints over time", "May need a BFF to avoid over/under-fetching"],
+      "budget_fit": "low"
+    }
+  ],
+  "final_recommendation": "Choose REST + OpenAPI. Revisit GraphQL only if multiple clients have hard requirements for flexible, cross-resource queries that cannot be met with a thin BFF.",
+  "rationale": [
+    "Budget/Delivery fit: medium favors a low-ceremony approach with reversible upgrades.",
+    "REST + OpenAPI minimizes new operational complexity while meeting most internal API needs.",
+    "A BFF provides a targeted escape hatch if UX-driven query shaping becomes necessary."
+  ],
+  "tradeoffs": [
+    "Less query flexibility than GraphQL in exchange for simpler operations and governance.",
+    "Potential endpoint proliferation, mitigated by resource design guidelines and versioning discipline."
+  ],
+  "kiss_veto": {
+    "raised": true,
+    "decision": "accept",
+    "rationale": "GraphQL adds governance + runtime overhead that is not justified by the current constraints.",
+    "controls": ["Adopt an explicit revisit trigger: 2+ clients blocked by REST shape constraints."]
+  },
+  "risks": ["REST drift without consistent conventions"],
+  "mitigations": ["Publish API guidelines + OpenAPI review checklist"],
+  "open_questions": ["How many distinct clients will consume the API in the next 6 months?"],
+  "next_steps": [
+    "Draft resource model + endpoints for the top 3 use-cases.",
+    "Generate an OpenAPI spec and validate with one real client.",
+    "Define a revisit trigger for GraphQL/BFF based on client pain."
+  ],
+  "implementation_path": "orchestrator-pipeline",
+  "confidence": "medium"
+}
+```
+
+Example user-facing summary (Stage 4):
+
+```text
+Committee decision (budget=medium)
+- Recommendation: REST + OpenAPI now. Add a thin BFF only if concrete client needs prove it.
+- KISS soft veto: ACCEPTED (GraphQL adds governance/runtime overhead without near-term need).
+- Key tradeoffs: simpler ops and governance vs less flexible queries.
+- Next steps: draft endpoints for top use-cases, generate OpenAPI, validate with a real client, define revisit triggers.
+- If you want to implement next: run /run-pipeline (or /run-flow if the change is truly small/low-risk).
+```
