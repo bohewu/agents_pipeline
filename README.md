@@ -54,6 +54,7 @@ Use whichever tool your team prefers.
 - Use `/run-ci` in `opencode/commands/run-ci.md` for CI/CD planning (docs-first; optional generation).
 - Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
+- Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
 
 ## Quick Start
 
@@ -178,6 +179,7 @@ Examples:
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
+- Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
 - Init: `/run-init` (greenfield project initialization docs)
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 - Modernize: `/run-modernize` (experimental modernization planning docs)
