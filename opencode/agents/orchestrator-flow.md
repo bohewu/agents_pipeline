@@ -193,6 +193,7 @@ Stage 3 — Dispatch & Execution
   - parallel_tasks (all atomic = true, no shared mutable context)
   - sequential_tasks (if ordering is required)
 - Each task is executed EXACTLY ONCE. No retries.
+- Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED/FAILED.
 - Dispatch parallel_tasks concurrently if tooling allows; otherwise dispatch sequentially and note the limitation.
 - For each task handoff, include:
   - Task details

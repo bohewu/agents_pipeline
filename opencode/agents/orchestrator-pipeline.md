@@ -116,6 +116,7 @@ Flag semantics:
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
 - `--budget=low|medium|high` -> budget_mode
+- `--max-retry=<int>` -> max_retry_rounds
 
 If no scout flag is provided:
 
@@ -156,7 +157,7 @@ Stage 5: Execute batches:
 
 - Dispatch tasks to @executor-gemini / @executor-gpt / @peon / @generalist / @doc-writer as specified
 Stage 6: @reviewer -> ReviewReport JSON (pass/fail + issues + delta recommendations)
-Stage 7: If fail -> create DeltaTaskList, re-run Stage 4-6 (max 2 retry rounds)
+Stage 7: If fail -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
 Stage 8: @compressor -> ContextPack JSON (compressed summary of repo + decisions + outcomes)
 Stage 9: @summarizer -> user-facing final summary
 
@@ -169,10 +170,22 @@ If `decision_only = true`:
 
 # RETRY POLICY
 
-- max_retry_rounds = 2
-- On review fail:
+- Determine max_retry_rounds (integer; clamp to 0..5):
+  - If `--max-retry=N` is provided: parse N, clamp to 0..5.
+  - Else if budget_mode is set:
+    - low: max_retry_rounds = 1
+    - medium: max_retry_rounds = 2
+    - high: max_retry_rounds = 3
+  - Else: max_retry_rounds = 2
+- `--max-retry=0` disables Stage 7 retries entirely.
+- Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry round, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED.
+- On review fail (and retries remaining):
   1) Convert "required_followups" into Delta tasks (atomic)
   2) Re-run router + execute + reviewer
+- Stop conditions (stop early even if retries remain):
+  - Environment/permission block (missing credentials, cannot run required commands, etc.).
+  - Same core issues repeat across two consecutive review failures (no meaningful progress).
+  - Required followups are out-of-scope per DELTA TASK SCOPE (needs new requirements / expands scope).
 - If still failing after retries:
   - Stop and report blockers, assumptions, and exact next steps.
 
