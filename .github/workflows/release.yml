@@ -46,6 +46,22 @@ jobs:
           git fetch --tags --force
           git checkout "${{ steps.vars.outputs.tag }}"
 
+      - name: Verify VERSION matches tag
+        shell: bash
+        run: |
+          if [[ ! -f VERSION ]]; then
+            echo "VERSION file is missing." >&2
+            exit 1
+          fi
+
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          TAG_VALUE="${{ steps.vars.outputs.tag }}"
+
+          if [[ "v${VERSION_VALUE}" != "${TAG_VALUE}" ]]; then
+            echo "VERSION (${VERSION_VALUE}) does not match tag (${TAG_VALUE})." >&2
+            exit 1
+          fi
+
       - name: Build release bundle
         shell: bash
         run: |
@@ -57,6 +73,7 @@ jobs:
 
           cp -R opencode "dist/${BUNDLE_DIR}/"
           cp AGENTS.md "dist/${BUNDLE_DIR}/"
+          cp VERSION "dist/${BUNDLE_DIR}/"
           cp agent-models.json "dist/${BUNDLE_DIR}/"
           cp opencode.json.example "dist/${BUNDLE_DIR}/"
           cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"

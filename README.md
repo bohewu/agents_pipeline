@@ -96,10 +96,12 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.1.0`).
 - Use SemVer tags with `v` prefix (for example: `v0.1.0`).
 - Stay in `0.x` while the pipeline, prompts, and model defaults evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.1.0` -> `v0.2.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.1.0` must release as `v0.1.0`).
 
 ## Release CI
 
