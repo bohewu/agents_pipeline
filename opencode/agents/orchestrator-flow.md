@@ -2,7 +2,7 @@
 name: orchestrator-flow
 description: Flow Orchestrator with atomic tasks, bounded flow, bounded parallelism, and max-5 task limit.
 mode: primary
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true

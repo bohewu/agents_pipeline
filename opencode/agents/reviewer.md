@@ -2,7 +2,7 @@
 name: reviewer
 description: Quality gate reviewer. Validates DoD, detects contradictions, and generates required followups.
 mode: subagent
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 hidden: true
 temperature: 0.1
 tools:

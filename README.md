@@ -36,6 +36,9 @@ Use whichever tool your team prefers.
 - Agent definitions live in `opencode/agents/` (one file per agent)
 - Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 - Agent catalog lives in `AGENTS.md`.
+- Agent default-model mapping (editable) lives in `agent-models.json`.
+- Sync model defaults from JSON with `python scripts/update-agent-models.py --config agent-models.json --agents AGENTS.md --opencode-root opencode`.
+  This updates `AGENTS.md`, `opencode/agents/*.md`, and `opencode/commands/*.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
@@ -163,7 +166,7 @@ Use flags after the main task prompt. Tokens starting with `--` are treated as f
 - `--budget=low|medium|high`
   - low: Prefer Gemini Flash / Pro, minimize GPT usage
   - medium: Default routing
-  - high: Allow GPT-5.2-codex more freely
+  - high: Allow GPT-5.3-codex more freely
 
 Flag precedence:
 - `--dry` overrides `--test-only` when both are present.

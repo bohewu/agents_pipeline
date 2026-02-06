@@ -1,7 +1,7 @@
 ---
 description: Run CI/CD planning pipeline (docs-first, optional generation)
 agent: orchestrator-ci
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 ---
 
 # Run CI Pipeline

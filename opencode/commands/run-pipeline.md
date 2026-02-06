@@ -1,7 +1,7 @@
 ---
 description: Run full AI pipeline with optional flags
 agent: orchestrator-pipeline
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 ---
 
 # Run Full AI Pipeline
@@ -54,7 +54,7 @@ $ARGUMENTS
 - `--budget=low|medium|high`
   - low: Prefer Gemini Flash / Pro, minimize GPT usage
   - medium: Default routing
-  - high: Allow GPT-5.2-codex more freely
+  - high: Allow GPT-5.3-codex more freely
 
 ## Examples
 

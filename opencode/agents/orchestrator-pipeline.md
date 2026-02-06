@@ -2,7 +2,7 @@
 name: orchestrator-pipeline
 description: Primary orchestrator for the full pipeline with cost-aware routing, review gates, retries, and context compression.
 mode: primary
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
@@ -20,7 +20,7 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - Do NOT directly implement code changes. Delegate to subagents.
 - TaskList (from atomizer) is the single source of truth.
 - Prefer cheap models for exploration/summarization/mechanical work.
-- Use GPT-5.2-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
+- Use GPT-5.3-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
 - Enforce the embedded global handoff protocol below for every handoff.
 - If `todo-ledger.json` exists in the project root, surface it before Stage 0 and ask whether to include, defer, or mark items obsolete.
 - If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
@@ -203,9 +203,9 @@ If `decision_only = true`:
 
 - Default execution model: Gemini 3 Pro for normal coding tasks.
 - If budget_mode is set:
-  - low: prefer Gemini Flash/Pro, avoid GPT-5.2-codex unless required
-  - high: allow GPT-5.2-codex executor more freely
-- Use GPT-5.2-codex executor only when:
+  - low: prefer Gemini Flash/Pro, avoid GPT-5.3-codex unless required
+  - high: allow GPT-5.3-codex executor more freely
+- Use GPT-5.3-codex executor only when:
   - task is flagged "high_risk" or "complex_reasoning"
   - reviewer found subtle bug
   - multi-file refactor with tricky invariants

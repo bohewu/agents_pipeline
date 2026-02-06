@@ -2,7 +2,7 @@
 name: atomizer
 description: Converts PlanOutline (+ optional RepoFindings) into atomic tasks with DoD and dependencies (DAG).
 mode: subagent
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 hidden: true
 temperature: 0.15
 tools:

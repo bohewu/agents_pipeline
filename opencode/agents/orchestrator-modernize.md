@@ -2,7 +2,7 @@
 name: orchestrator-modernize
 description: Experimental modernize pipeline for legacy systems. Produces modernization strategy and roadmap docs.
 mode: primary
-model: openai/gpt-5.2-codex
+model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
