@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate VERSION and README alignment
+        shell: bash
+        run: |
+          if [[ ! -f VERSION ]]; then
+            echo "VERSION file is missing." >&2
+            exit 1
+          fi
+
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "${VERSION_VALUE}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must be MAJOR.MINOR.PATCH. Got: ${VERSION_VALUE}" >&2
+            exit 1
+          fi
+
+          if ! grep -q "v${VERSION_VALUE}" README.md; then
+            echo "README.md must include the current version tag v${VERSION_VALUE}." >&2
+            exit 1
+          fi
+
+      - name: Validate model sync script (dry run)
+        shell: bash
+        run: |
+          python3 --version
+          python3 scripts/update-agent-models.py \
+            --config agent-models.json \
+            --agents AGENTS.md \
+            --opencode-root opencode \
+            --dry-run \
+            --strict-supported
+
+      - name: Validate shell installers
+        shell: bash
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/bootstrap-install.sh
+          bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
+
+  validate-powershell:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate PowerShell installers
+        shell: pwsh
+        run: |
+          [void](Get-Command -Name ./scripts/install.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install.ps1)
+          pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun

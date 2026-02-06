@@ -14,7 +14,7 @@ If a model/provider is missing, update `opencode.json` (or your global OpenCode 
 - OpenCode (with model providers configured)
 - Python 3.9+ (required for `scripts/update-agent-models.py` and `opencode/tools/validate-schema.py`)
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
-- `curl` + `tar` (required for no-clone bootstrap install on macOS/Linux)
+- `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
 
 ## Install (Recommended)
 
@@ -65,6 +65,7 @@ bash scripts/install.sh --no-backup
 ## Install Without Clone (Release Bundle)
 
 Use bootstrap installers to download a release bundle and install without cloning this repo.
+Bootstrap scripts verify the downloaded archive checksum against the release `SHA256SUMS` asset before install.
 
 Pinned version (recommended):
 
@@ -102,6 +103,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.1.0` -> `v0.2.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
 - Release CI checks `VERSION` and tag alignment (`VERSION=0.1.0` must release as `v0.1.0`).
+- Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
@@ -111,6 +113,15 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.SHA256SUMS.txt`
+
+## CI Checks
+
+- Workflow: `.github/workflows/ci.yml`
+- Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
+- Checks:
+  - `VERSION` format and README version-alignment check
+  - `scripts/update-agent-models.py` dry run
+  - installer script syntax and dry-run validation
 
 Example release:
 

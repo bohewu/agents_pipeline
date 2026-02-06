@@ -46,8 +46,17 @@ if (-not $asset) {
     throw "No release zip asset found matching agents-pipeline-opencode-bundle-*.zip"
 }
 
+$checksumAsset = $release.assets |
+    Where-Object { $_.name -match "^agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$" } |
+    Select-Object -First 1
+
+if (-not $checksumAsset) {
+    throw "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt"
+}
+
 Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
+Write-Host "Checksum asset: $($checksumAsset.name)"
 if ($Target) {
     Write-Host "Install target override: $Target"
 }
@@ -59,6 +68,7 @@ if ($DryRun) {
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agents-pipeline-bootstrap-" + [Guid]::NewGuid().ToString("N"))
 $archivePath = Join-Path $tempRoot $asset.name
+$checksumsPath = Join-Path $tempRoot $checksumAsset.name
 $extractRoot = Join-Path $tempRoot "extract"
 
 try {
@@ -66,6 +76,29 @@ try {
     New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
 
     Invoke-WebRequest -Headers $headers -Uri $asset.browser_download_url -OutFile $archivePath
+    Invoke-WebRequest -Headers $headers -Uri $checksumAsset.browser_download_url -OutFile $checksumsPath
+
+    $expectedHash = $null
+    foreach ($line in Get-Content -LiteralPath $checksumsPath) {
+        if ($line -match "^\s*([A-Fa-f0-9]{64})\s+\*?(.+)$") {
+            $assetName = $matches[2].Trim()
+            if ($assetName -eq $asset.name) {
+                $expectedHash = $matches[1].ToLowerInvariant()
+                break
+            }
+        }
+    }
+
+    if (-not $expectedHash) {
+        throw "Could not find checksum for asset '$($asset.name)' in '$($checksumAsset.name)'."
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+        throw "Checksum verification failed for '$($asset.name)'. Expected $expectedHash but got $actualHash."
+    }
+
+    Write-Host "Checksum verified: $($asset.name)"
 
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
 

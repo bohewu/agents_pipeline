@@ -97,13 +97,25 @@ ASSET_URL="$(
     | grep -E 'agents-pipeline-opencode-bundle-.*\.tar\.gz$' \
     | head -n1 || true
 )"
+SUMS_URL="$(
+  printf '%s' "${JSON}" \
+    | grep -Eo '"browser_download_url":[[:space:]]*"[^"]+"' \
+    | cut -d'"' -f4 \
+    | grep -E 'agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$' \
+    | head -n1 || true
+)"
 
 if [[ -z "${ASSET_URL}" ]]; then
   echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
   exit 1
 fi
+if [[ -z "${SUMS_URL}" ]]; then
+  echo "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt" >&2
+  exit 1
+fi
 
 echo "Selected asset: ${ASSET_URL}"
+echo "Checksum asset: ${SUMS_URL}"
 if [[ -n "${TARGET}" ]]; then
   echo "Install target override: ${TARGET}"
 fi
@@ -114,7 +126,10 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
 fi
 
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agents-pipeline-bootstrap.XXXXXX")"
-ARCHIVE_PATH="${TMP_DIR}/bundle.tar.gz"
+ASSET_NAME="$(basename "${ASSET_URL}")"
+SUMS_NAME="$(basename "${SUMS_URL}")"
+ARCHIVE_PATH="${TMP_DIR}/${ASSET_NAME}"
+SUMS_PATH="${TMP_DIR}/${SUMS_NAME}"
 EXTRACT_DIR="${TMP_DIR}/extract"
 
 cleanup() {
@@ -126,6 +141,32 @@ trap cleanup EXIT
 
 mkdir -p "${EXTRACT_DIR}"
 curl -fsSL "${ASSET_URL}" -o "${ARCHIVE_PATH}"
+curl -fsSL "${SUMS_URL}" -o "${SUMS_PATH}"
+
+EXPECTED_HASH="$(awk -v target="${ASSET_NAME}" 'NF>=2 {name=$NF; sub(/^\*/, "", name); if(name==target){print $1; exit}}' "${SUMS_PATH}")"
+if [[ -z "${EXPECTED_HASH}" ]]; then
+  echo "Could not find checksum for ${ASSET_NAME} in ${SUMS_NAME}" >&2
+  exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL_HASH="$(sha256sum "${ARCHIVE_PATH}" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL_HASH="$(shasum -a 256 "${ARCHIVE_PATH}" | awk '{print $1}')"
+else
+  echo "Missing checksum utility: install sha256sum or shasum." >&2
+  exit 1
+fi
+
+if [[ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]]; then
+  echo "Checksum verification failed for ${ASSET_NAME}" >&2
+  echo "Expected: ${EXPECTED_HASH}" >&2
+  echo "Actual:   ${ACTUAL_HASH}" >&2
+  exit 1
+fi
+
+echo "Checksum verified: ${ASSET_NAME}"
+
 tar -xzf "${ARCHIVE_PATH}" -C "${EXTRACT_DIR}"
 
 BUNDLE_DIR="$(find "${EXTRACT_DIR}" -mindepth 1 -maxdepth 1 -type d | head -n1)"
