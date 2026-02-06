@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (for example: v0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must match vMAJOR.MINOR.PATCH. Got: ${TAG}" >&2
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout selected tag
+        shell: bash
+        run: |
+          git fetch --tags --force
+          git checkout "${{ steps.vars.outputs.tag }}"
+
+      - name: Build release bundle
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
+
+          rm -rf dist
+          mkdir -p "dist/${BUNDLE_DIR}/scripts"
+
+          cp -R opencode "dist/${BUNDLE_DIR}/"
+          cp AGENTS.md "dist/${BUNDLE_DIR}/"
+          cp agent-models.json "dist/${BUNDLE_DIR}/"
+          cp opencode.json.example "dist/${BUNDLE_DIR}/"
+          cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/update-agent-models.py "dist/${BUNDLE_DIR}/scripts/"
+
+          (
+            cd dist
+            tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}"
+            zip -rq "${BUNDLE_DIR}.zip" "${BUNDLE_DIR}"
+            sha256sum "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}.zip" > "${BUNDLE_DIR}.SHA256SUMS.txt"
+          )
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          generate_release_notes: true
+          overwrite_files: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.SHA256SUMS.txt

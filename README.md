@@ -9,6 +9,114 @@ This repo assumes you have configured the required model providers in OpenCode.
 Agent model identifiers referenced in `opencode/agents/*.md` must be resolvable in your OpenCode config.
 If a model/provider is missing, update `opencode.json` (or your global OpenCode config) before running any commands.
 
+### Required Tools
+
+- OpenCode (with model providers configured)
+- Python 3.9+ (required for `scripts/update-agent-models.py` and `opencode/tools/validate-schema.py`)
+- PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
+- `curl` + `tar` (required for no-clone bootstrap install on macOS/Linux)
+
+## Install (Recommended)
+
+Install into your local OpenCode config directory with local scripts (default target: `~/.config/opencode`):
+
+Windows (PowerShell):
+
+```powershell
+pwsh -NoProfile -File scripts/install.ps1
+```
+
+macOS/Linux:
+
+```bash
+bash scripts/install.sh
+```
+
+Preview only (no file writes):
+
+```powershell
+pwsh -NoProfile -File scripts/install.ps1 -DryRun
+```
+
+```bash
+bash scripts/install.sh --dry-run
+```
+
+Custom target path:
+
+```powershell
+pwsh -NoProfile -File scripts/install.ps1 -Target C:\path\to\opencode-config
+```
+
+```bash
+bash scripts/install.sh --target /path/to/opencode-config
+```
+
+Skip backup of existing installed files:
+
+```powershell
+pwsh -NoProfile -File scripts/install.ps1 -NoBackup
+```
+
+```bash
+bash scripts/install.sh --no-backup
+```
+
+## Install Without Clone (Release Bundle)
+
+Use bootstrap installers to download a release bundle and install without cloning this repo.
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.1.0"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
+pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.1.0"
+curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
+bash ./bootstrap-install.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
+```
+
+## Versioning
+
+- Use SemVer tags with `v` prefix (for example: `v0.1.0`).
+- Stay in `0.x` while the pipeline, prompts, and model defaults evolve quickly.
+- In `0.x`, treat **minor** bumps as potentially breaking (`v0.1.0` -> `v0.2.0`).
+- Use **patch** bumps for docs/scripting fixes without intended behavior changes.
+
+## Release CI
+
+- Workflow: `.github/workflows/release.yml`
+- Trigger: push tag `v*` (for example `v0.1.0`) or manual `workflow_dispatch`
+- Output assets:
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.SHA256SUMS.txt`
+
+Example release:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## Public Release Checklist
 
 - Confirm there are no secrets or private endpoints in the repo.
@@ -136,6 +244,8 @@ Iterative development:
 ## Protocol Validation
 
 Validate a JSON output against the protocol schemas:
+
+Python 3.9+ is required for this command.
 
 ```text
 python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
