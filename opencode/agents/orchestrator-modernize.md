@@ -112,20 +112,57 @@ Flag semantics:
 
 - `--decision-only` -> decision_only = true
 - `--iterate` -> iterate_mode = true
+- `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
+- `--resume` -> resume_mode = true
+- `--confirm` -> confirm_mode = true
+- `--verbose` -> verbose_mode = true (implies confirm_mode = true)
+- `--target=<path>` -> target_project_dir (default: `../<source-project-dirname>-modernize/`)
 
 If conflicting flags exist:
 
 - decision_only disables iterate_mode.
 
+## PRE-FLIGHT (before Stage 0)
+
+1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+2. **Resolve target_project_dir**: If `--target` was provided, use that path. Otherwise default to `../<source-project-dirname>-modernize/`.
+3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
+4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+
+## CHECKPOINT PROTOCOL
+
+After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+
+## CONFIRM / VERBOSE PROTOCOL
+
+If `confirm_mode = true`:
+- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
+- On `abort`: write checkpoint and stop.
+
+If `verbose_mode = true` (implies `confirm_mode`):
+- Additionally, during Stage 2 (Document Tasks), pause after each individual task.
+
 ## Stage Agents
 
+- Pre-flight: Gitignore check, checkpoint resume, resolve target project
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Document Tasks): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
-- Stage 3 (Synthesis): Orchestrator-owned (no subagent)
+- Stage 3 (Synthesis): Orchestrator-owned (no subagent) -> produces `modernize-index.md`
 - Stage 4 (Revision Loop): Orchestrator-owned + @executor-* (if enabled)
 
+## Migration Model
+
+This pipeline follows a **Source-to-Target migration model**:
+
+- **Source Project (A):** The existing legacy project being analyzed. This project is treated as read-only during modernization planning.
+- **Target Project (B):** A new project at `target_project_dir` (default: `../<source-dirname>-modernize/`) where the modernized system will be built.
+- All docs explicitly plan for building project B while project A continues running.
+- The pipeline does NOT create or scaffold the target project directory. It references the target path in documentation.
+
 Stage 0: @specifier -> ProblemSpec JSON
+
+- Include the source project path and target project path in the ProblemSpec context.
 
 Stage 1: @planner -> PlanOutline JSON
 
@@ -133,16 +170,21 @@ Stage 2: Document Tasks (max 5)
 
 Dispatch the following tasks (prefer @executor-gemini):
 
-1) **modernize-current-state** — Current State Assessment
-   - Output: artifact `modernize/modernize-current-state.md`
-2) **modernize-target-vision** — Target Vision
-   - Output: artifact `modernize/modernize-target-vision.md`
-3) **modernize-strategy** — Modernization Strategy
-   - Output: artifact `modernize/modernize-strategy.md`
-4) **modernize-roadmap** — Migration Roadmap
-   - Output: artifact `modernize/modernize-roadmap.md`
-5) **modernize-risks** — Risks & Governance
-   - Output: artifact `modernize/modernize-risks.md`
+1) **modernize-source-assessment** — Source Project Assessment
+   - Output: artifact `<output_dir>/modernize/modernize-source-assessment.md`
+   - Scope: Analyze project A — architecture, dependencies, pain points, tech debt, migration readiness.
+2) **modernize-target-design** — Target Project Design
+   - Output: artifact `<output_dir>/modernize/modernize-target-design.md`
+   - Scope: Describe project B — target architecture, directory layout, tech stack, API contract with source during migration.
+3) **modernize-migration-strategy** — Migration Strategy
+   - Output: artifact `<output_dir>/modernize/modernize-migration-strategy.md`
+   - Scope: How to build B while A runs. Strangler fig boundaries, parallel-run strategy, data migration plan, backward compatibility, cutover criteria.
+4) **modernize-migration-roadmap** — Migration Roadmap
+   - Output: artifact `<output_dir>/modernize/modernize-migration-roadmap.md`
+   - Scope: Phases for B development, A->B cutover milestones, parallel-run period, decommission plan for A.
+5) **modernize-migration-risks** — Migration Risks & Governance
+   - Output: artifact `<output_dir>/modernize/modernize-migration-risks.md`
+   - Scope: Dual-system risks, data consistency risks, cutover risks, rollback scenarios, governance model.
 
 If `decision_only = true`, dispatch ONLY tasks 1–3.
 
@@ -150,12 +192,38 @@ Artifact Rules:
 - Each artifact filename MUST include the task_id.
 - Artifacts are documentation only; no code or config generation.
 - Artifacts MUST follow the templates in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
+- All artifacts MUST be human-readable: executive summary, table of contents, section numbering, narrative prose.
+- Source and target project paths MUST be referenced in every artifact.
 
 Stage 3: Synthesis
 
-- Collect artifacts and summarize key decisions.
+- Collect all artifacts and produce `<output_dir>/modernize/modernize-index.md` as a navigation page:
+  ```markdown
+  # Modernization Plan — <source project name>
+
+  Source: <source project path>
+  Target: <target project path>
+
+  ## Documents
+
+  1. [Source Assessment](modernize-source-assessment.md) — Current state analysis of project A
+  2. [Target Design](modernize-target-design.md) — Architecture and structure of project B
+  3. [Migration Strategy](modernize-migration-strategy.md) — How to build B while A runs
+  4. [Migration Roadmap](modernize-migration-roadmap.md) — Timeline, phases, and milestones
+  5. [Migration Risks](modernize-migration-risks.md) — Risk register and governance
+
+  ## Key Decisions
+  <Bullet list of top decisions from all docs>
+
+  ## Open Questions
+  <Bullet list>
+
+  ## Next Steps
+  <What to run next, e.g., /run-pipeline to start Phase 1 in the target project>
+  ```
+- The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
-- Provide a short handoff note for `/run-pipeline` usage.
+- Provide a short handoff note for `/run-pipeline` usage in the target project.
 
 Stage 4: Revision Loop (optional)
 

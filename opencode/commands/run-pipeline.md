@@ -56,6 +56,23 @@ $ARGUMENTS
   - medium: Default routing
   - high: Allow GPT-5.3-codex more freely
 
+- `--output-dir=<path>`
+  - Override the default artifact output directory
+  - Default: `.pipeline-output/`
+
+- `--resume`
+  - Resume from the last checkpoint
+  - Loads `.pipeline-output/checkpoint.json` (or `<output-dir>/checkpoint.json`)
+  - Skips completed stages and continues from the next incomplete stage
+
+- `--confirm`
+  - Pause after each stage for user review and approval
+  - Options at each pause: yes (continue), feedback (re-run stage), abort (save checkpoint and stop)
+
+- `--verbose`
+  - Implies `--confirm`
+  - Additionally pauses after each individual task within execution stages
+
 ## Examples
 
 ```
@@ -64,6 +81,8 @@ $ARGUMENTS
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout
+/run-pipeline Continue previous run --resume
+/run-pipeline Implement feature with review --confirm
 ```
 
 ## Guarantees

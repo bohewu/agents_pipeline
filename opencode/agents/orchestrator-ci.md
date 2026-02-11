@@ -115,11 +115,35 @@ Flag semantics:
 - `--docker` -> docker_mode = true
 - `--e2e` -> e2e_mode = true
 - `--deploy` -> deploy_mode = true
+- `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
+- `--resume` -> resume_mode = true
+- `--confirm` -> confirm_mode = true
+- `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
 If `generate_mode = false`, ignore all generate-only flags.
 
+## PRE-FLIGHT (before Stage 0)
+
+1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+
+## CHECKPOINT PROTOCOL
+
+After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+
+## CONFIRM / VERBOSE PROTOCOL
+
+If `confirm_mode = true`:
+- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
+- On `abort`: write checkpoint and stop.
+
+If `verbose_mode = true` (implies `confirm_mode`):
+- Additionally, during Stage 2 (Document Tasks), pause after each individual task.
+
 ## Stage Agents
 
+- Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Document Tasks): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
@@ -134,13 +158,13 @@ Stage 2: Document Tasks (max 5)
 Dispatch the following tasks (prefer @executor-gemini):
 
 1) **ci-plan** — CI Plan
-   - Output: artifact `ci/ci-plan.md`
+   - Output: artifact `<output_dir>/ci/ci-plan.md`
 2) **cd-plan** — CD Plan
-   - Output: artifact `ci/cd-plan.md`
+   - Output: artifact `<output_dir>/ci/cd-plan.md`
 3) **docker-plan** — Docker Plan
-   - Output: artifact `ci/docker-plan.md`
+   - Output: artifact `<output_dir>/ci/docker-plan.md`
 4) **runbook** — CI/CD Runbook
-   - Output: artifact `ci/runbook.md`
+   - Output: artifact `<output_dir>/ci/runbook.md`
 5) **generate** — Config Generation (conditional)
    - Output: generated files (only if `generate_mode = true`)
    - If missing required inputs (repo paths, commands, envs), return `blocked`.
@@ -148,7 +172,7 @@ Dispatch the following tasks (prefer @executor-gemini):
 If `generate_mode = false`, do NOT dispatch task 5.
 
 If `generate_mode = true`:
-- If all docs `ci/ci-plan.md`, `ci/cd-plan.md`, `ci/docker-plan.md`, `ci/runbook.md` exist, SKIP tasks 1–4 and execute task 5 only.
+- If all docs `<output_dir>/ci/ci-plan.md`, `<output_dir>/ci/cd-plan.md`, `<output_dir>/ci/docker-plan.md`, `<output_dir>/ci/runbook.md` exist, SKIP tasks 1–4 and execute task 5 only.
 - If any docs are missing, generate the missing docs first, then execute task 5.
 
 Generation scope (when enabled):

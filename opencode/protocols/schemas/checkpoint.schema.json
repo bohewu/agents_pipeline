@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Checkpoint",
+  "description": "Pipeline checkpoint for interrupt/resume support. Written to <output_dir>/checkpoint.json after each stage completes.",
+  "type": "object",
+  "required": [
+    "pipeline_id",
+    "orchestrator",
+    "user_prompt",
+    "flags",
+    "current_stage",
+    "completed_stages",
+    "stage_artifacts",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Protocol version (major.minor), e.g. '1.0'."
+    },
+    "pipeline_id": {
+      "type": "string",
+      "description": "Unique identifier for this pipeline run (UUID or timestamp-based)."
+    },
+    "orchestrator": {
+      "type": "string",
+      "enum": [
+        "orchestrator-pipeline",
+        "orchestrator-flow",
+        "orchestrator-init",
+        "orchestrator-ci",
+        "orchestrator-modernize",
+        "orchestrator-committee"
+      ],
+      "description": "Which orchestrator is running this pipeline."
+    },
+    "user_prompt": {
+      "type": "string",
+      "description": "The original main_task_prompt provided by the user."
+    },
+    "flags": {
+      "type": "object",
+      "description": "All parsed flag values for this run.",
+      "properties": {
+        "dry_run": { "type": "boolean", "default": false },
+        "skip_tests": { "type": "boolean", "default": false },
+        "test_only": { "type": "boolean", "default": false },
+        "loose_review": { "type": "boolean", "default": false },
+        "decision_only": { "type": "boolean", "default": false },
+        "scout_mode": {
+          "type": "string",
+          "enum": ["auto", "skip", "force"],
+          "default": "auto"
+        },
+        "budget_mode": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "max_retry_rounds": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "output_dir": { "type": "string" },
+        "resume_mode": { "type": "boolean", "default": false },
+        "confirm_mode": { "type": "boolean", "default": false },
+        "verbose_mode": { "type": "boolean", "default": false },
+        "iterate_mode": { "type": "boolean", "default": false },
+        "generate_mode": { "type": "boolean", "default": false },
+        "target_project_dir": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "current_stage": {
+      "type": "integer",
+      "minimum": -1,
+      "description": "The stage number that was most recently completed. -1 means pre-flight only."
+    },
+    "completed_stages": {
+      "type": "array",
+      "description": "Ordered list of completed stages.",
+      "items": {
+        "type": "object",
+        "required": ["stage", "name", "status", "timestamp"],
+        "properties": {
+          "stage": {
+            "type": "integer",
+            "description": "Stage number."
+          },
+          "name": {
+            "type": "string",
+            "description": "Stage name (e.g. 'specifier', 'planner', 'repo-scout')."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["completed", "skipped", "failed"],
+            "description": "Outcome of this stage."
+          },
+          "artifact_key": {
+            "type": "string",
+            "description": "Key in stage_artifacts where this stage's output is stored."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when this stage completed."
+          }
+        }
+      }
+    },
+    "stage_artifacts": {
+      "type": "object",
+      "description": "Map of artifact keys to their JSON outputs. Keys match artifact_key in completed_stages.",
+      "additionalProperties": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this checkpoint was first created."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this checkpoint was last updated."
+    }
+  },
+  "additionalProperties": false
+}

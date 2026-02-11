@@ -30,6 +30,30 @@ $ARGUMENTS
   - Enable one revision round after initial synthesis
   - Orchestrator asks for feedback and applies targeted updates
 
+- `--output-dir=<path>`
+  - Override the default artifact output directory
+  - Default: `.pipeline-output/`
+
+- `--resume`
+  - Resume from the last checkpoint
+
+- `--confirm`
+  - Pause after each stage for user review and approval
+
+- `--verbose`
+  - Implies `--confirm`
+  - Additionally pauses after each individual document task
+
+## Examples
+
+```
+/run-init Plan a new SaaS platform
+/run-init Plan a new SaaS platform --decision-only
+/run-init Plan a new SaaS platform --iterate
+/run-init Continue previous run --resume
+/run-init Plan with step-by-step review --confirm
+```
+
 ## Notes
 
 - Use for greenfield projects or major re-architecture.

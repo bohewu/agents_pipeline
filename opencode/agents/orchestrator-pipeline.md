@@ -22,8 +22,6 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - Prefer cheap models for exploration/summarization/mechanical work.
 - Use GPT-5.3-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
 - Enforce the embedded global handoff protocol below for every handoff.
-- If `todo-ledger.json` exists in the project root, surface it before Stage 0 and ask whether to include, defer, or mark items obsolete.
-- If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
@@ -117,6 +115,10 @@ Flag semantics:
 - `--force-scout` -> scout_mode = force
 - `--budget=low|medium|high` -> budget_mode
 - `--max-retry=<int>` -> max_retry_rounds
+- `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
+- `--resume` -> resume_mode = true
+- `--confirm` -> confirm_mode = true
+- `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
 If no scout flag is provided:
 
@@ -126,17 +128,69 @@ If conflicting flags exist (e.g. --dry + --test-only):
 
 - Prefer safety: dry_run wins.
 - Warn the user.
+
 If conflicting scout flags exist (e.g. --skip-scout + --force-scout):
 
 - Prefer safety: force wins.
 - Warn the user.
 
+If `--dry + --confirm`:
+
+- `--dry` wins (pipeline stops after atomizer+router regardless of confirm mode).
+
 Proceed with pipeline execution according to parsed flags.
+
+# PRE-FLIGHT (before Stage 0)
+
+1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user: "Warning: `<output_dir>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+4. **Todo Ledger**: If `todo-ledger.json` exists in the project root, surface it and ask whether to include, defer, or mark items obsolete.
+5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
+
+# CHECKPOINT PROTOCOL
+
+After each stage completes successfully:
+1. Write/update `<output_dir>/checkpoint.json` with:
+   - `pipeline_id`: unique identifier for this run
+   - `orchestrator`: "orchestrator-pipeline"
+   - `user_prompt`: the original main_task_prompt
+   - `flags`: all parsed flag values
+   - `current_stage`: the stage number just completed
+   - `completed_stages[]`: array of `{ stage, name, status, artifact_key, timestamp }`
+   - `stage_artifacts`: map of stage outputs (the JSON produced at each stage)
+   - `created_at` / `updated_at`: ISO 8601 timestamps
+2. The checkpoint file MUST conform to `opencode/protocols/schemas/checkpoint.schema.json`.
+
+# CONFIRM / VERBOSE PROTOCOL
+
+If `confirm_mode = true`:
+- After each stage completes, display a stage summary and ask:
+  ```
+  [Stage N: <name>] Complete.
+  Key output: <1-2 line summary>
+
+  Proceed to Stage N+1 (<name>)? [yes / feedback / abort]
+  ```
+  - `yes` -> continue to next stage
+  - `feedback` -> user provides text; re-run the current stage with amended instructions
+  - `abort` -> write checkpoint and stop; tell user they can resume with `--resume`
+
+If `verbose_mode = true` (implies `confirm_mode = true`):
+- Additionally, during execution stages (Stage 5), pause after each individual task:
+  ```
+  [Task <task_id>: <summary>] Complete.
+  Status: <pass/fail>
+
+  Continue to next task? [yes / skip-remaining / abort]
+  ```
+  - `skip-remaining` -> mark remaining tasks as SKIPPED, proceed to next stage
 
 # PIPELINE (STRICT)
 
 ## Stage Agents
 
+- Pre-flight: Gitignore check, checkpoint resume, todo-ledger, init-docs
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Repo Scout): @repo-scout
@@ -147,6 +201,8 @@ Proceed with pipeline execution according to parsed flags.
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression): @compressor
 - Stage 9 (Summary): @summarizer
+
+All intermediate JSON outputs (ProblemSpec, PlanOutline, TaskList, etc.) are written to `<output_dir>/pipeline/` for traceability.
 
 Stage 0: @specifier -> ProblemSpec JSON
 Stage 1: @planner -> PlanOutline JSON

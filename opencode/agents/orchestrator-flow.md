@@ -109,6 +109,10 @@ Supported flags (Flow-only, minimal):
 - `--scout=auto|skip|force` -> scout_mode
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
+- `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
+- `--resume` -> resume_mode = true
+- `--confirm` -> confirm_mode = true
+- `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
 If no scout flag is provided:
 
@@ -129,16 +133,42 @@ If an invalid `--scout` value is provided:
 - `--scout=auto|skip|force`
 - `--skip-scout`
 - `--force-scout`
+- `--output-dir=<path>`
+- `--resume`
+- `--confirm`
+- `--verbose`
+
+## PRE-FLIGHT (before Stage 0)
+
+1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+
+## CHECKPOINT PROTOCOL
+
+After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+
+## CONFIRM / VERBOSE PROTOCOL
+
+If `confirm_mode = true`:
+- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
+- On `abort`: write checkpoint and stop.
+
+If `verbose_mode = true` (implies `confirm_mode`):
+- Additionally, during Stage 3 (Execution), pause after each individual task.
 
 ## Flow Pipeline (Fixed)
 
 ## Stage Agents
 
+- Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Repo Scout, optional): @repo-scout
 - Stage 1 (Problem Framing): Orchestrator-owned (no subagent)
 - Stage 2 (Atomic Task Decomposition): Orchestrator-owned (no subagent)
 - Stage 3 (Dispatch & Execution): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
+
+All outputs are written to `<output_dir>/flow/` for traceability.
 
 Stage 0 — Repo Scout (optional)
 - Determine scout_mode from flags (default: auto).

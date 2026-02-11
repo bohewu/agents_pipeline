@@ -38,6 +38,20 @@ $ARGUMENTS
 - `--force-scout`
   - Alias for `--scout=force`
 
+- `--output-dir=<path>`
+  - Override the default artifact output directory
+  - Default: `.pipeline-output/`
+
+- `--resume`
+  - Resume from the last checkpoint
+
+- `--confirm`
+  - Pause after each stage for user review and approval
+
+- `--verbose`
+  - Implies `--confirm`
+  - Additionally pauses after each individual expert memo
+
 ## Examples
 
 ```text
@@ -46,5 +60,7 @@ $ARGUMENTS
 /run-committee Pick an auth approach for this repo --budget=medium --scout=force
 /run-committee Decide logging/telemetry standard --budget=high --skip-scout
 /run-committee Choose database migration strategy --budget=medium --scout=auto
+/run-committee Continue previous decision --resume
+/run-committee Decide with step-by-step review --budget=medium --confirm
 ```
 

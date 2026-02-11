@@ -8,6 +8,9 @@ todo-ledger.json
 *test*
 *build*
 
+# Pipeline artifacts (orchestrator outputs, checkpoints)
+.pipeline-output/
+
 # Local tooling
 .opencode/
 .vscode/

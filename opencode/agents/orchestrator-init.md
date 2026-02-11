@@ -112,13 +112,37 @@ Flag semantics:
 
 - `--decision-only` -> decision_only = true
 - `--iterate` -> iterate_mode = true
+- `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
+- `--resume` -> resume_mode = true
+- `--confirm` -> confirm_mode = true
+- `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
 If conflicting flags exist:
 
 - decision_only disables iterate_mode.
 
+## PRE-FLIGHT (before Stage 0)
+
+1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+
+## CHECKPOINT PROTOCOL
+
+After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+
+## CONFIRM / VERBOSE PROTOCOL
+
+If `confirm_mode = true`:
+- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
+- On `abort`: write checkpoint and stop.
+
+If `verbose_mode = true` (implies `confirm_mode`):
+- Additionally, during Stage 2 (Document Tasks), pause after each individual task.
+
 ## Stage Agents
 
+- Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Document Tasks): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
@@ -134,15 +158,15 @@ Stage 2: Document Tasks (max 5)
 Dispatch the following tasks (prefer @executor-gemini):
 
 1) **init-brief** — Product Brief
-   - Output: artifact `init/init-brief-product-brief.md`
+   - Output: artifact `<output_dir>/init/init-brief-product-brief.md`
 2) **init-architecture** — Architecture Overview
-   - Output: artifact `init/init-architecture.md`
+   - Output: artifact `<output_dir>/init/init-architecture.md`
 3) **init-constraints** — Constraints & NFRs
-   - Output: artifact `init/init-constraints.md`
+   - Output: artifact `<output_dir>/init/init-constraints.md`
 4) **init-structure** — Project Structure & Conventions
-   - Output: artifact `init/init-structure.md`
+   - Output: artifact `<output_dir>/init/init-structure.md`
 5) **init-roadmap** — Initial Roadmap (Phase 1)
-   - Output: artifact `init/init-roadmap.md`
+   - Output: artifact `<output_dir>/init/init-roadmap.md`
 
 If `decision_only = true`, dispatch ONLY tasks 1–3.
 

@@ -19,6 +19,19 @@ $ARGUMENTS
   - `--scout=auto|skip|force`
   - `--skip-scout`
   - `--force-scout`
+  - `--output-dir=<path>` — Override artifact output directory (default: `.pipeline-output/`)
+  - `--resume` — Resume from the last checkpoint
+  - `--confirm` — Pause after each stage for user review
+  - `--verbose` — Implies `--confirm`; additionally pauses after each task
+
+## Examples
+
+```
+/run-flow Fix the login validation bug
+/run-flow Add dark mode toggle --skip-scout
+/run-flow Continue previous run --resume
+/run-flow Implement with review --confirm
+```
 
 ## Flow vs Flow-Full
 

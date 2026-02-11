@@ -77,6 +77,22 @@ Agent: `summarizer`
 Input: Final outcomes and reviewer status
 Output: User-facing summary text
 
+## Artifact Output Convention
+
+All pipeline artifacts MUST be written under a single root directory to keep the target project clean and prevent accidental git commits.
+
+- **Default artifact root:** `.pipeline-output/`
+- **Override flag:** `--output-dir=<path>` (available on all orchestrators)
+- **Sub-directories by pipeline:**
+  - `.pipeline-output/pipeline/` — orchestrator-pipeline intermediates
+  - `.pipeline-output/init/` — orchestrator-init docs
+  - `.pipeline-output/ci/` — orchestrator-ci docs
+  - `.pipeline-output/modernize/` — orchestrator-modernize docs
+  - `.pipeline-output/flow/` — orchestrator-flow outputs
+  - `.pipeline-output/committee/` — orchestrator-committee outputs
+- **Checkpoint file:** `.pipeline-output/checkpoint.json` (see Checkpoint Protocol below)
+- **Gitignore requirement:** The target project's `.gitignore` MUST include `.pipeline-output/`. Orchestrators verify this in the pre-flight stage and warn the user if it is missing.
+
 ## Artifact Rules
 
 - If a task primary_output is `design`, `plan`, `spec`, `checklist`, `notes`, or `analysis`, the executor MUST emit an artifact block.
@@ -93,6 +109,42 @@ Output: User-facing summary text
 ## Protocol Versioning
 
 Each JSON output MAY include `protocol_version`. When present, it MUST follow `major.minor` format, for example `1.0`.
+
+## Checkpoint Protocol
+
+Pipeline runs support interrupt/resume via checkpoint files.
+
+- **Location:** `<output_dir>/checkpoint.json` (default: `.pipeline-output/checkpoint.json`)
+- **Schema:** `./protocols/schemas/checkpoint.schema.json`
+- **Write timing:** After each stage completes successfully, the orchestrator MUST update the checkpoint file with the stage output.
+- **Resume flow:**
+  1. User passes `--resume` flag
+  2. Orchestrator loads `<output_dir>/checkpoint.json`
+  3. Validates that the checkpoint's `orchestrator` field matches the current orchestrator
+  4. Displays a summary of completed stages and the next stage to run
+  5. Asks user to confirm before resuming
+  6. Skips completed stages and continues from the next incomplete stage
+- **Missing checkpoint:** If `--resume` is set but no checkpoint exists, warn the user and start fresh.
+- **Completion:** On successful pipeline completion, the checkpoint file MAY be retained for audit or deleted. Default: retain.
+
+## Confirm / Verbose Protocol
+
+Pipeline runs support step-by-step user review via `--confirm` and `--verbose` flags.
+
+- **`--confirm`** (default: `false`): Pause after each **stage** for user review.
+  - Prompt format: `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`
+  - `yes` -> continue to next stage
+  - `feedback` -> user provides text; re-run the current stage with amended instructions
+  - `abort` -> write checkpoint and stop; user can resume later with `--resume`
+
+- **`--verbose`** (default: `false`): Implies `--confirm`. Additionally pauses after each **individual task** within execution stages.
+  - Prompt format: `[Task <id>: <summary>] Complete. Continue? [yes / skip-remaining / abort]`
+  - `skip-remaining` -> mark remaining tasks as SKIPPED, proceed to next stage
+
+- **Flag interactions:**
+  - `--verbose` automatically enables `--confirm`
+  - `--dry --confirm` -> `--dry` wins (stops after atomizer+router)
+  - `--resume --confirm` -> resume from checkpoint, then apply confirm mode going forward
 
 ## Validation Gates
 
