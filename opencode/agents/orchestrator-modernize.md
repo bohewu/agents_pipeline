@@ -23,6 +23,14 @@ FOCUS: Current-state assessment, target vision, modernization strategy, roadmap,
 - Do NOT exceed 5 tasks under any circumstance.
 - Prefer @executor-gemini; use @executor-gpt only for complex or high-risk decisions.
 - Enforce the embedded global handoff protocol below for every handoff.
+- Do NOT produce any files outside the defined artifact list (see Stage 2).
+  Specifically PROHIBITED outputs include:
+  - Pipeline governance files (e.g. `phase1-artifact-pack.md`, `phase1-evidence-index.md`, `phase1-done-proof-bundle.md`, `phase1-requirements-trace-matrix.md`)
+  - Handoff prompts (e.g. `run-pipeline-handoff.md`)
+  - JSON inventory dumps (e.g. `T1_core_inventory.json`)
+  - Any file with prefix `phase*-`, `evidence-*`, or `run-*-handoff*`
+  The ONLY files this pipeline writes are the 5 modernize artifacts + `modernize-index.md`.
+  If deferred-scope tracking is needed, include it as a section within `modernize-migration-roadmap.md`, not as a separate file.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
@@ -172,19 +180,29 @@ Dispatch the following tasks (prefer @executor-gemini):
 
 1) **modernize-source-assessment** — Source Project Assessment
    - Output: artifact `<output_dir>/modernize/modernize-source-assessment.md`
+   - Template: `opencode/protocols/MODERNIZE_TEMPLATES.md` section "modernize-source-assessment.md"
    - Scope: Analyze project A — architecture, dependencies, pain points, tech debt, migration readiness.
+   - Depth: This is the "here is what we have" document. A reader who has never seen the codebase should understand the system after reading it. Include concrete file/class references, dependency versions, and specific examples of pain points — not generic observations.
 2) **modernize-target-design** — Target Project Design
    - Output: artifact `<output_dir>/modernize/modernize-target-design.md`
+   - Template: `opencode/protocols/MODERNIZE_TEMPLATES.md` section "modernize-target-design.md"
    - Scope: Describe project B — target architecture, directory layout, tech stack, API contract with source during migration.
+   - Depth: This is the "here is what we are building" document. Include concrete technology choices with rationale, proposed directory structure, and explicit non-functional targets. If the user specified scope exclusions, the design MUST reflect them (e.g. "OAuth2 is deferred to Phase 2").
 3) **modernize-migration-strategy** — Migration Strategy
    - Output: artifact `<output_dir>/modernize/modernize-migration-strategy.md`
+   - Template: `opencode/protocols/MODERNIZE_TEMPLATES.md` section "modernize-migration-strategy.md"
    - Scope: How to build B while A runs. Strangler fig boundaries, parallel-run strategy, data migration plan, backward compatibility, cutover criteria.
+   - Depth: This is the "how do we get from A to B" document. Include a refactor-vs-rewrite decision table per major component, concrete rollback triggers, and measurable cutover criteria. If scope exclusions exist, explicitly state what is NOT migrated and why.
 4) **modernize-migration-roadmap** — Migration Roadmap
    - Output: artifact `<output_dir>/modernize/modernize-migration-roadmap.md`
-   - Scope: Phases for B development, A->B cutover milestones, parallel-run period, decommission plan for A.
+   - Template: `opencode/protocols/MODERNIZE_TEMPLATES.md` section "modernize-migration-roadmap.md"
+   - Scope: Phases for B development, A->B cutover milestones, parallel-run period, decommission plan for A. If user-provided scope exclusions exist, include a "Deferred Scope" section listing excluded items with phase tags.
+   - Depth: This is the "what order do we do things" document. Phases must have concrete deliverables and exit criteria, not just milestone names. Include dependency ordering and estimated effort per phase.
 5) **modernize-migration-risks** — Migration Risks & Governance
    - Output: artifact `<output_dir>/modernize/modernize-migration-risks.md`
+   - Template: `opencode/protocols/MODERNIZE_TEMPLATES.md` section "modernize-migration-risks.md"
    - Scope: Dual-system risks, data consistency risks, cutover risks, rollback scenarios, governance model.
+   - Depth: This is the "what can go wrong and how do we manage it" document. Risk register must have specific entries with concrete mitigation actions and owners — not generic "enforce strict governance" statements.
 
 If `decision_only = true`, dispatch ONLY tasks 1–3.
 
@@ -192,8 +210,26 @@ Artifact Rules:
 - Each artifact filename MUST include the task_id.
 - Artifacts are documentation only; no code or config generation.
 - Artifacts MUST follow the templates in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
-- All artifacts MUST be human-readable: executive summary, table of contents, section numbering, narrative prose.
 - Source and target project paths MUST be referenced in every artifact.
+- No files beyond the 5 listed above + `modernize-index.md` may be created.
+
+Quality Gate (MANDATORY — reject artifacts that fail these):
+- Every artifact MUST start with an `# H1` title, then an Executive Summary paragraph (not a bold header — a full paragraph of 2-4 sentences).
+- Every artifact MUST have a Table of Contents with linked section anchors.
+- Every artifact MUST use numbered sections (`## 1. ...`, `### 1.1 ...`).
+- Every section MUST contain at least one paragraph of narrative prose BEFORE any tables or bullet lists. A section that is only a bold header + one-liner bullet is INVALID.
+- Tables are encouraged for structured data (risk registers, dependency lists, refactor-vs-rewrite criteria) but each table MUST be preceded by a context paragraph explaining what it shows and how to read it.
+- "Bold header + one-liner" format (e.g. `**Risks**\nHigh coupling.`) is EXPLICITLY PROHIBITED. This format is a note, not a document.
+- Minimum depth: each top-level section should be 100+ words unless explicitly marked N/A.
+- If user-provided scope decisions exist (e.g. a core inventory JSON, a list of excluded features), the artifacts MUST reference and incorporate that data — not re-derive it from scratch.
+
+Handoff Content for Subagent Tasks:
+When dispatching each document task to a subagent, the orchestrator MUST include in the handoff:
+1. The artifact filepath and template section reference from `MODERNIZE_TEMPLATES.md`.
+2. The quality gate rules above (copy them into the handoff).
+3. All relevant context gathered from Stage 0 and Stage 1 (ProblemSpec, PlanOutline).
+4. Any user-provided inputs (e.g. scope inventories, excluded feature lists).
+5. Explicit instruction: "Your output is the FINAL deliverable read by human engineers and managers. It is NOT an intermediate pipeline artifact."
 
 Stage 3: Synthesis
 
@@ -224,6 +260,8 @@ Stage 3: Synthesis
 - The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
 - Provide a short handoff note for `/run-pipeline` usage in the target project.
+- Do NOT produce any additional files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
+- The final file list MUST be exactly: 5 modernize artifacts + 1 `modernize-index.md` = 6 files total.
 
 Stage 4: Revision Loop (optional)
 

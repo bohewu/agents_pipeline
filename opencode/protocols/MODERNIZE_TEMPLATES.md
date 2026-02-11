@@ -10,8 +10,8 @@ All artifacts follow a **Source-to-Target migration model**:
 ## Format Requirements
 
 Every artifact MUST be human-readable and include:
-1. **Executive Summary** (2-3 sentences at the very top)
-2. **Table of Contents** (linked section list)
+1. **Executive Summary** (2-3 sentences at the very top, as a full paragraph)
+2. **Table of Contents** (linked section list with anchors)
 3. **Section Numbering** (1, 1.1, 1.2, ...)
 4. **Narrative Prose** (not just headers — every section must have substantive text)
 5. **Source/Target References** (every artifact must reference both project paths)
@@ -19,6 +19,39 @@ Every artifact MUST be human-readable and include:
 If a section is not applicable, write `N/A` with a short reason.
 
 > **Note:** Paths below show the default `.pipeline-output/` convention. When `--output-dir` is used, substitute accordingly.
+
+## Quality Bar (MANDATORY)
+
+These rules define the minimum acceptable quality for every artifact. Artifacts that violate these MUST be rejected during review.
+
+### What good looks like
+
+- Every section starts with a paragraph explaining the context BEFORE any tables or lists.
+- Tables have introductory text (e.g. "The following table maps each legacy component to a refactor-vs-rewrite recommendation based on coupling and risk.").
+- Risk entries cite specific code paths, dependencies, or architectural patterns — not generic categories.
+- Recommendations include concrete actions (e.g. "Replace `FormsAuthentication.SetAuthCookie()` with `HttpContext.SignInAsync()` using a custom `ClaimsPrincipal`").
+- File and class references use the format `path/to/File.cs:ClassName` when referencing specific code.
+
+### Anti-patterns (EXPLICITLY PROHIBITED)
+
+1. **Bold-header-one-liner** — A section that is just `**Header**\nOne sentence.` with no depth. This is a note, not a document.
+2. **Generic risk statements** — "High coupling makes refactors risky" without specifying WHICH coupling, WHERE, and HOW it manifests.
+3. **Pipeline self-certification** — Any content whose purpose is proving the pipeline "did its job" (e.g. DoD checklists, evidence indexes, proof bundles, trace matrices). These are internal pipeline artifacts and MUST NOT be in user-facing documents.
+4. **Invented governance processes** — Creating elaborate gate/review/approval frameworks that the user didn't ask for and won't use. Keep governance sections practical and lightweight unless the user explicitly requests formal governance.
+5. **Duplicate files** — Creating separate files for deferred scope, handoff prompts, or inventory dumps. All content belongs in the 5 defined artifacts.
+
+### Minimum depth per section
+
+- Each top-level section (## level) should contain at least 100 words of prose unless explicitly marked N/A.
+- Subsections (### level) should contain at least 50 words.
+- If a section genuinely has nothing to say, write `N/A — [reason]` rather than padding with generic text.
+
+### Deferred scope handling
+
+If the user provides scope exclusions (features to remove, controllers to defer, modules to skip):
+- Do NOT create a separate `deferred-backlog-register.md` or similar file.
+- Include a "Deferred Scope" section in `modernize-migration-roadmap.md` listing excluded items with phase tags and rationale.
+- Reference the deferred items in other documents where relevant (e.g. the source assessment should note which modules are excluded, the strategy should explain why they're excluded).
 
 ---
 
@@ -54,247 +87,386 @@ Target: <target project path>
 
 ## .pipeline-output/modernize/modernize-source-assessment.md
 
-**Executive Summary**
-<2-3 sentences summarizing the current state of project A and its migration readiness.>
+```markdown
+# Source Assessment — <project name>
 
-**Table of Contents**
-1. Source Project Overview
-2. Architecture Snapshot
-3. Key Dependencies
-4. Operational Pain Points
-5. Performance Bottlenecks
-6. Security & Compliance Gaps
-7. Technical Debt Inventory
-8. Migration Readiness Score
-9. Risks
-10. Open Questions
+> **Source:** <source project path>
+> **Target:** <target project path>
 
-### 1. Source Project Overview
-<Project path, language/framework, team size, age, deployment model.>
+<Executive summary: 2-4 sentences describing the current state of project A, its primary technology stack, and its overall migration readiness. Example: "NetService is a .NET Framework 4.8 ASP.NET MVC monolith serving authentication, user management, and several internal business modules. The system uses EF6 with EDMX models, OWIN middleware, and custom Forms Authentication. Migration readiness is moderate — the core auth and CRUD flows are well-structured but tightly coupled to System.Web primitives, and several security practices (MD5 hashing, plaintext config secrets) require modernization.">
 
-### 2. Architecture Snapshot
-<High-level architecture description. Describe layers, services, data flow.>
+## Table of Contents
 
-### 3. Key Dependencies
-<External services, libraries, infrastructure dependencies. Version constraints.>
+1. [Source Project Overview](#1-source-project-overview)
+2. [Architecture Snapshot](#2-architecture-snapshot)
+3. [Key Dependencies](#3-key-dependencies)
+4. [Operational Pain Points](#4-operational-pain-points)
+5. [Performance Bottlenecks](#5-performance-bottlenecks)
+6. [Security & Compliance Gaps](#6-security--compliance-gaps)
+7. [Technical Debt Inventory](#7-technical-debt-inventory)
+8. [Migration Readiness Score](#8-migration-readiness-score)
+9. [Risks](#9-risks)
+10. [Open Questions](#10-open-questions)
 
-### 4. Operational Pain Points
-<What causes friction in development, deployment, or operations.>
+## 1. Source Project Overview
 
-### 5. Performance Bottlenecks
-<Known performance issues, scaling limits, resource constraints.>
+<Project path, solution structure, language/framework versions, deployment model, team context. Include specific file references (e.g. "The solution `NetService.sln` contains two projects...").>
 
-### 6. Security & Compliance Gaps
-<Known vulnerabilities, compliance requirements not met, outdated dependencies.>
+## 2. Architecture Snapshot
 
-### 7. Technical Debt Inventory
-<Categorized list of tech debt items with estimated severity (high/medium/low).>
+<High-level architecture description. Layers, services, data flow, entry points. Describe the request pipeline, middleware stack, authentication flow, and how controllers are organized. Include a logical architecture diagram in text/ASCII if helpful.>
 
-### 8. Migration Readiness Score
-<Per-component readiness assessment: high/medium/low. Which parts are easiest to migrate first.>
+## 3. Key Dependencies
 
-### 9. Risks
-<Risks specific to understanding or analyzing the source system.>
+<External services, libraries, infrastructure dependencies with version numbers. Organize by category (runtime, data, auth, DI, integration). Reference specific config files (packages.config, Web.config, etc.).>
 
-### 10. Open Questions
-<What needs clarification before proceeding.>
+## 4. Operational Pain Points
+
+<What causes friction in development, deployment, or operations. Be specific — cite concrete examples from the codebase, not generic observations.>
+
+## 5. Performance Bottlenecks
+
+<Known performance issues with evidence. Reference specific query patterns, EF context usage, request pipeline inefficiencies.>
+
+## 6. Security & Compliance Gaps
+
+<Known vulnerabilities, weak practices, outdated dependencies. Include file paths where issues are found (e.g. "MD5 hashing in `Utils/HashHelper.cs`").>
+
+## 7. Technical Debt Inventory
+
+<Categorized list of tech debt items with severity (high/medium/low). Each item should reference specific code locations.>
+
+## 8. Migration Readiness Score
+
+<Per-component readiness assessment. Which parts are easiest to migrate first and why. Use a table:>
+
+| Component | Readiness | Rationale |
+|-----------|-----------|-----------|
+| ... | High/Medium/Low | ... |
+
+## 9. Risks
+
+<Risks specific to understanding or analyzing the source system. Each risk should be specific, not generic.>
+
+## 10. Open Questions
+
+<What needs clarification before proceeding. Reference specific areas of the codebase where analysis was inconclusive.>
+```
 
 ---
 
 ## .pipeline-output/modernize/modernize-target-design.md
 
-**Executive Summary**
-<2-3 sentences describing the target project B — what it will look like and the key architectural choices.>
+```markdown
+# Target Design — <project name>
 
-**Table of Contents**
-1. Target Project Overview
-2. Target Architecture
-3. Directory Layout
-4. Tech Stack Choices
-5. Non-Functional Goals
-6. Modularity Strategy
-7. Data Strategy
-8. Observability Strategy
-9. API Contract with Source (During Migration)
-10. Key Tradeoffs
-11. Open Questions
+> **Source:** <source project path>
+> **Target:** <target project path>
 
-### 1. Target Project Overview
-<Project path, name, relationship to source project A.>
+<Executive summary: 2-4 sentences describing the target project B — what it will look like, the key architectural choices, and the relationship to project A. Example: "The target system will be a container-first ASP.NET Core application on .NET 10, deployed as a modular monolith with clear domain boundaries. Phase 1 focuses exclusively on core authentication, user/vendor management, and the application shell — deferring OAuth2 and integration-heavy modules to later phases. The target uses EF Core with a single application context, built-in DI, and cookie-based authentication replacing the legacy Forms Auth stack.">
 
-### 2. Target Architecture
-<High-level architecture of project B. Layers, services, data flow.>
+## Table of Contents
 
-### 3. Directory Layout
-<Proposed directory structure for the target project.>
+1. [Target Project Overview](#1-target-project-overview)
+2. [Target Architecture](#2-target-architecture)
+3. [Directory Layout](#3-directory-layout)
+4. [Tech Stack Choices](#4-tech-stack-choices)
+5. [Non-Functional Goals](#5-non-functional-goals)
+6. [Modularity Strategy](#6-modularity-strategy)
+7. [Data Strategy](#7-data-strategy)
+8. [Observability Strategy](#8-observability-strategy)
+9. [API Contract with Source (During Migration)](#9-api-contract-with-source-during-migration)
+10. [Key Tradeoffs](#10-key-tradeoffs)
+11. [Open Questions](#11-open-questions)
 
-### 4. Tech Stack Choices
-<Language, framework, database, infrastructure choices and rationale.>
+## 1. Target Project Overview
 
-### 5. Non-Functional Goals
-<Performance targets, scalability requirements, reliability SLAs.>
+<Project path, name, relationship to source project A. What is being built and what is explicitly NOT being built in this phase.>
 
-### 6. Modularity Strategy
-<How the system is decomposed. Service boundaries, module boundaries.>
+## 2. Target Architecture
 
-### 7. Data Strategy
-<Database design direction, data migration approach, dual-write considerations.>
+<High-level architecture of project B. Layers, services, data flow. Include a logical architecture diagram in text/ASCII if helpful. Explain how the architecture addresses the pain points identified in the source assessment.>
 
-### 8. Observability Strategy
-<Logging, monitoring, alerting, tracing approach for project B.>
+## 3. Directory Layout
 
-### 9. API Contract with Source (During Migration)
-<How A and B communicate during the parallel-run period. Compatibility layer, shared interfaces.>
+<Proposed directory structure for the target project. Use a tree diagram. Explain the rationale for the layout choices.>
 
-### 10. Key Tradeoffs
-<Major tradeoffs made in the target design and their rationale.>
+## 4. Tech Stack Choices
 
-### 11. Open Questions
-<Decisions that need stakeholder input.>
+<Language, framework, database, infrastructure choices with version targets and rationale for each choice. Use a table:>
+
+| Layer | Technology | Version | Rationale |
+|-------|-----------|---------|-----------|
+| ... | ... | ... | ... |
+
+## 5. Non-Functional Goals
+
+<Performance targets, scalability requirements, reliability SLAs. Be specific and measurable where possible.>
+
+## 6. Modularity Strategy
+
+<How the system is decomposed. Module boundaries, dependency rules, interface contracts.>
+
+## 7. Data Strategy
+
+<Database design direction, EF Core context strategy, data migration approach. If consolidating contexts, explain the entity groupings and why.>
+
+## 8. Observability Strategy
+
+<Logging, monitoring, alerting, tracing approach for project B. What gets instrumented and why.>
+
+## 9. API Contract with Source (During Migration)
+
+<How A and B coexist during the parallel-run period. Shared interfaces, routing strategy, data consistency approach. If there is no parallel run (full cutover), explain why.>
+
+## 10. Key Tradeoffs
+
+<Major tradeoffs made in the target design and their rationale. Each tradeoff should explain what was gained and what was given up.>
+
+## 11. Open Questions
+
+<Decisions that need stakeholder input before target design is finalized.>
+```
 
 ---
 
 ## .pipeline-output/modernize/modernize-migration-strategy.md
 
-**Executive Summary**
-<2-3 sentences on the chosen migration approach — strangler fig, big bang, or incremental — and why.>
+```markdown
+# Migration Strategy — <project name>
 
-**Table of Contents**
-1. Migration Approach
-2. Strangler Fig Boundaries
-3. Parallel-Run Strategy
-4. Data Migration Plan
-5. Backward Compatibility
-6. Cutover Criteria
-7. Rollback Plan
-8. Dependencies Sequencing
-9. Risk Mitigations
-10. Open Questions
+> **Source:** <source project path>
+> **Target:** <target project path>
 
-### 1. Migration Approach
-<Refactor vs. rewrite decision. Chosen strategy and rationale.>
+<Executive summary: 2-4 sentences on the chosen migration approach — strangler fig, big bang, or incremental — and why. Example: "We will use an incremental strangler-fig migration, building the target system route-by-route while the legacy system continues to serve production traffic. Each migration slice covers a controller group with independent cutover and rollback capability. The strategy prioritizes the auth and session layer first (highest risk, most coupling to System.Web), followed by admin CRUD controllers in dependency order.">
 
-### 2. Strangler Fig Boundaries
-<Which components/routes/services get migrated first. How traffic is split between A and B.>
+## Table of Contents
 
-### 3. Parallel-Run Strategy
-<How A and B run simultaneously. Traffic routing, feature flags, shadow mode.>
+1. [Migration Approach](#1-migration-approach)
+2. [Strangler Fig Boundaries](#2-strangler-fig-boundaries)
+3. [Refactor vs. Rewrite Decisions](#3-refactor-vs-rewrite-decisions)
+4. [Parallel-Run Strategy](#4-parallel-run-strategy)
+5. [Data Migration Plan](#5-data-migration-plan)
+6. [Backward Compatibility](#6-backward-compatibility)
+7. [Cutover Criteria](#7-cutover-criteria)
+8. [Rollback Plan](#8-rollback-plan)
+9. [Dependencies Sequencing](#9-dependencies-sequencing)
+10. [Risk Mitigations](#10-risk-mitigations)
+11. [Open Questions](#11-open-questions)
 
-### 4. Data Migration Plan
-<How data moves from A to B. Dual-write, ETL, event sourcing, or snapshot approaches.>
+## 1. Migration Approach
 
-### 5. Backward Compatibility
-<What compatibility guarantees exist during migration. API versioning, shared schemas.>
+<Overall strategy choice and rationale. Why this approach was chosen over alternatives.>
 
-### 6. Cutover Criteria
-<Measurable criteria for when a component can be cut over from A to B.>
+## 2. Strangler Fig Boundaries
 
-### 7. Rollback Plan
-<How to roll back to A if B fails. Per-component and full-system rollback.>
+<Which components/routes/services get migrated first and why. How traffic is split between A and B during migration. Include a table mapping migration slices to controller groups:>
 
-### 8. Dependencies Sequencing
-<Order of component migration based on coupling and risk.>
+| Slice | Controllers/Routes | Prerequisite | Rationale |
+|-------|-------------------|--------------|-----------|
+| ... | ... | ... | ... |
 
-### 9. Risk Mitigations
-<Strategy-level risk mitigations.>
+## 3. Refactor vs. Rewrite Decisions
 
-### 10. Open Questions
+<Decision table for each major component. Include the decision criteria used.>
+
+The following table maps each legacy component area to a refactor-vs-rewrite recommendation:
+
+| Area | Decision | Criteria Applied | Notes |
+|------|----------|-----------------|-------|
+| ... | Refactor/Rewrite/Defer | ... | ... |
+
+## 4. Parallel-Run Strategy
+
+<How A and B run simultaneously. Traffic routing mechanism, feature flags, shadow mode. If no parallel run, explain why.>
+
+## 5. Data Migration Plan
+
+<How data moves from A to B. Schema changes, dual-write strategy, ETL, or shared-database approach.>
+
+## 6. Backward Compatibility
+
+<What compatibility guarantees exist during migration. Route stability, API versioning, shared schemas.>
+
+## 7. Cutover Criteria
+
+<Measurable criteria for when a component can be cut over from A to B. Include specific metrics and thresholds.>
+
+## 8. Rollback Plan
+
+<How to roll back to A if B fails. Per-slice and full-system rollback procedures. Include rollback triggers (what conditions trigger a rollback).>
+
+## 9. Dependencies Sequencing
+
+<Order of component migration based on coupling and risk. Explain dependency chains.>
+
+## 10. Risk Mitigations
+
+<Strategy-level risk mitigations. Each mitigation should reference a specific risk from the risk register.>
+
+## 11. Open Questions
+
 <Strategy decisions requiring more information.>
+```
 
 ---
 
 ## .pipeline-output/modernize/modernize-migration-roadmap.md
 
-**Executive Summary**
-<2-3 sentences on the timeline — how many phases, estimated duration, key milestones.>
+```markdown
+# Migration Roadmap — <project name>
 
-**Table of Contents**
-1. Phase Overview
-2. Phase 0: Target Scaffold
-3. Phase 1–N: Component Migration
-4. Cutover Phase
-5. Parallel-Run Period
-6. Decommission Plan for Source
-7. Milestones
-8. Dependencies
-9. Exit Criteria
-10. Open Questions
+> **Source:** <source project path>
+> **Target:** <target project path>
 
-### 1. Phase Overview
-<High-level timeline with phases and estimated durations.>
+<Executive summary: 2-4 sentences on the timeline — how many phases, estimated duration, key milestones. Example: "The migration is organized into 4 phases over approximately 12-16 weeks. Phase 0 establishes the container baseline and project scaffold. Phase 1 migrates core authentication and the application shell. Phases 2-3 cover identity expansion and business module migration respectively, with each phase gated by parity verification before cutover.">
 
-### 2. Phase 0: Target Scaffold
-<Initial setup of project B — repo creation, CI/CD, base infrastructure.>
+## Table of Contents
 
-### 3. Phase 1–N: Component Migration
-<Per-phase breakdown. Which components move in which phase, deliverables, acceptance criteria.>
+1. [Phase Overview](#1-phase-overview)
+2. [Phase 0: Target Scaffold](#2-phase-0-target-scaffold)
+3. [Phase 1–N: Component Migration](#3-phase-1n-component-migration)
+4. [Cutover Phase](#4-cutover-phase)
+5. [Parallel-Run Period](#5-parallel-run-period)
+6. [Decommission Plan for Source](#6-decommission-plan-for-source)
+7. [Deferred Scope](#7-deferred-scope)
+8. [Milestones](#8-milestones)
+9. [Dependencies](#9-dependencies)
+10. [Exit Criteria](#10-exit-criteria)
+11. [Open Questions](#11-open-questions)
 
-### 4. Cutover Phase
-<Final migration phase — traffic switch, DNS, database cutover.>
+## 1. Phase Overview
 
-### 5. Parallel-Run Period
-<Duration and exit criteria for running A and B simultaneously.>
+<High-level timeline with phases and estimated durations. A summary table is helpful:>
 
-### 6. Decommission Plan for Source
+| Phase | Focus | Duration | Key Deliverable |
+|-------|-------|----------|-----------------|
+| ... | ... | ... | ... |
+
+## 2. Phase 0: Target Scaffold
+
+<Initial setup of project B — repo creation, CI/CD, base infrastructure, container baseline. Concrete deliverables and exit criteria.>
+
+## 3. Phase 1–N: Component Migration
+
+<Per-phase breakdown. Each phase should include:>
+- Which components move in this phase
+- Specific deliverables
+- Acceptance criteria / parity checks
+- Dependencies on prior phases
+- Estimated effort
+
+## 4. Cutover Phase
+
+<Final migration phase — traffic switch, DNS, database cutover. Step-by-step cutover procedure.>
+
+## 5. Parallel-Run Period
+
+<Duration and exit criteria for running A and B simultaneously. Monitoring and comparison strategy.>
+
+## 6. Decommission Plan for Source
+
 <How project A is shut down after full cutover. Data archival, DNS teardown, team transition.>
 
-### 7. Milestones
-<Key milestone dates/triggers.>
+## 7. Deferred Scope
 
-### 8. Dependencies
+<Items explicitly excluded from the current migration scope. This section replaces any separate deferred-backlog file.>
+
+If the user specified scope exclusions, list them here with rationale and future phase assignment:
+
+| Item | Type | Rationale for Deferral | Target Phase |
+|------|------|----------------------|--------------|
+| ... | ... | ... | Phase N |
+
+<Include an explicit exclusion statement: these items are NOT part of the current migration scope and must not be pulled in without formal approval.>
+
+## 8. Milestones
+
+<Key milestone dates/triggers with measurable criteria.>
+
+## 9. Dependencies
+
 <Cross-team or external dependencies that affect the timeline.>
 
-### 9. Exit Criteria
-<What defines "done" for the entire modernization.>
+## 10. Exit Criteria
 
-### 10. Open Questions
+<What defines "done" for the entire modernization. Measurable and verifiable criteria.>
+
+## 11. Open Questions
+
 <Timeline uncertainties.>
+```
 
 ---
 
 ## .pipeline-output/modernize/modernize-migration-risks.md
 
-**Executive Summary**
-<2-3 sentences on the top risks and the governance model for managing them.>
+```markdown
+# Migration Risks & Governance — <project name>
 
-**Table of Contents**
-1. Risk Register
-2. Dual-System Risks
-3. Data Consistency Risks
-4. Cutover Risks
-5. Rollback Scenarios
-6. Operational Risks
-7. Security Risks
-8. Mitigations
-9. Governance Model
-10. Open Questions
+> **Source:** <source project path>
+> **Target:** <target project path>
 
-### 1. Risk Register
-<Table: Risk ID, Description, Likelihood, Impact, Mitigation, Owner.>
+<Executive summary: 2-4 sentences on the top risks and the governance model for managing them. Example: "The highest risks in this migration are the custom authentication migration (Forms Auth to ASP.NET Core cookie auth) and hidden cross-module dependencies that may surface during core-only migration. A lightweight weekly review cycle with three gate checkpoints governs scope control, auth hardening, and cutover readiness. Six specific blockers have been identified, with the most critical being plaintext secret exposure requiring immediate remediation.">
 
-### 2. Dual-System Risks
-<Risks from running A and B simultaneously — drift, inconsistency, operational overhead.>
+## Table of Contents
 
-### 3. Data Consistency Risks
-<Risks from data existing in both systems — conflicts, stale reads, replication lag.>
+1. [Risk Register](#1-risk-register)
+2. [Dual-System Risks](#2-dual-system-risks)
+3. [Data Consistency Risks](#3-data-consistency-risks)
+4. [Cutover Risks](#4-cutover-risks)
+5. [Rollback Scenarios](#5-rollback-scenarios)
+6. [Operational Risks](#6-operational-risks)
+7. [Security Risks](#7-security-risks)
+8. [Mitigations](#8-mitigations)
+9. [Governance Model](#9-governance-model)
+10. [Open Questions](#10-open-questions)
 
-### 4. Cutover Risks
-<Risks during the final switch — downtime, data loss, rollback failure.>
+## 1. Risk Register
 
-### 5. Rollback Scenarios
-<Specific scenarios where rollback is needed and how each is handled.>
+The following table summarizes all identified migration risks. Each risk has a unique ID for cross-referencing in other documents.
 
-### 6. Operational Risks
-<Team capacity, knowledge gaps, tooling gaps, infrastructure risks.>
+| ID | Risk | Likelihood | Impact | Priority | Mitigation | Owner |
+|----|------|-----------|--------|----------|------------|-------|
+| R1 | ... | High/Med/Low | Critical/High/Med/Low | ... | ... | ... |
 
-### 7. Security Risks
-<New attack surfaces, credential management across two systems, compliance gaps.>
+## 2. Dual-System Risks
 
-### 8. Mitigations
-<Consolidated mitigation plan for the highest-impact risks.>
+<Risks from running A and B simultaneously — drift, inconsistency, operational overhead. Be specific about which components create dual-system risk.>
 
-### 9. Governance Model
-<Decision-making process, escalation paths, review cadence, stakeholder communication.>
+## 3. Data Consistency Risks
 
-### 10. Open Questions
-<Risk-related unknowns.>
+<Risks from data existing in both systems — conflicts, stale reads, replication lag. Reference specific tables/entities.>
+
+## 4. Cutover Risks
+
+<Risks during the final switch — downtime, data loss, rollback failure. Include specific failure scenarios.>
+
+## 5. Rollback Scenarios
+
+<Specific scenarios where rollback is needed and how each is handled. Include trigger conditions, rollback procedure, and expected recovery time.>
+
+## 6. Operational Risks
+
+<Team capacity, knowledge gaps, tooling gaps, infrastructure risks. Be concrete.>
+
+## 7. Security Risks
+
+<New attack surfaces, credential management across two systems, compliance gaps. Reference specific code paths and configuration issues.>
+
+## 8. Mitigations
+
+<Consolidated mitigation plan for the highest-impact risks. Each mitigation should reference its risk ID and include:>
+- Specific action to take
+- Who is responsible
+- When it must be completed
+- How to verify it worked
+
+## 9. Governance Model
+
+<Decision-making process, escalation paths, review cadence, stakeholder communication. Keep this practical and lightweight — do not invent elaborate multi-gate approval frameworks unless the user explicitly requests formal governance.>
+
+## 10. Open Questions
+
+<Risk-related unknowns that need investigation or stakeholder input.>
+```
