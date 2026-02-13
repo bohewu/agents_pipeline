@@ -3,15 +3,15 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Download a release bundle and run install.sh without cloning this repository.
+Download a release bundle and run install-copilot.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--no-backup] [--dry-run] [--keep-temp]
+  scripts/bootstrap-install-copilot.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--no-backup] [--dry-run] [--keep-temp]
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
   --version <value>     Release tag (for example: v0.2.0) or latest (default: latest)
-  --target <path>       Install destination (forwarded to install.sh)
+  --target <path>       Install destination (forwarded to install-copilot.sh)
   --no-backup           Do not back up existing installed files
   --dry-run             Resolve release and print actions only
   --keep-temp           Keep downloaded temporary files
@@ -125,7 +125,7 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
   exit 0
 fi
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agents-pipeline-bootstrap.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agents-pipeline-bootstrap-copilot.XXXXXX")"
 ASSET_NAME="$(basename "${ASSET_URL}")"
 SUMS_NAME="$(basename "${SUMS_URL}")"
 ARCHIVE_PATH="${TMP_DIR}/${ASSET_NAME}"
@@ -175,7 +175,7 @@ if [[ -z "${BUNDLE_DIR}" ]]; then
   exit 1
 fi
 
-INSTALL_SCRIPT="${BUNDLE_DIR}/scripts/install.sh"
+INSTALL_SCRIPT="${BUNDLE_DIR}/scripts/install-copilot.sh"
 if [[ ! -f "${INSTALL_SCRIPT}" ]]; then
   echo "Install script not found in bundle: ${INSTALL_SCRIPT}" >&2
   exit 1

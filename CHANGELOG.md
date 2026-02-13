@@ -8,7 +8,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Added
 
-- No changes yet.
+- VS Code Copilot agent export CLI (`scripts/export-copilot-agents.py`).
+- Copilot installers (`scripts/install-copilot.ps1`, `scripts/install-copilot.sh`).
+- Copilot bootstrap installers (`scripts/bootstrap-install-copilot.ps1`, `scripts/bootstrap-install-copilot.sh`).
+- Copilot mapping documentation (`docs/copilot-mapping.md`).
+
+### Changed
+
+- CI now validates Copilot export/install dry-run paths.
+- Release bundle now includes Copilot installer/export scripts.
 
 ## [0.2.0] - 2026-02-13
 

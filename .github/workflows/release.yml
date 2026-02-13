@@ -77,8 +77,13 @@ jobs:
           cp opencode.json.example "dist/${BUNDLE_DIR}/"
           cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
 
           (
             cd dist

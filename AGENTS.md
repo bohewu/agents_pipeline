@@ -2,6 +2,7 @@
 
 This catalog lists all agents and their roles.
 Model selection is runtime-driven by OpenCode/provider configuration, not pinned per-agent in this repo.
+VS Code Copilot `.agent.md` outputs are generated from `opencode/agents/*.md` via `scripts/export-copilot-agents.py` and should not be hand-edited.
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|

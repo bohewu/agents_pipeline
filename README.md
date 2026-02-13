@@ -11,7 +11,8 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 ### Required Tools
 
 - OpenCode (with model providers configured)
-- Python 3.9+ (required for `opencode/tools/validate-schema.py`)
+- VS Code with GitHub Copilot (for Copilot custom-agent usage)
+- Python 3.9+ (required for `opencode/tools/validate-schema.py` and `scripts/export-copilot-agents.py`)
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
 - `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
 
@@ -61,6 +62,56 @@ pwsh -NoProfile -File scripts/install.ps1 -NoBackup
 bash scripts/install.sh --no-backup
 ```
 
+## Install Copilot Agents (Recommended)
+
+Generate and install VS Code Copilot custom agents to your global Copilot location.
+
+Default target:
+- Windows: `%APPDATA%\copilot\agents`
+- macOS/Linux: `${XDG_CONFIG_HOME:-~/.config}/copilot/agents`
+
+Windows (PowerShell):
+
+```powershell
+pwsh -NoProfile -File scripts/install-copilot.ps1
+```
+
+macOS/Linux:
+
+```bash
+bash scripts/install-copilot.sh
+```
+
+Preview only (no file writes):
+
+```powershell
+pwsh -NoProfile -File scripts/install-copilot.ps1 -DryRun
+```
+
+```bash
+bash scripts/install-copilot.sh --dry-run
+```
+
+Custom target path:
+
+```powershell
+pwsh -NoProfile -File scripts/install-copilot.ps1 -Target C:\path\to\copilot\agents
+```
+
+```bash
+bash scripts/install-copilot.sh --target /path/to/copilot/agents
+```
+
+Skip backup:
+
+```powershell
+pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup
+```
+
+```bash
+bash scripts/install-copilot.sh --no-backup
+```
+
 ## Install Without Clone (Release Bundle)
 
 Use bootstrap installers to download a release bundle and install without cloning this repo.
@@ -94,6 +145,36 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
 ```
 
+## Install Copilot Without Clone (Release Bundle)
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.2.0"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
+pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.2.0"
+curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
+bash ./bootstrap-install-copilot.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
+```
+
 ## Versioning
 
 - Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.2.0`).
@@ -120,6 +201,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - Checks:
   - `VERSION` format and README version-alignment check
   - schema validator script sanity check
+  - Copilot export script strict dry run
   - installer script syntax and dry-run validation
 
 Example release:
@@ -158,6 +240,8 @@ Use whichever tool your team prefers.
 - Agent catalog lives in `AGENTS.md`.
 - Model selection is runtime-driven by OpenCode/provider configuration.
 - This repo does not maintain per-agent default model mappings.
+- VS Code Copilot `.agent.md` files are generated from OpenCode source by `scripts/export-copilot-agents.py`.
+- Copilot mapping details live in `docs/copilot-mapping.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
@@ -177,6 +261,32 @@ Use whichever tool your team prefers.
 - Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 - Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
+
+## VS Code Copilot Agents
+
+This repo can generate VS Code Copilot custom agents from `opencode/agents/*.md` with single-source maintenance.
+
+- Generate agents directly:
+
+```text
+python scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir /path/to/copilot/agents --strict
+```
+
+- Experimental subagent mode:
+  - Generated orchestrators include `agents:` references for Copilot subagent routing (experimental behavior).
+- Fallback mode:
+  - Generated `*-solo.agent.md` files run without subagents.
+  - Example: `@orchestrator-pipeline-solo`
+
+After install, add your generated directory to VS Code user settings:
+
+```json
+{
+  "chat.agentFilesLocations": [
+    "/path/to/copilot/agents"
+  ]
+}
+```
 
 ## Quick Start
 
