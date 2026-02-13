@@ -10,6 +10,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.2.0] - 2026-02-13
+
+### Changed
+
+- Removed per-agent model mapping management (`agent-models.json` and sync script).
+- Switched model selection to runtime-driven behavior in docs and workflows.
+- Neutralized executor naming and routing schema fields (`executor-core`, `executor-advanced`, `advanced_reserve_tasks`).
+
 ## [0.1.1] - 2026-02-06
 
 ### Added
