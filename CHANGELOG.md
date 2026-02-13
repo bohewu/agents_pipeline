@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Added
 
+- No changes yet.
+
+## [0.3.0] - 2026-02-13
+
+### Added
+
 - VS Code Copilot agent export CLI (`scripts/export-copilot-agents.py`).
 - Copilot installers (`scripts/install-copilot.ps1`, `scripts/install-copilot.sh`).
 - Copilot bootstrap installers (`scripts/bootstrap-install-copilot.ps1`, `scripts/bootstrap-install-copilot.sh`).
