@@ -2,7 +2,6 @@
 name: committee-security
 description: Committee expert focused on security, privacy, compliance, and risk containment.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.2
 tools:

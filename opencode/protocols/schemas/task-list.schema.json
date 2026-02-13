@@ -44,8 +44,8 @@
           "owner_hint": {
             "type": "string",
             "enum": [
-              "executor-gemini",
-              "executor-gpt",
+              "executor-core",
+              "executor-advanced",
               "peon",
               "generalist",
               "doc-writer"
@@ -87,3 +87,4 @@
   },
   "additionalProperties": false
 }
+

@@ -1,7 +1,6 @@
 ---
 description: Run modernize pipeline for legacy systems (docs-first)
 agent: orchestrator-modernize
-model: openai/gpt-5.3-codex
 ---
 
 # Run Modernize Pipeline

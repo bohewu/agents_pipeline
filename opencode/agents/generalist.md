@@ -2,7 +2,6 @@
 name: generalist
 description: General-purpose executor for mixed-scope tasks.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.2
 tools:

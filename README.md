@@ -6,13 +6,12 @@ This repository demonstrates a **Multi-Agent Pipeline**. It currently includes a
 ## Usage Prerequisites
 
 This repo assumes you have configured the required model providers in OpenCode.
-Agent model identifiers referenced in `opencode/agents/*.md` must be resolvable in your OpenCode config.
-If a model/provider is missing, update `opencode.json` (or your global OpenCode config) before running any commands.
+If no model/provider is available in your OpenCode runtime config, update `opencode.json` (or your global OpenCode config) before running any commands.
 
 ### Required Tools
 
 - OpenCode (with model providers configured)
-- Python 3.9+ (required for `scripts/update-agent-models.py` and `opencode/tools/validate-schema.py`)
+- Python 3.9+ (required for `opencode/tools/validate-schema.py`)
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
 - `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
 
@@ -99,7 +98,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 - Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.1.1`).
 - Use SemVer tags with `v` prefix (for example: `v0.1.1`).
-- Stay in `0.x` while the pipeline, prompts, and model defaults evolve quickly.
+- Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.1.1` -> `v0.2.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
 - Release CI checks `VERSION` and tag alignment (`VERSION=0.1.1` must release as `v0.1.1`).
@@ -120,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
 - Checks:
   - `VERSION` format and README version-alignment check
-  - `scripts/update-agent-models.py` dry run
+  - schema validator script sanity check
   - installer script syntax and dry-run validation
 
 Example release:
@@ -157,9 +156,8 @@ Use whichever tool your team prefers.
 - Agent definitions live in `opencode/agents/` (one file per agent)
 - Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 - Agent catalog lives in `AGENTS.md`.
-- Agent default-model mapping (editable) lives in `agent-models.json`.
-- Sync model defaults from JSON with `python scripts/update-agent-models.py --config agent-models.json --agents AGENTS.md --opencode-root opencode`.
-  This updates `AGENTS.md`, `opencode/agents/*.md`, and `opencode/commands/*.md`.
+- Model selection is runtime-driven by OpenCode/provider configuration.
+- This repo does not maintain per-agent default model mappings.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
@@ -287,9 +285,9 @@ Use flags after the main task prompt. Tokens starting with `--` are treated as f
   - Reviewer does not require build/test evidence
   - Reviewer must add a warning that results are unverified
 - `--budget=low|medium|high`
-  - low: Prefer Gemini Flash / Pro, minimize GPT usage
-  - medium: Default routing
-  - high: Allow GPT-5.3-codex more freely
+  - low: Favor the smallest viable plan and fewer retries
+  - medium: Balanced routing and retries
+  - high: Allow deeper analysis and higher execution rigor
 
 Flag precedence:
 - `--dry` overrides `--test-only` when both are present.

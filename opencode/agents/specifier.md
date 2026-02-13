@@ -2,7 +2,6 @@
 name: specifier
 description: Extracts structured requirements into a ProblemSpec JSON. No solutions.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.1
 tools:

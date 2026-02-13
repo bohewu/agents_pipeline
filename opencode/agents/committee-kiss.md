@@ -2,7 +2,6 @@
 name: committee-kiss
 description: KISS/complexity guard for committee decisions. May raise a soft veto against unnecessary complexity.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.15
 tools:

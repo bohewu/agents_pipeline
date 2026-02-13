@@ -2,7 +2,6 @@
 name: orchestrator-committee
 description: Swarm committee orchestrator for decision-making with multiple expert memos, a KISS soft-veto, and a final judge.
 mode: primary
-model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true

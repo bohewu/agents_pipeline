@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "batches",
-    "gpt_reserve_tasks",
+    "advanced_reserve_tasks",
     "notes"
   ],
   "properties": {
@@ -42,7 +42,7 @@
         "additionalProperties": true
       }
     },
-    "gpt_reserve_tasks": {
+    "advanced_reserve_tasks": {
       "type": "array",
       "items": {
         "type": "string"
@@ -57,3 +57,4 @@
   },
   "additionalProperties": false
 }
+

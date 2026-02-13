@@ -2,7 +2,6 @@
 name: doc-writer
 description: Documentation specialist for design/spec/checklist/analysis outputs.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.2
 tools:

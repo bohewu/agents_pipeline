@@ -2,7 +2,6 @@
 name: repo-scout
 description: Repo scouting specialist. Locates files, patterns, architecture, and risks with minimal cost.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.1
 tools:

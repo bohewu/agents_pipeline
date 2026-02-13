@@ -2,7 +2,6 @@
 name: peon
 description: Low-cost executor for mechanical or repetitive tasks.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.2
 tools:

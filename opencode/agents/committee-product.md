@@ -2,7 +2,6 @@
 name: committee-product
 description: Committee expert focused on user impact, product value, and scope discipline.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.25
 tools:

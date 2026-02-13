@@ -2,7 +2,6 @@
 name: committee-architect
 description: Committee expert focused on architecture, maintainability, and long-term ownership.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.2
 tools:

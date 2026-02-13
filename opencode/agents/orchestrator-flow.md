@@ -2,7 +2,6 @@
 name: orchestrator-flow
 description: Flow Orchestrator with atomic tasks, bounded flow, bounded parallelism, and max-5 task limit.
 mode: primary
-model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
@@ -165,7 +164,7 @@ If `verbose_mode = true` (implies `confirm_mode`):
 - Stage 0 (Repo Scout, optional): @repo-scout
 - Stage 1 (Problem Framing): Orchestrator-owned (no subagent)
 - Stage 2 (Atomic Task Decomposition): Orchestrator-owned (no subagent)
-- Stage 3 (Dispatch & Execution): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
+- Stage 3 (Dispatch & Execution): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
 
 All outputs are written to `<output_dir>/flow/` for traceability.
@@ -202,7 +201,7 @@ Stage 2 — Atomic Task Decomposition
   - no hidden dependencies
 - If a task cannot be atomic, SPLIT it.
 - If more than 5 tasks are needed, MERGE low-risk tasks.
-- Prefer splitting tasks for executor-gemini to reduce context size.
+- Prefer splitting tasks for executor-core to reduce context size.
 - Output:
 ```json
 {
@@ -210,7 +209,7 @@ Stage 2 — Atomic Task Decomposition
     {
       "task_id": "",
       "summary": "",
-      "assigned_executor": "executor-gpt | executor-gemini | doc-writer",
+      "assigned_executor": "executor-advanced | executor-core | doc-writer",
       "expected_output": "design | plan | spec | checklist | analysis | implementation",
       "atomic": true
     }
@@ -270,3 +269,4 @@ If expected_output is implementation:
 - No reviewer involvement.
 
 STOP after synthesis.
+

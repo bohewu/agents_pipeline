@@ -1,8 +1,7 @@
 ---
-name: executor-gemini
-description: Executes one atomic task using Gemini 3 Pro (cost-effective). Must provide evidence.
+name: executor-advanced
+description: Executes one atomic task using a high-rigor execution profile. Use for high-risk/complex tasks only.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 temperature: 0.2
 tools:
   read: true
@@ -39,3 +38,4 @@ Rules:
   "notes": "",
   "followups": []
 }
+

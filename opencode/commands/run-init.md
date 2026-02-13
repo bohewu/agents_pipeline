@@ -1,7 +1,6 @@
 ---
 description: Run Init pipeline for greenfield projects
 agent: orchestrator-init
-model: openai/gpt-5.3-codex
 ---
 
 # Run Init Pipeline

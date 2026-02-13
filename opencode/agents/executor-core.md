@@ -1,8 +1,7 @@
 ---
-name: executor-gpt
-description: Executes one atomic task using GPT-5.3-codex (high quality). Use for high-risk/complex tasks only.
+name: executor-core
+description: Executes one atomic task using a cost-effective execution profile. Must provide evidence.
 mode: subagent
-model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
@@ -39,3 +38,4 @@ Rules:
   "notes": "",
   "followups": []
 }
+

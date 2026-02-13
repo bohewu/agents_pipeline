@@ -2,7 +2,6 @@
 name: committee-qa
 description: Committee expert focused on testing strategy, reliability, observability, and regressions.
 mode: subagent
-model: google/antigravity-gemini-3-pro
 hidden: true
 temperature: 0.2
 tools:

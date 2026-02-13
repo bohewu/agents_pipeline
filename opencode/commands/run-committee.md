@@ -1,7 +1,6 @@
 ---
 description: Run decision committee (experts + KISS soft-veto + judge)
 agent: orchestrator-committee
-model: openai/gpt-5.3-codex
 ---
 
 # Run Committee

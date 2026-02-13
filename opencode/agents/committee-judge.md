@@ -2,7 +2,6 @@
 name: committee-judge
 description: Final judge for committee outputs. Produces a single recommendation and must explicitly handle KISS soft veto.
 mode: subagent
-model: openai/gpt-5.3-codex
 hidden: true
 temperature: 0.15
 tools:

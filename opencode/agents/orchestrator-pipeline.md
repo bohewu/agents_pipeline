@@ -1,8 +1,7 @@
 ---
 name: orchestrator-pipeline
-description: Primary orchestrator for the full pipeline with cost-aware routing, review gates, retries, and context compression.
+description: Primary orchestrator for the full pipeline with budget-aware routing, review gates, retries, and context compression.
 mode: primary
-model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
@@ -19,8 +18,8 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 
 - Do NOT directly implement code changes. Delegate to subagents.
 - TaskList (from atomizer) is the single source of truth.
-- Prefer cheap models for exploration/summarization/mechanical work.
-- Use GPT-5.3-codex for: atomicization, integration review, tricky reasoning, conflict resolution.
+- Prefer low-cost execution paths for exploration/summarization/mechanical work.
+- Reserve high-rigor execution paths for atomicization, integration review, tricky reasoning, and conflict resolution.
 - Enforce the embedded global handoff protocol below for every handoff.
 
 # HANDOFF PROTOCOL (GLOBAL)
@@ -196,7 +195,7 @@ If `verbose_mode = true` (implies `confirm_mode = true`):
 - Stage 2 (Repo Scout): @repo-scout
 - Stage 3 (Atomicization): @atomizer
 - Stage 4 (Routing): @router
-- Stage 5 (Execution): @executor-gemini / @executor-gpt / @peon / @generalist / @doc-writer
+- Stage 5 (Execution): @executor-core / @executor-advanced / @peon / @generalist / @doc-writer
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression): @compressor
@@ -208,10 +207,10 @@ Stage 0: @specifier -> ProblemSpec JSON
 Stage 1: @planner -> PlanOutline JSON
 Stage 2: @repo-scout -> RepoFindings JSON (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> TaskList JSON (atomic DAG)
-Stage 4: @router -> DispatchPlan JSON (model/agent assignment + batching + parallel lanes)
+Stage 4: @router -> DispatchPlan JSON (agent assignment + batching + parallel lanes)
 Stage 5: Execute batches:
 
-- Dispatch tasks to @executor-gemini / @executor-gpt / @peon / @generalist / @doc-writer as specified
+- Dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
 Stage 6: @reviewer -> ReviewReport JSON (pass/fail + issues + delta recommendations)
 Stage 7: If fail -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
 Stage 8: @compressor -> ContextPack JSON (compressed summary of repo + decisions + outcomes)
@@ -255,18 +254,15 @@ If `decision_only = true`:
   - original acceptance criterion
 - If scope cannot be satisfied, executor must STOP and report BLOCKED.
 
-# COST / MODEL BUDGET RULES
+# COST / BUDGET RULES
 
-- Default execution model: Gemini 3 Pro for normal coding tasks.
-- If budget_mode is set:
-  - low: prefer Gemini Flash/Pro, avoid GPT-5.3-codex unless required
-  - high: allow GPT-5.3-codex executor more freely
-- Use GPT-5.3-codex executor only when:
-  - task is flagged "high_risk" or "complex_reasoning"
-  - reviewer found subtle bug
-  - multi-file refactor with tricky invariants
-- Use Gemini 3 Flash for:
-  - repo-scout summaries, quick scans, doc formatting, compression drafts
+- Model/provider selection is runtime-driven by OpenCode configuration.
+- budget_mode controls execution depth:
+  - low: minimize retries and favor reversible, smallest-viable changes
+  - medium: balanced execution depth and validation
+  - high: allow deeper analysis, broader validation, and stricter quality checks
+- Route high-risk or complex reasoning tasks to stronger executor profiles.
+- Route mechanical/documentation/formatting tasks to lower-cost executor profiles.
 
 # QUALITY GATES
 
@@ -289,3 +285,4 @@ At each stage, report:
 - Key outputs (short)
 - What you are dispatching next
 End with a clear "Done / Not done" status.
+

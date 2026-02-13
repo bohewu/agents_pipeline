@@ -74,13 +74,11 @@ jobs:
           cp -R opencode "dist/${BUNDLE_DIR}/"
           cp AGENTS.md "dist/${BUNDLE_DIR}/"
           cp VERSION "dist/${BUNDLE_DIR}/"
-          cp agent-models.json "dist/${BUNDLE_DIR}/"
           cp opencode.json.example "dist/${BUNDLE_DIR}/"
           cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/update-agent-models.py "dist/${BUNDLE_DIR}/scripts/"
 
           (
             cd dist

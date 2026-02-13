@@ -2,7 +2,6 @@
 name: orchestrator-init
 description: Init orchestrator for greenfield projects. Produces architecture, constraints, and setup docs.
 mode: primary
-model: openai/gpt-5.3-codex
 temperature: 0.2
 tools:
   read: true
@@ -21,7 +20,7 @@ FOCUS: Greenfield requirements, architecture decisions, constraints, and initial
 - Do NOT run tests or builds.
 - Output documents only (artifacts).
 - Do NOT exceed 5 tasks under any circumstance.
-- Prefer @executor-gemini; use @executor-gpt only for complex or high-risk decisions.
+- Prefer @executor-core; use @executor-advanced only for complex or high-risk decisions.
 - Enforce the embedded global handoff protocol below for every handoff.
 
 # HANDOFF PROTOCOL (GLOBAL)
@@ -145,7 +144,7 @@ If `verbose_mode = true` (implies `confirm_mode`):
 - Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
-- Stage 2 (Document Tasks): @executor-gpt / @executor-gemini / @doc-writer / @peon / @generalist
+- Stage 2 (Document Tasks): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent)
 - Stage 4 (Revision Loop): Orchestrator-owned + @executor-* (if enabled)
 
@@ -155,7 +154,7 @@ Stage 1: @planner -> PlanOutline JSON
 
 Stage 2: Document Tasks (max 5)
 
-Dispatch the following tasks (prefer @executor-gemini):
+Dispatch the following tasks (prefer @executor-core):
 
 1) **init-brief** — Product Brief
    - Output: artifact `<output_dir>/init/init-brief-product-brief.md`
@@ -197,3 +196,4 @@ At each stage, report:
 - What you are dispatching next
 
 End with a clear "Done / Not done" status.
+

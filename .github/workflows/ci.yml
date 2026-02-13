@@ -36,16 +36,11 @@ jobs:
             exit 1
           fi
 
-      - name: Validate model sync script (dry run)
+      - name: Validate schema tool
         shell: bash
         run: |
           python3 --version
-          python3 scripts/update-agent-models.py \
-            --config agent-models.json \
-            --agents AGENTS.md \
-            --opencode-root opencode \
-            --dry-run \
-            --strict-supported
+          python3 opencode/tools/validate-schema.py --help
 
       - name: Validate shell installers
         shell: bash

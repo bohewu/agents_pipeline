@@ -1,7 +1,6 @@
 ---
 description: Run full AI pipeline with optional flags
 agent: orchestrator-pipeline
-model: openai/gpt-5.3-codex
 ---
 
 # Run Full AI Pipeline
@@ -52,9 +51,9 @@ $ARGUMENTS
   - Alias for `--scout=force`
 
 - `--budget=low|medium|high`
-  - low: Prefer Gemini Flash / Pro, minimize GPT usage
-  - medium: Default routing
-  - high: Allow GPT-5.3-codex more freely
+  - low: Favor minimal scope and fewer retries
+  - medium: Balanced routing and retries
+  - high: Allow deeper analysis and stricter validation
 
 - `--output-dir=<path>`
   - Override the default artifact output directory

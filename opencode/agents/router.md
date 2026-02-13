@@ -1,8 +1,7 @@
 ---
 name: router
-description: Builds a cost-aware dispatch plan: assigns tasks to agents/models, batching, and parallel lanes.
+description: Builds a budget-aware dispatch plan: assigns tasks to agents, batching, and parallel lanes.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.1
 tools:
@@ -10,11 +9,12 @@ tools:
 ---
 
 # ROLE
-Given TaskList, create DispatchPlan that minimizes GPT usage while keeping quality.
+Given TaskList, create DispatchPlan that minimizes cost/time while keeping quality.
 
 # OUTPUT (JSON ONLY)
 {
   "batches": [],
-  "gpt_reserve_tasks": [],
+  "advanced_reserve_tasks": [],
   "notes": []
 }
+

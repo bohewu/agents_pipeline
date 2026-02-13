@@ -2,7 +2,6 @@
 name: test-runner
 description: Executes tests, builds, linters, and smoke checks to produce verifiable evidence for reviewers.
 mode: subagent
-model: google/antigravity-gemini-3-flash
 hidden: true
 temperature: 0.1
 tools:

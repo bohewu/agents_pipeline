@@ -1,7 +1,6 @@
 ---
 description: Run Flow pipeline (max 5 tasks)
 agent: orchestrator-flow
-model: openai/gpt-5.3-codex
 ---
 
 # Run Flow Pipeline
