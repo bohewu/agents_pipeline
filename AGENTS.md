@@ -12,6 +12,7 @@ VS Code Copilot `.agent.md` outputs are generated from `opencode/agents/*.md` vi
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retries |
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
+| orchestrator-general | General-purpose orchestration for non-coding tasks (planning/writing/analysis) | primary | Non-coding workflow |
 | specifier | Convert user input into ProblemSpec JSON | subagent | hidden |
 | planner | Produce PlanOutline JSON | subagent | hidden |
 | repo-scout | Repo discovery and risk scanning | subagent | hidden |

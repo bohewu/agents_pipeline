@@ -1,6 +1,6 @@
 # Multi-Agent Pipeline
 
-Multi-agent workflows for OpenCode: init, pipeline, CI/CD planning, and modernization.
+Multi-agent workflows for OpenCode: init, pipeline, flow, committee, general-purpose, CI/CD planning, and modernization.
 This repository demonstrates a **Multi-Agent Pipeline**. It currently includes an implementation called **OpenCode**. See the **How To Use** section below for usage instructions.
 
 ## Usage Prerequisites
@@ -122,7 +122,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.3.0"
+$tag = "v0.4.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 ```
@@ -130,7 +130,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.3.0"
+tag="v0.4.0"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -152,7 +152,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.3.0"
+$tag = "v0.4.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 ```
@@ -160,7 +160,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.3.0"
+tag="v0.4.0"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -177,18 +177,18 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.3.0`).
-- Use SemVer tags with `v` prefix (for example: `v0.3.0`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.4.0`).
+- Use SemVer tags with `v` prefix (for example: `v0.4.0`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
-- In `0.x`, treat **minor** bumps as potentially breaking (`v0.3.0` -> `v0.4.0`).
+- In `0.x`, treat **minor** bumps as potentially breaking (`v0.4.0` -> `v0.5.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.3.0` must release as `v0.3.0`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.4.0` must release as `v0.4.0`).
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.3.0`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.4.0`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -207,8 +207,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.0
+git push origin v0.4.0
 ```
 
 ## Public Release Checklist
@@ -261,6 +261,7 @@ Use whichever tool your team prefers.
 - Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 - Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
+- Use `/run-general` in `opencode/commands/run-general.md` for non-coding general-purpose workflows (planning/writing/analysis/checklists)
 
 ## VS Code Copilot Agents
 
@@ -347,6 +348,28 @@ Modes:
 - `/run-modernize --decision-only` (current-state + target-vision + strategy only)
 - `/run-modernize --iterate` (one revision round after initial docs)
 
+## General-Purpose Pipeline
+
+Use `/run-general` for non-coding work such as:
+
+- strategy/roadmap planning
+- process/SOP design
+- structured analysis and recommendation memos
+- checklist/playbook drafting
+
+Examples:
+
+```text
+/run-general Draft a 90-day GTM roadmap
+/run-general Compare three vendor evaluation frameworks
+/run-general Create an onboarding SOP for support team --confirm
+```
+
+General pipeline outputs are human-friendly by default:
+- plain-language summary first
+- clear Markdown sections
+- actionable next steps
+
 ## Workflow Guidance
 
 New projects:
@@ -414,6 +437,7 @@ Examples:
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
+- General: `/run-general` (non-coding execution pipeline for planning/writing/analysis)
 - Init: `/run-init` (greenfield project initialization docs)
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 - Modernize: `/run-modernize` (experimental modernization planning docs)
@@ -425,6 +449,9 @@ Examples:
   - you want multiple perspectives + a final judge, with budget as an explicit criterion
 - Use `/run-flow` when:
   - the change is small, low-risk, and you mainly want a fast execution plan (max 5 atomic tasks)
+- Use `/run-general` when:
+  - the objective is not code implementation
+  - you need structured planning, analysis, writing, or operational documentation
 - Use `/run-pipeline` when:
   - the change is high-risk, multi-file/systemic, or needs reviewer gates + bounded retries
 
@@ -433,6 +460,7 @@ Examples:
 - Repo name (`agents-pipeline`) reflects the overall concept.
 - Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
+- General-purpose pipeline uses `*-general` naming (e.g. `orchestrator-general.md`, `run-general.md`).
 - Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
@@ -447,6 +475,7 @@ Examples:
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
+| orchestrator-general | Non-coding workflow orchestration | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |

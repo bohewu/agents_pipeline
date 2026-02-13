@@ -10,6 +10,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.4.0] - 2026-02-13
+
+### Added
+
+- General-purpose non-coding orchestrator (`opencode/agents/orchestrator-general.md`).
+- General-purpose command entrypoint (`opencode/commands/run-general.md`).
+
+### Changed
+
+- General-purpose pipeline now ignores `--budget` and focuses on task-fit routing.
+- General-purpose artifact outputs are now explicitly required to be human-friendly.
+
 ## [0.3.0] - 2026-02-13
 
 ### Added
