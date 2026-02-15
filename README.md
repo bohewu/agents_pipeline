@@ -122,7 +122,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.4.0"
+$tag = "v0.5.1"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 ```
@@ -130,7 +130,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.4.0"
+tag="v0.5.1"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -152,7 +152,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.4.0"
+$tag = "v0.5.1"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 ```
@@ -160,7 +160,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.4.0"
+tag="v0.5.1"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -177,18 +177,18 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.4.0`).
-- Use SemVer tags with `v` prefix (for example: `v0.4.0`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.5.1`).
+- Use SemVer tags with `v` prefix (for example: `v0.5.1`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
-- In `0.x`, treat **minor** bumps as potentially breaking (`v0.4.0` -> `v0.5.0`).
+- In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.4.0` must release as `v0.4.0`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.5.1` must release as `v0.5.1`).
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.4.0`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.5.1`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -207,8 +207,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.1
+git push origin v0.5.1
 ```
 
 ## Public Release Checklist

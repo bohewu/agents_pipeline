@@ -10,7 +10,7 @@ Usage:
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
-  --version <value>     Release tag (for example: v0.4.0) or latest (default: latest)
+  --version <value>     Release tag (for example: v0.5.1) or latest (default: latest)
   --target <path>       Install destination (forwarded to install-copilot.sh)
   --no-backup           Do not back up existing installed files
   --dry-run             Resolve release and print actions only

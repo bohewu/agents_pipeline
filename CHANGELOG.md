@@ -10,6 +10,24 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.1] - 2026-02-15
+
+### Added
+
+- Modernize depth profiles via `--depth=lite|standard|deep` for verbosity control.
+- A stricter summarizer output contract for concise final responses.
+
+### Changed
+
+- Orchestrators now default to concise output and only provide stage-by-stage progress in `--confirm`/`--verbose` modes.
+- Command docs were simplified to quick-reference flags and now point to orchestrator/protocol docs as the source of truth.
+- Modernize templates now use shorter executive summaries and remove fixed per-section word minimums.
+
+### Fixed
+
+- Aligned checkpoint resume validation and test/retry semantics across orchestrator and protocol docs.
+- Clarified artifact filename policy between fixed-name docs and task-id metadata usage.
+
 ## [0.4.0] - 2026-02-13
 
 ### Added
