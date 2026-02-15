@@ -18,36 +18,14 @@ $ARGUMENTS
   all positional arguments **until the first token starting with `--`**.
 - All tokens starting with `--` are treated as flags.
 
-### Supported flags
+> Source of truth: detailed flag parsing and behavior live in `opencode/agents/orchestrator-ci.md`.
 
-- `--generate`
-  - Allow generation of config files (docs-only is default)
+### Supported flags (quick reference)
 
-- `--github`
-  - Generate GitHub Actions workflows under `.github/workflows/`
-
-- `--docker`
-  - Generate Dockerfile(s) and `docker-compose.yml`
-
-- `--e2e`
-  - Include E2E steps in plans and generated workflows
-
-- `--deploy`
-  - Include deploy workflow (self-host)
-
-- `--output-dir=<path>`
-  - Override the default artifact output directory
-  - Default: `.pipeline-output/`
-
-- `--resume`
-  - Resume from the last checkpoint
-
-- `--confirm`
-  - Pause after each stage for user review and approval
-
-- `--verbose`
-  - Implies `--confirm`
-  - Additionally pauses after each individual document task
+- `--generate` — enable config generation (docs-only is default)
+- `--github`, `--docker`, `--e2e`, `--deploy` — generation options
+- `--output-dir=<path>` — override artifact output path
+- `--resume`, `--confirm`, `--verbose`
 
 ## Examples
 

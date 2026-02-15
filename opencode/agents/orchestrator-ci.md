@@ -23,6 +23,12 @@ FOCUS: Build/test/lint/e2e strategy, deploy plan, docker plan, and runbook.
 - Prefer @executor-core; use @executor-advanced only for complex or high-risk decisions.
 - Enforce the embedded global handoff protocol below for every handoff.
 
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+
 # HANDOFF PROTOCOL (GLOBAL)
 
 These rules apply to **all agents**.
@@ -55,12 +61,8 @@ These rules apply to **all agents**.
 
 ## REVIEWER -> ORCHESTRATOR HANDOFF
 
-> Your decision is final.
-> If status is `fail`, orchestrator-ci must:
-> 1) Convert required_followups into delta tasks
-> 2) Re-dispatch via router
-> 3) Retry execution (max 2 rounds)
-> If still failing, stop and report blockers to the user.
+> Reviewer stage is not used in this docs-first pipeline.
+> If delegated task outputs are incomplete or blocked, stop and report blockers/next actions to the user.
 
 ---
 
@@ -125,7 +127,7 @@ If `generate_mode = false`, ignore all generate-only flags.
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-ci`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 ## CHECKPOINT PROTOCOL
 
@@ -139,6 +141,7 @@ If `confirm_mode = true`:
 
 If `verbose_mode = true` (implies `confirm_mode`):
 - Additionally, during Stage 2 (Document Tasks), pause after each individual task.
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 ## Stage Agents
 
@@ -181,7 +184,7 @@ Generation scope (when enabled):
 - Include E2E steps if `e2e_mode = true`
 
 Artifact Rules:
-- Each artifact filename MUST include the task_id.
+- Artifact filenames are fixed as listed above; keep `task_id` in task metadata/handoff logs.
 - Artifacts are documentation only; no code or config generation unless `--generate` is set.
 
 Stage 3: Synthesis
@@ -192,11 +195,13 @@ Stage 3: Synthesis
 
 # OUTPUT TO USER
 
-At each stage, report:
-
+If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
 - Stage name
 - Key outputs (short)
 - What you are dispatching next
 
-End with a clear "Done / Not done" status.
+If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
+- Overall "Done / Not done" status
+- Primary deliverables
+- Blockers/risks and next action
 

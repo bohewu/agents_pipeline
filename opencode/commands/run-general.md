@@ -15,6 +15,7 @@ $ARGUMENTS
 
 - Input before the first flag token is treated as the main task prompt.
 - This pipeline is for non-coding work: planning, analysis, writing, checklists, decision records.
+- Source of truth for flag parsing/behavior: `opencode/agents/orchestrator-general.md`.
 - Supported flags:
   - `--output-dir=<path>`
   - `--resume`

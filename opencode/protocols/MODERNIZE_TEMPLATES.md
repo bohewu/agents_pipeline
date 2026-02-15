@@ -10,13 +10,21 @@ All artifacts follow a **Source-to-Target migration model**:
 ## Format Requirements
 
 Every artifact MUST be human-readable and include:
-1. **Executive Summary** (2-3 sentences at the very top, as a full paragraph)
-2. **Table of Contents** (linked section list with anchors)
-3. **Section Numbering** (1, 1.1, 1.2, ...)
-4. **Narrative Prose** (not just headers — every section must have substantive text)
+1. **Executive Summary** (1-2 sentences at the top)
+2. **Table of Contents** (for long artifacts, typically more than 5 sections)
+3. **Section Structure** (consistent headings; numbering optional)
+4. **Narrative Context** (add prose where needed, not just headers)
 5. **Source/Target References** (every artifact must reference both project paths)
 
 If a section is not applicable, write `N/A` with a short reason.
+
+## Depth Profiles (lite|standard|deep)
+
+When `--depth` is provided, apply these conventions:
+
+- **lite**: Focus on decisions and next actions. Prefer short bullets and omit long background. Limit optional sections where allowed.
+- **standard**: Default balance of context, decisions, and risks. Keep sections concise and concrete.
+- **deep**: Include decision rationale and alternatives. Keep evidence compact; move details to short appendices when needed.
 
 > **Note:** Paths below show the default `.pipeline-output/` convention. When `--output-dir` is used, substitute accordingly.
 
@@ -26,7 +34,7 @@ These rules define the minimum acceptable quality for every artifact. Artifacts 
 
 ### What good looks like
 
-- Every section starts with a paragraph explaining the context BEFORE any tables or lists.
+- Key sections include brief context so readers can interpret tables/lists quickly.
 - Tables have introductory text (e.g. "The following table maps each legacy component to a refactor-vs-rewrite recommendation based on coupling and risk.").
 - Risk entries cite specific code paths, dependencies, or architectural patterns — not generic categories.
 - Recommendations include concrete actions (e.g. "Replace `FormsAuthentication.SetAuthCookie()` with `HttpContext.SignInAsync()` using a custom `ClaimsPrincipal`").
@@ -34,7 +42,7 @@ These rules define the minimum acceptable quality for every artifact. Artifacts 
 
 ### Anti-patterns (EXPLICITLY PROHIBITED)
 
-1. **Bold-header-one-liner** — A section that is just `**Header**\nOne sentence.` with no depth. This is a note, not a document.
+1. **Bold-header-one-liner** — For critical sections, avoid `**Header**\nOne sentence.`. This is usually a note, not a decision-ready document.
 2. **Generic risk statements** — "High coupling makes refactors risky" without specifying WHICH coupling, WHERE, and HOW it manifests.
 3. **Pipeline self-certification** — Any content whose purpose is proving the pipeline "did its job" (e.g. DoD checklists, evidence indexes, proof bundles, trace matrices). These are internal pipeline artifacts and MUST NOT be in user-facing documents.
 4. **Invented governance processes** — Creating elaborate gate/review/approval frameworks that the user didn't ask for and won't use. Keep governance sections practical and lightweight unless the user explicitly requests formal governance.
@@ -42,8 +50,8 @@ These rules define the minimum acceptable quality for every artifact. Artifacts 
 
 ### Minimum depth per section
 
-- Each top-level section (## level) should contain at least 100 words of prose unless explicitly marked N/A.
-- Subsections (### level) should contain at least 50 words.
+- No fixed word minimums.
+- Keep sections concise but specific, with concrete evidence and decisions.
 - If a section genuinely has nothing to say, write `N/A — [reason]` rather than padding with generic text.
 
 ### Deferred scope handling
@@ -93,7 +101,7 @@ Target: <target project path>
 > **Source:** <source project path>
 > **Target:** <target project path>
 
-<Executive summary: 2-4 sentences describing the current state of project A, its primary technology stack, and its overall migration readiness. Example: "NetService is a .NET Framework 4.8 ASP.NET MVC monolith serving authentication, user management, and several internal business modules. The system uses EF6 with EDMX models, OWIN middleware, and custom Forms Authentication. Migration readiness is moderate — the core auth and CRUD flows are well-structured but tightly coupled to System.Web primitives, and several security practices (MD5 hashing, plaintext config secrets) require modernization.">
+<Executive summary: 1-2 sentences describing the current state of project A, primary stack, and migration readiness.>
 
 ## Table of Contents
 
@@ -163,7 +171,7 @@ Target: <target project path>
 > **Source:** <source project path>
 > **Target:** <target project path>
 
-<Executive summary: 2-4 sentences describing the target project B — what it will look like, the key architectural choices, and the relationship to project A. Example: "The target system will be a container-first ASP.NET Core application on .NET 10, deployed as a modular monolith with clear domain boundaries. Phase 1 focuses exclusively on core authentication, user/vendor management, and the application shell — deferring OAuth2 and integration-heavy modules to later phases. The target uses EF Core with a single application context, built-in DI, and cookie-based authentication replacing the legacy Forms Auth stack.">
+<Executive summary: 1-2 sentences describing the target project B, key architectural choices, and relationship to project A.>
 
 ## Table of Contents
 
@@ -238,7 +246,7 @@ Target: <target project path>
 > **Source:** <source project path>
 > **Target:** <target project path>
 
-<Executive summary: 2-4 sentences on the chosen migration approach — strangler fig, big bang, or incremental — and why. Example: "We will use an incremental strangler-fig migration, building the target system route-by-route while the legacy system continues to serve production traffic. Each migration slice covers a controller group with independent cutover and rollback capability. The strategy prioritizes the auth and session layer first (highest risk, most coupling to System.Web), followed by admin CRUD controllers in dependency order.">
+<Executive summary: 1-2 sentences on the chosen migration approach and why.>
 
 ## Table of Contents
 
@@ -319,7 +327,7 @@ The following table maps each legacy component area to a refactor-vs-rewrite rec
 > **Source:** <source project path>
 > **Target:** <target project path>
 
-<Executive summary: 2-4 sentences on the timeline — how many phases, estimated duration, key milestones. Example: "The migration is organized into 4 phases over approximately 12-16 weeks. Phase 0 establishes the container baseline and project scaffold. Phase 1 migrates core authentication and the application shell. Phases 2-3 cover identity expansion and business module migration respectively, with each phase gated by parity verification before cutover.">
+<Executive summary: 1-2 sentences on timeline, phase count, estimated duration, and key milestones.>
 
 ## Table of Contents
 
@@ -407,7 +415,7 @@ If the user specified scope exclusions, list them here with rationale and future
 > **Source:** <source project path>
 > **Target:** <target project path>
 
-<Executive summary: 2-4 sentences on the top risks and the governance model for managing them. Example: "The highest risks in this migration are the custom authentication migration (Forms Auth to ASP.NET Core cookie auth) and hidden cross-module dependencies that may surface during core-only migration. A lightweight weekly review cycle with three gate checkpoints governs scope control, auth hardening, and cutover readiness. Six specific blockers have been identified, with the most critical being plaintext secret exposure requiring immediate remediation.">
+<Executive summary: 1-2 sentences on top risks and the governance model used to manage them.>
 
 ## Table of Contents
 

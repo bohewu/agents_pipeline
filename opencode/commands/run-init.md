@@ -18,30 +18,14 @@ $ARGUMENTS
   all positional arguments **until the first token starting with `--`**.
 - All tokens starting with `--` are treated as flags.
 
-### Supported flags
+> Source of truth: detailed flag parsing and behavior live in `opencode/agents/orchestrator-init.md`.
 
-- `--decision-only`
-  - Produce only: brief, architecture, constraints
-  - Skip structure and roadmap docs
-  - No revision loop
+### Supported flags (quick reference)
 
-- `--iterate`
-  - Enable one revision round after initial synthesis
-  - Orchestrator asks for feedback and applies targeted updates
-
-- `--output-dir=<path>`
-  - Override the default artifact output directory
-  - Default: `.pipeline-output/`
-
-- `--resume`
-  - Resume from the last checkpoint
-
-- `--confirm`
-  - Pause after each stage for user review and approval
-
-- `--verbose`
-  - Implies `--confirm`
-  - Additionally pauses after each individual document task
+- `--decision-only` — only brief/architecture/constraints
+- `--iterate` — one revision round after synthesis
+- `--output-dir=<path>` — override artifact output path
+- `--resume`, `--confirm`, `--verbose`
 
 ## Examples
 

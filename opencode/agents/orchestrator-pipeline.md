@@ -22,6 +22,12 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 - Reserve high-rigor execution paths for atomicization, integration review, tricky reasoning, and conflict resolution.
 - Enforce the embedded global handoff protocol below for every handoff.
 
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+
 # HANDOFF PROTOCOL (GLOBAL)
 
 These rules apply to **all agents**.
@@ -55,10 +61,11 @@ These rules apply to **all agents**.
 ## REVIEWER -> ORCHESTRATOR HANDOFF
 
 > Your decision is final.
-> If status is `fail`, orchestrator-pipeline must:
+> If status is `fail` and `test_only = false`, orchestrator-pipeline must:
 > 1) Convert required_followups into delta tasks
 > 2) Re-dispatch via router
-> 3) Retry execution (max 2 rounds)
+> 3) Retry execution (up to `max_retry_rounds`)
+> If `test_only = true`, skip retries and report the reviewer result.
 > If still failing, stop and report blockers to the user.
 
 ---
@@ -143,7 +150,7 @@ Proceed with pipeline execution according to parsed flags.
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user: "Warning: `<output_dir>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root, surface it and ask whether to include, defer, or mark items obsolete.
 5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
 
@@ -184,6 +191,7 @@ If `verbose_mode = true` (implies `confirm_mode = true`):
   Continue to next task? [yes / skip-remaining / abort]
   ```
   - `skip-remaining` -> mark remaining tasks as SKIPPED, proceed to next stage
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 # PIPELINE (STRICT)
 
@@ -195,7 +203,7 @@ If `verbose_mode = true` (implies `confirm_mode = true`):
 - Stage 2 (Repo Scout): @repo-scout
 - Stage 3 (Atomicization): @atomizer
 - Stage 4 (Routing): @router
-- Stage 5 (Execution): @executor-core / @executor-advanced / @peon / @generalist / @doc-writer
+- Stage 5 (Execution + optional validation): @executor-core / @executor-advanced / @peon / @generalist / @doc-writer / @test-runner
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression): @compressor
@@ -208,11 +216,13 @@ Stage 1: @planner -> PlanOutline JSON
 Stage 2: @repo-scout -> RepoFindings JSON (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> TaskList JSON (atomic DAG)
 Stage 4: @router -> DispatchPlan JSON (agent assignment + batching + parallel lanes)
-Stage 5: Execute batches:
+Stage 5: Execute batches + optional validation:
 
-- Dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
+- If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
+- If `skip_tests = false`, run @test-runner after execution and attach TestReport evidence for Stage 6
+- If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> ReviewReport JSON (pass/fail + issues + delta recommendations)
-Stage 7: If fail -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
+Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
 Stage 8: @compressor -> ContextPack JSON (compressed summary of repo + decisions + outcomes)
 Stage 9: @summarizer -> user-facing final summary
 
@@ -220,8 +230,13 @@ Stage 9: @summarizer -> user-facing final summary
 
 If `decision_only = true`:
 - Stop after Stage 2 (repo-scout). Do NOT run atomizer/router/executors/tests.
-- Reviewer switches to directional review: check alignment with ProblemSpec only. No artifact completeness enforcement. No delta retries.
-- Summarizer produces the final recommendation.
+- Do NOT run reviewer or retry stages.
+- Summarizer produces the final recommendation from ProblemSpec + RepoFindings.
+
+# TEST FLAG RULES
+
+- If `skip_tests = true` (`--no-test`): skip @test-runner and require reviewer to add an explicit "verification skipped" warning.
+- If `test_only = true` (`--test-only`): skip executor dispatch in Stage 5, run @test-runner + @reviewer for validation only, then summarize and stop (skip retry/compression stages).
 
 # RETRY POLICY
 
@@ -234,6 +249,7 @@ If `decision_only = true`:
   - Else: max_retry_rounds = 2
 - `--max-retry=0` disables Stage 7 retries entirely.
 - Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry round, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED.
+- If `test_only = true`, skip Stage 7 retries and summarize the reviewer result directly.
 - On review fail (and retries remaining):
   1) Convert "required_followups" into Delta tasks (atomic)
   2) Re-run router + execute + reviewer
@@ -279,10 +295,13 @@ If `decision_only = true`:
 
 # OUTPUT TO USER
 
-At each stage, report:
-
+If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
 - Stage name
 - Key outputs (short)
 - What you are dispatching next
-End with a clear "Done / Not done" status.
+
+If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
+- Overall "Done / Not done" status
+- Primary deliverables
+- Blockers/risks and next action
 

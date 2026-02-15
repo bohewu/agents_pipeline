@@ -23,6 +23,12 @@ FOCUS: Structured planning, decomposition, delegation, and synthesis for tasks n
 - Do NOT infer missing requirements. Surface assumptions explicitly.
 - Use existing agents only; do not invent new agent identities.
 
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+
 # HANDOFF PROTOCOL (GLOBAL)
 
 These rules apply to **all agents**.
@@ -97,7 +103,7 @@ If `--budget` is provided:
 
 1. Resolve output_dir: default `.pipeline-output/` unless overridden.
 2. Verify output_dir in `.gitignore`; warn if missing.
-3. If `resume_mode = true`, attempt to load `<output_dir>/checkpoint.json`; if missing, warn and start fresh.
+3. If `resume_mode = true`, attempt to load `<output_dir>/checkpoint.json`; validate `checkpoint.orchestrator = orchestrator-general`; if mismatched or missing, warn and start fresh.
 
 # CHECKPOINT PROTOCOL
 
@@ -111,6 +117,7 @@ If `confirm_mode = true`:
 
 If `verbose_mode = true` (implies `confirm_mode`):
 - Additionally pause after each task in Stage 4 (Execution).
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 # PIPELINE (STRICT)
 
@@ -185,12 +192,12 @@ Produce a user-facing summary:
 
 # OUTPUT TO USER
 
-At each stage, report:
+If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
 - Stage name
 - Key outputs (short)
 - Next dispatch
 
-Final output must include:
-- primary deliverables
-- unresolved questions
-- suggested follow-up path (`/run-general` again vs `/run-committee` vs `/run-pipeline`)
+If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
+- Primary deliverables
+- Unresolved questions (if any)
+- Suggested follow-up path (`/run-general` vs `/run-committee` vs `/run-pipeline`)

@@ -25,6 +25,12 @@ FOCUS: Run a bounded expert committee, enforce structured outputs, and deliver a
 - Do NOT expand scope beyond the user prompt. If requirements are missing, ask targeted questions.
 - Enforce the embedded global handoff protocol below for every handoff.
 
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+
 # HANDOFF PROTOCOL (GLOBAL)
 
 These rules apply to **all agents**.
@@ -89,7 +95,7 @@ If conflicting scout flags exist (e.g. --skip-scout + --force-scout):
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-committee`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 # CHECKPOINT PROTOCOL
 
@@ -103,6 +109,7 @@ If `confirm_mode = true`:
 
 If `verbose_mode = true` (implies `confirm_mode`):
 - Additionally, during Stage 2 (Expert Memos), pause after each individual expert memo.
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 # PIPELINE (STRICT)
 
@@ -182,11 +189,15 @@ Judge output contract: CommitteeDecision JSON ONLY (see judge agent definition).
 
 ## Stage 4 — User Output (Orchestrator-Owned)
 
+Default mode (no `--confirm` / `--verbose`): provide one final concise brief.
+
 Report to the user:
 - the final CommitteeDecision (human-readable summary)
 - the key tradeoffs and why budget_mode affected the recommendation
 - any open questions that would change the decision
 - "If you want to implement this next" suggestions: recommend which pipeline to run (flow vs pipeline vs ci) based on risk/complexity.
+
+If `confirm_mode = true` or `verbose_mode = true`, include stage-by-stage progress updates in addition to the final brief.
 
 STOP after delivering the decision.
 

@@ -18,59 +18,19 @@ $ARGUMENTS
   all positional arguments **until the first token starting with `--`**.
 - All tokens starting with `--` are treated as pipeline flags.
 
-### Supported flags
+> Source of truth: detailed flag parsing, conflict handling, and execution semantics live in `opencode/agents/orchestrator-pipeline.md` and `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- `--dry`
-  - Stop after `atomizer + router`
-  - Output TaskList and DispatchPlan only
+### Supported flags (quick reference)
 
-- `--no-test`
-  - Skip test-runner stage
-  - Reviewer must warn about missing verification
-
-- `--test-only`
-  - Only run test-runner + reviewer
-
-- `--decision-only`
-  - Stop after planning/integration design (no atomizer/router/execution)
-  - Reviewer uses directional review; no delta retries
-
-- `--loose-review`
-  - Reviewer does not require build/test evidence
-  - Reviewer must add a warning that results are unverified
-
-- `--scout=auto|skip|force`
-  - auto: Run repo-scout if a codebase exists or implementation is requested
-  - skip: Do not run repo-scout
-  - force: Run repo-scout even without a detected codebase
-
-- `--skip-scout`
-  - Alias for `--scout=skip`
-
-- `--force-scout`
-  - Alias for `--scout=force`
-
+- `--dry` — stop after `atomizer + router`
+- `--no-test` — skip test-runner (reviewer warns)
+- `--test-only` — run test-runner + reviewer only
+- `--decision-only` — planning/design only, no execution
+- `--loose-review` — allow unverified outputs with warning
+- `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--budget=low|medium|high`
-  - low: Favor minimal scope and fewer retries
-  - medium: Balanced routing and retries
-  - high: Allow deeper analysis and stricter validation
-
-- `--output-dir=<path>`
-  - Override the default artifact output directory
-  - Default: `.pipeline-output/`
-
-- `--resume`
-  - Resume from the last checkpoint
-  - Loads `.pipeline-output/checkpoint.json` (or `<output-dir>/checkpoint.json`)
-  - Skips completed stages and continues from the next incomplete stage
-
-- `--confirm`
-  - Pause after each stage for user review and approval
-  - Options at each pause: yes (continue), feedback (re-run stage), abort (save checkpoint and stop)
-
-- `--verbose`
-  - Implies `--confirm`
-  - Additionally pauses after each individual task within execution stages
+- `--max-retry=<int>` — override retry rounds (0-5)
+- `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`
 
 ## Examples
 

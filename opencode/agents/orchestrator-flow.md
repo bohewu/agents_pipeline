@@ -23,6 +23,12 @@ FOCUS: Explicit task dispatching with bounded flow, bounded parallelism, and no 
 - No reviewer agent.
 - No delta tasks or retries.
 
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+
 # HANDOFF PROTOCOL (GLOBAL)
 
 These rules apply to **all agents**.
@@ -141,7 +147,7 @@ If an invalid `--scout` value is provided:
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-flow`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 ## CHECKPOINT PROTOCOL
 
@@ -155,6 +161,7 @@ If `confirm_mode = true`:
 
 If `verbose_mode = true` (implies `confirm_mode`):
 - Additionally, during Stage 3 (Execution), pause after each individual task.
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 ## Flow Pipeline (Fixed)
 
@@ -269,4 +276,13 @@ If expected_output is implementation:
 - No reviewer involvement.
 
 STOP after synthesis.
+
+# OUTPUT TO USER
+
+If `confirm_mode = true` or `verbose_mode = true`, provide stage-by-stage updates.
+
+If neither flag is enabled, provide one final brief with:
+- Overall done/not-done status
+- Primary deliverables
+- Blockers/risks and next action
 

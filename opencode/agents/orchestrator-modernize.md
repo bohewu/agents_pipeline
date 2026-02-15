@@ -18,18 +18,25 @@ FOCUS: Current-state assessment, target vision, modernization strategy, roadmap,
 
 - Do NOT modify application/business code.
 - Do NOT run tests or builds.
-- Output documents only (artifacts).
-- Do NOT exceed 5 tasks under any circumstance.
+- User-facing outputs are documents only (artifacts).
+- Do NOT exceed 5 Stage 2 document tasks. If `iterate_mode = true`, allow up to 2 additional targeted revision tasks.
 - Prefer @executor-core; use @executor-advanced only for complex or high-risk decisions.
 - Enforce the embedded global handoff protocol below for every handoff.
-- Do NOT produce any files outside the defined artifact list (see Stage 2).
+- Do NOT produce any user-facing document files outside the defined artifact list (see Stage 2).
   Specifically PROHIBITED outputs include:
   - Pipeline governance files (e.g. `phase1-artifact-pack.md`, `phase1-evidence-index.md`, `phase1-done-proof-bundle.md`, `phase1-requirements-trace-matrix.md`)
   - Handoff prompts (e.g. `run-pipeline-handoff.md`)
   - JSON inventory dumps (e.g. `T1_core_inventory.json`)
   - Any file with prefix `phase*-`, `evidence-*`, or `run-*-handoff*`
-  The ONLY files this pipeline writes are the 5 modernize artifacts + `modernize-index.md`.
+  The ONLY user-facing document files this pipeline writes are the 5 modernize artifacts + `modernize-index.md`.
+  Internal control files (for example checkpoint/intermediate pipeline artifacts under `output_dir`) are allowed.
   If deferred-scope tracking is needed, include it as a section within `modernize-migration-roadmap.md`, not as a separate file.
+
+# RESPONSE MODE (DEFAULT)
+
+- Default to concise mode: keep responses short and action-oriented.
+- If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
@@ -63,12 +70,8 @@ These rules apply to **all agents**.
 
 ## REVIEWER -> ORCHESTRATOR HANDOFF
 
-> Your decision is final.
-> If status is `fail`, orchestrator-modernize must:
-> 1) Convert required_followups into delta tasks
-> 2) Re-dispatch via router
-> 3) Retry execution (max 2 rounds)
-> If still failing, stop and report blockers to the user.
+> Reviewer stage is not used in this docs-first pipeline.
+> If delegated task outputs are incomplete or blocked, stop and report blockers/next actions to the user.
 
 ---
 
@@ -124,17 +127,19 @@ Flag semantics:
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 - `--target=<path>` -> target_project_dir (default: `../<source-project-dirname>-modernize/`)
+- `--depth=lite|standard|deep` -> depth_mode (default: `standard`)
 
 If conflicting flags exist:
 
 - decision_only disables iterate_mode.
+ - If `--depth` is invalid, warn and default to `standard`.
 
 ## PRE-FLIGHT (before Stage 0)
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Resolve target_project_dir**: If `--target` was provided, use that path. Otherwise default to `../<source-project-dirname>-modernize/`.
 3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it, display completed stages, and ask user to confirm resuming. Skip completed stages. If not found, warn and start fresh.
+4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 ## CHECKPOINT PROTOCOL
 
@@ -148,6 +153,7 @@ If `confirm_mode = true`:
 
 If `verbose_mode = true` (implies `confirm_mode`):
 - Additionally, during Stage 2 (Document Tasks), pause after each individual task.
+- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
 ## Stage Agents
 
@@ -205,30 +211,37 @@ Dispatch the following tasks (prefer @executor-core):
 
 If `decision_only = true`, dispatch ONLY tasks 1–3.
 
+## Depth Profiles (apply to all Stage 2 docs)
+
+- **lite**: Focus on decisions and next actions. Prefer short bullet sections. Limit optional sections and long background.
+- **standard**: Default balance of context, decisions, and risks. Keep sections concise and concrete.
+- **deep**: Include decision rationale and alternatives. Keep evidence compact; move details to short appendices when needed.
+
 Artifact Rules:
-- Each artifact filename MUST include the task_id.
+- Artifact filenames are fixed as listed above; keep `task_id` in task metadata/handoff logs.
 - Artifacts are documentation only; no code or config generation.
 - Artifacts MUST follow the templates in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
 - Source and target project paths MUST be referenced in every artifact.
-- No files beyond the 5 listed above + `modernize-index.md` may be created.
+- No user-facing document files beyond the 5 listed above + `modernize-index.md` may be created.
 
 Quality Gate (MANDATORY — reject artifacts that fail these):
-- Every artifact MUST start with an `# H1` title, then an Executive Summary paragraph (not a bold header — a full paragraph of 2-4 sentences).
-- Every artifact MUST have a Table of Contents with linked section anchors.
-- Every artifact MUST use numbered sections (`## 1. ...`, `### 1.1 ...`).
-- Every section MUST contain at least one paragraph of narrative prose BEFORE any tables or bullet lists. A section that is only a bold header + one-liner bullet is INVALID.
-- Tables are encouraged for structured data (risk registers, dependency lists, refactor-vs-rewrite criteria) but each table MUST be preceded by a context paragraph explaining what it shows and how to read it.
-- "Bold header + one-liner" format (e.g. `**Risks**\nHigh coupling.`) is EXPLICITLY PROHIBITED. This format is a note, not a document.
-- Minimum depth: each top-level section should be 100+ words unless explicitly marked N/A.
+- Every artifact MUST start with an `# H1` title and a brief Executive Summary (1-2 sentences).
+- Include a Table of Contents when the artifact is long (for example, more than 5 sections).
+- Use consistent section structure; numbering is recommended when it improves navigation.
+- Provide narrative context where needed. Tables or lists may appear first when the heading is self-explanatory.
+- Tables for structured data are encouraged; add a short intro when interpretation is not obvious.
+- "Bold header + one-liner" format (e.g. `**Risks**\nHigh coupling.`) is not acceptable for critical sections.
+- No fixed word minimums. Prefer concise, specific content with concrete references.
 - If user-provided scope decisions exist (e.g. a core inventory JSON, a list of excluded features), the artifacts MUST reference and incorporate that data — not re-derive it from scratch.
 
 Handoff Content for Subagent Tasks:
 When dispatching each document task to a subagent, the orchestrator MUST include in the handoff:
 1. The artifact filepath and template section reference from `MODERNIZE_TEMPLATES.md`.
-2. The quality gate rules above (copy them into the handoff).
+2. A short quality checklist (3-5 critical checks) and a reference to the quality gate section.
 3. All relevant context gathered from Stage 0 and Stage 1 (ProblemSpec, PlanOutline).
 4. Any user-provided inputs (e.g. scope inventories, excluded feature lists).
 5. Explicit instruction: "Your output is the FINAL deliverable read by human engineers and managers. It is NOT an intermediate pipeline artifact."
+6. The `depth_mode` and any scope constraints on verbosity (lite/standard/deep).
 
 Stage 3: Synthesis
 
@@ -238,6 +251,7 @@ Stage 3: Synthesis
 
   Source: <source project path>
   Target: <target project path>
+  Depth: <lite|standard|deep>
 
   ## Documents
 
@@ -256,11 +270,13 @@ Stage 3: Synthesis
   ## Next Steps
   <What to run next, e.g., /run-pipeline to start Phase 1 in the target project>
   ```
+- If `decision_only = true`, the index "Documents" section MUST list only the artifacts that were actually produced (tasks 1-3).
 - The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
 - Provide a short handoff note for `/run-pipeline` usage in the target project.
-- Do NOT produce any additional files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
-- The final file list MUST be exactly: 5 modernize artifacts + 1 `modernize-index.md` = 6 files total.
+- Do NOT produce any additional user-facing document files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
+- If `decision_only = false`, the final user-facing document list MUST be exactly: 5 modernize artifacts + 1 `modernize-index.md` = 6 files total.
+- If `decision_only = true`, the final user-facing document list MUST be: tasks 1-3 artifacts + `modernize-index.md` = 4 files total.
 
 Stage 4: Revision Loop (optional)
 
@@ -271,11 +287,13 @@ If `iterate_mode = true`:
 
 # OUTPUT TO USER
 
-At each stage, report:
-
+If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
 - Stage name
 - Key outputs (short)
 - What you are dispatching next
 
-End with a clear "Done / Not done" status.
+If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
+- Overall "Done / Not done" status
+- Primary deliverables
+- Blockers/risks and next action
 

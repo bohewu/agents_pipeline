@@ -19,6 +19,8 @@ The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
 
 ## Stage Contracts
 
+Stage numbering in this document is a reference model. Orchestrator-specific stage maps may vary; each orchestrator prompt is the execution source of truth.
+
 **Stage 0: Specifier**
 Agent: `specifier`
 Input: User task prompt
@@ -60,7 +62,7 @@ Input: TaskList, executor outputs, optional test evidence
 Output: `ReviewReport` JSON
 Schema: `./protocols/schemas/review-report.schema.json`
 
-**Stage 7: Test Runner**
+**Stage 7: Test Runner (Optional Validation Stage)**
 Agent: `test-runner`
 Input: Task scope
 Output: `TestReport` JSON
@@ -104,7 +106,9 @@ All pipeline artifacts MUST be written under a single root directory to keep the
 === END ARTIFACT ===
 ```
 
-- Filename MUST include the task_id.
+- Filename policy:
+  - If the orchestrator defines canonical filenames (for example init/ci/modernize docs), use those fixed names.
+  - Otherwise, include `task_id` in the filename.
 
 ## Protocol Versioning
 
@@ -131,6 +135,8 @@ Pipeline runs support interrupt/resume via checkpoint files.
 
 Pipeline runs support step-by-step user review via `--confirm` and `--verbose` flags.
 
+- **Default mode** (no `--confirm` / `--verbose`): no step pauses; orchestrators may return a final concise summary only.
+
 - **`--confirm`** (default: `false`): Pause after each **stage** for user review.
   - Prompt format: `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`
   - `yes` -> continue to next stage
@@ -140,6 +146,7 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 - **`--verbose`** (default: `false`): Implies `--confirm`. Additionally pauses after each **individual task** within execution stages.
   - Prompt format: `[Task <id>: <summary>] Complete. Continue? [yes / skip-remaining / abort]`
   - `skip-remaining` -> mark remaining tasks as SKIPPED, proceed to next stage
+  - Intended for close supervision/debugging; this mode increases interaction length.
 
 - **Flag interactions:**
   - `--verbose` automatically enables `--confirm`

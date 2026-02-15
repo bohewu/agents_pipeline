@@ -14,6 +14,7 @@ $ARGUMENTS
 ## Notes
 
 - Input before the first flag token is the main task prompt.
+- Source of truth for flag parsing/behavior: `opencode/agents/orchestrator-flow.md`.
 - Supported flags (Flow-only, minimal):
   - `--scout=auto|skip|force`
   - `--skip-scout`

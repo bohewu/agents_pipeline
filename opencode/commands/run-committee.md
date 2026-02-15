@@ -18,38 +18,14 @@ $ARGUMENTS
   all positional arguments **until the first token starting with `--`**.
 - All tokens starting with `--` are treated as flags.
 
-### Supported flags
+> Source of truth: detailed flag parsing and behavior live in `opencode/agents/orchestrator-committee.md`.
 
-- `--budget=low|medium|high`
-  - Used as an explicit evaluation criterion in the final decision
-  - low: bias toward the smallest viable, reversible option
-  - medium: balanced tradeoffs
-  - high: allow more upfront engineering when it materially reduces risk
+### Supported flags (quick reference)
 
-- `--scout=auto|skip|force`
-  - auto: run repo-scout if repo exists or the prompt references code/implementation
-  - skip: do not run repo-scout
-  - force: run repo-scout even if the prompt is abstract
-
-- `--skip-scout`
-  - Alias for `--scout=skip`
-
-- `--force-scout`
-  - Alias for `--scout=force`
-
-- `--output-dir=<path>`
-  - Override the default artifact output directory
-  - Default: `.pipeline-output/`
-
-- `--resume`
-  - Resume from the last checkpoint
-
-- `--confirm`
-  - Pause after each stage for user review and approval
-
-- `--verbose`
-  - Implies `--confirm`
-  - Additionally pauses after each individual expert memo
+- `--budget=low|medium|high` — explicit decision criterion
+- `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
+- `--output-dir=<path>` — override artifact output path
+- `--resume`, `--confirm`, `--verbose`
 
 ## Examples
 
