@@ -9,7 +9,7 @@ Usage:
   scripts/install-copilot.sh [--target <path>] [--dry-run] [--no-backup]
 
 Options:
-  --target <path>  Install destination (default: $XDG_CONFIG_HOME/copilot/agents or ~/.config/copilot/agents)
+  --target <path>  Install destination (default: ~/.copilot/agents)
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing *.agent.md files
   -h, --help       Show this help
@@ -30,11 +30,7 @@ if [[ ! -f "${EXPORT_SCRIPT}" ]]; then
   exit 1
 fi
 
-if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
-  TARGET_DIR="${XDG_CONFIG_HOME}/copilot/agents"
-else
-  TARGET_DIR="${HOME}/.config/copilot/agents"
-fi
+TARGET_DIR="${HOME}/.copilot/agents"
 
 DRY_RUN=0
 NO_BACKUP=0

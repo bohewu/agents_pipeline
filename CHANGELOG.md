@@ -10,6 +10,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.3] - 2026-02-20
+
+### Changed
+
+- Copilot install scripts now default to `~/.copilot/agents` to match current Copilot CLI custom agent resolution.
+- Updated Copilot install docs to use `~/.copilot/agents` as the default target.
+
 ## [0.5.2] - 2026-02-20
 
 ### Changed

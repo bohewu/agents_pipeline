@@ -67,7 +67,7 @@ bash scripts/install.sh --no-backup
 Generate and install VS Code Copilot custom agents to your global Copilot location.
 
 Default target:
-- All platforms: `${XDG_CONFIG_HOME:-~/.config}/copilot/agents`
+- All platforms: `~/.copilot/agents`
 
 Windows (PowerShell):
 
@@ -121,7 +121,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.5.2"
+$tag = "v0.5.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 ```
@@ -129,7 +129,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.5.2"
+tag="v0.5.3"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -151,7 +151,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.5.2"
+$tag = "v0.5.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 ```
@@ -159,7 +159,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
 macOS/Linux:
 
 ```bash
-tag="v0.5.2"
+tag="v0.5.3"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -176,18 +176,18 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.5.2`).
-- Use SemVer tags with `v` prefix (for example: `v0.5.2`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.5.3`).
+- Use SemVer tags with `v` prefix (for example: `v0.5.3`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.5.2` must release as `v0.5.2`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.5.3` must release as `v0.5.3`).
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.5.2`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.5.3`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -206,8 +206,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.5.2
-git push origin v0.5.2
+git tag v0.5.3
+git push origin v0.5.3
 ```
 
 ## Public Release Checklist
@@ -490,3 +490,4 @@ Examples:
 | summarizer | User summary | Technical decisions |
 
 ---
+
