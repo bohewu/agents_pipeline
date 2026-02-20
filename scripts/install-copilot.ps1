@@ -9,13 +9,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Get-DefaultTarget {
-    if ($env:APPDATA) {
-        return Join-Path $env:APPDATA "copilot\agents"
-    }
     if ($env:XDG_CONFIG_HOME) {
-        return Join-Path $env:XDG_CONFIG_HOME "copilot/agents"
+        return Join-Path $env:XDG_CONFIG_HOME "copilot\agents"
     }
-    return Join-Path $HOME ".config/copilot/agents"
+    return Join-Path (Join-Path $HOME ".config") "copilot\agents"
 }
 
 function Get-PythonCommand {

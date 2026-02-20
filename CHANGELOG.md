@@ -10,6 +10,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.2] - 2026-02-20
+
+### Changed
+
+- Copilot PowerShell installer default target now follows `${XDG_CONFIG_HOME:-~/.config}/copilot/agents` across platforms.
+- Copilot export filename generation now uses source file stem with `.agent.md` suffix for deterministic CLI agent IDs.
+
+### Fixed
+
+- Updated repository docs to align Copilot install location and custom agent filename rules with GitHub Copilot docs.
+
 ## [0.5.1] - 2026-02-15
 
 ### Added

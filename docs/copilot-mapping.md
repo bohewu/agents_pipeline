@@ -7,6 +7,7 @@ This document defines how OpenCode agent definitions are mapped to VS Code Copil
 - Source: `opencode/agents/*.md`
 - Generated output: `*.agent.md`
 - Generator: `scripts/export-copilot-agents.py`
+- Filename rule: generated filename uses source file stem, as `<source-stem>.agent.md`
 
 Do not manually maintain generated `.agent.md` files as a primary source.
 

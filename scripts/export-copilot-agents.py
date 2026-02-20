@@ -30,6 +30,7 @@ EXECUTOR_WILDCARD = "executor-*"
 @dataclass
 class AgentSource:
     path: Path
+    file_stem: str
     name: str
     description: str
     body: str
@@ -88,6 +89,7 @@ def parse_source_agents(source_agents_dir: Path) -> List[AgentSource]:
         agents.append(
             AgentSource(
                 path=path,
+                file_stem=path.stem,
                 name=name,
                 description=description,
                 body=body,
@@ -214,6 +216,21 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8", newline="\n")
 
 
+def collect_generated(
+    generated: List[Tuple[Path, str]],
+    generated_names: Set[str],
+    path: Path,
+    content: str,
+    errors: List[str],
+) -> None:
+    key = path.name.lower()
+    if key in generated_names:
+        errors.append(f"Duplicate generated output filename: {path.name}")
+        return
+    generated_names.add(key)
+    generated.append((path, content))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Export OpenCode agents into VS Code Copilot .agent.md files."
@@ -269,6 +286,7 @@ def main() -> int:
 
     errors: List[str] = []
     generated: List[Tuple[Path, str]] = []
+    generated_names: Set[str] = set()
 
     if args.strict and catalog_agents:
         if catalog_agents != available_agent_names:
@@ -290,6 +308,11 @@ def main() -> int:
                 errors.append(
                     f"{agent.path.as_posix()}: unknown frontmatter key(s): {', '.join(unknown_keys)}"
                 )
+            if agent.name != agent.file_stem:
+                errors.append(
+                    f"{agent.path.as_posix()}: frontmatter name '{agent.name}' must match source filename stem "
+                    f"'{agent.file_stem}' for .agent.md naming consistency"
+                )
 
         subagents, unresolved = extract_subagents(agent.body, available_agent_names)
         if args.strict and unresolved:
@@ -304,8 +327,8 @@ def main() -> int:
             body=body_main,
             subagents=subagents,
         )
-        main_path = target_dir / f"{agent.name}.agent.md"
-        generated.append((main_path, content_main))
+        main_path = target_dir / f"{agent.file_stem}.agent.md"
+        collect_generated(generated, generated_names, main_path, content_main, errors)
 
         if args.emit_fallback and agent.name.startswith(ORCHESTRATOR_PREFIX):
             solo_name = f"{agent.name}-solo"
@@ -316,8 +339,8 @@ def main() -> int:
                 body=body_solo,
                 subagents=[],
             )
-            solo_path = target_dir / f"{solo_name}.agent.md"
-            generated.append((solo_path, content_solo))
+            solo_path = target_dir / f"{agent.file_stem}-solo.agent.md"
+            collect_generated(generated, generated_names, solo_path, content_solo, errors)
 
     if args.strict:
         for out_path, out_content in generated:
