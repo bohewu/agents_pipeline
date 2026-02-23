@@ -1,0 +1,31 @@
+{
+  "protocol_version": "1.0",
+  "handoff_type": "modernize-exec-handoff",
+  "recipient_agent": "@orchestrator-pipeline",
+  "working_project_dir": "../legacy-monolith-modernize",
+  "main_task_prompt": "Implement modernization roadmap phase P1 in target project B using modernize artifacts as source of truth.",
+  "pipeline_flags": [
+    "budget=medium"
+  ],
+  "context_paths": [
+    ".pipeline-output/modernize/modernize-target-design.md",
+    ".pipeline-output/modernize/modernize-migration-strategy.md",
+    ".pipeline-output/modernize/modernize-migration-roadmap.md"
+  ],
+  "phase_execution_contract": {
+    "phase_id": "P1",
+    "phase_title": "API Skeleton and Compatibility Adapter",
+    "deliverables": [
+      "Create target API service skeleton"
+    ]
+  },
+  "modernize_constraints": [
+    "Use modernization docs as source of truth for this phase scope."
+  ],
+  "definition_of_done": [
+    "Selected phase deliverables implemented in target project B or explicitly reported BLOCKED."
+  ],
+  "evidence_expectations": [
+    "Report changed paths."
+  ]
+}

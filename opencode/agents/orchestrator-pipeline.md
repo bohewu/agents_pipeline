@@ -146,6 +146,38 @@ If `--dry + --confirm`:
 
 Proceed with pipeline execution according to parsed flags.
 
+# MODERNIZE HANDOFF COMPATIBILITY (OPTIONAL INCOMING CONTRACT)
+
+This orchestrator may be invoked directly by a user (`/run-pipeline`) or delegated by `@orchestrator-modernize`.
+
+If the incoming handoff includes a modernize execution contract (for example fields such as `phase_execution_contract`, `modernize_constraints`, `context_paths`, or `working_project_dir`), then treat it as a **phase-scoped modernization execution run** and apply the following rules in addition to the normal pipeline behavior:
+
+- Contract format:
+  - When provided as structured JSON, the payload SHOULD conform to `opencode/protocols/schemas/modernize-exec-handoff.schema.json`.
+  - If schema validation is available in the runtime, validate before Stage 0 and fail fast on missing required fields.
+
+- Scope authority:
+  - `phase_execution_contract` is the scope boundary for implementation.
+  - If `main_task_prompt` is broader than `phase_execution_contract`, the phase contract wins.
+  - Items listed as `out_of_scope` / deferred in the phase contract MUST NOT be implemented in this run.
+- Input authority:
+  - Modernize artifacts referenced in `context_paths` are required planning inputs for Stage 0/1 (ProblemSpec/PlanOutline) and for reviewer context.
+  - Treat target design + migration strategy + roadmap as source-of-truth constraints for this delegated phase.
+- Working directory:
+  - If `working_project_dir` is provided, execute the pipeline against that target project.
+  - If runtime cannot operate in `working_project_dir`, stop and report BLOCKED; do not silently run against the current/source repo.
+- Atomicization and routing:
+  - Stage 3 (@atomizer) MUST produce tasks only for the selected phase deliverables and exit criteria.
+  - Out-of-scope or future-phase work should be recorded as follow-up tasks/recommendations, not included in the TaskList for this run.
+- Reviewer alignment:
+  - Stage 6 (@reviewer) MUST evaluate completion against the phase exit criteria (in addition to normal consistency/evidence checks).
+  - If a pipeline mode/flag legitimately skips testing or review, surface explicit warnings in the final summary.
+- Failure handling:
+  - Retry logic remains owned by `orchestrator-pipeline`.
+  - If required follow-ups exceed the phase boundary, stop and report BLOCKED / needs next phase or revised modernization plan instead of expanding scope.
+- Output expectations (for delegated callers):
+  - Final summary SHOULD include: phase ID/title, changed paths, test status, reviewer result, and unresolved follow-ups.
+
 # PRE-FLIGHT (before Stage 0)
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
@@ -153,6 +185,11 @@ Proceed with pipeline execution according to parsed flags.
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root, surface it and ask whether to include, defer, or mark items obsolete.
 5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
+6. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
+   - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
+   - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
+   - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)
+   - surface phase ID/title and exit criteria before Stage 0
 
 # CHECKPOINT PROTOCOL
 
@@ -304,4 +341,3 @@ If neither flag is enabled, skip stage-by-stage narration and provide one final 
 - Overall "Done / Not done" status
 - Primary deliverables
 - Blockers/risks and next action
-

@@ -22,6 +22,7 @@ Paths are relative to the config directory (for example `~/.config/opencode`).
 - TestReport: `./protocols/schemas/test-report.schema.json`
 - ContextPack: `./protocols/schemas/context-pack.schema.json`
 - TodoLedger (optional): `./protocols/schemas/todo-ledger.schema.json`
+- ModernizeExecHandoff (optional inter-orchestrator input): `./protocols/schemas/modernize-exec-handoff.schema.json`
 
 ## Todo Ledger (Optional)
 

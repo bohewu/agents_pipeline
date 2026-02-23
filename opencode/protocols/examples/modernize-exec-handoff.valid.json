@@ -1,0 +1,68 @@
+{
+  "protocol_version": "1.0",
+  "handoff_type": "modernize-exec-handoff",
+  "recipient_agent": "@orchestrator-pipeline",
+  "working_project_dir": "../legacy-monolith-modernize",
+  "source_project_dir": "../legacy-monolith",
+  "main_task_prompt": "Implement modernization roadmap phase P1 in target project B using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.",
+  "pipeline_flags": [
+    "--budget=medium",
+    "--confirm"
+  ],
+  "context_paths": [
+    ".pipeline-output/modernize/modernize-target-design.md",
+    ".pipeline-output/modernize/modernize-migration-strategy.md",
+    ".pipeline-output/modernize/modernize-migration-roadmap.md",
+    ".pipeline-output/modernize/modernize-migration-risks.md"
+  ],
+  "phase_execution_contract": {
+    "phase_id": "P1",
+    "phase_title": "API Skeleton and Compatibility Adapter",
+    "phase_index": 1,
+    "deliverables": [
+      "Create target API service skeleton with health endpoint",
+      "Implement compatibility adapter for selected read-only endpoints",
+      "Add baseline observability and request correlation"
+    ],
+    "out_of_scope": [
+      "OAuth2 migration",
+      "Frontend UI rewrite",
+      "Destructive database schema changes"
+    ],
+    "prerequisites": [
+      "Target project scaffold exists",
+      "Deployment environment for parallel smoke tests is available"
+    ],
+    "exit_criteria": [
+      "Target service health endpoint responds in deployed environment",
+      "Selected read-only endpoints can be served through compatibility adapter",
+      "Rollback path keeps source system as primary traffic target"
+    ],
+    "migration_constraints": [
+      "No cutover of write traffic in this phase",
+      "Preserve backward compatibility for existing API consumers",
+      "Log and trace IDs must be propagated end-to-end"
+    ]
+  },
+  "modernize_constraints": [
+    "Use modernization docs as source of truth for this phase scope.",
+    "Do not expand beyond selected phase; report BLOCKED or follow-up tasks instead.",
+    "Respect target design and migration strategy constraints."
+  ],
+  "definition_of_done": [
+    "Selected phase deliverables implemented in target project B or explicitly reported BLOCKED.",
+    "Validation/testing/review executed according to pipeline flags and orchestrator-pipeline policy.",
+    "Reviewer outcome (or explicit skip warning) surfaced in final summary.",
+    "Out-of-scope follow-ups listed separately, not silently implemented."
+  ],
+  "evidence_expectations": [
+    "Report changed paths.",
+    "Report test status (run/skipped + reason).",
+    "Report reviewer outcome and key blockers/issues."
+  ],
+  "phase_sequence_context": {
+    "phase_index": 1,
+    "phase_total": 4,
+    "completed_phase_ids": []
+  }
+}

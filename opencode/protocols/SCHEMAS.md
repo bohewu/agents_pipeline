@@ -13,3 +13,4 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/test-report.schema.json` | TestReport | test-runner | Evidence and results |
 | `./protocols/schemas/context-pack.schema.json` | ContextPack | compressor | Compressed context |
 | `./protocols/schemas/todo-ledger.schema.json` | TodoLedger | optional | Carryover items |
+| `./protocols/schemas/modernize-exec-handoff.schema.json` | ModernizeExecHandoff (optional inter-orchestrator input) | orchestrator-modernize -> orchestrator-pipeline | Phase-scoped modernization execution contract |

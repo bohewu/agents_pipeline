@@ -65,7 +65,20 @@
         "verbose_mode": { "type": "boolean", "default": false },
         "iterate_mode": { "type": "boolean", "default": false },
         "generate_mode": { "type": "boolean", "default": false },
-        "target_project_dir": { "type": "string" }
+        "target_project_dir": { "type": "string" },
+        "depth_mode": {
+          "type": "string",
+          "enum": ["lite", "standard", "deep"]
+        },
+        "modernize_mode": {
+          "type": "string",
+          "enum": ["plan", "plan+handoff", "phase-exec", "full-exec"]
+        },
+        "execute_phase_id": { "type": "string" },
+        "forwarded_pipeline_flags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       },
       "additionalProperties": true
     },

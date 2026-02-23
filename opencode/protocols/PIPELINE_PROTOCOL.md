@@ -17,6 +17,21 @@ If `todo-ledger.json` exists in the project root, the orchestrator should surfac
 before planning so the user can decide to include, defer, or mark items obsolete.
 The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
 
+## Optional Input: Modernize Execution Handoff
+
+When `orchestrator-pipeline` is delegated by `orchestrator-modernize` for phase-scoped implementation, the incoming handoff payload SHOULD be represented as structured JSON and SHOULD conform to:
+
+- `./protocols/schemas/modernize-exec-handoff.schema.json`
+
+The orchestrator prompts remain the execution source of truth, but the schema provides a stable contract for runtime dispatch, validation, and interoperability.
+
+Reference examples:
+- `./protocols/examples/modernize-exec-handoff.valid.json`
+- `./protocols/examples/modernize-exec-handoff.invalid.json`
+
+Validation helper (repo script):
+- `scripts/validate-modernize-handoff.py <payload.json>`
+
 ## Stage Contracts
 
 Stage numbering in this document is a reference model. Orchestrator-specific stage maps may vary; each orchestrator prompt is the execution source of truth.

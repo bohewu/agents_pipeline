@@ -84,6 +84,7 @@ jobs:
           cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
 
           (
             cd dist

@@ -10,6 +10,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.4] - 2026-02-23
+
+### Added
+
+- Optional `modernize -> pipeline` execution handoff contract schema (`modernize-exec-handoff.schema.json`) with valid/invalid example payloads.
+- `scripts/validate-modernize-handoff.py` helper for validating handoff payloads against the schema.
+
+### Changed
+
+- `orchestrator-modernize` now supports planning plus optional phase execution handoff modes (`plan+handoff`, `phase-exec`, `full-exec`) delegated to `@orchestrator-pipeline`.
+- `orchestrator-pipeline` now documents compatibility rules for phase-scoped modernization execution handoffs.
+- CI now validates modernize handoff schema examples (positive + negative case), and release bundles now include the handoff validation script.
+
 ## [0.5.3] - 2026-02-20
 
 ### Changed

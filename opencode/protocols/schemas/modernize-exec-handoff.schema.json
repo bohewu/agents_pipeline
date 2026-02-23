@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Modernize Execution Handoff",
+  "description": "Inter-orchestrator handoff contract for delegating a modernization roadmap phase from orchestrator-modernize to orchestrator-pipeline.",
+  "type": "object",
+  "required": [
+    "recipient_agent",
+    "working_project_dir",
+    "main_task_prompt",
+    "pipeline_flags",
+    "context_paths",
+    "phase_execution_contract",
+    "modernize_constraints",
+    "definition_of_done",
+    "evidence_expectations"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Protocol version (major.minor), e.g. '1.0'."
+    },
+    "handoff_type": {
+      "type": "string",
+      "const": "modernize-exec-handoff",
+      "description": "Optional discriminator for runtime routing/validation."
+    },
+    "recipient_agent": {
+      "type": "string",
+      "enum": ["@orchestrator-pipeline", "orchestrator-pipeline"],
+      "description": "The delegated orchestrator that owns execution/test/review flow."
+    },
+    "working_project_dir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Target project directory (project B) where implementation should run."
+    },
+    "source_project_dir": {
+      "type": "string",
+      "description": "Optional source project directory (project A) for traceability."
+    },
+    "main_task_prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Phase-scoped execution prompt for orchestrator-pipeline."
+    },
+    "pipeline_flags": {
+      "type": "array",
+      "description": "Forwarded orchestrator-pipeline flags, already normalized by orchestrator-modernize.",
+      "items": {
+        "type": "string",
+        "pattern": "^--.+"
+      }
+    },
+    "context_paths": {
+      "type": "array",
+      "description": "Paths to modernize artifacts used as planning constraints and execution context.",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "phase_execution_contract": {
+      "type": "object",
+      "required": [
+        "phase_id",
+        "phase_title",
+        "deliverables",
+        "exit_criteria"
+      ],
+      "properties": {
+        "phase_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable phase identifier from the modernization roadmap."
+        },
+        "phase_title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable phase title."
+        },
+        "phase_index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based phase index in the roadmap order, when available."
+        },
+        "deliverables": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "In-scope deliverables for this phase."
+        },
+        "out_of_scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Explicit exclusions and deferred items for this phase."
+        },
+        "prerequisites": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Dependencies or prerequisites required before this phase can complete."
+        },
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Alias/extension field for dependency lists used by some roadmaps."
+        },
+        "exit_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Phase completion criteria used by reviewer and orchestration gates."
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Optional alias/additional acceptance criteria if distinct from exit_criteria."
+        },
+        "migration_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Relevant rollback, compatibility, cutover, and data safety constraints for this phase."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Resolved single-phase execution contract extracted from modernize roadmap and supporting docs."
+    },
+    "modernize_constraints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Cross-cutting scope and behavior constraints from orchestrator-modernize."
+    },
+    "definition_of_done": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Delegated phase definition of done for orchestrator-pipeline."
+    },
+    "evidence_expectations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Evidence/reporting expectations that should appear in the delegated final summary."
+    },
+    "phase_sequence_context": {
+      "type": "object",
+      "properties": {
+        "phase_index": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "phase_total": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "completed_phase_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Optional sequencing metadata for full-exec runs."
+    },
+    "runtime_metadata": {
+      "type": "object",
+      "description": "Optional runtime-specific metadata (trace IDs, timestamps, dispatcher info).",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
