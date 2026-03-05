@@ -32,7 +32,8 @@
         "orchestrator-init",
         "orchestrator-ci",
         "orchestrator-modernize",
-        "orchestrator-committee"
+        "orchestrator-committee",
+        "orchestrator-general"
       ],
       "description": "Which orchestrator is running this pipeline."
     },

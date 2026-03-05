@@ -4,9 +4,13 @@
 opencode.json
 todo-ledger.json
 !.env.example
-*debug*
-*test*
-*build*
+# Targeted local artifact ignores (avoid broad catch-alls)
+debug/
+build/
+test-output/
+*.debug.log
+*.test.log
+*.build.log
 
 # Pipeline artifacts (orchestrator outputs, checkpoints)
 .pipeline-output/

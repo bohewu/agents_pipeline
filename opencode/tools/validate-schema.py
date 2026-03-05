@@ -71,7 +71,9 @@ def validate(schema, data, path="$"):
             if schema.get("additionalProperties") is False and properties:
                 extras = [k for k in data.keys() if k not in properties]
                 if extras:
-                    errors.append(f"{path}: additional properties not allowed: {extras!r}")
+                    errors.append(
+                        f"{path}: additional properties not allowed: {extras!r}"
+                    )
 
     return errors
 
@@ -80,6 +82,11 @@ def main():
     parser = argparse.ArgumentParser(description="Validate JSON against a schema.")
     parser.add_argument("--schema", required=True, help="Path to JSON schema file.")
     parser.add_argument("--input", required=True, help="Path to JSON input file.")
+    parser.add_argument(
+        "--require-jsonschema",
+        action="store_true",
+        help="Require jsonschema package; fail if unavailable.",
+    )
     args = parser.parse_args()
 
     schema_path = os.path.expanduser(args.schema)
@@ -97,6 +104,14 @@ def main():
     except Exception:
         jsonschema = None
 
+    if args.require_jsonschema and jsonschema is None:
+        print(
+            "ERROR: --require-jsonschema was set, but the 'jsonschema' package is not installed.",
+            file=sys.stderr,
+        )
+        print("Install it with: python -m pip install jsonschema", file=sys.stderr)
+        return 2
+
     if jsonschema is not None:
         try:
             jsonschema.validate(instance=data, schema=schema)
@@ -111,7 +126,9 @@ def main():
         print("FAIL: validation failed")
         for err in errors:
             print(f"- {err}")
-        print("Tip: install jsonschema for full validation: python -m pip install jsonschema")
+        print(
+            "Tip: install jsonschema for full validation: python -m pip install jsonschema"
+        )
         return 1
 
     print("OK: basic validation passed (jsonschema not installed)")

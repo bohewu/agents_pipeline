@@ -10,6 +10,22 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.5] - 2026-03-05
+
+### Added
+
+- `--require-jsonschema` flag for `opencode/tools/validate-schema.py` to enforce full-schema validation when required.
+
+### Changed
+
+- CI now installs `jsonschema` and runs modernize handoff schema checks with `--require-jsonschema`.
+- Bash bootstrap installers now parse GitHub release JSON via structured Python parsing instead of `grep|cut|head` chains.
+- Root `.gitignore` now uses targeted local artifact patterns in place of broad wildcard rules.
+
+### Fixed
+
+- Added `orchestrator-general` to `checkpoint.schema.json` orchestrator enum to align schema with active orchestrators.
+
 ## [0.5.4] - 2026-02-23
 
 ### Added

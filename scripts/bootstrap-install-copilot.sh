@@ -90,20 +90,46 @@ fi
 echo "Release API: ${API_URL}"
 
 JSON="$(curl -fsSL -H "Accept: application/vnd.github+json" "${API_URL}")"
-ASSET_URL="$(
-  printf '%s' "${JSON}" \
-    | grep -Eo '"browser_download_url":[[:space:]]*"[^"]+"' \
-    | cut -d'"' -f4 \
-    | grep -E 'agents-pipeline-opencode-bundle-.*\.tar\.gz$' \
-    | head -n1 || true
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "Missing Python interpreter: install python3 or python." >&2
+  exit 1
+fi
+
+PARSED_URLS="$(
+  JSON_PAYLOAD="${JSON}" "${PYTHON_BIN}" - <<'PY'
+import json
+import os
+import re
+import sys
+
+data = json.loads(os.environ["JSON_PAYLOAD"])
+asset_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.tar\.gz$")
+sums_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$")
+
+asset_url = ""
+sums_url = ""
+
+for asset in data.get("assets", []):
+    if not isinstance(asset, dict):
+        continue
+    url = asset.get("browser_download_url")
+    if not isinstance(url, str):
+        continue
+    if not asset_url and asset_pattern.search(url):
+        asset_url = url
+    if not sums_url and sums_pattern.search(url):
+        sums_url = url
+    if asset_url and sums_url:
+        break
+
+sys.stdout.write(f"{asset_url}\t{sums_url}")
+PY
 )"
-SUMS_URL="$(
-  printf '%s' "${JSON}" \
-    | grep -Eo '"browser_download_url":[[:space:]]*"[^"]+"' \
-    | cut -d'"' -f4 \
-    | grep -E 'agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$' \
-    | head -n1 || true
-)"
+IFS=$'\t' read -r ASSET_URL SUMS_URL <<<"${PARSED_URLS}"
 
 if [[ -z "${ASSET_URL}" ]]; then
   echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
