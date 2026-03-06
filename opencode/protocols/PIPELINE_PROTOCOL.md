@@ -137,13 +137,15 @@ Pipeline runs support interrupt/resume via checkpoint files.
 - **Schema:** `./protocols/schemas/checkpoint.schema.json`
 - **Write timing:** After each stage completes successfully, the orchestrator MUST update the checkpoint file with the stage output.
 - **Resume flow:**
-  1. User passes `--resume` flag
-  2. Orchestrator loads `<output_dir>/checkpoint.json`
-  3. Validates that the checkpoint's `orchestrator` field matches the current orchestrator
-  4. Displays a summary of completed stages and the next stage to run
-  5. Asks user to confirm before resuming
-  6. Skips completed stages and continues from the next incomplete stage
-- **Missing checkpoint:** If `--resume` is set but no checkpoint exists, warn the user and start fresh.
+   1. User passes `--resume` flag
+      - `--resume` may be used with a new prompt or as resume-only invocation without a new prompt.
+   2. Orchestrator loads `<output_dir>/checkpoint.json`
+   3. Validates that the checkpoint's `orchestrator` field matches the current orchestrator
+      - If resume-only invocation is used and checkpoint is valid, orchestrator reuses `checkpoint.user_prompt` as the run prompt.
+   4. Displays a summary of completed stages and the next stage to run
+   5. Asks user to confirm before resuming
+   6. Skips completed stages and continues from the next incomplete stage
+- **Missing/invalid checkpoint:** If `--resume` is set but checkpoint is missing or invalid, warn and start fresh; if no new prompt was provided (resume-only invocation), require a new prompt for the fresh run.
 - **Completion:** On successful pipeline completion, the checkpoint file MAY be retained for audit or deleted. Default: retain.
 
 ## Confirm / Verbose Protocol
@@ -151,6 +153,11 @@ Pipeline runs support interrupt/resume via checkpoint files.
 Pipeline runs support step-by-step user review via `--confirm` and `--verbose` flags.
 
 - **Default mode** (no `--confirm` / `--verbose`): no step pauses; orchestrators may return a final concise summary only.
+
+- **`--autopilot`** (default: `false`): Run non-interactively by default.
+  - Disable stage/task pauses even if `--confirm` or `--verbose` are also provided.
+  - For low-risk ambiguity, choose safe defaults and continue.
+  - Stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
 
 - **`--confirm`** (default: `false`): Pause after each **stage** for user review.
   - Prompt format: `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`
@@ -165,6 +172,7 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 
 - **Flag interactions:**
   - `--verbose` automatically enables `--confirm`
+  - `--autopilot` wins over `--confirm` / `--verbose` and disables interactive pauses
   - `--dry --confirm` -> `--dry` wins (stops after atomizer+router)
   - `--resume --confirm` -> resume from checkpoint, then apply confirm mode going forward
 

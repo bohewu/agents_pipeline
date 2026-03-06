@@ -14,6 +14,7 @@ $ARGUMENTS
 ## Notes
 
 - Input before the first flag token is the main task prompt.
+- `--resume` also supports resume-only invocation without a new prompt (reuses checkpoint prompt when valid).
 - Source of truth for flag parsing/behavior: `opencode/agents/orchestrator-flow.md`.
 - Supported flags (Flow-only, minimal):
   - `--scout=auto|skip|force`
@@ -23,14 +24,17 @@ $ARGUMENTS
   - `--resume` — Resume from the last checkpoint
   - `--confirm` — Pause after each stage for user review
   - `--verbose` — Implies `--confirm`; additionally pauses after each task
+  - `--autopilot` — Run non-interactively; disables stage/task pauses and stops only on hard blockers
 
 ## Examples
 
 ```
 /run-flow Fix the login validation bug
 /run-flow Add dark mode toggle --skip-scout
+/run-flow --resume
 /run-flow Continue previous run --resume
 /run-flow Implement with review --confirm
+/run-flow Ship login improvements --autopilot
 ```
 
 ## Flow vs Flow-Full

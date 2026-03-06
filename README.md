@@ -408,6 +408,7 @@ An example OpenCode config is provided at `opencode.json.example`.
 ## Flags
 
 Use flags after the main task prompt. Tokens starting with `--` are treated as flags.
+For resume-only flows, `--resume` can be used without a new prompt.
 
 - `--dry`
   - Stop after `atomizer + router`
@@ -424,14 +425,28 @@ Use flags after the main task prompt. Tokens starting with `--` are treated as f
   - low: Favor the smallest viable plan and fewer retries
   - medium: Balanced routing and retries
   - high: Allow deeper analysis and higher execution rigor
+- `--resume`
+  - Resume from `<output_dir>/checkpoint.json`
+  - Can be used without a new prompt (reuses `checkpoint.user_prompt` when valid)
+- `--confirm`
+  - Pause after each stage for review
+- `--verbose`
+  - Implies `--confirm`, plus per-task pauses during execution
+- `--autopilot`
+  - Run non-interactively
+  - Overrides `--confirm` / `--verbose` pauses
+  - Stops only on hard blockers (destructive/irreversible actions, security/billing impact, missing credentials)
 
 Flag precedence:
 - `--dry` overrides `--test-only` when both are present.
+- `--autopilot` overrides interactive pauses from `--confirm` / `--verbose`.
 
 Examples:
 ```
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Improve search relevance --budget=medium
+/run-flow --resume
+/run-pipeline --resume --autopilot
 ```
 
 ## Orchestrators

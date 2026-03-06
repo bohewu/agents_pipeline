@@ -109,6 +109,10 @@ Parsed result:
 - main_task_prompt: string
 - flags: string[]
 
+Resume-only invocation rule:
+
+- If `main_task_prompt` is empty and `resume_mode = true`, treat this as a valid resume-only invocation.
+
 Supported flags (Flow-only, minimal):
 
 - `--scout=auto|skip|force` -> scout_mode
@@ -118,6 +122,7 @@ Supported flags (Flow-only, minimal):
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
+- `--autopilot` -> autopilot_mode = true
 
 If no scout flag is provided:
 
@@ -127,6 +132,12 @@ If conflicting flags exist (e.g. --skip-scout + --force-scout):
 
 - Prefer safety: force wins.
 - Warn the user.
+
+If `--autopilot` is combined with `--confirm` or `--verbose`:
+
+- Prefer autonomy: autopilot wins.
+- Set `confirm_mode = false` and `verbose_mode = false`.
+- Warn the user that interactive pauses are disabled in autopilot.
 
 If an invalid `--scout` value is provided:
 
@@ -142,12 +153,18 @@ If an invalid `--scout` value is provided:
 - `--resume`
 - `--confirm`
 - `--verbose`
+- `--autopilot`
 
 ## PRE-FLIGHT (before Stage 0)
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-flow`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`.
+   - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-flow`; on mismatch, treat checkpoint as invalid.
+   - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
+   - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
+   - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
+   - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
 
 ## CHECKPOINT PROTOCOL
 
@@ -155,13 +172,23 @@ After each stage completes successfully, write/update `<output_dir>/checkpoint.j
 
 ## CONFIRM / VERBOSE PROTOCOL
 
-If `confirm_mode = true`:
+If `confirm_mode = true` and `autopilot_mode != true`:
 - After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
 - On `abort`: write checkpoint and stop.
 
-If `verbose_mode = true` (implies `confirm_mode`):
+If `verbose_mode = true` and `autopilot_mode != true` (implies `confirm_mode`):
 - Additionally, during Stage 3 (Execution), pause after each individual task.
 - Use this mode only for close supervision/debugging; it intentionally increases interaction length.
+
+## AUTOPILOT MODE
+
+If `autopilot_mode = true`:
+- Prefer autonomous completion and suppress interactive pauses.
+- For low-risk ambiguity, choose safe defaults, continue, and note assumptions in output.
+- Stop only for hard blockers:
+  - destructive or irreversible actions
+  - security or billing impact changes
+  - missing credentials or required secrets
 
 ## Flow Pipeline (Fixed)
 
@@ -279,10 +306,9 @@ STOP after synthesis.
 
 # OUTPUT TO USER
 
-If `confirm_mode = true` or `verbose_mode = true`, provide stage-by-stage updates.
+If `autopilot_mode != true` and (`confirm_mode = true` or `verbose_mode = true`), provide stage-by-stage updates.
 
 If neither flag is enabled, provide one final brief with:
 - Overall done/not-done status
 - Primary deliverables
 - Blockers/risks and next action
-

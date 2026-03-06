@@ -17,6 +17,7 @@ $ARGUMENTS
 - The orchestrator-pipeline MUST reconstruct the main task prompt by concatenating
   all positional arguments **until the first token starting with `--`**.
 - All tokens starting with `--` are treated as pipeline flags.
+- `--resume` supports resume-only invocation without a new prompt (reuses checkpoint prompt when valid).
 
 > Source of truth: detailed flag parsing, conflict handling, and execution semantics live in `opencode/agents/orchestrator-pipeline.md` and `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
@@ -30,7 +31,7 @@ $ARGUMENTS
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--budget=low|medium|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
-- `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`
+- `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
 ## Examples
 
@@ -40,8 +41,10 @@ $ARGUMENTS
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout
+/run-pipeline --resume
 /run-pipeline Continue previous run --resume
 /run-pipeline Implement feature with review --confirm
+/run-pipeline Execute migration end-to-end --autopilot
 ```
 
 ## Guarantees

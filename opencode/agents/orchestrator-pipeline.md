@@ -26,7 +26,7 @@ FOCUS: High-level planning, delegation, quality gates, and synthesis.
 
 - Default to concise mode: keep responses short and action-oriented.
 - If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
-- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled and `autopilot_mode = false`.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
@@ -109,6 +109,10 @@ Parsed result:
 - main_task_prompt: string
 - flags: string[]
 
+Resume-only invocation rule:
+
+- If `main_task_prompt` is empty and `resume_mode = true`, treat this as a valid resume-only invocation.
+
 Flag semantics:
 
 - `--dry` -> dry_run = true
@@ -125,6 +129,7 @@ Flag semantics:
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
+- `--autopilot` -> autopilot_mode = true
 
 If no scout flag is provided:
 
@@ -143,6 +148,12 @@ If conflicting scout flags exist (e.g. --skip-scout + --force-scout):
 If `--dry + --confirm`:
 
 - `--dry` wins (pipeline stops after atomizer+router regardless of confirm mode).
+
+If `--autopilot` is combined with `--confirm` or `--verbose`:
+
+- `--autopilot` wins.
+- Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
+- Warn the user that autopilot is running non-interactively.
 
 Proceed with pipeline execution according to parsed flags.
 
@@ -182,8 +193,15 @@ If the incoming handoff includes a modernize execution contract (for example fie
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user: "Warning: `<output_dir>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
-4. **Todo Ledger**: If `todo-ledger.json` exists in the project root, surface it and ask whether to include, defer, or mark items obsolete.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`.
+   - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
+   - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
+   - If checkpoint is valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation.
+   - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
+   - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
+4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
+   - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
+   - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
 5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
 6. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
    - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
@@ -207,7 +225,13 @@ After each stage completes successfully:
 
 # CONFIRM / VERBOSE PROTOCOL
 
-If `confirm_mode = true`:
+Autopilot interaction policy:
+
+- In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
+- In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
+- In `autopilot_mode`, do not request interactive confirmations for stage/task progression.
+
+If `confirm_mode = true` and `autopilot_mode = false`:
 - After each stage completes, display a stage summary and ask:
   ```
   [Stage N: <name>] Complete.
@@ -219,7 +243,7 @@ If `confirm_mode = true`:
   - `feedback` -> user provides text; re-run the current stage with amended instructions
   - `abort` -> write checkpoint and stop; tell user they can resume with `--resume`
 
-If `verbose_mode = true` (implies `confirm_mode = true`):
+If `verbose_mode = true` and `autopilot_mode = false` (implies `confirm_mode = true`):
 - Additionally, during execution stages (Stage 5), pause after each individual task:
   ```
   [Task <task_id>: <summary>] Complete.
@@ -332,7 +356,7 @@ If `decision_only = true`:
 
 # OUTPUT TO USER
 
-If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
+If (`confirm_mode = true` or `verbose_mode = true`) and `autopilot_mode = false`, at each stage report:
 - Stage name
 - Key outputs (short)
 - What you are dispatching next
