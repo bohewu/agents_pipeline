@@ -10,6 +10,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+## [0.5.6] - 2026-03-06
+
+### Added
+
+- `--autopilot` flag guidance across Flow/Pipeline command and protocol docs, including non-interactive precedence over `--confirm`/`--verbose`.
+- Resume-only invocation documentation for `/run-flow --resume` and `/run-pipeline --resume`.
+
+### Changed
+
+- Flow/Pipeline orchestrator docs now specify checkpoint-based prompt hydration (`checkpoint.user_prompt`) when `--resume` is used without a new prompt.
+- README flag guidance now includes resume-only and autopilot usage with updated examples.
+
 ## [0.5.5] - 2026-03-05
 
 ### Added
