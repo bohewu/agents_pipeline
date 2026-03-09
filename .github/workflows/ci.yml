@@ -42,6 +42,7 @@ jobs:
           python3 --version
           python3 opencode/tools/validate-schema.py --help
           python3 scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir ./.tmp-copilot --strict --dry-run
+          python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir ./.tmp-codex --strict --dry-run
 
       - name: Validate modernize handoff schema and examples
         shell: bash
@@ -68,10 +69,13 @@ jobs:
         run: |
           bash -n scripts/install.sh
           bash -n scripts/install-copilot.sh
+          bash -n scripts/install-codex.sh
           bash -n scripts/bootstrap-install.sh
           bash -n scripts/bootstrap-install-copilot.sh
+          bash -n scripts/bootstrap-install-codex.sh
           bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
           bash scripts/install-copilot.sh --target ./.tmp-copilot-install --dry-run
+          bash scripts/install-codex.sh --target ./.tmp-codex-install --dry-run
 
   validate-powershell:
     runs-on: windows-latest
@@ -87,7 +91,10 @@ jobs:
         run: |
           [void](Get-Command -Name ./scripts/install.ps1)
           [void](Get-Command -Name ./scripts/install-copilot.ps1)
+          [void](Get-Command -Name ./scripts/install-codex.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-copilot.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install-codex.ps1)
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
+          pwsh -NoProfile -File scripts/install-codex.ps1 -Target .\.tmp-codex-install -DryRun

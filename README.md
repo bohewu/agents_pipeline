@@ -12,7 +12,8 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 
 - OpenCode (with model providers configured)
 - VS Code with GitHub Copilot (for Copilot custom-agent usage)
-- Python 3.9+ (required for `opencode/tools/validate-schema.py` and `scripts/export-copilot-agents.py`)
+- Codex CLI (optional; for Codex multi-agent usage)
+- Python 3.9+ (required for `opencode/tools/validate-schema.py`, `scripts/export-copilot-agents.py`, and `scripts/export-codex-agents.py`)
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
 - `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
 
@@ -111,6 +112,61 @@ pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup
 bash scripts/install-copilot.sh --no-backup
 ```
 
+## Install Codex Roles (Recommended)
+
+Generate and install Codex multi-agent role config to a Codex config directory.
+
+Default target:
+- All platforms: `~/.codex`
+
+Windows (PowerShell):
+
+```powershell
+pwsh -NoProfile -File scripts/install-codex.ps1
+```
+
+macOS/Linux:
+
+```bash
+bash scripts/install-codex.sh
+```
+
+Preview only (no file writes):
+
+```powershell
+pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun
+```
+
+```bash
+bash scripts/install-codex.sh --dry-run
+```
+
+Custom target path:
+
+```powershell
+pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex
+```
+
+```bash
+bash scripts/install-codex.sh --target /path/to/.codex
+```
+
+Force overwrite when the target already contains non-generated Codex config:
+
+```powershell
+pwsh -NoProfile -File scripts/install-codex.ps1 -Force
+```
+
+```bash
+bash scripts/install-codex.sh --force
+```
+
+Important Codex usage note:
+
+- Generated roles are configured as Codex agent roles in `config.toml`.
+- Use them by role name in prompts.
+- Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`
+
 ## Install Without Clone (Release Bundle)
 
 Use bootstrap installers to download a release bundle and install without cloning this repo.
@@ -172,6 +228,36 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
+```
+
+## Install Codex Without Clone (Release Bundle)
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.5.6"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
+pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.5.6"
+curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
+bash ./bootstrap-install-codex.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
 ```
 
 ## Versioning
@@ -242,6 +328,8 @@ Use whichever tool your team prefers.
 - This repo does not maintain per-agent default model mappings.
 - VS Code Copilot `.agent.md` files are generated from OpenCode source by `scripts/export-copilot-agents.py`.
 - Copilot mapping details live in `docs/copilot-mapping.md`.
+- Codex install scripts live at `scripts/install-codex.ps1`, `scripts/install-codex.sh`, `scripts/bootstrap-install-codex.ps1`, and `scripts/bootstrap-install-codex.sh`.
+- Codex role mapping details live in `docs/codex-mapping.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
@@ -294,6 +382,30 @@ After install, add your generated directory to VS Code user settings:
   ]
 }
 ```
+
+## Codex Agent Roles
+
+This repo can also generate Codex multi-agent role config from `opencode/agents/*.md` with single-source maintenance.
+
+- Generate a `.codex`-style config directory:
+
+```text
+python scripts/export-codex-agents.py --source-agents opencode/agents --target-dir /path/to/.codex --strict
+```
+
+- Output structure:
+  - `/path/to/.codex/config.toml`
+  - `/path/to/.codex/agents/*.toml`
+
+- Safe overwrite behavior:
+  - Generation fails if the target contains non-generated files unless you pass `--force`.
+
+- Codex docs / mapping notes:
+  - See `docs/codex-mapping.md` for the exact field mapping and adaptation rules.
+
+- Invocation note:
+  - Ask Codex to use role names in prompts.
+  - Example: `Have reviewer inspect the patch and have generalist draft the migration notes.`
 
 ## Quick Start
 

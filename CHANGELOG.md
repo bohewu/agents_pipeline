@@ -8,7 +8,9 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Added
 
-- No changes yet.
+- Codex multi-agent export CLI (`scripts/export-codex-agents.py`) that converts `opencode/agents/*.md` into `.codex/config.toml` plus per-role TOML files.
+- Codex mapping documentation (`docs/codex-mapping.md`).
+- Codex install/bootstrap scripts for local and release-bundle installation.
 
 ## [0.5.6] - 2026-03-06
 

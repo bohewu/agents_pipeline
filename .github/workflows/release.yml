@@ -79,11 +79,16 @@ jobs:
           cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
 
           (
