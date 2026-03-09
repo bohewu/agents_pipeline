@@ -37,7 +37,7 @@ FOCUS: Current-state assessment, target vision, modernization strategy, roadmap,
 
 - Default to concise mode: keep responses short and action-oriented.
 - If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.
-- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled.
+- Stage-by-stage progress updates are only required when `--confirm` or `--verbose` is enabled and `autopilot_mode != true`.
 
 # HANDOFF PROTOCOL (GLOBAL)
 
@@ -129,6 +129,7 @@ Flag semantics:
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
+- `--autopilot` -> autopilot_mode = true
 - `--target=<path>` -> target_project_dir (default: `../<source-project-dirname>-modernize/`)
 - `--depth=lite|standard|deep` -> depth_mode (default: `standard`)
 - `--execute-phase=<phase-id>` -> execute_phase_id
@@ -143,13 +144,19 @@ If conflicting flags exist:
 - If `modernize_mode` is `phase-exec` or `full-exec`, `decision_only = true` is invalid; stop and ask the user to remove `--decision-only` or switch to `plan` / `plan+handoff`.
 - If `--depth` is invalid, warn and default to `standard`.
 
+If `--autopilot` is combined with `--confirm` or `--verbose`:
+
+- `--autopilot` wins.
+- Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
+- Warn the user that modernization planning and any delegated execution will run non-interactively unless blocked.
+
 ## PRE-FLIGHT (before Stage 0)
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Resolve target_project_dir**: If `--target` was provided, use that path. Otherwise default to `../<source-project-dirname>-modernize/`.
    - If `modernize_mode` is `phase-exec` or `full-exec`, verify `target_project_dir` exists and is accessible. If missing, stop and report that execution modes require an existing target project directory (this pipeline does not scaffold it).
 3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
+4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation. If valid and `autopilot_mode != true`, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 ## CHECKPOINT PROTOCOL
 
@@ -157,11 +164,17 @@ After each stage completes successfully, write/update `<output_dir>/checkpoint.j
 
 ## CONFIRM / VERBOSE PROTOCOL
 
-If `confirm_mode = true`:
+Autopilot interaction policy:
+
+- In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
+- In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
+- In `autopilot_mode`, do not request interactive confirmations for stage/task progression or phase-to-phase advancement.
+
+If `confirm_mode = true` and `autopilot_mode != true`:
 - After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
 - On `abort`: write checkpoint and stop.
 
-If `verbose_mode = true` (implies `confirm_mode`):
+If `verbose_mode = true` and `autopilot_mode != true` (implies `confirm_mode`):
 - Additionally, during Stage 2 (Document Tasks), pause after each individual task.
 - Use this mode only for close supervision/debugging; it intentionally increases interaction length.
 
@@ -327,6 +340,15 @@ Execution rules:
   - a concise reason
   - an exact human-facing `/run-pipeline ...` command to run in `target_project_dir`
 
+Persisted handoff artifacts (required for execution modes):
+
+- Before each delegated phase run, persist the resolved handoff payload to:
+  - `<output_dir>/modernize/latest-handoff.json`
+  - `<output_dir>/modernize/phase-<phase_id>.handoff.json`
+- These are internal control files, not user-facing planning docs.
+- Their purpose is to support later manual `/run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
+- These handoff files SHOULD conform to `opencode/protocols/schemas/modernize-exec-handoff.schema.json`.
+
 Phase Resolution Protocol (required for `phase-exec` / `full-exec`):
 - Source of truth is `modernize-migration-roadmap.md`.
 - A "phase" MUST have a stable identifier or ordinal position plus explicit deliverables and exit criteria. If the roadmap lacks this structure, stop and ask for roadmap revision instead of guessing.
@@ -350,10 +372,13 @@ Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - Forbidden forwarded flags:
   - `--decision-only` (contradicts execution intent)
   - any `run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
+- If `autopilot_mode = true`, ensure `--autopilot` is present in the delegated `pipeline_flags` unless already present.
+- If `autopilot_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
 - If a forbidden forwarded flag is present, warn and drop it before dispatch.
 - Deduplicate exact duplicate forwarded flags while preserving order.
 - Do NOT synthesize or rewrite pipeline flags except:
   - In `full-exec`, if neither modernize `confirm_mode` nor a forwarded `--confirm` is present, strongly warn that multi-phase execution is running without phase checkpoints.
+- If `autopilot_mode = true`, do NOT emit the full-exec warning above; non-interactive sequential execution is intentional.
 - `orchestrator-pipeline` remains the final authority for handling conflicts among forwarded pipeline flags.
 
 Delegated Handoff Payload Contract (to `@orchestrator-pipeline`):
@@ -451,14 +476,21 @@ Sequencing Rules for `full-exec`:
 - After each phase:
   - If delegated result is success, continue to the next phase.
   - If delegated result is blocked/fail, stop and report phase status + blocker summary.
-  - If `confirm_mode = true`, ask user confirmation before dispatching the next phase.
+  - If `confirm_mode = true` and `autopilot_mode != true`, ask user confirmation before dispatching the next phase.
 - Record phase progression in checkpoint state (current phase index, completed phase IDs, last delegated status) when checkpointing is enabled.
+
+Completion Semantics (strict):
+- `phase-exec`: overall status is `done` only when the selected phase completes successfully.
+- `full-exec`: overall status is `done` only when every resolved roadmap phase completes successfully.
+- If `full-exec` stops after Phase M0, M1, or any intermediate phase while later phases remain, report `partial` or `blocked` instead of `done`.
+- Final summaries for `full-exec` MUST include completed phase IDs, remaining phase IDs, and the stopping reason when not all phases completed.
 
 Fallback Human Command Rendering (when agent dispatch unavailable):
 - Render one exact command per delegated run, to be executed by a human in `target_project_dir`.
 - Command format:
   - `/run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
-- Include a short note naming the target directory and selected phase ID/title.
+- Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
+- If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/modernize/phase-<phase_id>.handoff.json as the execution contract.`
 
 Recommended delegated prompt templates:
 - `phase-exec`: "Implement modernization roadmap phase <execute_phase_id> in target project B using the modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria."
@@ -466,7 +498,7 @@ Recommended delegated prompt templates:
 
 # OUTPUT TO USER
 
-If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
+If (`confirm_mode = true` or `verbose_mode = true`) and `autopilot_mode != true`, at each stage report:
 - Stage name
 - Key outputs (short)
 - What you are dispatching next
@@ -475,4 +507,5 @@ If neither flag is enabled, skip stage-by-stage narration and provide one final 
 - Overall "Done / Not done" status
 - Primary deliverables
 - If execution was requested: delegated pipeline phase status (completed / blocked / deferred)
+- If `modernize_mode = full-exec`: completed phases, remaining phases, and whether execution stopped early
 - Blockers/risks and next action

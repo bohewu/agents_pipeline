@@ -30,7 +30,7 @@ $ARGUMENTS
 - `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--budget=medium`)
 - `--depth=lite|standard|deep` — control doc verbosity (default: standard)
 - `--output-dir=<path>` — override artifact output path
-- `--resume`, `--confirm`, `--verbose`
+- `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
 ## Examples
 
@@ -41,6 +41,7 @@ $ARGUMENTS
 /run-modernize Assess legacy .NET monolith --iterate
 /run-modernize Assess legacy .NET monolith --target=../my-app-v2
 /run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--budget=medium --pipeline-flag=--confirm
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--budget=medium --autopilot
 /run-modernize Continue previous assessment --resume
 /run-modernize Assess with review --confirm
 ```
@@ -52,5 +53,6 @@ $ARGUMENTS
 - In execution-enabled modes, `orchestrator-modernize` delegates implementation to `orchestrator-pipeline` via agent handoff. `/run-pipeline` is the human-facing equivalent command.
 - `--pipeline-flag` is repeatable (instead of a quoted flag string) because `run-modernize` parsing is whitespace-based.
 - `--pipeline-flag` is only for `run-pipeline`-compatible flags. `run-modernize` flags such as `--mode`, `--target`, `--depth`, `--iterate`, and `--execute-phase` should not be forwarded.
+- `--autopilot` makes the modernize orchestrator non-interactive, and in execution modes it also forwards non-interactive behavior to delegated pipeline runs.
 - Output documents are written to `.pipeline-output/modernize/` by default.
 - A navigation index (`modernize-index.md`) is generated during synthesis and links the documents produced in that run (5 by default; 3 in `--decision-only`).

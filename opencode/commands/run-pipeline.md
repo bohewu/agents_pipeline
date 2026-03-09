@@ -42,6 +42,7 @@ $ARGUMENTS
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout
 /run-pipeline Implement the approved invite spec. Use .pipeline-output/spec/problem-spec.json and .pipeline-output/spec/dev-spec.json as approved inputs.
+/run-pipeline Continue modernization phase P1. Use .pipeline-output/modernize/phase-P1.handoff.json as the execution contract.
 /run-pipeline --resume
 /run-pipeline Continue previous run --resume
 /run-pipeline Implement feature with review --confirm

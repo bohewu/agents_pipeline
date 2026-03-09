@@ -41,6 +41,11 @@ When `orchestrator-pipeline` is delegated by `orchestrator-modernize` for phase-
 
 The orchestrator prompts remain the execution source of truth, but the schema provides a stable contract for runtime dispatch, validation, and interoperability.
 
+Persisted handoff files may also be used for later manual `/run-pipeline` invocation after a prior `/run-modernize` session. Recommended canonical locations:
+
+- `<output_dir>/modernize/latest-handoff.json`
+- `<output_dir>/modernize/phase-<phase_id>.handoff.json`
+
 Reference examples:
 - `./protocols/examples/modernize-exec-handoff.valid.json`
 - `./protocols/examples/modernize-exec-handoff.invalid.json`

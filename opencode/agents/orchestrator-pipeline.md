@@ -189,6 +189,13 @@ If the incoming handoff includes a modernize execution contract (for example fie
 - Output expectations (for delegated callers):
   - Final summary SHOULD include: phase ID/title, changed paths, test status, reviewer result, and unresolved follow-ups.
 
+If the user prompt explicitly references a persisted handoff file such as `<output_dir>/modernize/latest-handoff.json` or `<output_dir>/modernize/phase-<phase_id>.handoff.json`:
+
+- Read that file before Stage 0.
+- Validate it against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists.
+- Treat the file contents as the incoming modernization execution contract.
+- Use the handoff file as the source of truth over any weaker prose summary in the prompt.
+
 # PRE-FLIGHT (before Stage 0)
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
