@@ -246,6 +246,7 @@ Use whichever tool your team prefers.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Spec handoff SOP lives in `opencode/protocols/SPEC_TO_PIPELINE.md`.
+- Spec end-to-end example lives in `opencode/protocols/SPEC_E2E_EXAMPLE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
 - Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.

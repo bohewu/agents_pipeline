@@ -1,0 +1,80 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t1",
+      "summary": "Implement invite creation and duplicate-pending guard",
+      "description": "Add backend behavior for creating a pending invite and rejecting duplicate pending invites so the core flow matches the approved spec.",
+      "primary_output": "code",
+      "owner_hint": "executor-core",
+      "risk": "medium",
+      "complexity": "M",
+      "definition_of_done": [
+        "Submitting a valid new email creates exactly one pending invite and queues one invite email.",
+        "Submitting an email with an existing pending invite does not create a second invite and returns actionable feedback.",
+        "The task outcome aligns with `sc-send-invite`, `sc-block-duplicate-invite`, `ac-invite-created`, and `ac-no-duplicate-pending`."
+      ],
+      "dependencies": [],
+      "trace_ids": [
+        "story-invite-admin",
+        "sc-send-invite",
+        "sc-block-duplicate-invite",
+        "ac-invite-created",
+        "ac-no-duplicate-pending",
+        "tc-invite-service-creates-pending"
+      ]
+    },
+    {
+      "id": "t2",
+      "summary": "Show pending invites on the members page",
+      "description": "Update the members page so a successful invite appears immediately with pending status and duplicate invite feedback is visible in the UI.",
+      "primary_output": "code",
+      "owner_hint": "executor-core",
+      "risk": "medium",
+      "complexity": "M",
+      "definition_of_done": [
+        "After a successful invite, the invited email appears with pending status without requiring a page reload.",
+        "Duplicate pending invite submissions show clear feedback in the members page flow.",
+        "The task outcome aligns with `sc-send-invite`, `sc-block-duplicate-invite`, and `ac-pending-visible`."
+      ],
+      "dependencies": [
+        "t1"
+      ],
+      "trace_ids": [
+        "story-invite-admin",
+        "sc-send-invite",
+        "sc-block-duplicate-invite",
+        "ac-pending-visible",
+        "tc-members-page-shows-pending"
+      ]
+    },
+    {
+      "id": "t3",
+      "summary": "Add regression coverage for invite flow",
+      "description": "Add test coverage for invite creation, duplicate invite blocking, and pending invite visibility so reviewer checks can map directly to approved scenarios and acceptance criteria.",
+      "primary_output": "tests",
+      "owner_hint": "executor-core",
+      "risk": "low",
+      "complexity": "M",
+      "definition_of_done": [
+        "Unit coverage exists for invite creation and duplicate pending invite rejection.",
+        "Integration or end-to-end coverage exists for pending invite visibility from the members page.",
+        "The task outcome aligns with `tc-invite-service-creates-pending`, `tc-members-page-shows-pending`, and `tc-admin-sends-invite`."
+      ],
+      "dependencies": [
+        "t1",
+        "t2"
+      ],
+      "trace_ids": [
+        "sc-send-invite",
+        "sc-block-duplicate-invite",
+        "ac-invite-created",
+        "ac-pending-visible",
+        "ac-no-duplicate-pending",
+        "tc-invite-service-creates-pending",
+        "tc-members-page-shows-pending",
+        "tc-admin-sends-invite"
+      ]
+    }
+  ]
+}

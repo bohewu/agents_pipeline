@@ -50,6 +50,17 @@ Use one of these patterns:
 /run-pipeline Implement the approved OAuth login spec. Use .pipeline-output/spec/problem-spec.json for scope, .pipeline-output/spec/dev-spec.json for scenarios and acceptance criteria, and .pipeline-output/spec/plan-outline.json as planning context. --budget=medium
 ```
 
+## End-To-End Reference Example
+
+For a concrete artifact set that starts at `/run-spec` outputs and ends at `task-list.json`, see:
+
+- `opencode/protocols/SPEC_E2E_EXAMPLE.md`
+- `opencode/protocols/examples/spec-to-pipeline/problem-spec.json`
+- `opencode/protocols/examples/spec-to-pipeline/dev-spec.json`
+- `opencode/protocols/examples/spec-to-pipeline/dev-spec.md`
+- `opencode/protocols/examples/spec-to-pipeline/plan-outline.json`
+- `opencode/protocols/examples/spec-to-pipeline/task-list.json`
+
 ## Reviewer Expectations
 
 When spec artifacts are part of the handoff:

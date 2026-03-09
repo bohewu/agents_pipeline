@@ -1,0 +1,157 @@
+{
+  "protocol_version": "1.0",
+  "artifact_type": "dev-spec",
+  "title": "Workspace Invite Flow",
+  "goal": "Allow workspace admins to invite a teammate by email and track pending invites from the members page.",
+  "summary": "This spec defines the first-pass teammate invite flow for workspace admins, including duplicate invite handling and visible pending status.",
+  "spec_style": "hybrid",
+  "scope": {
+    "in": [
+      "Workspace admins can send a single invite from the members page.",
+      "Pending invites are visible in the members list.",
+      "Duplicate pending invites for the same email are blocked with clear feedback."
+    ],
+    "out": [
+      "Bulk invites.",
+      "Editing a teammate role after the invite is accepted.",
+      "Changes to the downstream invite acceptance experience."
+    ]
+  },
+  "constraints": [
+    "Reuse the existing email delivery service.",
+    "Do not require a new admin permission model.",
+    "Keep the flow compatible with the current members page layout."
+  ],
+  "assumptions": [
+    "Authenticated workspace admins already exist.",
+    "The invite acceptance link infrastructure is already available."
+  ],
+  "user_stories": [
+    {
+      "id": "story-invite-admin",
+      "as_a": "workspace admin",
+      "i_want": "to invite a teammate by email",
+      "so_that": "they can join the workspace without manual account setup",
+      "notes": [
+        "The first release supports one email address per action."
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "sc-send-invite",
+      "title": "Admin sends a new invite",
+      "story_id": "story-invite-admin",
+      "type": "happy_path",
+      "given": [
+        "The user is a workspace admin.",
+        "The members page is open.",
+        "The target email does not already have a pending invite."
+      ],
+      "when": [
+        "The admin enters a valid email address.",
+        "The admin submits the invite form."
+      ],
+      "then": [
+        "A pending invite is created for that email address.",
+        "The system queues an invite email.",
+        "The members page shows the invite with a pending status."
+      ],
+      "acceptance_criteria": [
+        "ac-invite-created",
+        "ac-pending-visible"
+      ],
+      "tags": [
+        "members-page",
+        "invite-flow"
+      ]
+    },
+    {
+      "id": "sc-block-duplicate-invite",
+      "title": "Admin tries to send a duplicate pending invite",
+      "story_id": "story-invite-admin",
+      "type": "failure",
+      "given": [
+        "The user is a workspace admin.",
+        "A pending invite already exists for the target email address."
+      ],
+      "when": [
+        "The admin submits the same email address again."
+      ],
+      "then": [
+        "A second pending invite is not created.",
+        "The UI explains that an invite is already pending."
+      ],
+      "acceptance_criteria": [
+        "ac-no-duplicate-pending"
+      ],
+      "tags": [
+        "members-page",
+        "validation"
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-invite-created",
+      "statement": "Submitting a valid new email from the members page creates exactly one pending invite and queues exactly one invite email.",
+      "priority": "must",
+      "verification": "mixed",
+      "linked_scenarios": [
+        "sc-send-invite"
+      ]
+    },
+    {
+      "id": "ac-pending-visible",
+      "statement": "After a successful invite, the members page shows the invited email with a pending status without requiring a page reload.",
+      "priority": "must",
+      "verification": "integration",
+      "linked_scenarios": [
+        "sc-send-invite"
+      ]
+    },
+    {
+      "id": "ac-no-duplicate-pending",
+      "statement": "Submitting an email that already has a pending invite does not create another invite and returns actionable feedback.",
+      "priority": "must",
+      "verification": "unit",
+      "linked_scenarios": [
+        "sc-block-duplicate-invite"
+      ]
+    }
+  ],
+  "test_plan": {
+    "strategy": "hybrid",
+    "test_cases": [
+      {
+        "id": "tc-invite-service-creates-pending",
+        "level": "unit",
+        "description": "Invite service creates one pending invite record and rejects duplicate pending invites.",
+        "covers": [
+          "ac-invite-created",
+          "ac-no-duplicate-pending"
+        ]
+      },
+      {
+        "id": "tc-members-page-shows-pending",
+        "level": "integration",
+        "description": "Members page updates to show the pending invite after a successful submission.",
+        "covers": [
+          "ac-pending-visible",
+          "sc-send-invite"
+        ]
+      },
+      {
+        "id": "tc-admin-sends-invite",
+        "level": "e2e",
+        "description": "Admin submits a new teammate invite from the members page and sees the pending state.",
+        "covers": [
+          "sc-send-invite"
+        ]
+      }
+    ]
+  },
+  "open_questions": [
+    "Should expired pending invites be surfaced differently from newly created pending invites?"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "protocol_version": "1.0",
+  "goal": "Allow workspace admins to invite a teammate by email and track pending invites from the members page.",
+  "scope": {
+    "in": [
+      "Workspace admins can send a single invite from the members page.",
+      "Pending invites are visible in the members list.",
+      "Duplicate pending invites for the same email are blocked with clear feedback."
+    ],
+    "out": [
+      "Bulk invites.",
+      "Editing a teammate role after the invite is accepted.",
+      "Changes to the downstream invite acceptance experience."
+    ]
+  },
+  "constraints": [
+    "Reuse the existing email delivery service.",
+    "Do not require a new admin permission model.",
+    "Keep the flow compatible with the current members page layout."
+  ],
+  "acceptance_criteria": [
+    "Submitting a valid new email from the members page creates exactly one pending invite and queues exactly one invite email.",
+    "After a successful invite, the members page shows the invited email with a pending status without requiring a page reload.",
+    "Submitting an email that already has a pending invite does not create another invite and returns actionable feedback."
+  ],
+  "assumptions": [
+    "Authenticated workspace admins already exist.",
+    "The invite acceptance link infrastructure is already available."
+  ]
+}

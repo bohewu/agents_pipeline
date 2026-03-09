@@ -1,0 +1,23 @@
+{
+  "protocol_version": "1.0",
+  "milestones": [
+    "Implement invite creation and duplicate-pending validation in the backend.",
+    "Update the members page so successful invites appear immediately as pending.",
+    "Add regression coverage for invite creation, duplicate blocking, and pending invite visibility."
+  ],
+  "dependencies": {
+    "Update the members page so successful invites appear immediately as pending.": [
+      "Implement invite creation and duplicate-pending validation in the backend."
+    ],
+    "Add regression coverage for invite creation, duplicate blocking, and pending invite visibility.": [
+      "Implement invite creation and duplicate-pending validation in the backend.",
+      "Update the members page so successful invites appear immediately as pending."
+    ]
+  },
+  "deliverables": [
+    "Invite creation behavior aligned to `sc-send-invite` and `ac-invite-created`.",
+    "Pending invite visibility aligned to `ac-pending-visible`.",
+    "Duplicate invite blocking aligned to `sc-block-duplicate-invite` and `ac-no-duplicate-pending`.",
+    "Regression tests aligned to `tc-invite-service-creates-pending`, `tc-members-page-shows-pending`, and `tc-admin-sends-invite`."
+  ]
+}
