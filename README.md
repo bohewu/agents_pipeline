@@ -466,6 +466,13 @@ Modes:
 - `/run-modernize --decision-only` (current-state + target-vision + strategy only)
 - `/run-modernize --iterate` (one revision round after initial docs)
 
+Recommended execution split:
+
+- Start `/run-modernize` in the source project.
+- Keep modernization docs and handoff files under the source project's `.pipeline-output/modernize/`.
+- Once implementation starts, switch to the target project for `/run-pipeline` runs.
+- Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
+
 ## General-Purpose Pipeline
 
 Use `/run-general` for non-coding work such as:
@@ -502,6 +509,12 @@ Iterative development:
 1. `/run-pipeline` (or `/run-flow` for small changes)
 2. `/run-ci` when CI/CD plan needs updates
 3. Publish using `opencode/protocols/PUBLISH_SOP.md`
+
+Modernization work:
+
+1. `/run-modernize` from the source project
+2. Review roadmap + handoff
+3. `/run-pipeline` from the target project for actual implementation
 
 ## Protocol Validation
 

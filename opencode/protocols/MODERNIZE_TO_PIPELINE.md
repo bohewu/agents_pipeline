@@ -37,6 +37,14 @@ Internal handoff files for execution-enabled runs:
 
 If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 
+## Source vs Target Ownership
+
+- `run-modernize` starts from the source project because it analyzes the legacy system and writes migration planning docs there.
+- The source project owns `.pipeline-output/modernize/`.
+- Real implementation should start from the target project.
+- The target project should own `.pipeline-output/pipeline/` once `/run-pipeline` is executing code, tests, and reviews.
+- After the first execution handoff exists, treat the target project as the default starting point for later implementation sessions.
+
 ## What The Handoff Files Are For
 
 - `latest-handoff.json` -> the most recently prepared execution contract
@@ -72,12 +80,15 @@ Start a fresh session in the target project and run:
 /run-pipeline Continue the approved modernization execution. Use .pipeline-output/modernize/latest-handoff.json as the execution contract.
 ```
 
+If the handoff file lives in the source repository instead of the target repository, reference it explicitly in the prompt, but still start the execution session from the target project.
+
 ## How `/run-pipeline` Should Treat These Inputs
 
 - Use the handoff JSON as the execution source of truth.
 - Respect `phase_execution_contract` boundaries.
 - Use the referenced modernize docs in `context_paths` as constraints.
 - Do not expand beyond the selected phase.
+- Treat the target project as the working repo for edits, tests, checkpoints, and review artifacts.
 
 ## Completion Rules
 

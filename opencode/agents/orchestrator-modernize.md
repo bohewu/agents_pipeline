@@ -158,6 +158,13 @@ If `--autopilot` is combined with `--confirm` or `--verbose`:
 3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
 4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation. If valid and `autopilot_mode != true`, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
+Execution root policy:
+
+- `orchestrator-modernize` starts from the source project because planning docs describe migration from system A to system B.
+- The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/modernize/` artifacts.
+- Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`).
+- After a handoff exists, later manual `/run-pipeline` sessions SHOULD start from the target project, not the source project.
+
 ## CHECKPOINT PROTOCOL
 
 After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
@@ -196,6 +203,13 @@ This pipeline follows a **Source-to-Target migration model**:
 - **Target Project (B):** A new project at `target_project_dir` (default: `../<source-dirname>-modernize/`) where the modernized system will be built.
 - All docs explicitly plan for building project B while project A continues running.
 - The pipeline does NOT create or scaffold the target project directory. It references the target path in documentation.
+
+Practical workflow split:
+
+- Planning starts in source project A.
+- Execution starts in target project B.
+- Source project A owns modernization docs and handoff artifacts.
+- Target project B owns implementation changes, tests, pipeline checkpoints, review artifacts, and later follow-up execution.
 
 Stage 0: @specifier -> ProblemSpec JSON
 
@@ -348,6 +362,7 @@ Persisted handoff artifacts (required for execution modes):
 - These are internal control files, not user-facing planning docs.
 - Their purpose is to support later manual `/run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
 - These handoff files SHOULD conform to `opencode/protocols/schemas/modernize-exec-handoff.schema.json`.
+- They are produced from the source-project side, but are intended to be consumed by later pipeline runs started from the target-project side.
 
 Phase Resolution Protocol (required for `phase-exec` / `full-exec`):
 - Source of truth is `modernize-migration-roadmap.md`.
