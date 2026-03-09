@@ -41,6 +41,7 @@ $ARGUMENTS
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout
+/run-pipeline Implement the approved invite spec. Use .pipeline-output/spec/problem-spec.json and .pipeline-output/spec/dev-spec.json as approved inputs.
 /run-pipeline --resume
 /run-pipeline Continue previous run --resume
 /run-pipeline Implement feature with review --confirm
@@ -52,6 +53,7 @@ $ARGUMENTS
 - This command does NOT rely on CLI-level flag parsing
 - All behavior is enforced at orchestrator-pipeline prompt level
 - Compatible with OpenCode official command system
+- When generated, the human-readable development spec is written to `<output_dir>/pipeline/dev-spec.md` (default: `.pipeline-output/pipeline/dev-spec.md`)
 - The global handoff protocol is embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need it externalized, extract that section into your runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 
 ## Design Notes

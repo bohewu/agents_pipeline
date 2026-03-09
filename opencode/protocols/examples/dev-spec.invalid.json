@@ -1,0 +1,42 @@
+{
+  "protocol_version": "1.0",
+  "artifact_type": "dev-spec",
+  "title": "Broken Dev Spec Example",
+  "goal": "Show a validation failure example.",
+  "summary": "This file intentionally violates the DevSpec schema.",
+  "spec_style": "bdd",
+  "scope": {
+    "in": [],
+    "out": []
+  },
+  "constraints": [],
+  "assumptions": [],
+  "user_stories": [
+    {
+      "id": "story-broken",
+      "as_a": "developer",
+      "i_want": "an invalid example"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "scenario-bad-format",
+      "title": "Scenario id does not match the required pattern",
+      "story_id": "story-broken",
+      "type": "happy_path",
+      "given": [
+        "A broken example is used."
+      ],
+      "when": [
+        "The schema validator runs."
+      ],
+      "then": []
+    }
+  ],
+  "acceptance_criteria": [],
+  "test_plan": {
+    "strategy": "bdd",
+    "test_cases": []
+  },
+  "open_questions": []
+}

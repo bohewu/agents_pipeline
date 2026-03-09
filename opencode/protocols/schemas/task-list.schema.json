@@ -79,6 +79,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "trace_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(story|sc|ac|tc)-[a-z0-9._-]+$"
+            }
           }
         },
         "additionalProperties": false
@@ -87,4 +96,3 @@
   },
   "additionalProperties": false
 }
-

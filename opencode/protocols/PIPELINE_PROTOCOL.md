@@ -17,6 +17,22 @@ If `todo-ledger.json` exists in the project root, the orchestrator should surfac
 before planning so the user can decide to include, defer, or mark items obsolete.
 The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
 
+## Optional Input: Approved Spec Artifacts
+
+When `orchestrator-pipeline` follows `orchestrator-spec`, the caller MAY provide or reference these artifacts under the shared output root:
+
+- `<output_dir>/spec/problem-spec.json`
+- `<output_dir>/spec/dev-spec.json`
+- `<output_dir>/spec/dev-spec.md`
+- `<output_dir>/spec/plan-outline.json`
+
+Usage rules:
+
+- `problem-spec.json` is the scope boundary.
+- `dev-spec.json` is the richer behavior and traceability contract.
+- `plan-outline.json` is optional planning context only.
+- `dev-spec.md` is human-readable context; when JSON artifacts are available, JSON remains the source of truth.
+
 ## Optional Input: Modernize Execution Handoff
 
 When `orchestrator-pipeline` is delegated by `orchestrator-modernize` for phase-scoped implementation, the incoming handoff payload SHOULD be represented as structured JSON and SHOULD conform to:
@@ -42,9 +58,24 @@ Input: User task prompt
 Output: `ProblemSpec` JSON
 Schema: `./protocols/schemas/problem-spec.schema.json`
 
+**Optional Stage 0.5: DevSpec Enrichment**
+Agent: `specifier` or a future spec-focused stage, optionally paired with `doc-writer` for Markdown rendering
+Input: `ProblemSpec`, original user task prompt, and any approved clarifications
+Output: `DevSpec` JSON and optional human-readable Markdown artifact
+Schema: `./protocols/schemas/dev-spec.schema.json`
+
+Use this optional contract when the workflow needs a human-readable development spec that still remains structured enough for planning, atomic task generation, and test traceability. The `DevSpec` should preserve the original scope while adding stable ids for stories, scenarios, acceptance criteria, and planned verification.
+
+Canonical pipeline paths when this stage is used:
+
+- `<output_dir>/pipeline/dev-spec.json`
+- `<output_dir>/pipeline/dev-spec.md`
+
+When `doc-writer` is used to render the Markdown artifact, the emitted artifact block may still include a task-specific filename. The orchestrator should persist that artifact content to the canonical path `<output_dir>/pipeline/dev-spec.md`.
+
 **Stage 1: Planner**
 Agent: `planner`
-Input: ProblemSpec
+Input: ProblemSpec, optional DevSpec
 Output: `PlanOutline` JSON
 Schema: `./protocols/schemas/plan-outline.schema.json`
 
@@ -56,9 +87,11 @@ Schema: `./protocols/schemas/repo-findings.schema.json`
 
 **Stage 3: Atomizer**
 Agent: `atomizer`
-Input: PlanOutline, optional RepoFindings
+Input: PlanOutline, optional RepoFindings, optional DevSpec
 Output: `TaskList` JSON
 Schema: `./protocols/schemas/task-list.schema.json`
+
+If `DevSpec` is present, each task SHOULD include `trace_ids[]` pointing to relevant `story-*`, `sc-*`, `ac-*`, or `tc-*` ids so execution and review can preserve spec traceability.
 
 **Stage 4: Router**
 Agent: `router`
@@ -73,7 +106,7 @@ Output: Task result JSON plus required artifact blocks when applicable
 
 **Stage 6: Reviewer**
 Agent: `reviewer`
-Input: TaskList, executor outputs, optional test evidence
+Input: TaskList, executor outputs, ProblemSpec, optional DevSpec, optional test evidence
 Output: `ReviewReport` JSON
 Schema: `./protocols/schemas/review-report.schema.json`
 
@@ -102,6 +135,7 @@ All pipeline artifacts MUST be written under a single root directory to keep the
 - **Override flag:** `--output-dir=<path>` (available on all orchestrators)
 - **Sub-directories by pipeline:**
   - `.pipeline-output/pipeline/` — orchestrator-pipeline intermediates
+  - `.pipeline-output/spec/` — orchestrator-spec outputs
   - `.pipeline-output/init/` — orchestrator-init docs
   - `.pipeline-output/ci/` — orchestrator-ci docs
   - `.pipeline-output/modernize/` — orchestrator-modernize docs
@@ -110,9 +144,30 @@ All pipeline artifacts MUST be written under a single root directory to keep the
 - **Checkpoint file:** `.pipeline-output/checkpoint.json` (see Checkpoint Protocol below)
 - **Gitignore requirement:** The target project's `.gitignore` MUST include `.pipeline-output/`. Orchestrators verify this in the pre-flight stage and warn the user if it is missing.
 
+### Canonical Filenames For `orchestrator-pipeline`
+
+- `.pipeline-output/pipeline/problem-spec.json`
+- `.pipeline-output/pipeline/dev-spec.json` (optional)
+- `.pipeline-output/pipeline/dev-spec.md` (optional human-readable spec)
+- `.pipeline-output/pipeline/plan-outline.json`
+- `.pipeline-output/pipeline/repo-findings.json`
+- `.pipeline-output/pipeline/task-list.json`
+- `.pipeline-output/pipeline/dispatch-plan.json`
+- `.pipeline-output/pipeline/test-report.json`
+- `.pipeline-output/pipeline/review-report.json`
+- `.pipeline-output/pipeline/context-pack.json`
+
+### Canonical Filenames For `orchestrator-spec`
+
+- `.pipeline-output/spec/problem-spec.json`
+- `.pipeline-output/spec/dev-spec.json`
+- `.pipeline-output/spec/dev-spec.md`
+- `.pipeline-output/spec/plan-outline.json`
+
 ## Artifact Rules
 
 - If a task primary_output is `design`, `plan`, `spec`, `checklist`, `notes`, or `analysis`, the executor MUST emit an artifact block.
+- If a workflow emits `DevSpec`, prefer paired artifacts such as `dev-spec.json` and `dev-spec.md` under the pipeline output root so both machines and humans can consume the same contract.
 - Artifact format is fixed:
 
 ```text
@@ -123,6 +178,7 @@ All pipeline artifacts MUST be written under a single root directory to keep the
 
 - Filename policy:
   - If the orchestrator defines canonical filenames (for example init/ci/modernize docs), use those fixed names.
+  - If an executor artifact block uses a task-specific filename but the orchestrator defines a canonical output path, the orchestrator SHOULD persist the artifact content to that canonical path.
   - Otherwise, include `task_id` in the filename.
 
 ## Protocol Versioning

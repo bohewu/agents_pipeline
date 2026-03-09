@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t1",
+      "summary": "Broken trace example",
+      "description": "This example intentionally violates the trace id pattern.",
+      "primary_output": "code",
+      "owner_hint": "executor-core",
+      "risk": "low",
+      "complexity": "S",
+      "definition_of_done": [
+        "The example should fail validation."
+      ],
+      "dependencies": [],
+      "trace_ids": [
+        "scenario-bad-format"
+      ]
+    }
+  ]
+}

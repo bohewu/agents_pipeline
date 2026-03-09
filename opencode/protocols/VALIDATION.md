@@ -8,6 +8,13 @@ These gates define minimal acceptance for each stage output.
 - `scope.in` and `scope.out` must be present.
 - `goal` must be non-empty.
 
+## DevSpec Gate (Optional)
+
+- If `dev-spec.json` is emitted, it must validate against `./protocols/schemas/dev-spec.schema.json`.
+- `user_stories`, `scenarios`, and `acceptance_criteria` must each be non-empty.
+- Each scenario must include non-empty `given`, `when`, and `then` steps.
+- `test_plan.test_cases` must be non-empty so the spec stays executable.
+
 ## Plan Gate
 
 - `milestones` must be present.
@@ -18,6 +25,7 @@ These gates define minimal acceptance for each stage output.
 - Each task must include `id`, `summary`, `primary_output`, and `definition_of_done`.
 - `definition_of_done` must be non-empty.
 - `dependencies` must reference existing task ids or be empty.
+- If `DevSpec` is part of the run, each task must include non-empty `trace_ids` that point to valid `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
 
 ## Evidence Gate
 

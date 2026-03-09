@@ -75,7 +75,7 @@ These rules apply to **all agents**.
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
-| specifier | Requirement extraction | Proposing solutions |
+| specifier | ProblemSpec / DevSpec extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |
 | atomizer | Atomic task DAG | Implementation |
@@ -203,7 +203,12 @@ If the incoming handoff includes a modernize execution contract (for example fie
    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
 5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
-6. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
+6. **Approved spec artifacts (optional)**: If `<output_dir>/spec/problem-spec.json` and/or `<output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
+   - treat `<output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
+   - treat `<output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
+   - treat `<output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
+   - treat `<output_dir>/spec/dev-spec.md` as human-readable context only when needed
+7. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
    - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
    - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
    - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)
@@ -222,6 +227,40 @@ After each stage completes successfully:
    - `stage_artifacts`: map of stage outputs (the JSON produced at each stage)
    - `created_at` / `updated_at`: ISO 8601 timestamps
 2. The checkpoint file MUST conform to `opencode/protocols/schemas/checkpoint.schema.json`.
+
+# CANONICAL PIPELINE ARTIFACT PATHS
+
+Write these fixed filenames under `<output_dir>/pipeline/` whenever the artifact exists:
+
+- `problem-spec.json`
+- `dev-spec.json`
+- `dev-spec.md`
+- `plan-outline.json`
+- `repo-findings.json`
+- `task-list.json`
+- `dispatch-plan.json`
+- `test-report.json`
+- `review-report.json`
+- `context-pack.json`
+
+For the human-readable development spec, do NOT invent alternate filenames. Always use `<output_dir>/pipeline/dev-spec.md`.
+
+# DEV SPEC GENERATION POLICY
+
+Generate `DevSpec` by default when the task includes at least one of the following:
+
+- user-facing feature behavior
+- API behavior or contract changes
+- workflow/state transitions
+- explicit BDD, TDD, acceptance-criteria, scenario, or spec requests
+
+Skip `DevSpec` by default only when the run is clearly one of these:
+
+- `test_only = true`
+- trivial docs-only change
+- mechanical refactor with no intended behavior change
+
+If unsure and the task is implementation-oriented, prefer generating `DevSpec` because it improves traceability for planning, testing, and review.
 
 # CONFIRM / VERBOSE PROTOCOL
 
@@ -260,6 +299,7 @@ If `verbose_mode = true` and `autopilot_mode = false` (implies `confirm_mode = t
 
 - Pre-flight: Gitignore check, checkpoint resume, todo-ledger, init-docs
 - Stage 0 (Problem Spec): @specifier
+- Optional Stage 0.5 (Dev Spec): @specifier + @doc-writer
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Repo Scout): @repo-scout
 - Stage 3 (Atomicization): @atomizer
@@ -270,21 +310,22 @@ If `verbose_mode = true` and `autopilot_mode = false` (implies `confirm_mode = t
 - Stage 8 (Compression): @compressor
 - Stage 9 (Summary): @summarizer
 
-All intermediate JSON outputs (ProblemSpec, PlanOutline, TaskList, etc.) are written to `<output_dir>/pipeline/` for traceability.
+All intermediate JSON outputs (ProblemSpec, optional DevSpec, PlanOutline, TaskList, etc.) are written to `<output_dir>/pipeline/` for traceability.
 
-Stage 0: @specifier -> ProblemSpec JSON
-Stage 1: @planner -> PlanOutline JSON
-Stage 2: @repo-scout -> RepoFindings JSON (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
-Stage 3: @atomizer -> TaskList JSON (atomic DAG)
-Stage 4: @router -> DispatchPlan JSON (agent assignment + batching + parallel lanes)
+Stage 0: @specifier -> `problem-spec.json`
+Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce `dev-spec.json`, then call @doc-writer to render a Markdown artifact from the same contract and persist its content to the canonical path `dev-spec.md`
+Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
+Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
+Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes)
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
-- If `skip_tests = false`, run @test-runner after execution and attach TestReport evidence for Stage 6
+- If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> ReviewReport JSON (pass/fail + issues + delta recommendations)
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, executor outputs, ProblemSpec, and optional DevSpec
 Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
-Stage 8: @compressor -> ContextPack JSON (compressed summary of repo + decisions + outcomes)
+Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes)
 Stage 9: @summarizer -> user-facing final summary
 
 # DECISION-ONLY MODE
@@ -292,7 +333,7 @@ Stage 9: @summarizer -> user-facing final summary
 If `decision_only = true`:
 - Stop after Stage 2 (repo-scout). Do NOT run atomizer/router/executors/tests.
 - Do NOT run reviewer or retry stages.
-- Summarizer produces the final recommendation from ProblemSpec + RepoFindings.
+- Summarizer produces the final recommendation from ProblemSpec, optional DevSpec, and RepoFindings.
 
 # TEST FLAG RULES
 
@@ -344,6 +385,8 @@ If `decision_only = true`:
 # QUALITY GATES
 
 - Spec Gate: AcceptanceCriteria must be present and testable.
+- DevSpec Gate: If generated, stories/scenarios/test plan must remain aligned to ProblemSpec and usable by humans.
+- Traceability Gate: If DevSpec is present, every task must include explicit `trace_ids` back to the spec.
 - Atomicity Gate: every task has DoD + single primary output.
 - Evidence Gate: executors must include evidence (paths/logs/commands).
 - Consistency Gate: reviewer checks contradictions & missing deliverables.

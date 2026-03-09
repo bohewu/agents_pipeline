@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t1",
+      "summary": "Implement invite creation flow",
+      "description": "Create the pending invite flow for the members page and keep behavior traceable to the approved spec.",
+      "primary_output": "code",
+      "owner_hint": "executor-core",
+      "risk": "medium",
+      "complexity": "M",
+      "definition_of_done": [
+        "A workspace admin can create one pending invite for a new email address.",
+        "Behavior aligns with `sc-send-invite` and `ac-invite-created`."
+      ],
+      "dependencies": [],
+      "trace_ids": [
+        "story-invite-admin",
+        "sc-send-invite",
+        "ac-invite-created",
+        "tc-invite-service-creates-pending"
+      ]
+    }
+  ]
+}

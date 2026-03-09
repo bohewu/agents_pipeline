@@ -10,10 +10,11 @@ VS Code Copilot `.agent.md` outputs are generated from `opencode/agents/*.md` vi
 | orchestrator-ci | CI/CD planning pipeline (docs-first, optional generation) | primary | Docs-first |
 | orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
+| orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retries |
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
 | orchestrator-general | General-purpose orchestration for non-coding tasks (planning/writing/analysis) | primary | Non-coding workflow |
-| specifier | Convert user input into ProblemSpec JSON | subagent | hidden |
+| specifier | Convert user input into ProblemSpec JSON and optional DevSpec JSON | subagent | hidden |
 | planner | Produce PlanOutline JSON | subagent | hidden |
 | repo-scout | Repo discovery and risk scanning | subagent | hidden |
 | atomizer | Convert PlanOutline into atomic TaskList (DAG) | subagent | hidden |
@@ -33,4 +34,3 @@ VS Code Copilot `.agent.md` outputs are generated from `opencode/agents/*.md` vi
 | reviewer | Review outputs and enforce quality gates | subagent | hidden |
 | compressor | Compress repo decisions into ContextPack | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |
-

@@ -245,6 +245,7 @@ Use whichever tool your team prefers.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
 - Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
+- Spec handoff SOP lives in `opencode/protocols/SPEC_TO_PIPELINE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
 - Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
@@ -453,6 +454,7 @@ Examples:
 
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
 - Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
+- Spec: `/run-spec` (review-ready development spec for humans first, pipeline-ready handoff second)
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
 - General: `/run-general` (non-coding execution pipeline for planning/writing/analysis)
@@ -467,6 +469,9 @@ Examples:
   - you want multiple perspectives + a final judge, with budget as an explicit criterion
 - Use `/run-flow` when:
   - the change is small, low-risk, and you mainly want a fast execution plan (max 5 atomic tasks)
+- Use `/run-spec` when:
+  - you want to review a development spec before implementation starts
+  - you want a human-readable `DevSpec` plus a machine-readable handoff for later `/run-pipeline` execution
 - Use `/run-general` when:
   - the objective is not code implementation
   - you need structured planning, analysis, writing, or operational documentation
@@ -479,6 +484,7 @@ Examples:
 - Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
 - General-purpose pipeline uses `*-general` naming (e.g. `orchestrator-general.md`, `run-general.md`).
+- Spec pipeline uses `*-spec` naming (e.g. `orchestrator-spec.md`, `run-spec.md`).
 - Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
@@ -491,10 +497,11 @@ Examples:
 | orchestrator-ci | CI/CD planning pipeline | Implementing code |
 | orchestrator-modernize | Modernization planning pipeline | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
+| orchestrator-spec | Development spec orchestration | Implementing code |
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
 | orchestrator-general | Non-coding workflow orchestration | Implementing code |
-| specifier | Requirement extraction | Proposing solutions |
+| specifier | ProblemSpec / DevSpec extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |
 | atomizer | Atomic task DAG | Implementation |

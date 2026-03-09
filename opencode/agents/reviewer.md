@@ -23,10 +23,18 @@ Review TaskList + executor outputs. Enforce quality gates.
 - Evaluate artifact content, not conversational summaries.
 - Do NOT fail a task solely due to missing prose if the required artifact exists.
 
+# REQUIREMENTS ALIGNMENT
+
+- Always review against `ProblemSpec`.
+- If `DevSpec` is present, also review against its scenarios, acceptance criteria, and test-plan intent.
+- If tasks include `trace_ids`, treat them as the primary traceability contract.
+- If task outputs reference `sc-*` or `ac-*` ids, use those ids for traceability in `issues` and `required_followups`.
+- Missing required `DevSpec` coverage or missing task `trace_ids` is a review failure when `DevSpec` was part of the handoff.
+
 # DECISION-ONLY MODE
 
 If the handoff includes `--decision-only` or `decision_only = true`:
-- Perform directional review only: check alignment with ProblemSpec.
+- Perform directional review only: check alignment with ProblemSpec and optional DevSpec.
 - Do NOT enforce artifact completeness.
 - Do NOT request delta retries.
 

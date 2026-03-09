@@ -7,6 +7,7 @@ Paths are relative to the config directory (for example `~/.config/opencode`).
 
 - Handoff content is a formal contract. Do not infer missing requirements.
 - Scope must not expand beyond the ProblemSpec and Acceptance Criteria.
+- If `DevSpec` is present, downstream stages should preserve traceability via task `trace_ids` mapped to its story, scenario, acceptance, or test ids.
 - TaskList is the single source of truth for execution scope.
 - Evidence is required for implementation tasks unless explicitly skipped by flags.
 - Executors must not perform work outside their assigned task.
@@ -14,6 +15,7 @@ Paths are relative to the config directory (for example `~/.config/opencode`).
 ## Outputs and Schemas
 
 - ProblemSpec: `./protocols/schemas/problem-spec.schema.json`
+- DevSpec (optional): `./protocols/schemas/dev-spec.schema.json`
 - PlanOutline: `./protocols/schemas/plan-outline.schema.json`
 - RepoFindings: `./protocols/schemas/repo-findings.schema.json`
 - TaskList: `./protocols/schemas/task-list.schema.json`
