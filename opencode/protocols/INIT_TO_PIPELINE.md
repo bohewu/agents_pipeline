@@ -4,7 +4,10 @@ This SOP explains how to use init artifacts as reference inputs for the main pip
 
 ## Expected Init Artifacts
 
-Store these in `init/` at the project root:
+Canonical location is `<output_dir>/init/` (default: `.pipeline-output/init/`).
+Legacy root-level `init/` docs may also be used when present.
+
+Expected files:
 
 - `init/init-brief-product-brief.md`
 - `init/init-architecture.md`
@@ -22,7 +25,7 @@ Store these in `init/` at the project root:
 
 When invoking `/run-pipeline`, include a short note:
 
-- "Use init docs in `init/` as constraints and scope reference."
+- "Use init docs in `.pipeline-output/init/` (or legacy `init/`) as constraints and scope reference."
 
 ## If Init Docs Are Missing or Outdated
 

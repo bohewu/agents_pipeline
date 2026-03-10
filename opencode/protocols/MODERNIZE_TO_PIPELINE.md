@@ -13,6 +13,8 @@ Use `/run-modernize` with an execution mode:
 
 If you also pass `--autopilot`, the orchestrator should run non-interactively and continue phase-by-phase until all phases complete or a hard blocker stops execution.
 
+If the target project directory does not exist yet, add `--init-target` so the modernization flow can prepare the target project before execution handoff.
+
 ### Path B: Later manual execution in a new session
 
 You can close the session after `/run-modernize`, then later run `/run-pipeline` manually.
@@ -45,6 +47,19 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - The target project should own `.pipeline-output/pipeline/` once `/run-pipeline` is executing code, tests, and reviews.
 - After the first execution handoff exists, treat the target project as the default starting point for later implementation sessions.
 
+## If The Target Project Does Not Exist Yet
+
+Default behavior without `--init-target`:
+
+- `run-modernize` should stop before implementation handoff.
+- It should tell you to either create the target directory manually or rerun with `--init-target`.
+
+One-shot behavior with `--init-target`:
+
+- create the target project directory if missing
+- bootstrap target-project init docs using modernization outputs as constraints
+- continue to execution handoff when the selected mode includes execution
+
 ## What The Handoff Files Are For
 
 - `latest-handoff.json` -> the most recently prepared execution contract
@@ -65,6 +80,18 @@ Semantics:
 - `--autopilot` disables modernize stage pauses
 - delegated `/run-pipeline` phases also run non-interactively
 - overall status is only `done` when all resolved phases complete
+
+### Prepare target and hand off in one run
+
+```text
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
+```
+
+Semantics:
+
+- if `../my-app-v2` does not exist, create it first
+- bootstrap target init docs before implementation handoff
+- then continue into phase execution for `P1`
 
 ### Run one approved phase later in a new session
 

@@ -209,7 +209,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
-5. **Init docs**: If `init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
+5. **Init docs**: If `init/` docs or `<output_dir>/init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
 6. **Approved spec artifacts (optional)**: If `<output_dir>/spec/problem-spec.json` and/or `<output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
    - treat `<output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
    - treat `<output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6

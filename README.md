@@ -465,6 +465,7 @@ Modes:
 
 - `/run-modernize --decision-only` (current-state + target-vision + strategy only)
 - `/run-modernize --iterate` (one revision round after initial docs)
+- `/run-modernize --init-target` (bootstrap the target project path and init docs before later implementation handoff)
 
 Recommended execution split:
 
@@ -472,6 +473,7 @@ Recommended execution split:
 - Keep modernization docs and handoff files under the source project's `.pipeline-output/modernize/`.
 - Once implementation starts, switch to the target project for `/run-pipeline` runs.
 - Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
+- If the target project does not exist yet, rerun with `--init-target` to prepare it in the same modernization flow.
 
 ## General-Purpose Pipeline
 
@@ -513,8 +515,9 @@ Iterative development:
 Modernization work:
 
 1. `/run-modernize` from the source project
-2. Review roadmap + handoff
-3. `/run-pipeline` from the target project for actual implementation
+2. If the target project does not exist, either create it manually or rerun with `--init-target`
+3. Review roadmap + handoff
+4. `/run-pipeline` from the target project for actual implementation
 
 ## Protocol Validation
 
