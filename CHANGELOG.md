@@ -8,11 +8,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Added
 
-- No changes yet.
+- CI now covers mocked bootstrap dry runs for shell and PowerShell installer flows across base, Copilot, and Codex targets.
 
 ### Changed
 
 - PowerShell CI validation now handles expected non-zero exit codes correctly when checking switch-like target rejection.
+- Release bundle build and validation now run through a reusable release workflow.
+
+### Fixed
+
+- README pinned-version checks now validate documented versions against `VERSION`.
+- Exporters now use deterministic, bounded frontmatter parsing.
+- Generated Copilot and Codex output cleanup in CI is now bounded to expected stale files.
 
 ## [0.6.1] - 2026-03-10
 
