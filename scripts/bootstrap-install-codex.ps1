@@ -59,6 +59,9 @@ Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
 if ($Target) {
+    if ($Target -match '^-{1,2}[A-Za-z]') {
+        throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly and use -Force:`$true for overwrite mode."
+    }
     Write-Host "Install target override: $Target"
 }
 
@@ -113,18 +116,18 @@ try {
         throw "Install script not found in bundle: $installScript"
     }
 
-    $installArgs = @()
+    $installParams = @{}
     if ($Target) {
-        $installArgs += @("-Target", $Target)
+        $installParams.Target = $Target
     }
     if ($NoBackup) {
-        $installArgs += "-NoBackup"
+        $installParams.NoBackup = $true
     }
     if ($Force) {
-        $installArgs += "-Force"
+        $installParams.Force = $true
     }
 
-    & $installScript @installArgs
+    & $installScript @installParams
 }
 finally {
     if (-not $KeepTemp -and (Test-Path -LiteralPath $tempRoot)) {

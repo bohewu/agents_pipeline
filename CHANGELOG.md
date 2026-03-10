@@ -12,8 +12,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Changed
 
+- No changes yet.
+
+## [0.6.1] - 2026-03-10
+
+### Changed
+
 - Release bundles now include `README.md`, `CHANGELOG.md`, and `LICENSE` at the archive root.
 - CI now simulates the release bundle layout to catch missing packaged files before tagging.
+- PowerShell install/bootstrap scripts now reject switch-like target values and use safer parameter forwarding for nested installer calls.
 
 ## [0.6.0] - 2026-03-10
 

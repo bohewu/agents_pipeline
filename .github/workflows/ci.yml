@@ -136,3 +136,15 @@ jobs:
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
           pwsh -NoProfile -File scripts/install-codex.ps1 -Target .\.tmp-codex-install -DryRun
+
+          if (pwsh -NoProfile -File scripts/install.ps1 -Target '-Force' -DryRun) {
+            throw 'install.ps1 should reject switch-like target values.'
+          }
+
+          if (pwsh -NoProfile -File scripts/install-copilot.ps1 -Target '-NoBackup' -DryRun) {
+            throw 'install-copilot.ps1 should reject switch-like target values.'
+          }
+
+          if (pwsh -NoProfile -File scripts/install-codex.ps1 -Target '-Force' -DryRun) {
+            throw 'install-codex.ps1 should reject switch-like target values.'
+          }

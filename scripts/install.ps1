@@ -27,6 +27,10 @@ if (-not $Target) {
     $Target = Get-DefaultTarget
 }
 
+if ($Target -match '^-{1,2}[A-Za-z]') {
+    throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly if needed."
+}
+
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
 $items = @("agents", "commands", "protocols", "tools")
 $exampleConfig = Join-Path $repoRoot "opencode.json.example"
