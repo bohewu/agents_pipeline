@@ -44,6 +44,44 @@ jobs:
           python3 scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir ./.tmp-copilot --strict --dry-run
           python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir ./.tmp-codex --strict --dry-run
 
+      - name: Validate release bundle layout
+        shell: bash
+        run: |
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          BUNDLE_DIR=".tmp-release-bundle/agents-pipeline-opencode-bundle-v${VERSION_VALUE}"
+
+          rm -rf .tmp-release-bundle
+          mkdir -p "${BUNDLE_DIR}/scripts"
+
+          cp -R opencode "${BUNDLE_DIR}/"
+          cp AGENTS.md "${BUNDLE_DIR}/"
+          cp CHANGELOG.md "${BUNDLE_DIR}/"
+          cp LICENSE "${BUNDLE_DIR}/"
+          cp README.md "${BUNDLE_DIR}/"
+          cp VERSION "${BUNDLE_DIR}/"
+          cp opencode.json.example "${BUNDLE_DIR}/"
+          cp scripts/install.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/install.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.ps1 "${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.sh "${BUNDLE_DIR}/scripts/"
+          cp scripts/export-copilot-agents.py "${BUNDLE_DIR}/scripts/"
+          cp scripts/export-codex-agents.py "${BUNDLE_DIR}/scripts/"
+          cp scripts/validate-modernize-handoff.py "${BUNDLE_DIR}/scripts/"
+
+          test -f "${BUNDLE_DIR}/README.md"
+          test -f "${BUNDLE_DIR}/CHANGELOG.md"
+          test -f "${BUNDLE_DIR}/LICENSE"
+          test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
+          test -f "${BUNDLE_DIR}/opencode/protocols/MODERNIZE_TO_PIPELINE.md"
+
       - name: Validate modernize handoff schema and examples
         shell: bash
         run: |

@@ -10,6 +10,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - No changes yet.
 
+### Changed
+
+- Release bundles now include `README.md`, `CHANGELOG.md`, and `LICENSE` at the archive root.
+- CI now simulates the release bundle layout to catch missing packaged files before tagging.
+
 ## [0.6.0] - 2026-03-10
 
 ### Added

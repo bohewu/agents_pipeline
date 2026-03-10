@@ -73,6 +73,9 @@ jobs:
 
           cp -R opencode "dist/${BUNDLE_DIR}/"
           cp AGENTS.md "dist/${BUNDLE_DIR}/"
+          cp CHANGELOG.md "dist/${BUNDLE_DIR}/"
+          cp LICENSE "dist/${BUNDLE_DIR}/"
+          cp README.md "dist/${BUNDLE_DIR}/"
           cp VERSION "dist/${BUNDLE_DIR}/"
           cp opencode.json.example "dist/${BUNDLE_DIR}/"
           cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
