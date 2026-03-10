@@ -336,6 +336,7 @@ Use whichever tool your team prefers.
 - Spec handoff SOP lives in `opencode/protocols/SPEC_TO_PIPELINE.md`.
 - Spec end-to-end example lives in `opencode/protocols/SPEC_E2E_EXAMPLE.md`.
 - Modernize handoff SOP lives in `opencode/protocols/MODERNIZE_TO_PIPELINE.md`.
+- Modernize target bootstrap example lives in `opencode/protocols/MODERNIZE_TARGET_BOOTSTRAP_EXAMPLE.md`.
 - Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
 - Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
@@ -474,6 +475,7 @@ Recommended execution split:
 - Once implementation starts, switch to the target project for `/run-pipeline` runs.
 - Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
 - If the target project does not exist yet, rerun with `--init-target` to prepare it in the same modernization flow.
+- Expect `modernize-index.md` to include copyable next-step commands for bootstrap and/or target-side `/run-pipeline` continuation.
 
 ## General-Purpose Pipeline
 

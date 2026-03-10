@@ -88,7 +88,7 @@ Target: <target project path>
 <Bullet list>
 
 ## Next Steps
-<Recommendations for /run-pipeline in the target project>
+<Short operator guidance. Include exact, copyable command snippets in fenced `text` blocks. If target bootstrap is still required, show both the bootstrap path and the later `/run-pipeline` path.>
 ```
 
 ---

@@ -93,6 +93,34 @@ Semantics:
 - bootstrap target init docs before implementation handoff
 - then continue into phase execution for `P1`
 
+## Copyable Command Patterns
+
+### Target missing, bootstrap in one run
+
+```text
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
+```
+
+### Target missing, create it manually first
+
+```text
+mkdir ../my-app-v2
+```
+
+Then, from the target project:
+
+```text
+/run-pipeline Implement modernization roadmap phase P1 in target project B. Use ../source-repo/.pipeline-output/modernize/phase-P1.handoff.json as the execution contract.
+```
+
+### Target already exists, continue later from target project
+
+```text
+/run-pipeline Continue the approved modernization execution. Use ../source-repo/.pipeline-output/modernize/latest-handoff.json as the execution contract.
+```
+
+For a fuller walkthrough, see `opencode/protocols/MODERNIZE_TARGET_BOOTSTRAP_EXAMPLE.md`.
+
 ### Run one approved phase later in a new session
 
 Start a fresh session in the target project and run:

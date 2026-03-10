@@ -321,6 +321,9 @@ Stage 3: Synthesis
 - The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
 - If `modernize_mode = plan` or `modernize_mode = plan+handoff`, provide a short handoff note for `/run-pipeline` usage in the target project (for human operators).
+- The `Next Steps` section MUST include exact, copyable command snippets in fenced text blocks whenever the next operator action is known.
+- If the target project is missing and `init_target_mode != true`, the `Next Steps` section MUST include both: one manual target-creation path and one rerun path using `--init-target`.
+- If the next action should happen from the target project, say so explicitly before the command block.
 - Clarify that internal orchestration (when enabled) delegates to `@orchestrator-pipeline`, not a slash command string.
 - Do NOT produce any additional user-facing document files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
 - If `decision_only = false`, the final user-facing document list MUST be exactly: 5 modernize artifacts + 1 `modernize-index.md` = 6 files total.
