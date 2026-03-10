@@ -284,6 +284,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
 - Release CI checks `VERSION` and tag alignment (`VERSION=0.6.1` must release as `v0.6.1`).
+- README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
@@ -300,7 +301,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - Workflow: `.github/workflows/ci.yml`
 - Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
 - Checks:
-  - `VERSION` format and README version-alignment check
+  - `VERSION` format check
+  - README pinned version snippet validation against root `VERSION`
   - schema validator script sanity check
   - modernize execution handoff schema/examples validation (positive + negative case)
   - Copilot export script strict dry run

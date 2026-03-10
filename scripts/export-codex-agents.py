@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 FRONTMATTER_BOUNDARY = re.compile(r"^\s*---\s*$")
 TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
+TOOL_ENTRY_RE = re.compile(r"^  ([A-Za-z0-9_-]+)\s*:\s*(true|false)\s*$")
 AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
 ROLE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -23,6 +24,18 @@ KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "model",
     "agent",
 }
+
+SCALAR_FRONTMATTER_KEYS = {
+    "name",
+    "description",
+    "mode",
+    "hidden",
+    "temperature",
+    "model",
+    "agent",
+}
+
+UNSUPPORTED_VALUE_PREFIXES = ("[", "{", "|", ">")
 
 ORCHESTRATOR_PREFIX = "orchestrator-"
 EXECUTOR_WILDCARD = "executor-*"
@@ -52,7 +65,22 @@ def strip_quotes(value: str) -> str:
     return value
 
 
-def parse_frontmatter(content: str, path: Path) -> Tuple[Dict[str, str], str]:
+def parse_scalar_frontmatter_value(path: Path, key: str, raw_value: str) -> str:
+    value = raw_value.strip()
+    if not value:
+        raise ValueError(
+            f"{path.as_posix()}: frontmatter key '{key}' must use a single-line scalar value"
+        )
+    if value.startswith(UNSUPPORTED_VALUE_PREFIXES):
+        raise ValueError(
+            f"{path.as_posix()}: frontmatter key '{key}' uses unsupported structured value '{value}'"
+        )
+    return strip_quotes(value)
+
+
+def parse_frontmatter(
+    content: str, path: Path
+) -> Tuple[Dict[str, str], Dict[str, bool], str]:
     lines = content.splitlines()
     if not lines or not FRONTMATTER_BOUNDARY.match(lines[0]):
         raise ValueError(f"{path.as_posix()}: missing frontmatter block")
@@ -66,25 +94,81 @@ def parse_frontmatter(content: str, path: Path) -> Tuple[Dict[str, str], str]:
         raise ValueError(f"{path.as_posix()}: unterminated frontmatter block")
 
     fm: Dict[str, str] = {}
-    for line in lines[1:end_idx]:
+    tools: Dict[str, bool] = {}
+    saw_tools = False
+    frontmatter_lines = lines[1:end_idx]
+    idx = 0
+    while idx < len(frontmatter_lines):
+        line = frontmatter_lines[idx]
+        if not line.strip():
+            raise ValueError(
+                f"{path.as_posix()}: blank lines are not allowed inside frontmatter"
+            )
+        if line[:1].isspace():
+            raise ValueError(
+                f"{path.as_posix()}: unexpected indented frontmatter line '{line}'"
+            )
+
         match = TOP_LEVEL_KEY_RE.match(line)
         if match is None:
-            continue
+            raise ValueError(f"{path.as_posix()}: malformed frontmatter line '{line}'")
+
         key = match.group(1).strip()
-        value = match.group(2).strip()
-        fm[key] = strip_quotes(value)
+        raw_value = match.group(2).strip()
+        if key not in KNOWN_SOURCE_FRONTMATTER_KEYS:
+            raise ValueError(f"{path.as_posix()}: unsupported frontmatter key '{key}'")
+        if key in fm or (key == "tools" and saw_tools):
+            raise ValueError(f"{path.as_posix()}: duplicate frontmatter key '{key}'")
+
+        if key == "tools":
+            saw_tools = True
+            if raw_value:
+                raise ValueError(
+                    f"{path.as_posix()}: frontmatter key 'tools' must not have an inline value"
+                )
+            idx += 1
+            if idx >= len(frontmatter_lines) or not frontmatter_lines[idx].startswith(
+                "  "
+            ):
+                raise ValueError(
+                    f"{path.as_posix()}: frontmatter key 'tools' must contain indented boolean entries"
+                )
+            while idx < len(frontmatter_lines) and frontmatter_lines[idx].startswith(
+                "  "
+            ):
+                tool_line = frontmatter_lines[idx]
+                tool_match = TOOL_ENTRY_RE.match(tool_line)
+                if tool_match is None:
+                    raise ValueError(
+                        f"{path.as_posix()}: malformed tools entry '{tool_line}'"
+                    )
+                tool_name = tool_match.group(1)
+                if tool_name in tools:
+                    raise ValueError(
+                        f"{path.as_posix()}: duplicate tools entry '{tool_name}'"
+                    )
+                tools[tool_name] = tool_match.group(2) == "true"
+                idx += 1
+            continue
+
+        if key not in SCALAR_FRONTMATTER_KEYS:
+            raise ValueError(
+                f"{path.as_posix()}: frontmatter key '{key}' is not supported in this exporter"
+            )
+        fm[key] = parse_scalar_frontmatter_value(path, key, raw_value)
+        idx += 1
 
     body = "\n".join(lines[end_idx + 1 :])
     if content.endswith("\n"):
         body += "\n"
-    return fm, body
+    return fm, tools, body
 
 
 def parse_source_agents(source_agents_dir: Path) -> List[AgentSource]:
     agents: List[AgentSource] = []
     for path in sorted(source_agents_dir.glob("*.md")):
         source = read_text(path)
-        fm, body = parse_frontmatter(source, path)
+        fm, tools, body = parse_frontmatter(source, path)
         name = fm.get("name", "").strip()
         description = fm.get("description", "").strip()
         if not name:
@@ -103,7 +187,7 @@ def parse_source_agents(source_agents_dir: Path) -> List[AgentSource]:
                 name=name,
                 description=description,
                 body=body,
-                fm_keys=set(fm.keys()),
+                fm_keys=set(fm.keys()) | ({"tools"} if tools else set()),
                 model=model,
             )
         )
