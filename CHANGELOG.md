@@ -8,9 +8,25 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Added
 
+- No changes yet.
+
+## [0.6.0] - 2026-03-10
+
+### Added
+
+- `DevSpec` schema, examples, and pipeline/spec workflow documentation for human-readable, pipeline-consumable development specs.
+- `orchestrator-spec` plus `/run-spec` for review-first spec generation.
+- Task-level `trace_ids` support for linking execution back to stories, scenarios, acceptance criteria, and test cases.
 - Codex multi-agent export CLI (`scripts/export-codex-agents.py`) that converts `opencode/agents/*.md` into `.codex/config.toml` plus per-role TOML files.
 - Codex mapping documentation (`docs/codex-mapping.md`).
 - Codex install/bootstrap scripts for local and release-bundle installation.
+
+### Changed
+
+- `orchestrator-pipeline`, `planner`, `atomizer`, `reviewer`, and `doc-writer` now understand optional `DevSpec` artifacts and canonical spec output paths.
+- Modernize execution semantics now distinguish non-interactive `--autopilot` from phase traversal, persist reusable handoff contracts, and document source-planning versus target-implementation ownership.
+- Modernize flow now documents `--init-target` target bootstrap behavior and reuses init docs as target-project constraints before implementation handoff.
+- README and protocol docs now include spec handoff, modernize handoff, and end-to-end workflow examples.
 
 ## [0.5.6] - 2026-03-06
 
