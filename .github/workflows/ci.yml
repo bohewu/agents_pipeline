@@ -156,3 +156,4 @@ jobs:
           }
 
           $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
+          $global:LASTEXITCODE = 0
