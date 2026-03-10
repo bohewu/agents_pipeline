@@ -46,6 +46,7 @@ $pythonCmd = Get-PythonCommand
 Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
 Write-Host "DryRun: $DryRun"
+Write-Host "Cleanup: stale generated Copilot agent files only"
 
 $existingAgents = @()
 if (Test-Path -LiteralPath $targetPath -PathType Container) {

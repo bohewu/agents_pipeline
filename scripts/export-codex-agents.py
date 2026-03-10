@@ -306,6 +306,38 @@ def validate_overwrite_policy(
             )
 
 
+def is_generated_file(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return GENERATED_MARKER in read_text(path).splitlines()[:3]
+    except OSError:
+        return False
+
+
+def find_stale_generated_outputs(
+    target_dir: Path, generated: Sequence[Tuple[Path, str]]
+) -> List[Path]:
+    expected = {path.as_posix().lower() for path, _ in generated}
+    stale: List[Path] = []
+
+    config_path = target_dir / "config.toml"
+    if config_path.as_posix().lower() not in expected and is_generated_file(
+        config_path
+    ):
+        stale.append(config_path)
+
+    agents_dir = target_dir / "agents"
+    if agents_dir.exists():
+        for existing in sorted(agents_dir.glob("*.toml")):
+            if existing.as_posix().lower() in expected:
+                continue
+            if is_generated_file(existing):
+                stale.append(existing)
+
+    return stale
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Export OpenCode agents into Codex multi-agent role config files."
@@ -469,9 +501,14 @@ def main() -> int:
         )
         for out_path, _ in generated:
             print(f"- {out_path.as_posix()}")
+        for stale_path in find_stale_generated_outputs(target_dir, generated):
+            print(f"- remove stale generated file: {stale_path.as_posix()}")
         return 0
 
     (target_dir / "agents").mkdir(parents=True, exist_ok=True)
+    for stale_path in find_stale_generated_outputs(target_dir, generated):
+        stale_path.unlink()
+        print(f"Removed stale generated file: {stale_path.as_posix()}")
     for out_path, out_content in generated:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         write_text(out_path, out_content)

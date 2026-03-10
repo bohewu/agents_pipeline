@@ -48,6 +48,7 @@ Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
 Write-Host "DryRun: $DryRun"
 Write-Host "Force: $Force"
+Write-Host "Cleanup: stale generated Codex outputs only"
 
 $existingConfig = $null
 $existingRoles = @()

@@ -14,6 +14,8 @@ Options:
   --no-backup      Skip backup of existing config.toml and agents/*.toml
   --force          Allow overwrite when target contains non-generated Codex files
   -h, --help       Show this help
+
+Installs current generated Codex config and removes stale generated role files only.
 EOF
 }
 
@@ -83,6 +85,7 @@ echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
 echo "DryRun: ${DRY_RUN}"
 echo "Force: ${FORCE_OVERWRITE}"
+echo "Cleanup: stale generated Codex outputs only"
 
 if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
   backup_needed=0

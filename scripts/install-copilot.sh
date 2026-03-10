@@ -13,6 +13,8 @@ Options:
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing *.agent.md files
   -h, --help       Show this help
+
+Installs current generated Copilot agents and removes stale generated *.agent.md files.
 EOF
 }
 
@@ -77,6 +79,7 @@ fi
 echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
 echo "DryRun: ${DRY_RUN}"
+echo "Cleanup: stale generated Copilot agent files only"
 
 if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
   shopt -s nullglob
