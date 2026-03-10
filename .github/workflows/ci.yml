@@ -409,10 +409,11 @@ jobs:
 
   validate-release-bundle:
     needs: release-bundle-vars
-    uses: ./.github/workflows/release.yml
+    uses: ./.github/workflows/release-bundle.yml
+    permissions:
+      contents: read
     with:
       tag: ${{ needs.release-bundle-vars.outputs.tag }}
-      publish_assets: false
       checkout_tag: false
 
   validate-powershell:

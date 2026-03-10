@@ -4,22 +4,6 @@ on:
   push:
     tags:
       - "v*"
-  workflow_call:
-    inputs:
-      tag:
-        description: "Tag to build (for example: v0.4.0)"
-        required: true
-        type: string
-      publish_assets:
-        description: "Whether to publish release assets"
-        required: false
-        default: false
-        type: boolean
-      checkout_tag:
-        description: "Whether to checkout the selected tag before building"
-        required: false
-        default: true
-        type: boolean
   workflow_dispatch:
     inputs:
       tag:
@@ -28,125 +12,32 @@ on:
         type: string
 
 jobs:
+  bundle:
+    uses: ./.github/workflows/release-bundle.yml
+    permissions:
+      contents: read
+    with:
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      checkout_tag: true
+      upload_artifact: true
+
   release:
+    needs: bundle
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - name: Download release bundle artifacts
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-
-      - name: Resolve tag
-        id: vars
-        shell: bash
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_call" ]]; then
-            TAG="${{ inputs.tag }}"
-            PUBLISH_ASSETS="${{ inputs.publish_assets }}"
-            CHECKOUT_TAG="${{ inputs.checkout_tag }}"
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="${{ inputs.tag }}"
-            PUBLISH_ASSETS="true"
-            CHECKOUT_TAG="true"
-          else
-            TAG="${{ github.ref_name }}"
-            PUBLISH_ASSETS="true"
-            CHECKOUT_TAG="true"
-          fi
-
-          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Tag must match vMAJOR.MINOR.PATCH. Got: ${TAG}" >&2
-            exit 1
-          fi
-
-          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "publish_assets=${PUBLISH_ASSETS}" >> "${GITHUB_OUTPUT}"
-          echo "checkout_tag=${CHECKOUT_TAG}" >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout selected tag
-        if: steps.vars.outputs.checkout_tag == 'true'
-        shell: bash
-        run: |
-          git fetch --tags --force
-          git checkout "${{ steps.vars.outputs.tag }}"
-
-      - name: Verify VERSION matches tag
-        shell: bash
-        run: |
-          if [[ ! -f VERSION ]]; then
-            echo "VERSION file is missing." >&2
-            exit 1
-          fi
-
-          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-          TAG_VALUE="${{ steps.vars.outputs.tag }}"
-
-          if [[ "v${VERSION_VALUE}" != "${TAG_VALUE}" ]]; then
-            echo "VERSION (${VERSION_VALUE}) does not match tag (${TAG_VALUE})." >&2
-            exit 1
-          fi
-
-      - name: Build release bundle
-        shell: bash
-        run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
-
-          rm -rf dist
-          mkdir -p "dist/${BUNDLE_DIR}/scripts"
-
-          cp -R opencode "dist/${BUNDLE_DIR}/"
-          cp AGENTS.md "dist/${BUNDLE_DIR}/"
-          cp CHANGELOG.md "dist/${BUNDLE_DIR}/"
-          cp LICENSE "dist/${BUNDLE_DIR}/"
-          cp README.md "dist/${BUNDLE_DIR}/"
-          cp VERSION "dist/${BUNDLE_DIR}/"
-          cp opencode.json.example "dist/${BUNDLE_DIR}/"
-          cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
-
-          (
-            cd dist
-            tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}"
-            zip -rq "${BUNDLE_DIR}.zip" "${BUNDLE_DIR}"
-            sha256sum "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}.zip" > "${BUNDLE_DIR}.SHA256SUMS.txt"
-          )
-
-      - name: Validate release bundle contents
-        shell: bash
-        run: |
-          BUNDLE_DIR="dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}"
-
-          test -f "${BUNDLE_DIR}/README.md"
-          test -f "${BUNDLE_DIR}/CHANGELOG.md"
-          test -f "${BUNDLE_DIR}/LICENSE"
-          test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
-          test -f "${BUNDLE_DIR}/opencode/protocols/MODERNIZE_TO_PIPELINE.md"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.zip"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
+          name: ${{ needs.bundle.outputs.artifact_name }}
+          path: dist
 
       - name: Publish release assets
-        if: steps.vars.outputs.publish_assets == 'true'
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ needs.bundle.outputs.tag }}
           generate_release_notes: true
           overwrite_files: true
           files: |

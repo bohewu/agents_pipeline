@@ -1,0 +1,141 @@
+name: Release Bundle
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Tag to build (for example: v0.4.0)"
+        required: true
+        type: string
+      checkout_tag:
+        description: "Whether to checkout the selected tag before building"
+        required: false
+        default: true
+        type: boolean
+      upload_artifact:
+        description: "Whether to upload built release artifacts for downstream jobs"
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      tag:
+        description: "Resolved release tag"
+        value: ${{ jobs.bundle.outputs.tag }}
+      artifact_name:
+        description: "Artifact name containing the built dist files"
+        value: ${{ jobs.bundle.outputs.artifact_name }}
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.vars.outputs.tag }}
+      artifact_name: ${{ steps.vars.outputs.artifact_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: vars
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag }}"
+          CHECKOUT_TAG="${{ inputs.checkout_tag }}"
+
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must match vMAJOR.MINOR.PATCH. Got: ${TAG}" >&2
+            exit 1
+          fi
+
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "checkout_tag=${CHECKOUT_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=release-bundle-${TAG}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout selected tag
+        if: steps.vars.outputs.checkout_tag == 'true'
+        shell: bash
+        run: |
+          git fetch --tags --force
+          git checkout "${{ steps.vars.outputs.tag }}"
+
+      - name: Verify VERSION matches tag
+        shell: bash
+        run: |
+          if [[ ! -f VERSION ]]; then
+            echo "VERSION file is missing." >&2
+            exit 1
+          fi
+
+          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
+          TAG_VALUE="${{ steps.vars.outputs.tag }}"
+
+          if [[ "v${VERSION_VALUE}" != "${TAG_VALUE}" ]]; then
+            echo "VERSION (${VERSION_VALUE}) does not match tag (${TAG_VALUE})." >&2
+            exit 1
+          fi
+
+      - name: Build release bundle
+        shell: bash
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
+
+          rm -rf dist
+          mkdir -p "dist/${BUNDLE_DIR}/scripts"
+
+          cp -R opencode "dist/${BUNDLE_DIR}/"
+          cp AGENTS.md "dist/${BUNDLE_DIR}/"
+          cp CHANGELOG.md "dist/${BUNDLE_DIR}/"
+          cp LICENSE "dist/${BUNDLE_DIR}/"
+          cp README.md "dist/${BUNDLE_DIR}/"
+          cp VERSION "dist/${BUNDLE_DIR}/"
+          cp opencode.json.example "dist/${BUNDLE_DIR}/"
+          cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/bootstrap-install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
+
+          (
+            cd dist
+            tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}"
+            zip -rq "${BUNDLE_DIR}.zip" "${BUNDLE_DIR}"
+            sha256sum "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}.zip" > "${BUNDLE_DIR}.SHA256SUMS.txt"
+          )
+
+      - name: Validate release bundle contents
+        shell: bash
+        run: |
+          BUNDLE_DIR="dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}"
+
+          test -f "${BUNDLE_DIR}/README.md"
+          test -f "${BUNDLE_DIR}/CHANGELOG.md"
+          test -f "${BUNDLE_DIR}/LICENSE"
+          test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
+          test -f "${BUNDLE_DIR}/opencode/protocols/MODERNIZE_TO_PIPELINE.md"
+          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
+          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.zip"
+          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
+
+      - name: Upload release bundle artifacts
+        if: inputs.upload_artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.artifact_name }}
+          path: dist/*
+          if-no-files-found: error
