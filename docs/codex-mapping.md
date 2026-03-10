@@ -61,6 +61,8 @@ Sandbox mode, MCP servers, and other Codex-specific config are intentionally lef
 ## Role Invocation In Codex
 
 - Codex docs describe custom roles via `[agents.<name>]` config and prompt-driven routing.
+- Generated roles are intended to be invoked by naming them in prompts, not by relying on `/agent` to enumerate them.
+- In current Codex CLI builds, `/agent` is for switching between existing agent threads and may show no custom roles from `config.toml`.
 - Recommended prompt style: `Have reviewer inspect the diff and have orchestrator-pipeline coordinate the implementation plan.`
 
 ## `/run-*` Input Adaptation

@@ -165,6 +165,7 @@ Important Codex usage note:
 
 - Generated roles are configured as Codex agent roles in `config.toml`.
 - Use them by role name in prompts.
+- Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
 - Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`
 
 ## Install Without Clone (Release Bundle)
@@ -421,6 +422,7 @@ python scripts/export-codex-agents.py --source-agents opencode/agents --target-d
 
 - Invocation note:
   - Ask Codex to use role names in prompts.
+  - Do not expect `/agent` to display generated custom roles from `config.toml`.
   - Example: `Have reviewer inspect the patch and have generalist draft the migration notes.`
 
 ## Quick Start
