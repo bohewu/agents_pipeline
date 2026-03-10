@@ -12,7 +12,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Changed
 
-- No changes yet.
+- PowerShell CI validation now handles expected non-zero exit codes correctly when checking switch-like target rejection.
 
 ## [0.6.1] - 2026-03-10
 

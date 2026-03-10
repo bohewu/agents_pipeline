@@ -137,14 +137,22 @@ jobs:
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
           pwsh -NoProfile -File scripts/install-codex.ps1 -Target .\.tmp-codex-install -DryRun
 
-          if (pwsh -NoProfile -File scripts/install.ps1 -Target '-Force' -DryRun) {
+          $previousNativeSetting = $PSNativeCommandUseErrorActionPreference
+          $PSNativeCommandUseErrorActionPreference = $false
+
+          & pwsh -NoProfile -File scripts/install.ps1 -Target '-Force' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
             throw 'install.ps1 should reject switch-like target values.'
           }
 
-          if (pwsh -NoProfile -File scripts/install-copilot.ps1 -Target '-NoBackup' -DryRun) {
+          & pwsh -NoProfile -File scripts/install-copilot.ps1 -Target '-NoBackup' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
             throw 'install-copilot.ps1 should reject switch-like target values.'
           }
 
-          if (pwsh -NoProfile -File scripts/install-codex.ps1 -Target '-Force' -DryRun) {
+          & pwsh -NoProfile -File scripts/install-codex.ps1 -Target '-Force' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
             throw 'install-codex.ps1 should reject switch-like target values.'
           }
+
+          $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
