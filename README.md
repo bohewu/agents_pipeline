@@ -172,6 +172,13 @@ Important Codex usage note:
 Use bootstrap installers to download a release bundle and install without cloning this repo.
 Bootstrap scripts verify the downloaded archive checksum against the release `SHA256SUMS` asset before install.
 
+PowerShell tips:
+
+- Prefer pinned tags over `main`.
+- Pass `-Target` explicitly when you know the install location.
+- When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
+- Bootstrap installers create backups by default when they detect existing installed files.
+
 Pinned version (recommended):
 
 Windows (PowerShell):
@@ -179,7 +186,7 @@ Windows (PowerShell):
 ```powershell
 $tag = "v0.6.1"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
-pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag
+pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
 macOS/Linux:
@@ -209,7 +216,7 @@ Windows (PowerShell):
 ```powershell
 $tag = "v0.6.1"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
-pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag
+pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux:
@@ -240,6 +247,14 @@ Windows (PowerShell):
 $tag = "v0.6.1"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+```
+
+If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
+
+```powershell
+$tag = "v0.6.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
+pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
 
 macOS/Linux:
