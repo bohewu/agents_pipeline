@@ -6,7 +6,7 @@
   "source_project_dir": "../legacy-monolith",
   "main_task_prompt": "Implement modernization roadmap phase P1 in target project B using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.",
   "pipeline_flags": [
-    "--budget=medium",
+    "--effort=balanced",
     "--confirm"
   ],
   "context_paths": [

@@ -94,11 +94,6 @@ Supported flags:
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
-If `--budget` is provided:
-
-- Warn that budget is ignored in this pipeline.
-- Continue with normal execution.
-
 # PRE-FLIGHT (before Stage 0)
 
 1. Resolve output_dir: default `.pipeline-output/` unless overridden.

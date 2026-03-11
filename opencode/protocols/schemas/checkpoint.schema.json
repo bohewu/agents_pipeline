@@ -59,6 +59,10 @@
           "type": "string",
           "enum": ["low", "medium", "high"]
         },
+        "effort_mode": {
+          "type": "string",
+          "enum": ["low", "balanced", "high"]
+        },
         "max_retry_rounds": { "type": "integer", "minimum": 0, "maximum": 5 },
         "output_dir": { "type": "string" },
         "resume_mode": { "type": "boolean", "default": false },

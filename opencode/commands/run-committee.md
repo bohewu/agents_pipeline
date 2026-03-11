@@ -22,7 +22,7 @@ $ARGUMENTS
 
 ### Supported flags (quick reference)
 
-- `--budget=low|medium|high` — explicit decision criterion
+- `--budget=low|medium|high` — explicit decision criterion; defaults to `medium` when omitted
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`
@@ -30,6 +30,7 @@ $ARGUMENTS
 ## Examples
 
 ```text
+/run-committee Decide between rollout options for feature flags
 /run-committee Decide between REST vs GraphQL for our internal API --budget=medium
 /run-committee Should we split the monolith into services now? --budget=low
 /run-committee Pick an auth approach for this repo --budget=medium --scout=force
@@ -38,4 +39,3 @@ $ARGUMENTS
 /run-committee Continue previous decision --resume
 /run-committee Decide with step-by-step review --budget=medium --confirm
 ```
-

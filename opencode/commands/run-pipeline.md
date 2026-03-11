@@ -29,7 +29,7 @@ $ARGUMENTS
 - `--decision-only` — planning/design only, no execution
 - `--loose-review` — allow unverified outputs with warning
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
-- `--budget=low|medium|high`
+- `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
@@ -37,7 +37,7 @@ $ARGUMENTS
 
 ```
 /run-pipeline Fix login bug --dry
-/run-pipeline Implement OAuth2 login --budget=low
+/run-pipeline Implement OAuth2 login --effort=low
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout

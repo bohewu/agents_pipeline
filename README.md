@@ -185,7 +185,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.6.1"
+$tag = "v0.7.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
@@ -193,7 +193,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.conf
 macOS/Linux:
 
 ```bash
-tag="v0.6.1"
+tag="v0.7.0"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -215,7 +215,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.6.1"
+$tag = "v0.7.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
@@ -223,7 +223,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HO
 macOS/Linux:
 
 ```bash
-tag="v0.6.1"
+tag="v0.7.0"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -245,7 +245,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.6.1"
+$tag = "v0.7.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
@@ -253,7 +253,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
 
 ```powershell
-$tag = "v0.6.1"
+$tag = "v0.7.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
@@ -261,7 +261,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 macOS/Linux:
 
 ```bash
-tag="v0.6.1"
+tag="v0.7.0"
 curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
 bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
@@ -278,19 +278,19 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.6.1`).
-- Use SemVer tags with `v` prefix (for example: `v0.6.1`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.7.0`).
+- Use SemVer tags with `v` prefix (for example: `v0.7.0`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.6.1` must release as `v0.6.1`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.7.0` must release as `v0.7.0`).
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.6.1`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.7.0`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -311,8 +311,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.6.1
-git push origin v0.6.1
+git tag v0.7.0
+git push origin v0.7.0
 ```
 
 ## Public Release Checklist
@@ -431,10 +431,10 @@ python scripts/export-codex-agents.py --source-agents opencode/agents --target-d
 
 1) Load the orchestrator (handoff protocol is embedded for portability):
    - `opencode/agents/orchestrator-pipeline.md`
-2) Run `/run-pipeline` with an optional budget flag:
+2) Run `/run-pipeline` with an optional effort flag:
 
 ```text
-/run-pipeline Implement OAuth2 login --budget=medium
+/run-pipeline Implement OAuth2 login --effort=balanced
 ```
 3) Optional smoke-check run:
 
@@ -573,9 +573,9 @@ For resume-only flows, `--resume` can be used without a new prompt.
 - `--loose-review`
   - Reviewer does not require build/test evidence
   - Reviewer must add a warning that results are unverified
-- `--budget=low|medium|high`
+- `--effort=low|balanced|high`
   - low: Favor the smallest viable plan and fewer retries
-  - medium: Balanced routing and retries
+  - balanced: Practical default depth with standard validation
   - high: Allow deeper analysis and higher execution rigor
 - `--resume`
   - Resume from `<output_dir>/checkpoint.json`
@@ -596,7 +596,7 @@ Flag precedence:
 Examples:
 ```
 /run-pipeline Refactor cache layer --no-test
-/run-pipeline Improve search relevance --budget=medium
+/run-pipeline Improve search relevance --effort=balanced
 /run-flow --resume
 /run-pipeline --resume --autopilot
 ```

@@ -1,6 +1,6 @@
 ---
 name: orchestrator-pipeline
-description: Primary orchestrator for the full pipeline with budget-aware routing, review gates, retries, and context compression.
+description: Primary orchestrator for the full pipeline with effort-aware routing, review gates, retries, and context compression.
 mode: primary
 temperature: 0.2
 tools:
@@ -123,7 +123,7 @@ Flag semantics:
 - `--scout=auto|skip|force` -> scout_mode
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
-- `--budget=low|medium|high` -> budget_mode
+- `--effort=low|balanced|high` -> effort_mode
 - `--max-retry=<int>` -> max_retry_rounds
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
 - `--resume` -> resume_mode = true
@@ -351,9 +351,9 @@ If `decision_only = true`:
 
 - Determine max_retry_rounds (integer; clamp to 0..5):
   - If `--max-retry=N` is provided: parse N, clamp to 0..5.
-  - Else if budget_mode is set:
+  - Else if effort_mode is set:
     - low: max_retry_rounds = 1
-    - medium: max_retry_rounds = 2
+    - balanced: max_retry_rounds = 2
     - high: max_retry_rounds = 3
   - Else: max_retry_rounds = 2
 - `--max-retry=0` disables Stage 7 retries entirely.
@@ -379,12 +379,12 @@ If `decision_only = true`:
   - original acceptance criterion
 - If scope cannot be satisfied, executor must STOP and report BLOCKED.
 
-# COST / BUDGET RULES
+# COST / EFFORT RULES
 
 - Model/provider selection is runtime-driven by OpenCode configuration.
-- budget_mode controls execution depth:
-  - low: minimize retries and favor reversible, smallest-viable changes
-  - medium: balanced execution depth and validation
+- effort_mode controls execution depth:
+  - low: favor the smallest viable path with fewer retries and lighter validation
+  - balanced: use the practical default depth with standard validation
   - high: allow deeper analysis, broader validation, and stricter quality checks
 - Route high-risk or complex reasoning tasks to stronger executor profiles.
 - Route mechanical/documentation/formatting tasks to lower-cost executor profiles.

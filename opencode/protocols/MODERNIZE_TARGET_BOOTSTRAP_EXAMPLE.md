@@ -26,7 +26,7 @@ Then switch to the target project and continue implementation:
 Start in the source project:
 
 ```text
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
 ```
 
 Expected behavior:

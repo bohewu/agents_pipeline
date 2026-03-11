@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-11
+
 ### Added
 
 - CI now covers mocked bootstrap dry runs for shell and PowerShell installer flows across base, Copilot, and Codex targets.
@@ -14,6 +16,9 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - PowerShell CI validation now handles expected non-zero exit codes correctly when checking switch-like target rejection.
 - Release bundle build and validation now run through a reusable release workflow.
+- Pipeline docs now use `effort` terminology instead of `budget` for non-committee execution semantics.
+- Committee docs now default omitted `--budget` handling to `medium`.
+- General pipeline docs no longer carry a budget-ignore contract.
 
 ### Fixed
 

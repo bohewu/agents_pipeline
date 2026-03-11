@@ -28,7 +28,7 @@ $ARGUMENTS
 - `--target=<path>` — target project path reference (auto-created only when paired with `--init-target`)
 - `--init-target` — create/bootstrap the target project path and init docs before implementation handoff when needed
 - `--execute-phase=<phase-id>` — required in `phase-exec`; roadmap phase identifier to implement in target project
-- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--budget=medium`)
+- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
 - `--depth=lite|standard|deep` — control doc verbosity (default: standard)
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`, `--autopilot`
@@ -42,9 +42,9 @@ $ARGUMENTS
 /run-modernize Assess legacy .NET monolith --iterate
 /run-modernize Assess legacy .NET monolith --target=../my-app-v2
 /run-modernize Assess legacy .NET monolith --mode=plan+handoff --target=../my-app-v2 --init-target
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--budget=medium --pipeline-flag=--confirm
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
-/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--budget=medium --autopilot
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--effort=balanced --pipeline-flag=--confirm
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
 /run-modernize Continue previous assessment --resume
 /run-modernize Assess with review --confirm
 ```

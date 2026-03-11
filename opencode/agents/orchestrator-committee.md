@@ -82,6 +82,10 @@ Flag semantics:
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 
+If `--budget` is omitted:
+
+- `budget_mode = medium`.
+
 If no scout flag is provided:
 
 - scout_mode = auto.
@@ -143,7 +147,7 @@ Create a DecisionBrief (JSON) to send to experts and the judge:
   "context": [],
   "constraints": [],
   "non_goals": [],
-  "budget_mode": "low | medium | high | unspecified",
+  "budget_mode": "low | medium | high",
   "evaluation_criteria": [
     "Budget/Delivery fit (MUST include)",
     "Risk reduction",
@@ -163,6 +167,7 @@ Create a DecisionBrief (JSON) to send to experts and the judge:
 
 Rules:
 - Keep `evaluation_criteria` to 3-6 items, and ALWAYS include Budget/Delivery fit.
+- Default `budget_mode` to `medium` when no `--budget` flag is provided.
 - If options are unclear, include 2-3 plausible options and mark uncertainties in open_questions.
 
 ## Stage 2 — Expert Memos (Parallel)
@@ -209,6 +214,7 @@ Use the command wrapper:
 Examples:
 
 ```text
+/run-committee Decide between rollout options for feature flags
 /run-committee Decide between REST vs GraphQL for our internal API --budget=medium
 /run-committee Should we split the monolith into services now? --budget=low
 /run-committee Pick an auth approach for this repo --budget=medium --scout=force
@@ -269,7 +275,7 @@ Example `CommitteeDecision` JSON (from @committee-judge):
 Example user-facing summary (Stage 4):
 
 ```text
-Committee decision (budget=medium)
+Committee decision (budget=medium, default when omitted)
 - Recommendation: REST + OpenAPI now. Add a thin BFF only if concrete client needs prove it.
 - KISS soft veto: ACCEPTED (GraphQL adds governance/runtime overhead without near-term need).
 - Key tradeoffs: simpler ops and governance vs less flexible queries.

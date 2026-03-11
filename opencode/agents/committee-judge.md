@@ -29,7 +29,7 @@ Emit exactly one JSON object matching this schema:
 ```json
 {
   "decision_question": "",
-  "budget_mode": "low | medium | high | unspecified",
+  "budget_mode": "low | medium | high",
   "recommended_option": "",
   "alternatives": [
     {

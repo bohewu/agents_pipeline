@@ -72,7 +72,7 @@ These files should conform to `opencode/protocols/schemas/modernize-exec-handoff
 ### Run all phases non-interactively
 
 ```text
-/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--budget=medium --autopilot
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
 ```
 
 Semantics:
@@ -84,7 +84,7 @@ Semantics:
 ### Prepare target and hand off in one run
 
 ```text
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
 ```
 
 Semantics:
@@ -98,7 +98,7 @@ Semantics:
 ### Target missing, bootstrap in one run
 
 ```text
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--budget=medium
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=P1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
 ```
 
 ### Target missing, create it manually first

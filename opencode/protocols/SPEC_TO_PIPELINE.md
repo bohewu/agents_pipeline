@@ -47,7 +47,7 @@ Use one of these patterns:
 ```
 
 ```text
-/run-pipeline Implement the approved OAuth login spec. Use .pipeline-output/spec/problem-spec.json for scope, .pipeline-output/spec/dev-spec.json for scenarios and acceptance criteria, and .pipeline-output/spec/plan-outline.json as planning context. --budget=medium
+/run-pipeline Implement the approved OAuth login spec. Use .pipeline-output/spec/problem-spec.json for scope, .pipeline-output/spec/dev-spec.json for scenarios and acceptance criteria, and .pipeline-output/spec/plan-outline.json as planning context. --effort=balanced
 ```
 
 ## End-To-End Reference Example
