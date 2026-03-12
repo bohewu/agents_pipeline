@@ -16,6 +16,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - Pipeline autopilot guidance now explicitly continues runnable work and performs a bounded non-hard blocker recovery pass before surfacing a stop condition.
 - Flow documentation now exposes a consistent `--full-auto` hands-off preset with forced repo scouting by default.
+- README now includes a comparison table and rule-of-thumb guide for choosing between `--autopilot` and `--full-auto`.
 
 ## [0.7.0] - 2026-03-11
 

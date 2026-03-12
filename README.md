@@ -611,6 +611,25 @@ Examples:
 /run-pipeline Ship migration end-to-end --full-auto
 ```
 
+## When to Use `--autopilot` vs `--full-auto`
+
+| Scenario | Recommended flag | Why |
+|----------|-----------------|-----|
+| Quick task, low risk, you just want no pauses | `--autopilot` | Runs non-interactively with default effort/retries; stops on hard blockers |
+| You want to walk away and let the pipeline finish | `--full-auto` | Max effort, max retries, strongest blocker recovery — true hands-off |
+| You want non-interactive but lower cost | `--autopilot --effort=low` | Autopilot suppresses pauses; effort=low keeps retries minimal |
+| You want full-auto but cap retries | `--full-auto --max-retry=2` | full-auto sets the baseline; explicit flags still override |
+| Flow task, want forced repo scouting | `--full-auto` | Flow full-auto defaults to `--force-scout` |
+| Modernize full-exec, no supervision | `--full-auto` | Defaults depth to `deep`, forwards `--full-auto` to delegated pipeline phases |
+
+**Rule of thumb:**
+- `--autopilot` = "don't ask me questions, use safe defaults"
+- `--full-auto` = "don't ask me questions, try your hardest to finish everything"
+
+Both flags stop on **hard blockers** (destructive actions, security/billing impact, missing credentials). The difference is that `--full-auto` also cranks up effort, retries, and blocker recovery before giving up on non-hard blockers.
+
+Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you full-auto's blocker recovery but with low effort and only 1 retry.
+
 ## Orchestrators
 
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
