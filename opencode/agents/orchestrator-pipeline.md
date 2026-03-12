@@ -130,6 +130,7 @@ Flag semantics:
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 - `--autopilot` -> autopilot_mode = true
+- `--full-auto` -> full_auto_mode = true
 
 If no scout flag is provided:
 
@@ -154,6 +155,15 @@ If `--autopilot` is combined with `--confirm` or `--verbose`:
 - `--autopilot` wins.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
 - Warn the user that autopilot is running non-interactively.
+
+If `--full-auto` is provided:
+
+- Set `full_auto_mode = true`.
+- Set `autopilot_mode = true`.
+- Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
+- If `--effort=*` was not provided explicitly, set `effort_mode = high`.
+- If `--max-retry=*` was not provided explicitly, default to `max_retry_rounds = 5`.
+- Prefer autonomous blocker recovery before surfacing non-hard blockers.
 
 Proceed with pipeline execution according to parsed flags.
 
@@ -274,8 +284,10 @@ If unsure and the task is implementation-oriented, prefer generating `DevSpec` b
 Autopilot interaction policy:
 
 - In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
+- In `autopilot_mode`, if a task reports a non-hard blocker, continue remaining runnable tasks first, then attempt one bounded blocker-recovery pass before surfacing the blocker.
 - In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
 - In `autopilot_mode`, do not request interactive confirmations for stage/task progression.
+- In `full_auto_mode`, prefer the strongest safe in-scope recovery path before asking the user.
 
 If `confirm_mode = true` and `autopilot_mode = false`:
 - After each stage completes, display a stage summary and ask:
@@ -328,6 +340,7 @@ Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
+- If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, executor outputs, ProblemSpec, and optional DevSpec
@@ -347,10 +360,31 @@ If `decision_only = true`:
 - If `skip_tests = true` (`--no-test`): skip @test-runner and require reviewer to add an explicit "verification skipped" warning.
 - If `test_only = true` (`--test-only`): skip executor dispatch in Stage 5, run @test-runner + @reviewer for validation only, then summarize and stop (skip retry/compression stages).
 
+# BLOCKER RECOVERY POLICY
+
+- Applies when a task/executor returns `status = blocked` and the blocker is NOT a hard blocker.
+- Do NOT stop the pipeline immediately for a recoverable blocker. First:
+  1) continue remaining runnable tasks in the current batch or round
+  2) collect blocked tasks and blocker reasons
+  3) attempt one bounded recovery pass per blocked task
+- Allowed recovery actions (must stay within the original ProblemSpec / optional DevSpec / phase execution contract):
+  - clarify the handoff using existing repo evidence or prior pipeline artifacts
+  - reroute the same task to a stronger executor profile
+  - generate narrow unblock delta tasks via @atomizer + @router when additional in-scope work is required to unblock the original task
+  - re-dispatch the original blocked task once after the unblock step completes
+- Recovery MUST NOT:
+  - expand scope beyond the accepted contract
+  - invent credentials, secrets, approvals, or product decisions
+  - bypass hard blockers
+- In `autopilot_mode`, perform one bounded recovery pass before surfacing a recoverable blocker.
+- In `full_auto_mode`, prefer the strongest safe recovery path available within scope before surfacing a recoverable blocker.
+- If recovery does not produce meaningful progress, stop and report the blocker together with the attempted recovery steps.
+
 # RETRY POLICY
 
 - Determine max_retry_rounds (integer; clamp to 0..5):
   - If `--max-retry=N` is provided: parse N, clamp to 0..5.
+  - Else if `full_auto_mode = true`: max_retry_rounds = 5
   - Else if effort_mode is set:
     - low: max_retry_rounds = 1
     - balanced: max_retry_rounds = 2

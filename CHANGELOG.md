@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-03-12
+
+### Added
+
+- `--full-auto` preset for `run-pipeline`, `run-modernize`, and `run-flow` to bundle stronger hands-off execution defaults.
+
+### Changed
+
+- Pipeline autopilot guidance now explicitly continues runnable work and performs a bounded non-hard blocker recovery pass before surfacing a stop condition.
+- Flow documentation now exposes a consistent `--full-auto` hands-off preset with forced repo scouting by default.
+
 ## [0.7.0] - 2026-03-11
 
 ### Added

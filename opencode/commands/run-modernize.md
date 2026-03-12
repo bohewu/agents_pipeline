@@ -30,6 +30,7 @@ $ARGUMENTS
 - `--execute-phase=<phase-id>` — required in `phase-exec`; roadmap phase identifier to implement in target project
 - `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
 - `--depth=lite|standard|deep` — control doc verbosity (default: standard)
+- `--full-auto` — hands-off preset: implies `--autopilot`, defaults modernize depth to `deep`, and forwards pipeline `--full-auto` in execution-enabled modes
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
@@ -45,6 +46,7 @@ $ARGUMENTS
 /run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--effort=balanced --pipeline-flag=--confirm
 /run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
 /run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --full-auto
 /run-modernize Continue previous assessment --resume
 /run-modernize Assess with review --confirm
 ```
@@ -59,5 +61,6 @@ $ARGUMENTS
 - `--pipeline-flag` is repeatable (instead of a quoted flag string) because `run-modernize` parsing is whitespace-based.
 - `--pipeline-flag` is only for `run-pipeline`-compatible flags. `run-modernize` flags such as `--mode`, `--target`, `--depth`, `--iterate`, and `--execute-phase` should not be forwarded.
 - `--autopilot` makes the modernize orchestrator non-interactive, and in execution modes it also forwards non-interactive behavior to delegated pipeline runs.
+- `--full-auto` is the strongest non-interactive preset for modernization runs and execution-enabled handoffs.
 - Output documents are written to `.pipeline-output/modernize/` by default.
 - A navigation index (`modernize-index.md`) is generated during synthesis and links the documents produced in that run (5 by default; 3 in `--decision-only`).

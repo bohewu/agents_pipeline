@@ -13,6 +13,8 @@ Use `/run-modernize` with an execution mode:
 
 If you also pass `--autopilot`, the orchestrator should run non-interactively and continue phase-by-phase until all phases complete or a hard blocker stops execution.
 
+If you pass `--full-auto`, it should also prefer deep planning output, forward stronger delegated pipeline execution defaults, and attempt bounded non-hard blocker recovery before surfacing a stop condition.
+
 If the target project directory does not exist yet, add `--init-target` so the modernization flow can prepare the target project before execution handoff.
 
 ### Path B: Later manual execution in a new session
@@ -80,6 +82,18 @@ Semantics:
 - `--autopilot` disables modernize stage pauses
 - delegated `/run-pipeline` phases also run non-interactively
 - overall status is only `done` when all resolved phases complete
+
+### Run all phases with the strongest preset
+
+```text
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --full-auto
+```
+
+Semantics:
+
+- modernize planning runs non-interactively
+- delegated pipeline phases inherit `--full-auto`
+- execution prefers deeper analysis, more retries, and stronger bounded blocker recovery
 
 ### Prepare target and hand off in one run
 

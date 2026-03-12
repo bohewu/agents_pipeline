@@ -25,6 +25,7 @@ $ARGUMENTS
   - `--confirm` — Pause after each stage for user review
   - `--verbose` — Implies `--confirm`; additionally pauses after each task
   - `--autopilot` — Run non-interactively; disables stage/task pauses and stops only on hard blockers
+  - `--full-auto` — Hands-off preset: implies `--autopilot` and defaults Flow to `--force-scout` unless a scout mode was set explicitly
 
 ## Examples
 
@@ -35,6 +36,7 @@ $ARGUMENTS
 /run-flow Continue previous run --resume
 /run-flow Implement with review --confirm
 /run-flow Ship login improvements --autopilot
+/run-flow Ship login improvements --full-auto
 ```
 
 ## Flow vs Flow-Full

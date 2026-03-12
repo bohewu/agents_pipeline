@@ -131,6 +131,7 @@ Flag semantics:
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 - `--autopilot` -> autopilot_mode = true
+- `--full-auto` -> full_auto_mode = true
 - `--target=<path>` -> target_project_dir (default: `../<source-project-dirname>-modernize/`)
 - `--init-target` -> init_target_mode = true
 - `--depth=lite|standard|deep` -> depth_mode (default: `standard`)
@@ -153,6 +154,14 @@ If `--autopilot` is combined with `--confirm` or `--verbose`:
 - `--autopilot` wins.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
 - Warn the user that modernization planning and any delegated execution will run non-interactively unless blocked.
+
+If `--full-auto` is provided:
+
+- Set `full_auto_mode = true`.
+- Set `autopilot_mode = true`.
+- Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
+- If `--depth=*` was not provided explicitly, set `depth_mode = deep`.
+- In execution-enabled modes, prefer forwarding `--full-auto` to delegated `@orchestrator-pipeline` runs.
 
 ## PRE-FLIGHT (before Stage 0)
 
@@ -183,6 +192,7 @@ Autopilot interaction policy:
 - In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
 - In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
 - In `autopilot_mode`, do not request interactive confirmations for stage/task progression or phase-to-phase advancement.
+- In `full_auto_mode`, prefer deeper planning output and strongest safe delegated execution settings before surfacing non-hard blockers.
 
 If `confirm_mode = true` and `autopilot_mode != true`:
 - After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
@@ -421,17 +431,19 @@ Phase Resolution Protocol (required for `phase-exec` / `full-exec`):
 
 Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - `--pipeline-flag=<flag>` is pass-through for `@orchestrator-pipeline` flags only.
-- Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--effort=*`, `--max-retry=*`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
+- Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--effort=*`, `--max-retry=*`, `--autopilot`, `--full-auto`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
 - Forbidden forwarded flags:
   - `--decision-only` (contradicts execution intent)
   - any `run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
+- If `full_auto_mode = true`, ensure `--full-auto` is present in the delegated `pipeline_flags` unless already present.
 - If `autopilot_mode = true`, ensure `--autopilot` is present in the delegated `pipeline_flags` unless already present.
+- If `full_auto_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
 - If `autopilot_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
 - If a forbidden forwarded flag is present, warn and drop it before dispatch.
 - Deduplicate exact duplicate forwarded flags while preserving order.
 - Do NOT synthesize or rewrite pipeline flags except:
   - In `full-exec`, if neither modernize `confirm_mode` nor a forwarded `--confirm` is present, strongly warn that multi-phase execution is running without phase checkpoints.
-- If `autopilot_mode = true`, do NOT emit the full-exec warning above; non-interactive sequential execution is intentional.
+- If `autopilot_mode = true` or `full_auto_mode = true`, do NOT emit the full-exec warning above; non-interactive sequential execution is intentional.
 - `orchestrator-pipeline` remains the final authority for handling conflicts among forwarded pipeline flags.
 
 Delegated Handoff Payload Contract (to `@orchestrator-pipeline`):

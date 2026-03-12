@@ -31,6 +31,7 @@ $ARGUMENTS
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
+- `--full-auto` — hands-off preset: `--autopilot --effort=high --max-retry=5`
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
 ## Examples
@@ -47,6 +48,7 @@ $ARGUMENTS
 /run-pipeline Continue previous run --resume
 /run-pipeline Implement feature with review --confirm
 /run-pipeline Execute migration end-to-end --autopilot
+/run-pipeline Execute migration end-to-end --full-auto
 ```
 
 ## Guarantees

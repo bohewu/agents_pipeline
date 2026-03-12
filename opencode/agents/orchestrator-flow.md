@@ -123,6 +123,7 @@ Supported flags (Flow-only, minimal):
 - `--confirm` -> confirm_mode = true
 - `--verbose` -> verbose_mode = true (implies confirm_mode = true)
 - `--autopilot` -> autopilot_mode = true
+- `--full-auto` -> full_auto_mode = true
 
 If no scout flag is provided:
 
@@ -139,6 +140,14 @@ If `--autopilot` is combined with `--confirm` or `--verbose`:
 - Set `confirm_mode = false` and `verbose_mode = false`.
 - Warn the user that interactive pauses are disabled in autopilot.
 
+If `--full-auto` is provided:
+
+- Set `full_auto_mode = true`.
+- Set `autopilot_mode = true`.
+- Set `confirm_mode = false` and `verbose_mode = false`.
+- If no explicit scout flag was provided, set `scout_mode = force`.
+- Prefer the strongest safe autonomous completion path available within the fixed Flow model.
+
 If an invalid `--scout` value is provided:
 
 - Warn the user.
@@ -154,6 +163,7 @@ If an invalid `--scout` value is provided:
 - `--confirm`
 - `--verbose`
 - `--autopilot`
+- `--full-auto`
 
 ## PRE-FLIGHT (before Stage 0)
 
@@ -189,6 +199,10 @@ If `autopilot_mode = true`:
   - destructive or irreversible actions
   - security or billing impact changes
   - missing credentials or required secrets
+
+If `full_auto_mode = true`:
+- Prefer `scout_mode = force` unless the user explicitly selected a different scout mode.
+- Prefer the strongest safe in-scope unblock attempt before surfacing a non-hard blocker.
 
 ## Flow Pipeline (Fixed)
 

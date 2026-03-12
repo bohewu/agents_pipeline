@@ -218,7 +218,14 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 - **`--autopilot`** (default: `false`): Run non-interactively by default.
   - Disable stage/task pauses even if `--confirm` or `--verbose` are also provided.
   - For low-risk ambiguity, choose safe defaults and continue.
+  - If a task hits a non-hard blocker, continue other runnable tasks first and attempt one bounded blocker-recovery pass before surfacing the blocker.
   - Stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
+
+- **`--full-auto`** (default: `false`): Stronger hands-off execution preset.
+  - Implies `--autopilot`.
+  - Defaults to `--effort=high` unless `--effort=*` is explicitly provided.
+  - Defaults to `--max-retry=5` unless `--max-retry=*` is explicitly provided.
+  - Prefer the strongest safe in-scope blocker recovery path before surfacing a non-hard blocker.
 
 - **`--confirm`** (default: `false`): Pause after each **stage** for user review.
   - Prompt format: `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`
@@ -233,6 +240,7 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 
 - **Flag interactions:**
   - `--verbose` automatically enables `--confirm`
+  - `--full-auto` implies `--autopilot`
   - `--autopilot` wins over `--confirm` / `--verbose` and disables interactive pauses
   - `--dry --confirm` -> `--dry` wins (stops after atomizer+router)
   - `--resume --confirm` -> resume from checkpoint, then apply confirm mode going forward
