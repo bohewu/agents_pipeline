@@ -630,6 +630,14 @@ Both flags stop on **hard blockers** (destructive actions, security/billing impa
 
 Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you full-auto's blocker recovery but with low effort and only 1 retry.
 
+### Session vs Checkpoint Behavior
+
+- A new chat/session does not automatically inherit prior runtime state or stage progress.
+- Cross-session continuation works through persisted files under `<output_dir>/` (default: `.pipeline-output/`), especially `<output_dir>/checkpoint.json`.
+- To continue an interrupted Flow or Pipeline run, use `--resume` from the same project and output root.
+- If `--resume` is not provided, the orchestrator starts a fresh run even if older artifacts still exist.
+- Persisted artifacts may still be reused as inputs when the prompt explicitly references them or when the protocol treats them as optional context, but that is not the same as checkpoint resume.
+
 ## Orchestrators
 
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)

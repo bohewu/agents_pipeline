@@ -194,6 +194,9 @@ Each JSON output MAY include `protocol_version`. When present, it MUST follow `m
 
 Pipeline runs support interrupt/resume via checkpoint files.
 
+- **Session boundary:** Chat/session state is not the resume mechanism. A new session does not automatically recover in-memory progress from an earlier session.
+- **Persistence boundary:** Cross-session continuation relies on files under `<output_dir>/`, especially `<output_dir>/checkpoint.json`.
+
 - **Location:** `<output_dir>/checkpoint.json` (default: `.pipeline-output/checkpoint.json`)
 - **Schema:** `./protocols/schemas/checkpoint.schema.json`
 - **Write timing:** After each stage completes successfully, the orchestrator MUST update the checkpoint file with the stage output.
@@ -207,6 +210,8 @@ Pipeline runs support interrupt/resume via checkpoint files.
    5. Asks user to confirm before resuming
    6. Skips completed stages and continues from the next incomplete stage
 - **Missing/invalid checkpoint:** If `--resume` is set but checkpoint is missing or invalid, warn and start fresh; if no new prompt was provided (resume-only invocation), require a new prompt for the fresh run.
+- **No implicit resume:** If `--resume` is not provided, the orchestrator starts a fresh run even when prior artifacts remain on disk.
+- **Artifacts vs resume:** Persisted specs, handoff files, init docs, or other protocol-defined artifacts may still be read as explicit inputs or optional context, but that does not count as checkpoint resume.
 - **Completion:** On successful pipeline completion, the checkpoint file MAY be retained for audit or deleted. Default: retain.
 
 ## Confirm / Verbose Protocol
