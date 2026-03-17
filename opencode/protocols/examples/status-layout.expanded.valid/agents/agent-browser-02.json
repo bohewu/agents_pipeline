@@ -1,0 +1,29 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "agent_id": "agent-browser-02",
+  "agent": "executor-advanced",
+  "status": "stale",
+  "created_at": "2026-03-17T15:17:45Z",
+  "updated_at": "2026-03-17T15:29:00Z",
+  "task_id": "task-browser-resume",
+  "batch_id": "b-browser",
+  "attempt": 2,
+  "started_at": "2026-03-17T15:18:00Z",
+  "last_heartbeat_at": "2026-03-17T15:23:00Z",
+  "resource_class": "browser",
+  "resource_status": "unknown",
+  "teardown_required": true,
+  "resource_handles": {
+    "pid": 5820,
+    "profile_dir": ".tmp/playwright/run_status_examples_expanded_01-agent-browser-02",
+    "process_label": "chromium-worker",
+    "url": "http://127.0.0.1:4173/preview"
+  },
+  "cleanup_status": "unknown",
+  "evidence_refs": [
+    "artifacts/smoke-screenshot.png",
+    "logs/browser-heartbeat.log"
+  ],
+  "error": "No heartbeat arrived after the browser capture step, so the attempt must be treated as stale until resume reconciles ownership."
+}

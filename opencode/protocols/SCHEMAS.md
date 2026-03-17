@@ -10,8 +10,22 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/repo-findings.schema.json` | RepoFindings | repo-scout | Discovery and risks |
 | `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with optional `trace_ids` |
 | `./protocols/schemas/dispatch-plan.schema.json` | DispatchPlan | router | Routing, batching, and required batch resource metadata (`resource_class`, `max_parallelism`, `teardown_required`) |
+| `./protocols/schemas/run-status.schema.json` | RunStatus | orchestrators / status writers | Required top-level status index at `<output_dir>/status/run-status.json` |
+| `./protocols/schemas/task-status.schema.json` | TaskStatus | orchestrators / executors / status writers | Optional expanded status record at `<output_dir>/status/tasks/<task_id>.json` |
+| `./protocols/schemas/agent-status.schema.json` | AgentStatus | executors / status writers | Optional expanded executor/resource record at `<output_dir>/status/agents/<agent_id>.json` |
 | `./protocols/schemas/review-report.schema.json` | ReviewReport | reviewer | Pass or fail |
 | `./protocols/schemas/test-report.schema.json` | TestReport | test-runner | Evidence and results |
 | `./protocols/schemas/context-pack.schema.json` | ContextPack | compressor | Compressed context |
 | `./protocols/schemas/todo-ledger.schema.json` | TodoLedger | optional | Carryover items |
 | `./protocols/schemas/modernize-exec-handoff.schema.json` | ModernizeExecHandoff (optional inter-orchestrator input) | orchestrator-modernize -> orchestrator-pipeline | Phase-scoped modernization execution contract |
+
+## Status schema fixtures
+
+- Positive run-only layout: `./protocols/examples/status-layout.run-only.valid/run-status.json`
+- Positive expanded layout: `./protocols/examples/status-layout.expanded.valid/`
+  - `run-status.json`
+  - `tasks/*.json`
+  - `agents/*.json`
+- Negative contract fixture set: `./protocols/examples/status-layout.contract.invalid/`
+
+Repository validation and CI must validate the positive fixtures against the matching status schemas and must confirm the negative fixture files fail for the intended contract violations.

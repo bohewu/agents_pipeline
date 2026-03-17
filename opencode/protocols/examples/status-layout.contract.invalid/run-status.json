@@ -1,0 +1,36 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_invalid_01",
+  "orchestrator": "orchestrator-pipeline",
+  "status": "waiting_for_user",
+  "created_at": "2026-03-17T16:00:00Z",
+  "updated_at": "2026-03-17T16:08:00Z",
+  "output_dir": ".pipeline-output/status-layout.contract.invalid",
+  "checkpoint_path": ".pipeline-output/status-layout.contract.invalid/checkpoint.json",
+  "layout": "expanded",
+  "task_counts": {
+    "pending": 0,
+    "ready": 0,
+    "in_progress": 0,
+    "waiting_for_user": 0,
+    "done": 1,
+    "blocked": 0,
+    "failed": 0,
+    "skipped": 0,
+    "stale": 0
+  },
+  "waiting_on": "cleanup_required",
+  "resume_from_checkpoint": true,
+  "task_refs": [
+    {
+      "task_id": "task-browser-cleanup-invalid",
+      "path": "status/tasks/task-browser-cleanup-invalid.json"
+    }
+  ],
+  "agent_refs": [
+    {
+      "agent_id": "agent-browser-cleanup-invalid",
+      "path": "status/agents/agent-browser-cleanup-invalid.json"
+    }
+  ]
+}

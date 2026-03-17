@@ -1,0 +1,31 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "task_id": "task-doc-summary",
+  "summary": "Write the review summary for the MVP status contract examples.",
+  "status": "done",
+  "created_at": "2026-03-17T15:00:30Z",
+  "updated_at": "2026-03-17T15:12:00Z",
+  "trace_ids": [
+    "story-status-model",
+    "ac-examples-cover-layouts"
+  ],
+  "batch_id": "b-docs",
+  "assigned_agent_id": "agent-doc-01",
+  "assigned_executor": "doc-writer",
+  "resource_class": "light",
+  "max_parallelism": 2,
+  "teardown_required": false,
+  "resource_status": "not_required",
+  "started_at": "2026-03-17T15:01:00Z",
+  "completed_at": "2026-03-17T15:12:00Z",
+  "last_heartbeat_at": "2026-03-17T15:11:30Z",
+  "result_summary": "Documentation summary completed without heavy-resource usage.",
+  "evidence_refs": [
+    "artifacts/review-summary.md"
+  ],
+  "agent_ref": {
+    "agent_id": "agent-doc-01",
+    "path": "status/agents/agent-doc-01.json"
+  }
+}

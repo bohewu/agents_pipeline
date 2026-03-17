@@ -398,6 +398,83 @@ jobs:
             exit 1
           fi
 
+      - name: Validate status schemas and fixtures
+        shell: bash
+        run: |
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/run-status.schema.json \
+            --input opencode/protocols/examples/status-layout.run-only.valid/run-status.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/run-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/run-status.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/task-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-doc-summary.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/task-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-process-build.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/task-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-local-server-smoke.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/task-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-browser-resume.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/agent-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-doc-01.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/agent-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-process-01.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/agent-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-server-01.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/agent-status.schema.json \
+            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-browser-02.json \
+            --require-jsonschema
+
+          if python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/run-status.schema.json \
+            --input opencode/protocols/examples/status-layout.contract.invalid/run-status.json \
+            --require-jsonschema; then
+            echo "Expected invalid status layout run-status fixture to fail schema validation." >&2
+            exit 1
+          fi
+
+          if python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/task-status.schema.json \
+            --input opencode/protocols/examples/status-layout.contract.invalid/tasks/task-browser-cleanup-invalid.json \
+            --require-jsonschema; then
+            echo "Expected invalid status layout task fixture to fail schema validation." >&2
+            exit 1
+          fi
+
+          if python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/agent-status.schema.json \
+            --input opencode/protocols/examples/status-layout.contract.invalid/agents/agent-browser-cleanup-invalid.json \
+            --require-jsonschema; then
+            echo "Expected invalid status layout agent fixture to fail schema validation." >&2
+            exit 1
+          fi
+
       - name: Validate resource-control prompt coverage
         shell: bash
         run: |

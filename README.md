@@ -305,6 +305,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
   - README pinned version snippet validation against root `VERSION`
   - schema validator script sanity check
   - dispatch-plan resource schema/examples validation (positive + negative cases)
+  - status contract schema/examples validation (`run-status`, `task-status`, `agent-status`; positive + negative fixtures)
   - modernize execution handoff schema/examples validation (positive + negative case)
   - resource-control prompt coverage assertions for router/orchestrator/executor/reviewer docs
   - Copilot export script strict dry run
@@ -551,6 +552,23 @@ Python 3.9+ is required for this command.
 ```text
 python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
 ```
+
+Status contract fixtures follow the same validation pattern. To mirror the repository's status-layer CI checks locally, validate the positive fixtures and confirm the negative fixtures fail:
+
+```text
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/run-status.schema.json --input opencode/protocols/examples/status-layout.run-only.valid/run-status.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/run-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/run-status.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-doc-summary.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-process-build.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-local-server-smoke.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-browser-resume.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-doc-01.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-process-01.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-server-01.json --require-jsonschema
+python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-browser-02.json --require-jsonschema
+```
+
+See `opencode/protocols/SCHEMAS.md` and `opencode/protocols/VALIDATION.md` for the status layout fixture set and the negative-fixture expectations enforced in CI.
 
 If you enable custom tools, you can call the `validate-schema` tool from OpenCode
 instead of running the script manually (see `opencode/tools/validate-schema.ts`).

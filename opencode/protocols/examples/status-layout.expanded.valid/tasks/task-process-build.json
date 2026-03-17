@@ -1,0 +1,32 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "task_id": "task-process-build",
+  "summary": "Run a bounded one-shot build command and confirm the spawned process cleaned up.",
+  "status": "done",
+  "created_at": "2026-03-17T15:00:30Z",
+  "updated_at": "2026-03-17T15:16:30Z",
+  "trace_ids": [
+    "sc-layout-expanded",
+    "ac-heavy-resource-fields-consistent",
+    "tc-schema-heavy-resources"
+  ],
+  "batch_id": "b-process",
+  "assigned_agent_id": "agent-process-01",
+  "assigned_executor": "peon",
+  "resource_class": "process",
+  "max_parallelism": 2,
+  "teardown_required": false,
+  "resource_status": "cleaned",
+  "started_at": "2026-03-17T15:09:00Z",
+  "completed_at": "2026-03-17T15:16:30Z",
+  "last_heartbeat_at": "2026-03-17T15:16:00Z",
+  "result_summary": "One-shot build finished and the child process exited normally.",
+  "evidence_refs": [
+    "logs/process-build.log"
+  ],
+  "agent_ref": {
+    "agent_id": "agent-process-01",
+    "path": "status/agents/agent-process-01.json"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "task_id": "task-local-server-smoke",
+  "summary": "Run a local preview server smoke check and verify teardown evidence.",
+  "status": "blocked",
+  "created_at": "2026-03-17T15:00:30Z",
+  "updated_at": "2026-03-17T15:28:30Z",
+  "trace_ids": [
+    "story-failure-and-recovery",
+    "sc-heavy-resource-fields",
+    "ac-failure-rules-documented"
+  ],
+  "batch_id": "b-server",
+  "assigned_agent_id": "agent-server-01",
+  "assigned_executor": "executor-core",
+  "resource_class": "server",
+  "max_parallelism": 1,
+  "teardown_required": true,
+  "resource_status": "cleanup_failed",
+  "started_at": "2026-03-17T15:11:00Z",
+  "last_heartbeat_at": "2026-03-17T15:27:30Z",
+  "result_summary": "Smoke assertions passed, but shutdown verification failed for the temporary server.",
+  "evidence_refs": [
+    "logs/server-smoke.log",
+    "logs/server-cleanup.log"
+  ],
+  "error": "Server process 4512 kept port 4173 open after teardown, so the task cannot be reported done.",
+  "resume_note": "Confirm the local preview server is stopped before redispatching any later server or browser task.",
+  "agent_ref": {
+    "agent_id": "agent-server-01",
+    "path": "status/agents/agent-server-01.json"
+  }
+}

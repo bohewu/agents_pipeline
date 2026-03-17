@@ -1,0 +1,23 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "agent_id": "agent-doc-01",
+  "agent": "doc-writer",
+  "status": "done",
+  "created_at": "2026-03-17T15:00:45Z",
+  "updated_at": "2026-03-17T15:12:00Z",
+  "task_id": "task-doc-summary",
+  "batch_id": "b-docs",
+  "attempt": 1,
+  "started_at": "2026-03-17T15:01:00Z",
+  "completed_at": "2026-03-17T15:12:00Z",
+  "last_heartbeat_at": "2026-03-17T15:11:30Z",
+  "resource_class": "light",
+  "resource_status": "not_required",
+  "teardown_required": false,
+  "cleanup_status": "not_required",
+  "result_summary": "Documentation-only execution completed with no heavy resources.",
+  "evidence_refs": [
+    "artifacts/review-summary.md"
+  ]
+}

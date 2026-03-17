@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentStatus",
+  "type": "object",
+  "required": [
+    "run_id",
+    "agent_id",
+    "agent",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "assigned",
+        "starting",
+        "running",
+        "waiting_for_user",
+        "done",
+        "blocked",
+        "failed",
+        "stale"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_heartbeat_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resource_class": {
+      "type": "string",
+      "enum": [
+        "light",
+        "process",
+        "server",
+        "browser"
+      ]
+    },
+    "resource_status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "reserved",
+        "starting",
+        "running",
+        "teardown_pending",
+        "cleaned",
+        "cleanup_failed",
+        "unknown"
+      ]
+    },
+    "teardown_required": {
+      "type": "boolean"
+    },
+    "resource_handles": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "profile_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "process_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "cleanup_status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "pending",
+        "in_progress",
+        "cleaned",
+        "failed",
+        "unknown"
+      ]
+    },
+    "result_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "error": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "dependentRequired": {
+    "resource_status": [
+      "resource_class"
+    ],
+    "teardown_required": [
+      "resource_class"
+    ],
+    "resource_handles": [
+      "resource_class"
+    ],
+    "cleanup_status": [
+      "resource_class"
+    ]
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "const": "light"
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "teardown_required": {
+            "const": false
+          },
+          "resource_status": {
+            "enum": [
+              "not_required",
+              "unknown"
+            ]
+          },
+          "cleanup_status": {
+            "enum": [
+              "not_required",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "const": "process"
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "resource_status": {
+            "enum": [
+              "reserved",
+              "starting",
+              "running",
+              "teardown_pending",
+              "cleaned",
+              "cleanup_failed",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "enum": [
+              "server",
+              "browser"
+            ]
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "teardown_required": {
+            "const": true
+          },
+          "resource_status": {
+            "enum": [
+              "reserved",
+              "starting",
+              "running",
+              "teardown_pending",
+              "cleaned",
+              "cleanup_failed",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "done"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "resource_status": {
+            "enum": [
+              "not_required",
+              "cleaned"
+            ]
+          },
+          "cleanup_status": {
+            "enum": [
+              "not_required",
+              "cleaned"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

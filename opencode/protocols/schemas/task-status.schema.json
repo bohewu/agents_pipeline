@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskStatus",
+  "type": "object",
+  "required": [
+    "run_id",
+    "task_id",
+    "summary",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "ready",
+        "in_progress",
+        "waiting_for_user",
+        "done",
+        "blocked",
+        "failed",
+        "skipped",
+        "stale"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "trace_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(story|sc|ac|tc)-[a-z0-9._-]+$"
+      }
+    },
+    "batch_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "depends_on": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "assigned_agent_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assigned_executor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resource_class": {
+      "type": "string",
+      "enum": [
+        "light",
+        "process",
+        "server",
+        "browser"
+      ]
+    },
+    "max_parallelism": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "teardown_required": {
+      "type": "boolean"
+    },
+    "resource_status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "reserved",
+        "starting",
+        "running",
+        "teardown_pending",
+        "cleaned",
+        "cleanup_failed",
+        "unknown"
+      ]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_heartbeat_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "result_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "error": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resume_note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_ref": {
+      "type": "object",
+      "required": [
+        "agent_id",
+        "path"
+      ],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "pattern": "(^|.*[\\\\/])agents[\\\\/][^\\\\/]+\\.json$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "dependentRequired": {
+    "max_parallelism": [
+      "resource_class"
+    ],
+    "teardown_required": [
+      "resource_class"
+    ],
+    "resource_status": [
+      "resource_class"
+    ]
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "const": "light"
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "teardown_required": {
+            "const": false
+          },
+          "resource_status": {
+            "enum": [
+              "not_required",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "const": "process"
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "max_parallelism": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2
+          },
+          "resource_status": {
+            "enum": [
+              "reserved",
+              "starting",
+              "running",
+              "teardown_pending",
+              "cleaned",
+              "cleanup_failed",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resource_class": {
+            "enum": [
+              "server",
+              "browser"
+            ]
+          }
+        },
+        "required": [
+          "resource_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "max_parallelism": {
+            "const": 1
+          },
+          "teardown_required": {
+            "const": true
+          },
+          "resource_status": {
+            "enum": [
+              "reserved",
+              "starting",
+              "running",
+              "teardown_pending",
+              "cleaned",
+              "cleanup_failed",
+              "unknown"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "done"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "resource_status": {
+            "enum": [
+              "not_required",
+              "cleaned"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

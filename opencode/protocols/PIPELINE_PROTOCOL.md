@@ -146,6 +146,7 @@ All pipeline artifacts MUST be written under a single root directory to keep the
   - `.pipeline-output/modernize/` — orchestrator-modernize docs
   - `.pipeline-output/flow/` — orchestrator-flow outputs
   - `.pipeline-output/committee/` — orchestrator-committee outputs
+  - `.pipeline-output/status/` — repo-bound run/task/agent status files for active or recent runs
 - **Checkpoint file:** `.pipeline-output/checkpoint.json` (see Checkpoint Protocol below)
 - **Gitignore requirement:** The target project's `.gitignore` MUST include `.pipeline-output/`. Orchestrators verify this in the pre-flight stage and warn the user if it is missing.
 
@@ -213,6 +214,296 @@ Pipeline runs support interrupt/resume via checkpoint files.
 - **No implicit resume:** If `--resume` is not provided, the orchestrator starts a fresh run even when prior artifacts remain on disk.
 - **Artifacts vs resume:** Persisted specs, handoff files, init docs, or other protocol-defined artifacts may still be read as explicit inputs or optional context, but that does not count as checkpoint resume.
 - **Completion:** On successful pipeline completion, the checkpoint file MAY be retained for audit or deleted. Default: retain.
+
+## Status Layer Contract (MVP)
+
+### MVP-First Scope Boundary
+
+This status layer is an adjacent, repo-bound filesystem contract for pipeline visibility and resume hygiene. It is intentionally narrow:
+
+- Reuse existing checkpoint and `DispatchPlan` concepts instead of redefining them.
+- Keep status as JSON files under `<output_dir>/status/`; do not introduce UI, websocket, event-bus, daemon, or external service requirements.
+- Treat the status layer as operational metadata for the current repo and local run lifecycle.
+- Do not broaden checkpoint semantics beyond stage resume, task ownership, and basic crash/stale cleanup guidance.
+
+Future runtime repos MAY project the same entities into a database, API, or richer orchestration system, but this repo's contract remains the source of truth for the entity names, core fields, and state meanings.
+
+### Canonical Status Files
+
+- Status root: `<output_dir>/status/`
+- Required base file: `<output_dir>/status/run-status.json`
+- Optional expanded files:
+  - `<output_dir>/status/tasks/<task_id>.json`
+  - `<output_dir>/status/agents/<agent_id>.json`
+
+`run-status.json` is always the top-level index for the run. When expanded files are used, `run-status.json` SHOULD keep a lightweight summary plus references to task and agent status files rather than duplicating every live detail.
+
+### Entity Model and Relationships
+
+#### RunStatus
+
+One `RunStatus` exists per orchestrator invocation.
+
+Required fields:
+
+- `run_id`: stable id for the run
+- `orchestrator`: orchestrator name
+- `status`: current run state
+- `created_at`: first write timestamp
+- `updated_at`: last successful write timestamp
+- `output_dir`: resolved artifact root
+- `checkpoint_path`: path to the checkpoint file used by the run
+
+Optional fields:
+
+- `protocol_version`
+- `user_prompt`
+- `current_stage`
+- `completed_stages[]`
+- `next_stage`
+- `task_list_path`
+- `dispatch_plan_path`
+- `layout`: `run-only` | `expanded`
+- `task_counts`: counts by task state
+- `active_task_ids[]`
+- `active_agent_ids[]`
+- `waiting_on`: `user` | `dependency` | `cleanup` | `resume` | `none`
+- `resume_from_checkpoint`: boolean
+- `last_heartbeat_at`
+- `last_error`
+- `notes`
+- `task_refs[]`: references to `tasks/<task_id>.json` when expanded layout is used
+- `agent_refs[]`: references to `agents/<agent_id>.json` when expanded layout is used
+
+Relationship rules:
+
+- A `RunStatus` MAY summarize many `TaskStatus` records.
+- A `RunStatus` MAY reference many `AgentStatus` records.
+- `RunStatus` is the authoritative parent record for lifecycle, layout choice, and checkpoint linkage.
+
+Run status vocabulary:
+
+- `queued`: run created but execution has not started
+- `running`: orchestrator is actively progressing stages or reconciling executor results
+- `waiting_for_user`: paused by `--confirm`, `--verbose`, or an explicit approval gate
+- `completed`: all in-scope work finished successfully
+- `partial`: run finished with incomplete but non-blocking leftovers already surfaced to the user
+- `failed`: run cannot continue without a fresh user decision or code/config change
+- `aborted`: user or orchestrator intentionally stopped the run before normal completion
+- `stale`: persisted status indicates likely abandoned execution and needs resume-or-replace handling
+
+#### TaskStatus
+
+One `TaskStatus` exists per `TaskList.tasks[].id` once the orchestrator has materialized executable task tracking.
+
+Required fields:
+
+- `run_id`
+- `task_id`
+- `summary`
+- `status`
+- `created_at`
+- `updated_at`
+
+Optional fields:
+
+- `trace_ids[]`
+- `batch_id`
+- `depends_on[]`
+- `assigned_agent_id`
+- `assigned_executor`
+- `resource_class`
+- `max_parallelism`
+- `teardown_required`
+- `resource_status`
+- `started_at`
+- `completed_at`
+- `last_heartbeat_at`
+- `result_summary`
+- `evidence_refs[]`
+- `error`
+- `resume_note`
+- `agent_ref`
+
+Relationship rules:
+
+- Each `TaskStatus` belongs to exactly one `RunStatus`.
+- Each `TaskStatus` maps to exactly one canonical `task_id` from `TaskList`.
+- A `TaskStatus` MAY reference the currently responsible `AgentStatus`; MVP does not require full attempt history in this repo.
+
+Task status vocabulary:
+
+- `pending`: task exists but is not yet eligible to run
+- `ready`: dependencies are satisfied and the task may be dispatched
+- `in_progress`: an executor is actively working the task
+- `waiting_for_user`: task is paused for feedback, approval, or missing user input
+- `done`: task completed successfully, including required cleanup
+- `blocked`: task cannot continue because of an external blocker or missing prerequisite
+- `failed`: executor attempted the task and the run cannot treat it as complete
+- `skipped`: task was intentionally not executed for this run
+- `stale`: previous in-progress ownership is no longer trusted and must be reconciled before resume
+
+#### AgentStatus
+
+`AgentStatus` is optional in the smallest MVP layout and becomes recommended when executor-level liveness or heavy-resource detail matters.
+
+Required fields:
+
+- `run_id`
+- `agent_id`
+- `agent`
+- `status`
+- `created_at`
+- `updated_at`
+
+Optional fields:
+
+- `task_id`
+- `batch_id`
+- `attempt`
+- `started_at`
+- `completed_at`
+- `last_heartbeat_at`
+- `resource_class`
+- `resource_status`
+- `teardown_required`
+- `resource_handles`
+- `cleanup_status`
+- `result_summary`
+- `evidence_refs[]`
+- `error`
+
+Relationship rules:
+
+- Each `AgentStatus` belongs to one `RunStatus`.
+- An `AgentStatus` SHOULD reference at most one active `task_id` at a time in MVP.
+- Multiple `AgentStatus` records for retries or re-dispatch are allowed over time, but only one should be marked active for a task at once.
+
+Agent status vocabulary:
+
+- `assigned`: handoff accepted but live execution has not started
+- `starting`: executor is initializing tools, repo context, or required resources
+- `running`: executor is actively working
+- `waiting_for_user`: executor is paused on requested feedback or approval
+- `done`: executor finished and reported successful cleanup where required
+- `blocked`: executor cannot continue without outside intervention
+- `failed`: executor attempt ended unsuccessfully
+- `stale`: liveness cannot be confirmed; ownership must be reconciled
+
+### Heavy-Resource Fields and Vocabulary
+
+Heavy-resource tracking MUST align with `DispatchPlan` metadata and stay low-complexity.
+
+- `resource_class` reuses router vocabulary: `light` | `process` | `server` | `browser`
+- `max_parallelism` and `teardown_required` SHOULD be copied from the assigned dispatch batch onto `TaskStatus` when known
+- `resource_status` vocabulary for `process`, `server`, and `browser` work:
+  - `not_required`: task does not hold a heavy resource
+  - `reserved`: slot assigned but resource not started yet
+  - `starting`: process, server, or browser launch in progress
+  - `running`: resource is live and expected to exist
+  - `teardown_pending`: task logic finished but cleanup is still required
+  - `cleaned`: cleanup succeeded and no live resource should remain
+  - `cleanup_failed`: task finished but cleanup could not be verified
+  - `unknown`: persisted status cannot prove whether the resource still exists
+- `resource_handles` is optional and executor-owned. It MAY include lightweight fields such as `pid`, `port`, `profile_dir`, `process_label`, or `url`, but should avoid large logs or machine-specific dumps.
+- For MVP, `resource_status` lives primarily on `AgentStatus`; `TaskStatus.resource_status` SHOULD be a summarized mirror when task-level visibility is needed.
+
+### File Layout Decision Rules
+
+#### Recommended default: `run-status.json` only
+
+Use a single `<output_dir>/status/run-status.json` when all of the following are true:
+
+- the run is primarily stage-oriented or has only a small number of tasks
+- expected task execution is mostly sequential or otherwise low-churn
+- there is no need to inspect separate executor attempts in real time
+- heavy-resource work is absent or limited enough that one summarized view is readable
+
+Rationale: the single-file layout is the lowest-complexity MVP, easiest to reason about, and sufficient for manual resume/debug workflows.
+
+#### Add `tasks/<task_id>.json`
+
+Split out per-task files when any of the following become true:
+
+- multiple tasks may be active or updated in close succession
+- the run needs task-by-task resume triage instead of only a run summary
+- dispatch batches carry heavy-resource metadata that would make a single file noisy
+- reviewers or operators need stable per-task evidence and error references
+
+In expanded layout, `run-status.json` remains the index and summary; it does not stop being required.
+
+#### Add `agents/<agent_id>.json`
+
+Add per-agent files when any of the following become true:
+
+- executor attempts need separate liveness tracking from task summaries
+- `browser`, `server`, or long-lived `process` work needs live `resource_status` and cleanup detail
+- a task may be retried, re-assigned, or resumed by a different executor attempt
+
+Rationale: separate agent files keep volatile execution detail out of the run summary while preserving a stable record for crash recovery and cleanup verification.
+
+### Write and Update Responsibilities
+
+#### Orchestrator responsibilities
+
+The orchestrator is the only writer that may create or replace `RunStatus`.
+
+- Create `run-status.json` before stage execution begins with `status = queued` or `running`.
+- Update `RunStatus` after each successful stage checkpoint write so checkpoint progress and run status stay aligned.
+- Decide layout (`run-only` or `expanded`) and record that choice in `RunStatus.layout`.
+- Create initial `TaskStatus` records once `TaskList` exists and enrich them with `DispatchPlan` metadata once routing is complete.
+- Transition tasks into `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` when that decision comes from orchestration logic, dependency resolution, or resume reconciliation.
+- Reconcile executor-reported outcomes into terminal task and run states.
+- On resume, mark previously abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
+
+#### Executor responsibilities
+
+Executors may only write status for the task they were assigned.
+
+- When work starts, update the assigned `TaskStatus` to `in_progress` and create or update the corresponding `AgentStatus` as `assigned`, `starting`, or `running`.
+- Maintain `updated_at` and, when practical, `last_heartbeat_at` while the task is active.
+- Copy or confirm heavy-resource fields (`resource_class`, `resource_status`, `teardown_required`, `resource_handles`) for browser/server/process work.
+- Before reporting success, move heavy-resource work through `teardown_pending` to `cleaned` when cleanup succeeds.
+- If task execution fails, set `failed` or `blocked` with a concise `error` and any evidence references.
+- If cleanup fails, do not report `done`; set `resource_status = cleanup_failed` and return `partial`, `blocked`, or `failed` according to task impact.
+
+#### Shared write rule
+
+MVP prefers one active writer per entity at a time:
+
+- orchestrator owns `RunStatus`
+- executor owns its live `AgentStatus`
+- `TaskStatus` is orchestrator-created and executor-updated only for the executor's assigned task
+
+If a conflict is detected during resume or reconciliation, the orchestrator's latest confirmed checkpoint-aligned write wins.
+
+### Failure, Stale, Cleanup, and Resume Rules
+
+These rules are intentionally simple and repo-bound.
+
+- **Stale detection (MVP rule):** if a `TaskStatus` or `AgentStatus` is `in_progress`/`running` and no `updated_at` or `last_heartbeat_at` change is observed by the orchestrator across a resume or recovery check, the orchestrator SHOULD mark it `stale` rather than assuming success.
+- **Crash recovery (MVP rule):** after an orchestrator or executor crash, the next `--resume` flow MUST trust `checkpoint.json` for completed stages and trust status files only as hints for incomplete work. Any in-flight task without confirmed completion is treated as `stale` until explicitly re-dispatched or manually cleared.
+- **Cleanup failure (MVP rule):** if `teardown_required = true` and cleanup cannot be verified, the related `TaskStatus` must not be `done`, and the `RunStatus` should end as `partial` or `failed` unless the user explicitly accepts the residual risk.
+- **Resume behavior (MVP rule):** on resume, the orchestrator SHOULD summarize `stale`, `blocked`, and `cleanup_failed` entries before continuing, then either (a) redispatch stale work as a new executor attempt or (b) leave it blocked for user confirmation. It MUST not silently flip stale work to `done`.
+- **Manual cleanup note:** when `resource_status` is `cleanup_failed` or `unknown`, the status record SHOULD include a short `notes`, `error`, or `resume_note` entry describing what may still need manual shutdown.
+
+### Repo Boundary: Now vs Later
+
+For this repo now:
+
+- define the status contract in documentation
+- keep the design filesystem-based and local to `<output_dir>`
+- align terminology with checkpoint files, task ids, and dispatch metadata already defined here
+
+For a future runtime repo:
+
+- the same entities may be backed by stronger storage, locking, or APIs
+- richer attempt history, archival, and automation MAY be added later
+- detailed runtime handoff mechanics are explicitly out of scope for this task and this MVP section
+
+### MVP to Hardened Roadmap
+
+Near-term hardening MAY later add schemas, examples, stricter conflict handling, and richer attempt history for status files. This document deliberately stops at the MVP contract so the repo can standardize terminology and responsibilities before adding higher-complexity runtime behavior.
 
 ## Confirm / Verbose Protocol
 

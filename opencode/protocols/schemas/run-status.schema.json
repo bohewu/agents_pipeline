@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RunStatus",
+  "type": "object",
+  "required": [
+    "run_id",
+    "orchestrator",
+    "status",
+    "created_at",
+    "updated_at",
+    "output_dir",
+    "checkpoint_path"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orchestrator": {
+      "type": "string",
+      "enum": [
+        "orchestrator-pipeline",
+        "orchestrator-flow",
+        "orchestrator-init",
+        "orchestrator-ci",
+        "orchestrator-modernize",
+        "orchestrator-spec",
+        "orchestrator-committee",
+        "orchestrator-general"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "waiting_for_user",
+        "completed",
+        "partial",
+        "failed",
+        "aborted",
+        "stale"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "output_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint_path": {
+      "type": "string",
+      "pattern": "(^|.*[\\\\/])checkpoint\\.json$"
+    },
+    "user_prompt": {
+      "type": "string"
+    },
+    "current_stage": {
+      "type": "integer",
+      "minimum": -1
+    },
+    "completed_stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "stage",
+          "name",
+          "status",
+          "timestamp"
+        ],
+        "properties": {
+          "stage": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "skipped",
+              "failed"
+            ]
+          },
+          "artifact_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "next_stage": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "task_list_path": {
+      "type": "string",
+      "pattern": "(^|.*[\\\\/])task-list\\.json$"
+    },
+    "dispatch_plan_path": {
+      "type": "string",
+      "pattern": "(^|.*[\\\\/])dispatch-plan\\.json$"
+    },
+    "layout": {
+      "type": "string",
+      "enum": [
+        "run-only",
+        "expanded"
+      ]
+    },
+    "task_counts": {
+      "type": "object",
+      "required": [
+        "pending",
+        "ready",
+        "in_progress",
+        "waiting_for_user",
+        "done",
+        "blocked",
+        "failed",
+        "skipped",
+        "stale"
+      ],
+      "properties": {
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ready": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "in_progress": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "waiting_for_user": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "done": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stale": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "active_task_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "active_agent_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "waiting_on": {
+      "type": "string",
+      "enum": [
+        "user",
+        "dependency",
+        "cleanup",
+        "resume",
+        "none"
+      ]
+    },
+    "resume_from_checkpoint": {
+      "type": "boolean"
+    },
+    "last_heartbeat_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_error": {
+      "type": "string",
+      "minLength": 1
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "task_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "path"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "pattern": "(^|.*[\\\\/])tasks[\\\\/][^\\\\/]+\\.json$"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "agent_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "path"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "pattern": "(^|.*[\\\\/])agents[\\\\/][^\\\\/]+\\.json$"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

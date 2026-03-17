@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_invalid_01",
+  "task_id": "task-browser-cleanup-invalid",
+  "summary": "Invalid example: task marked done even though browser cleanup failed.",
+  "status": "done",
+  "created_at": "2026-03-17T16:00:30Z",
+  "updated_at": "2026-03-17T16:07:30Z",
+  "trace_ids": [
+    "tc-manual-failure-guidance"
+  ],
+  "assigned_agent_id": "agent-browser-cleanup-invalid",
+  "assigned_executor": "executor-advanced",
+  "resource_class": "browser",
+  "max_parallelism": 1,
+  "teardown_required": true,
+  "resource_status": "cleanup_failed",
+  "started_at": "2026-03-17T16:01:00Z",
+  "completed_at": "2026-03-17T16:07:00Z",
+  "error": "This fixture is intentionally invalid because done cannot coexist with cleanup_failed.",
+  "agent_ref": {
+    "agent_id": "agent-browser-cleanup-invalid",
+    "path": "status/agents/agent-browser-cleanup-invalid.json"
+  }
+}

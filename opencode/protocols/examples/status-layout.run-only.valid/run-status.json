@@ -1,0 +1,52 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_run_only_01",
+  "orchestrator": "orchestrator-flow",
+  "status": "stale",
+  "created_at": "2026-03-17T14:00:00Z",
+  "updated_at": "2026-03-17T14:17:00Z",
+  "output_dir": ".pipeline-output/status-layout.run-only.valid",
+  "checkpoint_path": ".pipeline-output/status-layout.run-only.valid/checkpoint.json",
+  "user_prompt": "Validate a small MVP contract with one temporary local server and summarize stale-resume guidance.",
+  "current_stage": 2,
+  "completed_stages": [
+    {
+      "stage": 0,
+      "name": "specify",
+      "status": "completed",
+      "artifact_key": "problem_spec",
+      "timestamp": "2026-03-17T14:02:00Z"
+    },
+    {
+      "stage": 1,
+      "name": "plan",
+      "status": "completed",
+      "artifact_key": "plan_outline",
+      "timestamp": "2026-03-17T14:06:00Z"
+    }
+  ],
+  "next_stage": 2,
+  "layout": "run-only",
+  "task_counts": {
+    "pending": 0,
+    "ready": 0,
+    "in_progress": 0,
+    "waiting_for_user": 0,
+    "done": 1,
+    "blocked": 0,
+    "failed": 0,
+    "skipped": 0,
+    "stale": 1
+  },
+  "active_task_ids": [],
+  "active_agent_ids": [],
+  "waiting_on": "resume",
+  "resume_from_checkpoint": true,
+  "last_heartbeat_at": "2026-03-17T14:15:30Z",
+  "last_error": "Heartbeat stopped after a temporary preview server exited unexpectedly during a sequential two-task run.",
+  "notes": [
+    "Run-only layout is sufficient because the run has two sequential tasks and the heavy-resource detail fits in one summary record.",
+    "One temporary server-backed verification step lost liveness after stage 2; the orchestrator should keep the run stale until --resume explicitly reconciles it.",
+    "No separate task or agent files were created because operators only need checkpoint linkage, stale detection, and a concise resume note for this MVP case."
+  ]
+}

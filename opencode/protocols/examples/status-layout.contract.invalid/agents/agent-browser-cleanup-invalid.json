@@ -1,0 +1,24 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_invalid_01",
+  "agent_id": "agent-browser-cleanup-invalid",
+  "agent": "executor-advanced",
+  "status": "done",
+  "created_at": "2026-03-17T16:00:45Z",
+  "updated_at": "2026-03-17T16:07:30Z",
+  "task_id": "task-browser-cleanup-invalid",
+  "attempt": 1,
+  "started_at": "2026-03-17T16:01:00Z",
+  "completed_at": "2026-03-17T16:07:00Z",
+  "resource_class": "browser",
+  "resource_status": "running",
+  "teardown_required": true,
+  "resource_handles": {
+    "pid": 6112,
+    "profile_dir": ".tmp/playwright/invalid-browser-profile",
+    "process_label": "chromium-invalid",
+    "url": "http://127.0.0.1:4173/invalid"
+  },
+  "cleanup_status": "failed",
+  "error": "This fixture is intentionally invalid because a done agent cannot keep a running browser or failed cleanup state."
+}

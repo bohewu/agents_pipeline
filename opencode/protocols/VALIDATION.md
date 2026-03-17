@@ -39,6 +39,29 @@ These gates define minimal acceptance for each stage output.
 - Missing cleanup evidence for `server` or `browser` work is always a failure.
 - If cleanup fails or cannot be verified, the task must not be treated as complete.
 
+## Status Contract Gate
+
+- `run-status.json` must always exist at `<output_dir>/status/run-status.json` and validate against `./protocols/schemas/run-status.schema.json`.
+- Expanded layouts must validate each `tasks/<task_id>.json` file against `./protocols/schemas/task-status.schema.json`.
+- Expanded layouts must validate each `agents/<agent_id>.json` file against `./protocols/schemas/agent-status.schema.json`.
+- `TaskStatus.status = done` must not coexist with uncleared heavy-resource states such as `resource_status = cleanup_failed`.
+- `AgentStatus.status = done` must not coexist with live or failed-cleanup resource states.
+- Invalid status fixtures are expected to fail validation; CI should treat an unexpected pass as a regression.
+
+## Repository Validation Hooks
+
+Run the same status contract checks locally or in automation with `opencode/tools/validate-schema.py --require-jsonschema`.
+
+Current repository coverage validates:
+
+- `./protocols/examples/status-layout.run-only.valid/run-status.json`
+- `./protocols/examples/status-layout.expanded.valid/run-status.json`
+- all `./protocols/examples/status-layout.expanded.valid/tasks/*.json`
+- all `./protocols/examples/status-layout.expanded.valid/agents/*.json`
+- negative fixtures under `./protocols/examples/status-layout.contract.invalid/`, which must fail against the matching status schemas
+
+This repository enforces those checks in `.github/workflows/ci.yml` so contributor changes to status schemas or fixtures are exercised in the default CI path.
+
 ## Review Gate
 
 - `overall_status` must be `pass` for pipeline completion.

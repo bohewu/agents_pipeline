@@ -1,0 +1,27 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "agent_id": "agent-process-01",
+  "agent": "peon",
+  "status": "done",
+  "created_at": "2026-03-17T15:08:45Z",
+  "updated_at": "2026-03-17T15:16:30Z",
+  "task_id": "task-process-build",
+  "batch_id": "b-process",
+  "attempt": 1,
+  "started_at": "2026-03-17T15:09:00Z",
+  "completed_at": "2026-03-17T15:16:30Z",
+  "last_heartbeat_at": "2026-03-17T15:16:00Z",
+  "resource_class": "process",
+  "resource_status": "cleaned",
+  "teardown_required": false,
+  "resource_handles": {
+    "pid": 5024,
+    "process_label": "vite-build"
+  },
+  "cleanup_status": "cleaned",
+  "result_summary": "Bounded build process exited without needing extra teardown.",
+  "evidence_refs": [
+    "logs/process-build.log"
+  ]
+}
