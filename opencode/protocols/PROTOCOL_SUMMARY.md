@@ -9,8 +9,10 @@ Paths are relative to the config directory (for example `~/.config/opencode`).
 - Scope must not expand beyond the ProblemSpec and Acceptance Criteria.
 - If `DevSpec` is present, downstream stages should preserve traceability via task `trace_ids` mapped to its story, scenario, acceptance, or test ids.
 - TaskList is the single source of truth for execution scope.
+- DispatchPlan batches carry required resource metadata: `resource_class`, `max_parallelism`, and `teardown_required`.
 - Evidence is required for implementation tasks unless explicitly skipped by flags.
 - Executors must not perform work outside their assigned task.
+- Tasks that launch browsers, servers, watchers, temp profiles, or other lingering child-process resources must include explicit teardown; cleanup evidence is part of task completion.
 
 ## Outputs and Schemas
 

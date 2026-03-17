@@ -32,6 +32,13 @@ These gates define minimal acceptance for each stage output.
 - Executor outputs must include evidence paths or commands.
 - If tests are required, test-runner output must include evidence and command list.
 
+## Resource Gate
+
+- Every DispatchPlan batch must include `resource_class`, `max_parallelism`, and `teardown_required`.
+- Any task or batch with `teardown_required = true` must include cleanup evidence before it can pass review.
+- Missing cleanup evidence for `server` or `browser` work is always a failure.
+- If cleanup fails or cannot be verified, the task must not be treated as complete.
+
 ## Review Gate
 
 - `overall_status` must be `pass` for pipeline completion.

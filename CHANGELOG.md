@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-03-17
+
+### Added
+
+- Resource-aware DispatchPlan schema coverage with positive and negative fixtures for browser, server, and bounded process routing.
+- CI checks for dispatch-plan resource validation and prompt/documentation coverage of the resource-control contract.
+
+### Changed
+
+- Pipeline and Flow orchestration docs now require resource classification, conservative heavy-task scheduling, and teardown evidence for lingering resources.
+- Router, executor, test-runner, and reviewer prompts now treat cleanup as part of task completion and enforce teardown evidence for heavy batches.
+- DispatchPlan batches now carry required resource metadata fields for `resource_class`, `max_parallelism`, and `teardown_required`.
+
 ## [0.8.0] - 2026-03-12
 
 ### Added

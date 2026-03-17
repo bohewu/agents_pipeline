@@ -267,15 +267,19 @@ Stage 2 — Atomic Task Decomposition
 
 Stage 3 — Dispatch & Execution
 - Group tasks into:
-  - parallel_tasks (all atomic = true, no shared mutable context)
-  - sequential_tasks (if ordering is required)
+  - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
+  - sequential_tasks (if ordering is required or the task is resource-heavy)
 - Each task is executed EXACTLY ONCE. No retries.
 - Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED/FAILED.
+- Classify each task conservatively as `light`, `process`, `server`, or `browser`.
+- `browser` and `server` tasks MUST stay in `sequential_tasks` with effective `max_parallelism = 1`.
+- `process` tasks may run in parallel only when clearly independent, bounded, and unlikely to contend for RAM or ports.
 - Dispatch parallel_tasks concurrently if tooling allows; otherwise dispatch sequentially and note the limitation.
 - For each task handoff, include:
   - Task details
   - Expected output
   - Artifact output contract (below)
+- For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
@@ -305,6 +309,13 @@ If expected_output is implementation:
   - CONTINUE pipeline.
 - Do NOT retry.
 - Do NOT generate delta tasks.
+
+# RESOURCE CONTROL POLICY
+
+- Resource cleanup is part of task completion.
+- If a task launches Node.js, Playwright, a local server, or any background child process, require teardown evidence before marking it done.
+- If cleanup cannot be verified, mark the task FAILED or PARTIAL instead of treating it as success.
+- Do not run more than one `browser` or `server` task at a time.
 
 # Stage 4 — Synthesis (Orchestrator-Owned)
 

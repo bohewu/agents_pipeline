@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "batches": [
+    {
+      "batch_id": "b1",
+      "task_ids": [
+        "t1"
+      ],
+      "assigned_executor": "executor-core",
+      "parallel": true,
+      "resource_class": "process",
+      "max_parallelism": 3,
+      "teardown_required": false,
+      "notes": [
+        "Unsafe on purpose: process batches may not exceed max_parallelism 2."
+      ]
+    }
+  ],
+  "advanced_reserve_tasks": [],
+  "notes": []
+}

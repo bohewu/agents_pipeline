@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "batches": [
+    {
+      "batch_id": "b1",
+      "task_ids": [
+        "t1"
+      ],
+      "assigned_executor": "executor-core",
+      "parallel": false,
+      "resource_class": "server",
+      "max_parallelism": 1,
+      "teardown_required": false,
+      "notes": [
+        "Unsafe on purpose: server batches must require teardown."
+      ]
+    }
+  ],
+  "advanced_reserve_tasks": [],
+  "notes": []
+}

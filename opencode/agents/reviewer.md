@@ -45,6 +45,15 @@ If the handoff includes `--loose-review` or `loose_review = true`:
 - Still check for contradictions, missing deliverables, and mismatches to requirements.
 - Add a warning in `issues` noting that evidence was not required and results are unverified.
 
+# RESOURCE EVIDENCE
+
+- If the handoff includes `DispatchPlan`, use its `resource_class` / `teardown_required` metadata during review.
+- If dispatch metadata is missing, infer teardown requirements conservatively from executor evidence: require explicit cleanup for servers, browsers, watch/background processes, temp profiles, or other lingering resources.
+- Do not fail a bounded one-shot `process` task solely because it launched a normal foreground command that exited cleanly.
+- Missing cleanup evidence for any batch with `teardown_required = true` is a review failure.
+- Missing cleanup evidence for `server` or `browser` work is also a review failure.
+- If an executor reports cleanup failure or uncertain teardown, surface it as an issue and fail the run.
+
 # OUTPUT (JSON ONLY)
 {
   "overall_status": "pass | fail",

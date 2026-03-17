@@ -1,0 +1,74 @@
+{
+  "protocol_version": "1.0",
+  "batches": [
+    {
+      "batch_id": "b1",
+      "task_ids": [
+        "t1"
+      ],
+      "assigned_executor": "executor-core",
+      "parallel": false,
+      "resource_class": "server",
+      "max_parallelism": 1,
+      "teardown_required": true,
+      "timeout_hint_minutes": 15,
+      "notes": [
+        "Start a temporary local app server for validation.",
+        "Collect teardown evidence before any later heavy batch."
+      ]
+    },
+    {
+      "batch_id": "b2",
+      "task_ids": [
+        "t2"
+      ],
+      "assigned_executor": "executor-advanced",
+      "parallel": false,
+      "resource_class": "browser",
+      "max_parallelism": 1,
+      "teardown_required": true,
+      "timeout_hint_minutes": 20,
+      "notes": [
+        "Run Playwright smoke coverage against the target flow.",
+        "Close browser, context, and temp profile before returning."
+      ]
+    },
+    {
+      "batch_id": "b3",
+      "task_ids": [
+        "t3"
+      ],
+      "assigned_executor": "peon",
+      "parallel": false,
+      "resource_class": "process",
+      "max_parallelism": 1,
+      "teardown_required": false,
+      "timeout_hint_minutes": 10,
+      "notes": [
+        "Run a bounded one-shot build command; do not use watch mode."
+      ]
+    },
+    {
+      "batch_id": "b4",
+      "task_ids": [
+        "t4",
+        "t5"
+      ],
+      "assigned_executor": "doc-writer",
+      "parallel": true,
+      "resource_class": "light",
+      "max_parallelism": 2,
+      "teardown_required": false,
+      "notes": [
+        "Independent documentation artifacts can run in parallel."
+      ]
+    }
+  ],
+  "advanced_reserve_tasks": [
+    "t2"
+  ],
+  "notes": [
+    "Keep server and browser batches isolated to reduce RAM spikes.",
+    "Do not dispatch a later heavy batch until the current one reports teardown evidence."
+  ]
+}

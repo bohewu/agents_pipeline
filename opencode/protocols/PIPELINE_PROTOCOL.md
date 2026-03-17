@@ -111,7 +111,7 @@ Output: Task result JSON plus required artifact blocks when applicable
 
 **Stage 6: Reviewer**
 Agent: `reviewer`
-Input: TaskList, executor outputs, ProblemSpec, optional DevSpec, optional test evidence
+Input: TaskList, DispatchPlan, executor outputs, ProblemSpec, optional DevSpec, optional test evidence
 Output: `ReviewReport` JSON
 Schema: `./protocols/schemas/review-report.schema.json`
 
@@ -249,6 +249,35 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
   - `--autopilot` wins over `--confirm` / `--verbose` and disables interactive pauses
   - `--dry --confirm` -> `--dry` wins (stops after atomizer+router)
   - `--resume --confirm` -> resume from checkpoint, then apply confirm mode going forward
+
+## Resource Control Protocol
+
+Pipeline runs may launch local child processes, test harnesses, servers, or browsers. Resource cleanup is part of task completion, not an optional best effort.
+
+- **Resource classes:**
+  - `light`: analysis, docs, or edits with no long-lived child process
+  - `process`: bounded build/test/script command that may spawn child processes but should exit on its own
+  - `server`: local app/dev server or listener that must later be shut down
+  - `browser`: Playwright or other browser automation, whether headless or headed
+- **Routing defaults:**
+  - Router MUST annotate each dispatch batch with `resource_class`, `max_parallelism`, `teardown_required`, and optional `timeout_hint_minutes`.
+  - `browser` and `server` batches default to `max_parallelism = 1`.
+  - `process` batches SHOULD stay conservative, usually `max_parallelism = 1` and at most `2` for clearly independent bounded commands.
+  - `process` batches set `teardown_required = true` only when the task starts helper services, temp browsers, watchers, or other resources that need explicit shutdown; otherwise `false` is acceptable.
+  - `light` batches may use normal parallelism.
+- **Orchestrator responsibilities:**
+  - Preserve batch resource metadata in executor handoffs.
+  - Do not co-schedule more than one `browser` or `server` batch at a time unless the runtime explicitly proves isolated cleanup and budget enforcement.
+  - After any batch with `teardown_required = true`, require executor evidence that cleanup completed before dispatching the next heavy batch.
+- **Executor responsibilities:**
+  - Track every spawned process tree, temp profile directory, local port, and browser/page/context created by the task.
+  - Use bounded execution plus explicit teardown, preferably with `try/finally` or equivalent cleanup guards.
+  - Do not leave background jobs, watch mode, dev servers, or browser instances running after the task completes.
+  - If cleanup fails or cannot be verified, do not claim `done`; return `partial` or `blocked` with evidence and the remaining risk.
+- **Validation responsibilities:**
+  - Test runners should avoid watch mode by default and clean up temporary validation resources.
+  - Reviewers should treat missing cleanup evidence for any batch with `teardown_required = true` as incomplete execution evidence.
+  - Missing cleanup evidence for `server` or `browser` work is always a failure, even if metadata was omitted incorrectly.
 
 ## Validation Gates
 

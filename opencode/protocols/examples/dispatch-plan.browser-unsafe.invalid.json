@@ -1,0 +1,22 @@
+{
+  "protocol_version": "1.0",
+  "batches": [
+    {
+      "batch_id": "b1",
+      "task_ids": [
+        "t1",
+        "t2"
+      ],
+      "assigned_executor": "executor-advanced",
+      "parallel": true,
+      "resource_class": "browser",
+      "max_parallelism": 2,
+      "teardown_required": true,
+      "notes": [
+        "Unsafe on purpose: browser batches must stay isolated and single-task."
+      ]
+    }
+  ],
+  "advanced_reserve_tasks": [],
+  "notes": []
+}

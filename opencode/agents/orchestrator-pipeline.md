@@ -336,14 +336,18 @@ Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce 
 Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
 Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`
-Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes)
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata)
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
+- Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
+- Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
+- Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
+- If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
 - If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, executor outputs, ProblemSpec, and optional DevSpec
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec
 Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
 Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes)
 Stage 9: @summarizer -> user-facing final summary
@@ -379,6 +383,14 @@ If `decision_only = true`:
 - In `autopilot_mode`, perform one bounded recovery pass before surfacing a recoverable blocker.
 - In `full_auto_mode`, prefer the strongest safe recovery path available within scope before surfacing a recoverable blocker.
 - If recovery does not produce meaningful progress, stop and report the blocker together with the attempted recovery steps.
+
+# RESOURCE CONTROL POLICY
+
+- Treat resource cleanup as part of Definition of Done, not as optional hygiene.
+- Use `dispatch-plan.json` resource metadata when available; if it is missing for a task that obviously launches child processes, browsers, or local servers, classify it conservatively before dispatch.
+- Do not dispatch a new `browser` or `server` batch until the previous heavy batch has reported teardown evidence.
+- If an executor reports cleanup failure or uncertain cleanup, keep the task status non-final (`partial` or `blocked`) and surface the operational risk in review and final summary.
+- Do not treat `autopilot_mode` or `full_auto_mode` as permission to leave background resources running after a task returns.
 
 # RETRY POLICY
 
@@ -430,6 +442,7 @@ If `decision_only = true`:
 - Traceability Gate: If DevSpec is present, every task must include explicit `trace_ids` back to the spec.
 - Atomicity Gate: every task has DoD + single primary output.
 - Evidence Gate: executors must include evidence (paths/logs/commands).
+- Resource Gate: tasks with `teardown_required = true` must include teardown evidence; missing cleanup evidence for `server` or `browser` work is always a failure.
 - Consistency Gate: reviewer checks contradictions & missing deliverables.
 - TDD Guidance: For high-risk behavior changes or user-facing features, prefer writing tests first; for low-risk refactors/docs, ensure at least minimal regression coverage.
 

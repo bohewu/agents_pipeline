@@ -1,0 +1,20 @@
+{
+  "protocol_version": "1.0",
+  "batches": [
+    {
+      "batch_id": "b1",
+      "task_ids": [
+        "t1"
+      ],
+      "assigned_executor": "executor-core",
+      "parallel": false,
+      "max_parallelism": 1,
+      "teardown_required": true,
+      "notes": [
+        "Missing resource_class on purpose; this fixture should fail validation."
+      ]
+    }
+  ],
+  "advanced_reserve_tasks": [],
+  "notes": []
+}

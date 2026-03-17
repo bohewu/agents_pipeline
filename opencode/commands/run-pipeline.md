@@ -57,6 +57,7 @@ $ARGUMENTS
 - All behavior is enforced at orchestrator-pipeline prompt level
 - Compatible with OpenCode official command system
 - When generated, the human-readable development spec is written to `<output_dir>/pipeline/dev-spec.md` (default: `.pipeline-output/pipeline/dev-spec.md`)
+- Heavy resource tasks such as browser automation or temporary local servers are routed conservatively and require teardown evidence before the next heavy batch.
 - The global handoff protocol is embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need it externalized, extract that section into your runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 
 ## Design Notes
