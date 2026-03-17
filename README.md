@@ -570,7 +570,9 @@ python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/age
 
 See `opencode/protocols/SCHEMAS.md` and `opencode/protocols/VALIDATION.md` for the status layout fixture set and the negative-fixture expectations enforced in CI.
 For ownership boundaries and the follow-on roadmap, see `opencode/protocols/STATUS_MVP_HANDOFF.md`.
-That handoff also frames a possible future `status-cli` as an optional companion tool for runtime consumers, not a requirement for using this repository today.
+This repository also includes an optional in-repo `status-cli` as a read-only Phase 1 companion for local status inspection.
+It is not required for using this repository today and does not imply dashboard, runtime-writer, polling frontend, or service/platform support.
+See `docs/status-cli-plan.md` for the current scope and boundaries.
 
 If you enable custom tools, you can call the `validate-schema` tool from OpenCode
 instead of running the script manually (see `opencode/tools/validate-schema.ts`).

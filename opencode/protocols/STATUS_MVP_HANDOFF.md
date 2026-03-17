@@ -4,7 +4,9 @@
 
 This document explains how the status-layer MVP artifacts in this repository fit together, what this repository owns today, what is explicitly deferred to a future runtime repository, and how the work should progress from the current Phase 0-1 MVP to a later hardened system.
 
-The MVP in this repository is a contract-and-validation deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that a future runtime implementation must consume. It does **not** implement the external runtime itself.
+The MVP in this repository is a contract-and-validation deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that a future runtime implementation must consume.
+This repository also includes an optional in-repo, read-only Phase 1 `status-cli` for local inspection of status artifacts that follow that contract.
+It does **not** implement the external runtime itself.
 
 ## Repository Ownership Boundary
 
@@ -16,6 +18,7 @@ This repository owns the repo-bound status contract and its validation surface:
 - JSON schemas for `RunStatus`, `TaskStatus`, and `AgentStatus`
 - positive and negative example fixtures for the supported layouts
 - validation guidance and default CI enforcement
+- the optional in-repo, read-only Phase 1 `status-cli` for local inspection of status artifacts
 - this handoff document
 - run-local planning artifacts in `.pipeline-output/pipeline/` for review traceability
 
@@ -28,7 +31,7 @@ The future runtime repository owns execution-time implementation work, including
 - any database/API/service projection of the status entities
 - any operational storage, retention, auth, or multi-writer controls
 - any operator-facing or customer-facing runtime surfaces
-- any optional companion tooling such as a planned `status-cli` for inspecting or summarizing runtime status files
+- any runtime-integrated or service-backed tooling beyond the current in-repo read-only `status-cli`
 
 ## Explicit MVP Exclusions
 
@@ -144,7 +147,8 @@ Only after runtime writing is stable should a later system consider optional pre
 - polling frontends
 - websocket or event-bus integrations
 - external reporting or API consumers
-- a lightweight `status-cli` companion for local/operator status inspection
+
+The current in-repo `status-cli` remains a local, read-only contract consumer; richer runtime-facing surfaces stay deferred.
 
 These are later consumers of the contract, not part of the MVP contract work in this repository.
 

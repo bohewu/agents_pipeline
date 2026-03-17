@@ -1,6 +1,6 @@
 # Status CLI Deferred Roadmap
 
-This document parks deferred item **(4)** as later work only. It does **not** add `status-cli` implementation scope to this repository.
+This document parks post-Phase-1 follow-up work as later work only. The repository may include an optional read-only in-repo `status-cli`, but this roadmap does **not** expand that into dashboard, runtime-writer, polling, or service/platform scope.
 
 Current contract sources remain:
 

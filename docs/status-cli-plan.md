@@ -2,7 +2,7 @@
 
 ## Summary
 
-`status-cli` is a planned optional companion tool for inspecting status-layer artifacts produced by a future runtime consumer of this repository's status contract.
+`status-cli` is an optional in-repo read-only Phase 1 companion tool for inspecting status-layer artifacts that follow this repository's status contract.
 
 This plan keeps Phase 1 intentionally small:
 
@@ -11,6 +11,8 @@ This plan keeps Phase 1 intentionally small:
 - Phase 1 treats `run-status.json` as the primary supported input.
 - Support for `tasks/` and `agents/` files is optional enhanced behavior when present.
 - Phase 1 does **not** include status writing, runtime orchestration, background services, or live update behavior.
+
+Unless separate install docs/scripts are added alongside the implementation, treat `status-cli` as an in-repo companion rather than a broadly supported install workflow.
 
 The source of truth for status semantics remains the existing status-layer MVP contract in:
 
@@ -157,7 +159,7 @@ Those imply runtime or mutating behavior and should stay out of the Phase 1 plan
 
 ## Recommended In-Repo Directory Structure
 
-If this repository later chooses to add `status-cli` implementation work, keep it clearly separated from the protocol source of truth.
+Keep the in-repo `status-cli` implementation clearly separated from the protocol source of truth.
 
 Recommended structure:
 
@@ -188,9 +190,9 @@ Guidance for these directories:
 
 This keeps protocol docs in `opencode/protocols/` and any future CLI consumer implementation in a separate top-level area.
 
-## Install Model / Design
+## Install Model / Future Packaging Design
 
-Phase 1 should follow the repository's current paired install convention conceptually:
+If packaged install support is added later, Phase 1 should follow the repository's current paired install convention conceptually:
 
 - provide a PowerShell install path for Windows-oriented users
 - provide a Bash install path for macOS/Linux users
@@ -206,7 +208,7 @@ Recommended install design principles:
 4. Keep the install story aligned with the current repository pattern of paired `.ps1` and `.sh` scripts.
 5. Avoid adding complex package-manager assumptions in the Phase 1 plan.
 
-Recommended conceptual install shapes:
+Possible later install shapes:
 
 - local paired scripts if implemented in-repo later:
   - `scripts/install-status-cli.ps1`
