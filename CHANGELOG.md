@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Fixed
+
+- Release publishing job now checks out the repo before invoking `gh release`, so tag and manual releases can publish assets successfully.
+
 ## [0.9.1] - 2026-03-17
 
 ### Changed
