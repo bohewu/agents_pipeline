@@ -28,6 +28,7 @@ The future runtime repository owns execution-time implementation work, including
 - any database/API/service projection of the status entities
 - any operational storage, retention, auth, or multi-writer controls
 - any operator-facing or customer-facing runtime surfaces
+- any optional companion tooling such as a planned `status-cli` for inspecting or summarizing runtime status files
 
 ## Explicit MVP Exclusions
 
@@ -143,6 +144,7 @@ Only after runtime writing is stable should a later system consider optional pre
 - polling frontends
 - websocket or event-bus integrations
 - external reporting or API consumers
+- a lightweight `status-cli` companion for local/operator status inspection
 
 These are later consumers of the contract, not part of the MVP contract work in this repository.
 
