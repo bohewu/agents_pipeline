@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-03-17
+
+### Changed
+
+- Release workflows now use Node 24-compatible artifact actions and GitHub CLI publishing to avoid Node 20 deprecation warnings in release jobs.
+
 ## [0.9.0] - 2026-03-17
 
 ### Added
