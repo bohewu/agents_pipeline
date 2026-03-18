@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import argparse
 from html import escape
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, cast
+from urllib.parse import urlsplit
 
 
 class StatusCliError(Exception):
@@ -37,6 +39,9 @@ TASK_COUNT_ORDER = [
 
 FOCUS_CHOICES = ("blocked", "stale", "active")
 WEB_THEME_CHOICES = ("auto", "light", "dark")
+WEB_REFRESH_INTERVAL_CHOICES = (5, 10, 15, 30, 60)
+WEB_DEFAULT_REFRESH_INTERVAL = 15
+WEB_MAX_REFRESH_FAILURES = 3
 WEB_STATUS_COLORS = {
     "pending": "#64748b",
     "ready": "#0ea5e9",
@@ -865,6 +870,15 @@ def theme_palette(theme: str) -> dict[str, str]:
     }
 
 
+def file_uri(path: Optional[Path], directory: bool = False) -> Optional[str]:
+    if path is None:
+        return None
+    uri = path.resolve().as_uri()
+    if directory and not uri.endswith("/"):
+        uri = f"{uri}/"
+    return uri
+
+
 def serialize_record(record: dict) -> dict[str, object]:
     return {key: record[key] for key in sorted(record)}
 
@@ -873,11 +887,30 @@ def build_web_payload(
     run_status: dict,
     context: StatusContext,
     focus: Optional[str] = None,
+    refresh_interval: int = WEB_DEFAULT_REFRESH_INTERVAL,
+    viewer_label: str = "Read-only web export",
+    refresh_warning: Optional[str] = None,
+    refresh_source_overrides: Optional[dict[str, Optional[str]]] = None,
 ) -> dict[str, object]:
     active_task_ids = {str(item) for item in run_status.get("active_task_ids") or []}
     active_agent_ids = {str(item) for item in run_status.get("active_agent_ids") or []}
     run_id = str(run_status.get("run_id") or "-")
     warnings: list[str] = []
+    refresh_source = {
+        "run_status_url": file_uri(context.run_status_path),
+        "status_root_url": file_uri(context.status_root, directory=True),
+        "status_parent_url": file_uri(
+            context.status_root.parent
+            if context.status_root.name == "status"
+            else None,
+            directory=True,
+        ),
+        "status_dir_url": file_uri(context.status_dir, directory=True),
+        "output_dir_url": file_uri(context.output_dir, directory=True),
+        "project_dir_url": file_uri(context.project_dir, directory=True),
+    }
+    if refresh_source_overrides:
+        refresh_source.update(refresh_source_overrides)
 
     payload: dict[str, object] = {
         "meta": {
@@ -885,6 +918,16 @@ def build_web_payload(
             "focus": focus,
             "loaded_from": str(context.run_status_path),
             "read_only": True,
+            "viewer_label": viewer_label,
+            "refresh": {
+                "enabled": True,
+                "default_interval_seconds": refresh_interval,
+                "interval_options_seconds": list(WEB_REFRESH_INTERVAL_CHOICES),
+                "max_failures": WEB_MAX_REFRESH_FAILURES,
+                "warning": refresh_warning
+                or "Live refresh is read-only and attempts to re-read the original local status files. Some browsers block local file fetches for exported HTML.",
+                "source": refresh_source,
+            },
         },
         "run": {
             "run_id": run_status.get("run_id"),
@@ -1082,9 +1125,21 @@ def render_web_export(
     context: StatusContext,
     focus: Optional[str] = None,
     theme: str = "auto",
+    refresh_interval: int = WEB_DEFAULT_REFRESH_INTERVAL,
+    viewer_label: str = "Read-only web export",
+    refresh_warning: Optional[str] = None,
+    refresh_source_overrides: Optional[dict[str, Optional[str]]] = None,
 ) -> str:
     palette = theme_palette(theme)
-    payload = build_web_payload(run_status, context, focus=focus)
+    payload = build_web_payload(
+        run_status,
+        context,
+        focus=focus,
+        refresh_interval=refresh_interval,
+        viewer_label=viewer_label,
+        refresh_warning=refresh_warning,
+        refresh_source_overrides=refresh_source_overrides,
+    )
     title = str(cast(dict[str, object], payload["meta"])["title"])
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     theme_override = ""
@@ -1144,6 +1199,14 @@ def render_web_export(
     .stats {{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }}
     .two-col {{ grid-template-columns: 2.1fr 1.1fr; align-items: start; }}
     .triage {{ grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }}
+    .refresh-bar {{ margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(2, 6, 23, 0.3); }}
+    .refresh-controls {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }}
+    .control-label {{ color: var(--muted); font-size: 0.92rem; }}
+    .control-select, .control-button {{ border-radius: 12px; border: 1px solid var(--line); background: rgba(15, 23, 42, 0.65); color: var(--text); padding: 9px 12px; font: inherit; }}
+    .control-button {{ cursor: pointer; }}
+    .control-button:hover {{ border-color: var(--accent); }}
+    .refresh-status {{ margin-top: 10px; font-size: 0.92rem; color: var(--muted); }}
+    .warning-banner {{ margin-top: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); color: #fbbf24; }}
     .stat {{ padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(15, 23, 42, 0.45); }}
     .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
     .stat-value {{ font-size: 28px; font-weight: 700; margin-top: 8px; }}
@@ -1172,13 +1235,24 @@ def render_web_export(
     <section class=\"panel hero\">
       <div class=\"hero-top\">
         <div>
-          <div class=\"eyebrow\">Read-only web export</div>
+          <div class=\"eyebrow\" id=\"viewer-label\"></div>
           <h1 id=\"hero-title\"></h1>
           <p class=\"subtitle\" id=\"hero-subtitle\"></p>
         </div>
         <div class=\"meta\" id=\"hero-meta\"></div>
       </div>
       <div class=\"stats\" id=\"stats\"></div>
+      <div class=\"refresh-bar\">
+        <div class=\"eyebrow\">Bounded live refresh</div>
+        <p class=\"note\" id=\"refresh-note\"></p>
+        <div class=\"refresh-controls\">
+          <label class=\"control-label\" for=\"refresh-interval\">Interval</label>
+          <select class=\"control-select\" id=\"refresh-interval\"></select>
+          <button class=\"control-button\" id=\"refresh-now\" type=\"button\">Refresh now</button>
+        </div>
+        <div class=\"refresh-status\" id=\"refresh-status\"></div>
+        <div class=\"warning-banner\" id=\"refresh-warning\"></div>
+      </div>
     </section>
     <section class=\"two-col\">
       <div class=\"panel\">
@@ -1210,7 +1284,7 @@ def render_web_export(
       function colorFor(status) {{ return COLORS[String(status || 'unknown')] || COLORS.unknown; }}
       function el(name, className, text) {{ const node = document.createElement(name); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }}
       function setText(id, text) {{ document.getElementById(id).textContent = text; }}
-      function renderHero() {{ const run = data.run; setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
+      function renderHero() {{ const run = data.run; setText('viewer-label', String((data.meta || {{}}).viewer_label || 'Read-only web export')); setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
       function renderItemList(targetId, items, builder) {{ const root = document.getElementById(targetId); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }}
       function taskCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); const left = el('div'); left.appendChild(el('div', 'item-title', String(item.task_id || 'task'))); left.appendChild(el('div', 'item-sub', String(item.summary || ''))); top.appendChild(left); const pill = el('div', 'status-pill', String(item.status || 'unknown')); pill.style.background = colorFor(item.status); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [item.assigned_agent_id && `agent=${{item.assigned_agent_id}}`, item.assigned_executor && `executor=${{item.assigned_executor}}`, item.resource_status && `resource=${{item.resource_status}}`].filter(Boolean).forEach(text => chips.appendChild(el('div', 'chip', text))); if (chips.childNodes.length) card.appendChild(chips); if (item.error) card.appendChild(el('div', 'item-sub', `issue: ${{item.error}}`)); if (item.resume_note) card.appendChild(el('div', 'item-sub', `resume: ${{item.resume_note}}`)); return card; }}
       function hotspotCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', String(item.agent || 'unknown'))); const pill = el('div', 'status-pill', `count ${{item.count}}`); pill.style.background = colorFor(item.cleanup_issues ? 'blocked' : (item.active ? 'in_progress' : 'done')); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [`active=${{item.active}}`, `cleanup_issues=${{item.cleanup_issues}}`].forEach(text => chips.appendChild(el('div', 'chip', text))); Object.entries(item.statuses || {{}}).forEach(([status, count]) => chips.appendChild(el('div', 'chip', `${{status}}=${{count}}`))); (item.tasks || []).forEach(task => chips.appendChild(el('div', 'chip', `task=${{task}}`))); card.appendChild(chips); return card; }}
@@ -1219,6 +1293,70 @@ def render_web_export(
       function renderLegend() {{ const legend = document.getElementById('legend'); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }}
       function renderGraph() {{ const svg = document.getElementById('graph'); const ns = 'http://www.w3.org/2000/svg'; const nodes = data.graph.nodes || []; const edges = data.graph.edges || []; const columns = [nodes.filter(n => n.column === 0), nodes.filter(n => n.column === 1), nodes.filter(n => n.column === 2)]; const colX = [80, 420, 760]; const width = 250; const heightBox = 76; const maxRows = Math.max(...columns.map(col => Math.max(col.length, 1))); svg.setAttribute('viewBox', `0 0 1080 ${{maxRows * 120 + 120}}`); svg.innerHTML = ''; const positions = new Map(); columns.forEach((col, column) => col.forEach((node, row) => positions.set(node.id, {{ x: colX[column], y: 52 + row * 120 }}))); edges.forEach(edge => {{ const from = positions.get(edge.from); const to = positions.get(edge.to); if (!from || !to) return; const path = document.createElementNS(ns, 'path'); path.setAttribute('d', `M ${{from.x + width}} ${{from.y + heightBox / 2}} C ${{from.x + width + 70}} ${{from.y + heightBox / 2}}, ${{to.x - 70}} ${{to.y + heightBox / 2}}, ${{to.x}} ${{to.y + heightBox / 2}}`); path.setAttribute('fill', 'none'); path.setAttribute('stroke', colorFor(edge.status)); path.setAttribute('stroke-opacity', '0.45'); path.setAttribute('stroke-width', '3'); svg.appendChild(path); }}); nodes.forEach(node => {{ const pos = positions.get(node.id); const group = document.createElementNS(ns, 'g'); group.style.cursor = 'pointer'; const rect = document.createElementNS(ns, 'rect'); rect.setAttribute('x', pos.x); rect.setAttribute('y', pos.y); rect.setAttribute('width', width); rect.setAttribute('height', heightBox); rect.setAttribute('rx', '18'); rect.setAttribute('fill', 'rgba(15,23,42,0.95)'); rect.setAttribute('stroke', colorFor(node.type === 'run' ? 'run' : node.status)); rect.setAttribute('stroke-width', '2'); group.appendChild(rect); const glow = document.createElementNS(ns, 'rect'); glow.setAttribute('x', pos.x + 8); glow.setAttribute('y', pos.y + 8); glow.setAttribute('width', '8'); glow.setAttribute('height', String(heightBox - 16)); glow.setAttribute('rx', '4'); glow.setAttribute('fill', colorFor(node.status)); group.appendChild(glow); const label = document.createElementNS(ns, 'text'); label.setAttribute('x', String(pos.x + 28)); label.setAttribute('y', String(pos.y + 30)); label.setAttribute('fill', '#f8fafc'); label.setAttribute('font-size', '15'); label.setAttribute('font-weight', '700'); label.textContent = String(node.label || ''); group.appendChild(label); const subtitle = document.createElementNS(ns, 'text'); subtitle.setAttribute('x', String(pos.x + 28)); subtitle.setAttribute('y', String(pos.y + 52)); subtitle.setAttribute('fill', '#94a3b8'); subtitle.setAttribute('font-size', '12'); subtitle.textContent = String(node.subtitle || '').slice(0, 34); group.appendChild(subtitle); const badge = document.createElementNS(ns, 'text'); badge.setAttribute('x', String(pos.x + width - 18)); badge.setAttribute('y', String(pos.y + 28)); badge.setAttribute('fill', colorFor(node.status)); badge.setAttribute('font-size', '11'); badge.setAttribute('font-weight', '700'); badge.setAttribute('text-anchor', 'end'); badge.textContent = String(node.status || '').toUpperCase(); group.appendChild(badge); group.addEventListener('click', () => showDetail(node.id, node.detail)); svg.appendChild(group); }}); }}
       renderHero(); renderItemList('blocked-list', data.panels.blocked, taskCard); renderItemList('stale-list', data.panels.stale, taskCard); renderItemList('active-list', data.panels.active, taskCard); renderItemList('hotspots', data.hotspots, hotspotCard); renderItemList('warnings', data.warnings, warningCard); renderLegend(); renderGraph(); showDetail(`run:${{data.run.run_id}}`, data.run.record);
+    </script>
+    <script>
+      const refreshState = {{
+        intervalSeconds: Number((((data.meta || {{}}).refresh || {{}}).default_interval_seconds) || 0),
+        timerId: null,
+        refreshing: false,
+        failureCount: 0,
+        lastDetailKey: `run:${{data.run.run_id}}`,
+        lastDetailRecord: data.run.record,
+      }};
+      const baseShowDetail = showDetail;
+      showDetail = function(title, record) {{
+        refreshState.lastDetailKey = String(title || '');
+        refreshState.lastDetailRecord = record || {{}};
+        baseShowDetail(title, record);
+      }};
+      function clearNode(node) {{ while (node.firstChild) node.removeChild(node.firstChild); }}
+      function replaceData(nextData) {{ Object.keys(data).forEach(key => delete data[key]); Object.assign(data, nextData); }}
+      function unique(values) {{ const seen = new Set(); return values.filter(value => value && !seen.has(value) && seen.add(value)); }}
+      function sortedRecord(record) {{ const next = {{}}; Object.keys(record || {{}}).sort().forEach(key => {{ next[key] = record[key]; }}); return next; }}
+      function refreshConfig() {{ return ((data.meta || {{}}).refresh || {{}}); }}
+      function refreshSources() {{ return (refreshConfig().source || {{}}); }}
+      function setRefreshStatus(message) {{ document.getElementById('refresh-status').textContent = String(message || ''); }}
+      function normalizeRefPath(refPath) {{ return String(refPath || '').replace(/\\/g, '/'); }}
+      function encodeRelativePath(refPath) {{ return normalizeRefPath(refPath).split('/').map(part => encodeURIComponent(part)).join('/'); }}
+      function pathToFileUrl(pathText) {{ const normalized = normalizeRefPath(pathText); if (!normalized) return null; if (/^file:/i.test(normalized)) return normalized; if (/^[A-Za-z]:\//.test(normalized)) return 'file:///' + normalized.slice(0, 2) + normalized.slice(2).split('/').map(part => encodeURIComponent(part)).join('/'); if (normalized.startsWith('/')) return 'file://' + normalized.split('/').map((part, index) => index === 0 ? '' : encodeURIComponent(part)).join('/'); return null; }}
+      function candidateBaseUrls() {{ const source = refreshSources(); return unique([source.status_root_url, source.status_parent_url, source.status_dir_url, source.output_dir_url, source.project_dir_url]); }}
+      function buildCandidateUrls(refPath) {{ const normalized = normalizeRefPath(refPath); if (!normalized) return []; const absoluteUrl = pathToFileUrl(normalized); if (absoluteUrl) return [absoluteUrl]; const encoded = encodeRelativePath(normalized); const trimmed = normalized.startsWith('status/') ? encodeRelativePath(normalized.slice(7)) : ''; const urls = []; candidateBaseUrls().forEach(base => {{ try {{ urls.push(new URL(encoded, base).href); }} catch (_error) {{ }} if (trimmed) {{ try {{ urls.push(new URL(trimmed, base).href); }} catch (_error) {{ }} }}); return unique(urls); }}
+      async function fetchJsonUrl(url) {{ const response = await fetch(url, {{ cache: 'no-store' }}); const text = await response.text(); if (response.status && !response.ok) throw new Error(`HTTP ${{response.status}} for ${{url}}`); return JSON.parse(text); }}
+      async function fetchJsonFromCandidates(candidates) {{ let lastError = null; for (const candidate of candidates) {{ try {{ return {{ url: candidate, data: await fetchJsonUrl(candidate) }}; }} catch (error) {{ lastError = error; }} }} throw lastError || new Error('No readable local status source was available.'); }}
+      function matchesFocus(record, focus, activeIds) {{ const status = String((record || {{}}).status || ''); const recordId = String((record || {{}}).task_id || (record || {{}}).agent_id || ''); if (focus === 'blocked') return status === 'blocked'; if (focus === 'stale') return status === 'stale'; if (focus === 'active') return status === 'in_progress' || status === 'waiting_for_user' || activeIds.has(recordId); return false; }}
+      function buildHotspots(agents, activeAgentIds, focus) {{ const filtered = focus ? agents.filter(agent => matchesFocus(agent, focus, activeAgentIds)) : agents; const rollups = {{}}; filtered.forEach(agent => {{ const name = String(agent.agent || 'unknown'); if (!rollups[name]) rollups[name] = {{ agent: name, count: 0, active: 0, cleanup_issues: 0, statuses: {{}}, tasks: [] }}; const rollup = rollups[name]; rollup.count += 1; if (activeAgentIds.has(String(agent.agent_id || ''))) rollup.active += 1; const status = String(agent.status || 'unknown'); rollup.statuses[status] = Number(rollup.statuses[status] || 0) + 1; if (agent.cleanup_status === 'failed' || agent.cleanup_status === 'unknown' || agent.resource_status === 'cleanup_failed' || agent.resource_status === 'unknown') rollup.cleanup_issues += 1; if (agent.task_id && !rollup.tasks.includes(agent.task_id)) rollup.tasks.push(agent.task_id); }}); return Object.values(rollups).sort((a, b) => (b.cleanup_issues - a.cleanup_issues) || (b.active - a.active) || (b.count - a.count) || String(a.agent).localeCompare(String(b.agent))); }}
+      async function loadReferencedRecords(runStatus, refKey, idKey) {{ const refs = Array.isArray(runStatus[refKey]) ? runStatus[refKey] : []; const records = []; const warnings = []; const entityName = String(idKey).endsWith('_id') ? String(idKey).slice(0, -3) : String(idKey); for (const item of refs) {{ if (!item || typeof item !== 'object') continue; const entityId = item[idKey]; const refPath = item.path; if (!entityId || !refPath) continue; const candidates = buildCandidateUrls(String(refPath)); if (!candidates.length) {{ warnings.push(`Missing ${{entityName}} file for ${{entityId}}: ${{refPath}}`); continue; }} try {{ const loaded = await fetchJsonFromCandidates(candidates); records.push(loaded.data); }} catch (_error) {{ warnings.push(`Missing ${{entityName}} file for ${{entityId}}: ${{refPath}}`); }} }} return {{ records, warnings }}; }}
+      async function buildPayloadFromRunStatus(runStatus, loadedFrom) {{ const focus = (data.meta || {{}}).focus || null; const refresh = refreshConfig(); const activeTaskIds = new Set((runStatus.active_task_ids || []).map(item => String(item))); const activeAgentIds = new Set((runStatus.active_agent_ids || []).map(item => String(item))); const runId = String(runStatus.run_id || '-'); const payload = {{ meta: {{ title: `Status viewer: ${{runId}}`, focus, loaded_from: String(loadedFrom || (data.meta || {{}}).loaded_from || ''), read_only: true, refresh }}, run: {{ run_id: runStatus.run_id, status: runStatus.status, orchestrator: runStatus.orchestrator, layout: runStatus.layout || '-', current_stage: runStatus.current_stage, next_stage: runStatus.next_stage, updated_at: runStatus.updated_at, last_heartbeat_at: runStatus.last_heartbeat_at, waiting_on: runStatus.waiting_on, resume_from_checkpoint: runStatus.resume_from_checkpoint, last_error: runStatus.last_error, task_counts: Object.assign({{}}, runStatus.task_counts || {{}}), active_task_ids: Array.from(activeTaskIds).sort(), active_agent_ids: Array.from(activeAgentIds).sort(), record: sortedRecord(runStatus) }}, tasks: [], agents: [], warnings: [], hotspots: [], panels: {{ blocked: [], stale: [], active: [] }}, graph: {{ nodes: [{{ id: `run:${{runId}}`, type: 'run', label: runId, status: String(runStatus.status || 'unknown'), subtitle: String(runStatus.orchestrator || '-'), column: 0, detail: sortedRecord(runStatus) }}], edges: [] }} }};
+        if (runStatus.layout !== 'expanded') {{ const counts = payload.run.task_counts || {{}}; payload.panels.blocked = [{{ task_id: 'run-only', summary: `count=${{counts.blocked || 0}} (details unavailable in run-only layout)`, status: 'blocked' }}]; payload.panels.stale = [{{ task_id: 'run-only', summary: `count=${{counts.stale || 0}} (details unavailable in run-only layout)`, status: 'stale' }}]; payload.panels.active = [{{ task_id: 'run-only', summary: payload.run.active_task_ids.length ? payload.run.active_task_ids.join(', ') : 'none', status: payload.run.active_task_ids.length ? 'in_progress' : 'unknown' }}]; return payload; }}
+        const loadedTasks = await loadReferencedRecords(runStatus, 'task_refs', 'task_id');
+        const loadedAgents = await loadReferencedRecords(runStatus, 'agent_refs', 'agent_id');
+        payload.warnings = loadedTasks.warnings.concat(loadedAgents.warnings);
+        const taskCardById = {{}};
+        const taskCards = [];
+        loadedTasks.records.forEach(task => {{ const taskId = String(task.task_id || ''); const card = {{ task_id: task.task_id, summary: task.summary, status: String(task.status || 'unknown'), assigned_agent_id: task.assigned_agent_id, assigned_executor: task.assigned_executor, resource_status: task.resource_status, result_summary: task.result_summary, error: task.error, resume_note: task.resume_note, record: sortedRecord(task) }}; taskCards.push(card); taskCardById[taskId] = card; payload.graph.nodes.push({{ id: `task:${{taskId}}`, type: 'task', label: taskId, status: String(task.status || 'unknown'), subtitle: String(task.summary || '-'), column: 1, detail: sortedRecord(task) }}); payload.graph.edges.push({{ from: `run:${{runId}}`, to: `task:${{taskId}}`, status: String(task.status || 'unknown') }}); }});
+        const agentCards = [];
+        loadedAgents.records.forEach(agent => {{ const agentId = String(agent.agent_id || ''); const taskId = String(agent.task_id || ''); const card = {{ agent_id: agent.agent_id, agent: agent.agent, status: String(agent.status || 'unknown'), task_id: agent.task_id, attempt: agent.attempt, cleanup_status: agent.cleanup_status, resource_status: agent.resource_status, result_summary: agent.result_summary, error: agent.error, resource_handles: agent.resource_handles, record: sortedRecord(agent) }}; agentCards.push(card); payload.graph.nodes.push({{ id: `agent:${{agentId}}`, type: 'agent', label: agentId, status: String(agent.status || 'unknown'), subtitle: String(agent.agent || '-'), column: 2, detail: sortedRecord(agent) }}); payload.graph.edges.push({{ from: `task:${{taskId}}`, to: `agent:${{agentId}}`, status: String(agent.status || 'unknown') }}); }});
+        Array.from(activeTaskIds).sort().forEach(taskId => {{ if (!taskCardById[taskId]) payload.warnings.push(`Missing task file for active task ${{taskId}}.`); }});
+        payload.panels.blocked = taskCards.filter(item => item.status === 'blocked');
+        payload.panels.stale = taskCards.filter(item => item.status === 'stale');
+        payload.panels.active = Array.from(activeTaskIds).sort().filter(taskId => taskCardById[taskId]).map(taskId => taskCardById[taskId]);
+        payload.tasks = focus ? taskCards.filter(item => matchesFocus(item.record, focus, activeTaskIds)) : taskCards;
+        payload.agents = focus ? agentCards.filter(item => matchesFocus(item.record, focus, activeAgentIds)) : agentCards;
+        if (focus) ['blocked', 'stale', 'active'].forEach(key => {{ payload.panels[key] = payload.panels[key].filter(item => item.record ? matchesFocus(item.record, focus, activeTaskIds) : true); }});
+        payload.hotspots = buildHotspots(loadedAgents.records, activeAgentIds, focus);
+        return payload;
+      }}
+      function restoreDetail() {{ const key = String(refreshState.lastDetailKey || `run:${{data.run.run_id}}`); const node = (data.graph.nodes || []).find(item => item.id === key); if (node) {{ showDetail(key, node.detail || {{}}); return; }} showDetail(`run:${{data.run.run_id}}`, data.run.record); }}
+      renderHero = function() {{ const run = data.run; document.getElementById('viewer-label').textContent = String((data.meta || {{}}).viewer_label || 'Read-only web export'); document.getElementById('hero-title').textContent = `${{run.run_id}} · ${{run.status}}`; document.getElementById('hero-subtitle').textContent = `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`; const meta = document.getElementById('hero-meta'); clearNode(meta); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); clearNode(stats); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }};
+      renderItemList = function(targetId, items, builder) {{ const root = document.getElementById(targetId); clearNode(root); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }};
+      renderLegend = function() {{ const legend = document.getElementById('legend'); clearNode(legend); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }};
+      function renderRefreshControls() {{ const refresh = refreshConfig(); document.getElementById('refresh-note').textContent = String(refresh.warning || ''); document.getElementById('refresh-warning').textContent = 'Read-only only: this viewer never controls the pipeline and never writes back to status artifacts.'; const select = document.getElementById('refresh-interval'); if (!select.dataset.bound) {{ clearNode(select); const off = document.createElement('option'); off.value = '0'; off.textContent = 'Off'; select.appendChild(off); (refresh.interval_options_seconds || []).forEach(value => {{ const option = document.createElement('option'); option.value = String(value); option.textContent = `${{value}}s`; select.appendChild(option); }}); select.addEventListener('change', event => {{ refreshState.intervalSeconds = Number(event.target.value || 0); restartPolling(); }}); document.getElementById('refresh-now').addEventListener('click', () => refreshFromSource('manual')); select.dataset.bound = 'true'; }} select.value = String(refreshState.intervalSeconds); }}
+      function rerenderAll() {{ renderHero(); renderRefreshControls(); renderItemList('blocked-list', data.panels.blocked, taskCard); renderItemList('stale-list', data.panels.stale, taskCard); renderItemList('active-list', data.panels.active, taskCard); renderItemList('hotspots', data.hotspots, hotspotCard); renderItemList('warnings', data.warnings, warningCard); renderLegend(); renderGraph(); restoreDetail(); }}
+      function stopPolling() {{ if (refreshState.timerId !== null) {{ window.clearInterval(refreshState.timerId); refreshState.timerId = null; }} }}
+      function restartPolling() {{ stopPolling(); refreshState.failureCount = 0; renderRefreshControls(); if (refreshState.intervalSeconds > 0) {{ refreshState.timerId = window.setInterval(() => refreshFromSource('poll'), refreshState.intervalSeconds * 1000); setRefreshStatus(`Auto refresh every ${{refreshState.intervalSeconds}}s.`); }} else {{ setRefreshStatus('Auto refresh is off.'); }} }}
+      async function refreshFromSource(reason) {{ if (refreshState.refreshing) return; const source = refreshSources(); const payloadUrl = String((source.payload_url || '')); const runStatusUrl = String((source.run_status_url || '')); if (!payloadUrl && !runStatusUrl) {{ setRefreshStatus('Live refresh unavailable: no original status source was embedded in this viewer.'); return; }} refreshState.refreshing = true; setRefreshStatus(reason === 'manual' ? 'Refreshing now…' : 'Polling original local status artifacts…'); try {{ let nextData; if (payloadUrl) {{ const loaded = await fetchJsonFromCandidates([payloadUrl]); nextData = loaded.data; }} else {{ const loaded = await fetchJsonFromCandidates([runStatusUrl]); nextData = await buildPayloadFromRunStatus(loaded.data, loaded.url); }} replaceData(nextData); refreshState.failureCount = 0; rerenderAll(); setRefreshStatus('Live refresh updated at ' + new Date().toLocaleTimeString() + (refreshState.intervalSeconds > 0 ? ' · next poll in ' + refreshState.intervalSeconds + 's.' : '.')); }} catch (_error) {{ refreshState.failureCount += 1; const maxFailures = Number(refreshConfig().max_failures || 1); if (refreshState.failureCount >= maxFailures) {{ stopPolling(); setRefreshStatus('Live refresh unavailable after ' + refreshState.failureCount + ' failed attempt(s).'); }} else {{ setRefreshStatus('Refresh attempt failed (' + refreshState.failureCount + '/' + maxFailures + '). The viewer stays read-only.'); }} }} finally {{ refreshState.refreshing = false; renderRefreshControls(); }} }}
+      rerenderAll();
+      restartPolling();
     </script>
   </main>
 </body>
@@ -1570,7 +1708,13 @@ def command_web_export(args: argparse.Namespace) -> str:
         )
 
     output_path.write_text(
-        render_web_export(run_status, context, focus=args.focus, theme=args.theme),
+        render_web_export(
+            run_status,
+            context,
+            focus=args.focus,
+            theme=args.theme,
+            refresh_interval=args.refresh_interval,
+        ),
         encoding="utf-8",
     )
 
@@ -1580,7 +1724,197 @@ def command_web_export(args: argparse.Namespace) -> str:
             f"Output: {output_path}",
             f"Theme: {args.theme}",
             f"Focus: {args.focus or 'all'}",
+            f"Refresh interval: {args.refresh_interval}s",
             f"Loaded from: {context.run_status_path}",
+        ]
+    )
+
+
+class LoopbackOnlyStatusServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+def command_web_serve(args: argparse.Namespace) -> str:
+    if args.port < 0 or args.port > 65535:
+        raise StatusCliError("--port must be between 0 and 65535.")
+
+    context = discover_run_status(args)
+    load_json(context.run_status_path)
+
+    refresh_source_overrides = {
+        "payload_url": "/api/payload",
+        "run_status_url": None,
+        "status_root_url": None,
+        "status_parent_url": None,
+        "status_dir_url": None,
+        "output_dir_url": None,
+        "project_dir_url": None,
+    }
+    refresh_warning = (
+        "Live refresh is read-only and re-reads local status artifacts through this "
+        "loopback-only HTTP viewer."
+    )
+
+    def render_html() -> bytes:
+        run_status = load_json(context.run_status_path)
+        return render_web_export(
+            run_status,
+            context,
+            focus=args.focus,
+            theme=args.theme,
+            refresh_interval=args.refresh_interval,
+            viewer_label="Read-only localhost viewer",
+            refresh_warning=refresh_warning,
+            refresh_source_overrides=refresh_source_overrides,
+        ).encode("utf-8")
+
+    def render_payload_json() -> bytes:
+        run_status = load_json(context.run_status_path)
+        payload = build_web_payload(
+            run_status,
+            context,
+            focus=args.focus,
+            refresh_interval=args.refresh_interval,
+            viewer_label="Read-only localhost viewer",
+            refresh_warning=refresh_warning,
+            refresh_source_overrides=refresh_source_overrides,
+        )
+        return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    class StatusViewerHandler(BaseHTTPRequestHandler):
+        server_version = "status-cli"
+        sys_version = ""
+
+        def log_message(self, format: str, *args: object) -> None:
+            return None
+
+        def do_GET(self) -> None:
+            self._handle_request(include_body=True)
+
+        def do_HEAD(self) -> None:
+            self._handle_request(include_body=False)
+
+        def do_POST(self) -> None:
+            self._method_not_allowed()
+
+        def do_PUT(self) -> None:
+            self._method_not_allowed()
+
+        def do_DELETE(self) -> None:
+            self._method_not_allowed()
+
+        def do_PATCH(self) -> None:
+            self._method_not_allowed()
+
+        def _method_not_allowed(self) -> None:
+            body = b"Method not allowed. This localhost viewer is read-only.\n"
+            self.send_response(405)
+            self.send_header("Allow", "GET, HEAD")
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _handle_request(self, include_body: bool) -> None:
+            request_path = urlsplit(self.path).path
+            try:
+                if request_path in {"/", "/index.html"}:
+                    self._send_response(
+                        200,
+                        "text/html; charset=utf-8",
+                        render_html(),
+                        include_body=include_body,
+                    )
+                    return
+
+                if request_path == "/api/payload":
+                    self._send_response(
+                        200,
+                        "application/json; charset=utf-8",
+                        render_payload_json(),
+                        include_body=include_body,
+                    )
+                    return
+            except StatusCliError as exc:
+                body = f"ERROR: {exc}\n".encode("utf-8")
+                self._send_response(
+                    500,
+                    "text/plain; charset=utf-8",
+                    body,
+                    include_body=include_body,
+                )
+                return
+
+            body = b"Not found.\n"
+            self._send_response(
+                404,
+                "text/plain; charset=utf-8",
+                body,
+                include_body=include_body,
+            )
+
+        def _send_response(
+            self,
+            status_code: int,
+            content_type: str,
+            body: bytes,
+            *,
+            include_body: bool,
+        ) -> None:
+            self.send_response(status_code)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if include_body:
+                self.wfile.write(body)
+
+    try:
+        server = LoopbackOnlyStatusServer((args.host, args.port), StatusViewerHandler)
+    except OSError as exc:
+        raise StatusCliError(
+            f"Failed to bind read-only localhost viewer on {args.host}:{args.port}: {exc}"
+        ) from exc
+
+    bound_host, bound_port = server.server_address[:2]
+    viewer_url = f"http://{bound_host}:{bound_port}/"
+    print(
+        "\n".join(
+            [
+                "READ-ONLY LOCALHOST VIEWER STARTED",
+                f"URL: {viewer_url}",
+                f"Theme: {args.theme}",
+                f"Focus: {args.focus or 'all'}",
+                f"Refresh interval: {args.refresh_interval}s",
+                f"Loaded from: {context.run_status_path}",
+                "Shutdown: press Ctrl+C to stop and close the loopback socket.",
+            ]
+        ),
+        flush=True,
+    )
+
+    stop_reason = "stopped"
+    try:
+        server.serve_forever(poll_interval=0.5)
+    except KeyboardInterrupt:
+        stop_reason = "keyboard interrupt"
+        print("Stopping read-only localhost viewer...", flush=True)
+    finally:
+        server.server_close()
+        print(
+            f"Read-only localhost viewer stopped. Loopback socket closed for {viewer_url}",
+            flush=True,
+        )
+
+    return "\n".join(
+        [
+            "READ-ONLY LOCALHOST VIEWER STOPPED",
+            f"URL: {viewer_url}",
+            f"Stop reason: {stop_reason}",
+            "Cleanup: loopback socket closed.",
         ]
     )
 
@@ -1676,8 +2010,51 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="Bounded web export theme: auto, light, or dark",
     )
+    web_export_parser.add_argument(
+        "--refresh-interval",
+        type=int,
+        choices=WEB_REFRESH_INTERVAL_CHOICES,
+        default=WEB_DEFAULT_REFRESH_INTERVAL,
+        help="Bounded live-refresh interval in seconds for the exported viewer",
+    )
     add_path_options(web_export_parser)
     web_export_parser.set_defaults(handler=command_web_export)
+
+    web_serve_parser = web_subparsers.add_parser(
+        "serve", help="Serve a read-only HTML dashboard over loopback HTTP"
+    )
+    web_serve_parser.add_argument(
+        "--host",
+        choices=("127.0.0.1", "localhost"),
+        default="127.0.0.1",
+        help="Loopback host to bind; external interfaces are not allowed",
+    )
+    web_serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="Loopback TCP port; use 0 to auto-select an available port",
+    )
+    web_serve_parser.add_argument(
+        "--focus",
+        choices=FOCUS_CHOICES,
+        help="Optional localhost viewer focus: blocked, stale, or active",
+    )
+    web_serve_parser.add_argument(
+        "--theme",
+        choices=WEB_THEME_CHOICES,
+        default="auto",
+        help="Bounded localhost viewer theme: auto, light, or dark",
+    )
+    web_serve_parser.add_argument(
+        "--refresh-interval",
+        type=int,
+        choices=WEB_REFRESH_INTERVAL_CHOICES,
+        default=WEB_DEFAULT_REFRESH_INTERVAL,
+        help="Bounded live-refresh interval in seconds for the localhost viewer",
+    )
+    add_path_options(web_serve_parser)
+    web_serve_parser.set_defaults(handler=command_web_serve)
 
     return parser
 

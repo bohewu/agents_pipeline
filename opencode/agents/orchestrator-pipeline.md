@@ -163,7 +163,9 @@ If `--full-auto` is provided:
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
 - If `--effort=*` was not provided explicitly, set `effort_mode = high`.
 - If `--max-retry=*` was not provided explicitly, default to `max_retry_rounds = 5`.
-- Prefer autonomous blocker recovery before surfacing non-hard blockers.
+- Explicit flags still override these preset defaults.
+- Prefer the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker.
+- Still stop on hard blockers.
 
 Proceed with pipeline execution according to parsed flags.
 
@@ -287,7 +289,7 @@ Autopilot interaction policy:
 - In `autopilot_mode`, if a task reports a non-hard blocker, continue remaining runnable tasks first, then attempt one bounded blocker-recovery pass before surfacing the blocker.
 - In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
 - In `autopilot_mode`, do not request interactive confirmations for stage/task progression.
-- In `full_auto_mode`, prefer the strongest safe in-scope recovery path before asking the user.
+- In `full_auto_mode`, prefer the strongest safe bounded in-scope recovery path before asking the user.
 
 If `confirm_mode = true` and `autopilot_mode = false`:
 - After each stage completes, display a stage summary and ask:
@@ -381,7 +383,7 @@ If `decision_only = true`:
   - invent credentials, secrets, approvals, or product decisions
   - bypass hard blockers
 - In `autopilot_mode`, perform one bounded recovery pass before surfacing a recoverable blocker.
-- In `full_auto_mode`, prefer the strongest safe recovery path available within scope before surfacing a recoverable blocker.
+- In `full_auto_mode`, prefer the strongest safe bounded recovery path available within scope before surfacing a recoverable blocker.
 - If recovery does not produce meaningful progress, stop and report the blocker together with the attempted recovery steps.
 
 # RESOURCE CONTROL POLICY

@@ -1,6 +1,6 @@
 # Status CLI Deferred Roadmap
 
-This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus a same-repo self-contained local web viewer or HTML export, but this roadmap does **not** expand that into service-backed dashboard, remote surface, runtime-writer, polling, or service/platform scope.
+This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing files from local disk during the current viewing session, but this roadmap does **not** expand that into hosted service or server platform behavior, remote exposure, runtime-writer, write-back/control actions, daemon/watch behavior, browser/server-hosted runtime beyond that bounded localhost mode, or broader service/platform scope.
 
 Current contract sources remain:
 
@@ -15,7 +15,7 @@ Any future `status-cli` work should stay downstream of those docs and should not
 - [x] The canonical status layout remains filesystem-based under `<output_dir>/status/`.
 - [x] `run-status.json` remains the required top-level record.
 - [x] Expanded layout stays optional via `tasks/<task_id>.json` and `agents/<agent_id>.json`.
-- [x] Runtime writing, service-backed UI, browser/server-hosted dashboards, remote surfaces, polling, websocket/event-bus delivery, and external runtime services remain out of scope here.
+- [x] Runtime writing, service-backed UI, browser/server-hosted dashboards, remote surfaces, websocket/event-bus delivery, external runtime services, write-back/control actions, and any polling beyond a narrow same-process local file-backed self-refresh mode for an ephemeral loopback-only localhost viewer remain out of scope here.
 - [x] This roadmap allows future same-repo read-only `status-cli` continuation without pulling runtime writing into current scope.
 
 ## Phase 2 / Same-Repo Read-Only CLI Continuation
@@ -24,8 +24,9 @@ Phase 2 in this repository means the next read-only CLI phase under `status-cli/
 
 - [ ] Continue `status-cli/` as an in-repo read-only contract consumer for local inspection.
 - [ ] Keep Phase 2 focused on filesystem-backed inspection of `run-status.json` and optional expanded layout files.
-- [ ] Allow terminal-local read-only rendering plus same-repo self-contained local web viewer or HTML export behavior only when it remains file-backed, local, and non-controlling.
-- [ ] Avoid adding runtime writing, background services, browser/server-hosted UI, service-backed dashboards, remote surfaces, or platform/service responsibilities.
+- [ ] Allow terminal-local read-only rendering plus an ephemeral loopback-only localhost read-only viewer mode or self-contained HTML export behavior only when it remains file-backed, local, and non-controlling during the current viewing session.
+- [ ] Allow a narrow same-process local polling/self-refresh mode for the same-repo localhost viewer only when it rereads existing local status artifacts and does not introduce watch/daemon, hosted server/platform, remote, write-back, or control behavior.
+- [ ] Avoid adding runtime writing, background services, browser/server-hosted UI beyond the bounded localhost viewer mode, service-backed dashboards, remote exposure, or platform/service responsibilities.
 
 ## Phase 3 / Later Planning Boundary
 
@@ -39,7 +40,7 @@ Phase 3 is later planning only. It is where follow-on decisions can be prepared 
 
 ### 1. Dashboard evolution after runtime adoption
 
-- [ ] Revisit whether a future `status-cli` should remain terminal-first/self-contained-local or act as a thin entry point into later operator-facing views.
+- [ ] Revisit whether a future `status-cli` should remain terminal-first plus bounded ephemeral loopback-only localhost viewing with only bounded local self-refresh, or act as a thin entry point into later operator-facing views.
 - [ ] Keep dashboard or richer presentation work deferred until runtime status writing is stable in a separate runtime repository.
 - [ ] Avoid changing the contract solely to support presentation preferences.
 
@@ -73,7 +74,7 @@ Phase 3 is later planning only. It is where follow-on decisions can be prepared 
 - [ ] Reconfirm the boundary in `STATUS_MVP_HANDOFF.md` before opening any future `status-cli` task.
 - [ ] Keep any future CLI proposal explicitly scoped as a same-repo consumer of the existing status-layer contract unless a separate runtime plan says otherwise.
 - [ ] If later work needs new fields, layouts, or state meanings, update the protocol docs and schemas in this repository before runtime or CLI implementation proceeds.
-- [ ] Keep broad platform, browser/server-hosted UI, remote surface, service, or control-surface work out of future `status-cli` tasks unless a separate runtime roadmap explicitly owns it.
+- [ ] Keep broad platform, hosted server behavior, browser/server-hosted UI beyond bounded localhost viewing, remote surface, service, watch/daemon, write-back, or control-surface work out of future `status-cli` tasks unless a separate runtime roadmap explicitly owns it.
 
 ## Not in Scope From This Roadmap
 

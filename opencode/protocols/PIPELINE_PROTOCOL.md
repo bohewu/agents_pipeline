@@ -519,9 +519,11 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 
 - **`--full-auto`** (default: `false`): Stronger hands-off execution preset.
   - Implies `--autopilot`.
+  - Disables interactive pauses.
   - Defaults to `--effort=high` unless `--effort=*` is explicitly provided.
   - Defaults to `--max-retry=5` unless `--max-retry=*` is explicitly provided.
-  - Prefer the strongest safe in-scope blocker recovery path before surfacing a non-hard blocker.
+  - Prefer the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker.
+  - Still stops on hard blockers and does not permit scope expansion or leaving resources running.
 
 - **`--confirm`** (default: `false`): Pause after each **stage** for user review.
   - Prompt format: `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`
@@ -538,6 +540,7 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
   - `--verbose` automatically enables `--confirm`
   - `--full-auto` implies `--autopilot`
   - `--autopilot` wins over `--confirm` / `--verbose` and disables interactive pauses
+  - Explicit flags override preset defaults from `--full-auto`
   - `--dry --confirm` -> `--dry` wins (stops after atomizer+router)
   - `--resume --confirm` -> resume from checkpoint, then apply confirm mode going forward
 
@@ -564,6 +567,7 @@ Pipeline runs may launch local child processes, test harnesses, servers, or brow
   - Track every spawned process tree, temp profile directory, local port, and browser/page/context created by the task.
   - Use bounded execution plus explicit teardown, preferably with `try/finally` or equivalent cleanup guards.
   - Do not leave background jobs, watch mode, dev servers, or browser instances running after the task completes.
+  - `--autopilot` and `--full-auto` do not relax cleanup requirements.
   - If cleanup fails or cannot be verified, do not claim `done`; return `partial` or `blocked` with evidence and the remaining risk.
 - **Validation responsibilities:**
   - Test runners should avoid watch mode by default and clean up temporary validation resources.

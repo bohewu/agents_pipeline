@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import importlib.util
+import io
+import json
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
+import urllib.error
+import urllib.request
+from contextlib import redirect_stdout
 from pathlib import Path
 import shutil
+from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -38,6 +47,45 @@ def snapshot_tree(root: Path) -> dict[str, int]:
         for path in root.rglob("*")
         if path.is_file()
     }
+
+
+def extract_embedded_status_data(html: str) -> dict[str, Any]:
+    start_marker = '<script id="status-data" type="application/json">'
+    end_marker = "</script>"
+    start = html.index(start_marker) + len(start_marker)
+    end = html.index(end_marker, start)
+    return json.loads(html[start:end])
+
+
+def load_status_cli_module() -> Any:
+    spec = importlib.util.spec_from_file_location("status_cli_under_test", SCRIPT)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"Could not load module from {SCRIPT}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def wait_for_text(buffer: io.StringIO, needle: str, timeout: float = 5.0) -> str:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = buffer.getvalue()
+        if needle in value:
+            return value
+        time.sleep(0.05)
+    raise AssertionError(
+        f"Timed out waiting for {needle!r}. Current output: {buffer.getvalue()!r}"
+    )
+
+
+def request_url(url: str, *, method: str = "GET") -> tuple[int, bytes, dict[str, str]]:
+    request = urllib.request.Request(url, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.getcode(), response.read(), dict(response.headers.items())
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read(), dict(exc.headers.items())
 
 
 class StatusCliTests(unittest.TestCase):
@@ -463,21 +511,41 @@ class StatusCliTests(unittest.TestCase):
                 str(fixture_copy),
                 "--output",
                 str(output_path),
+                "--refresh-interval",
+                "30",
             )
             after = snapshot_tree(Path(temp_dir))
             output_exists = output_path.is_file()
             html = output_path.read_text(encoding="utf-8")
+            status_data = extract_embedded_status_data(html)
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("READ-ONLY WEB EXPORT WRITTEN", result.stdout)
         self.assertIn(str(output_path), result.stdout)
         self.assertIn("Theme: auto", result.stdout)
         self.assertIn("Focus: all", result.stdout)
+        self.assertIn("Refresh interval: 30s", result.stdout)
         self.assertTrue(output_exists)
         self.assertIn("Read-only web export", html)
+        self.assertIn("Bounded live refresh", html)
         self.assertIn("run_status_examples_run_only_01", html)
         self.assertIn("details unavailable in run-only layout", html)
         self.assertIn('id="status-data"', html)
+        self.assertIn("Refresh now", html)
+        self.assertIn(
+            "Read-only only: this viewer never controls the pipeline and never writes back to status artifacts.",
+            html,
+        )
+        self.assertIn(
+            "Live refresh is read-only and attempts to re-read the original local status files. Some browsers block local file fetches for exported HTML.",
+            html,
+        )
+        self.assertEqual(status_data["meta"]["refresh"]["default_interval_seconds"], 30)
+        self.assertEqual(
+            status_data["meta"]["refresh"]["interval_options_seconds"],
+            [5, 10, 15, 30, 60],
+        )
+        self.assertTrue(status_data["meta"]["read_only"])
         self.assertEqual(
             {key: value for key, value in after.items() if key != "run-only-view.html"},
             before,
@@ -504,16 +572,21 @@ class StatusCliTests(unittest.TestCase):
             )
             after = snapshot_tree(fixture_copy)
             html = output_path.read_text(encoding="utf-8")
+            status_data = extract_embedded_status_data(html)
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Theme: dark", result.stdout)
         self.assertIn("Focus: blocked", result.stdout)
+        self.assertIn("Refresh interval: 15s", result.stdout)
         self.assertIn("Run → tasks → agents", html)
         self.assertIn("task-local-server-smoke", html)
         self.assertIn("agent-server-01", html)
         self.assertIn("Agent hotspots", html)
         self.assertIn("Status graph", html)
         self.assertIn("blocked", html)
+        self.assertIn('id="refresh-interval"', html)
+        self.assertIn("Auto refresh every", html)
+        self.assertEqual(status_data["meta"]["refresh"]["default_interval_seconds"], 15)
         self.assertEqual(after, before)
 
     def test_web_export_surfaces_missing_referenced_files_as_warnings(self) -> None:
@@ -571,6 +644,197 @@ class StatusCliTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("the following arguments are required: --output", result.stderr)
+
+    def test_web_export_rejects_refresh_interval_outside_allowed_bounds(self) -> None:
+        result = run_cli(
+            "web",
+            "export",
+            "--status-file",
+            str(RUN_ONLY_FIXTURE),
+            "--output",
+            str(REPO_ROOT / "status-cli" / "tests" / "ignored.html"),
+            "--refresh-interval",
+            "12",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice: '12'", result.stderr)
+
+    def test_web_serve_rejects_non_loopback_host_choice(self) -> None:
+        result = run_cli(
+            "web",
+            "serve",
+            "--status-file",
+            str(RUN_ONLY_FIXTURE),
+            "--host",
+            "0.0.0.0",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice: '0.0.0.0'", result.stderr)
+
+    def test_web_serve_rejects_refresh_interval_outside_allowed_bounds(self) -> None:
+        result = run_cli(
+            "web",
+            "serve",
+            "--status-file",
+            str(RUN_ONLY_FIXTURE),
+            "--refresh-interval",
+            "12",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice: '12'", result.stderr)
+
+    def test_web_serve_lifecycle_is_read_only_and_cleanup_safe(self) -> None:
+        status_cli = load_status_cli_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, fixture_copy)
+            before = snapshot_tree(Path(temp_dir))
+
+            server_ready = threading.Event()
+            server_box: dict[str, Any] = {}
+            result_box: dict[str, Any] = {}
+            stdout = io.StringIO()
+            original_server_class = status_cli.LoopbackOnlyStatusServer
+
+            class TrackingLoopbackServer(original_server_class):
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    super().__init__(*args, **kwargs)
+                    server_box["server"] = self
+                    server_ready.set()
+
+            def run_server() -> None:
+                args = status_cli.argparse.Namespace(
+                    status_file=str(fixture_copy),
+                    status_dir=None,
+                    output_dir=None,
+                    project_dir=None,
+                    host="127.0.0.1",
+                    port=0,
+                    focus="blocked",
+                    theme="dark",
+                    refresh_interval=30,
+                )
+                try:
+                    with redirect_stdout(stdout):
+                        result_box["result"] = status_cli.command_web_serve(args)
+                except (
+                    BaseException
+                ) as exc:  # pragma: no cover - surfaced by assertions below
+                    result_box["error"] = exc
+
+            status_cli.LoopbackOnlyStatusServer = TrackingLoopbackServer
+            worker = threading.Thread(target=run_server, daemon=True)
+            worker.start()
+            try:
+                self.assertTrue(
+                    server_ready.wait(timeout=5), msg="localhost viewer did not start"
+                )
+                startup_output = wait_for_text(
+                    stdout, "READ-ONLY LOCALHOST VIEWER STARTED"
+                )
+                server = server_box["server"]
+                viewer_url = (
+                    f"http://{server.server_address[0]}:{server.server_address[1]}/"
+                )
+
+                html_status, html_body, _ = request_url(viewer_url)
+                payload_status, payload_body, payload_headers = request_url(
+                    viewer_url + "api/payload"
+                )
+                poll_status, poll_body, _ = request_url(viewer_url + "api/payload")
+                head_status, head_body, head_headers = request_url(
+                    viewer_url + "api/payload", method="HEAD"
+                )
+                post_status, post_body, post_headers = request_url(
+                    viewer_url + "api/payload", method="POST"
+                )
+
+                html = html_body.decode("utf-8")
+                payload = json.loads(payload_body)
+                polled_payload = json.loads(poll_body)
+
+                self.assertIn("READ-ONLY LOCALHOST VIEWER STARTED", startup_output)
+                self.assertIn(f"URL: {viewer_url}", startup_output)
+                self.assertIn("Theme: dark", startup_output)
+                self.assertIn("Focus: blocked", startup_output)
+                self.assertIn("Refresh interval: 30s", startup_output)
+                self.assertIn(f"Loaded from: {fixture_copy}", startup_output)
+                self.assertIn(
+                    "Shutdown: press Ctrl+C to stop and close the loopback socket.",
+                    startup_output,
+                )
+
+                self.assertEqual(html_status, 200)
+                self.assertIn("Read-only localhost viewer", html)
+                self.assertIn("Auto refresh every", html)
+                self.assertIn("Refresh now", html)
+                self.assertIn("run_status_examples_run_only_01", html)
+                self.assertIn("loopback-only HTTP viewer", html)
+
+                self.assertEqual(payload_status, 200)
+                self.assertEqual(poll_status, 200)
+                self.assertEqual(
+                    payload["meta"]["viewer_label"], "Read-only localhost viewer"
+                )
+                self.assertTrue(payload["meta"]["read_only"])
+                self.assertEqual(
+                    payload["meta"]["refresh"]["default_interval_seconds"], 30
+                )
+                self.assertEqual(
+                    payload["meta"]["refresh"]["interval_options_seconds"],
+                    [5, 10, 15, 30, 60],
+                )
+                self.assertEqual(payload["meta"]["focus"], "blocked")
+                self.assertEqual(payload, polled_payload)
+                self.assertEqual(
+                    payload_headers.get("Cache-Control"),
+                    "no-store",
+                )
+
+                self.assertEqual(head_status, 200)
+                self.assertEqual(head_body, b"")
+                self.assertEqual(
+                    head_headers.get("Content-Type"),
+                    "application/json; charset=utf-8",
+                )
+
+                self.assertEqual(post_status, 405)
+                self.assertEqual(
+                    post_headers.get("Allow"),
+                    "GET, HEAD",
+                )
+                self.assertIn(
+                    "Method not allowed. This localhost viewer is read-only.",
+                    post_body.decode("utf-8"),
+                )
+            finally:
+                if "server" in server_box:
+                    server_box["server"].shutdown()
+                worker.join(timeout=5)
+                status_cli.LoopbackOnlyStatusServer = original_server_class
+
+            self.assertFalse(
+                worker.is_alive(), msg="localhost viewer thread did not stop"
+            )
+            if "error" in result_box:
+                raise result_box["error"]
+
+            after = snapshot_tree(Path(temp_dir))
+            shutdown_output = stdout.getvalue()
+            self.assertEqual(after, before)
+            self.assertIn(
+                "Read-only localhost viewer stopped. Loopback socket closed for",
+                shutdown_output,
+            )
+            self.assertEqual(
+                result_box["result"].splitlines()[0],
+                "READ-ONLY LOCALHOST VIEWER STOPPED",
+            )
+            self.assertIn("Cleanup: loopback socket closed.", result_box["result"])
 
 
 if __name__ == "__main__":

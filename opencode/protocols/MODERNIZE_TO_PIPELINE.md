@@ -13,7 +13,7 @@ Use `/run-modernize` with an execution mode:
 
 If you also pass `--autopilot`, the orchestrator should run non-interactively and continue phase-by-phase until all phases complete or a hard blocker stops execution.
 
-If you pass `--full-auto`, it should also prefer deep planning output, forward stronger delegated pipeline execution defaults, and attempt bounded non-hard blocker recovery before surfacing a stop condition.
+If you pass `--full-auto`, it should also imply `--autopilot`, disable interactive pauses, prefer deep planning output, forward stronger delegated pipeline execution defaults where applicable, and attempt the strongest safe bounded in-scope non-hard-blocker recovery before surfacing a stop condition.
 
 If the target project directory does not exist yet, add `--init-target` so the modernization flow can prepare the target project before execution handoff.
 
@@ -93,7 +93,8 @@ Semantics:
 
 - modernize planning runs non-interactively
 - delegated pipeline phases inherit `--full-auto`
-- execution prefers deeper analysis, more retries, and stronger bounded blocker recovery
+- execution prefers deeper analysis, more retries, and stronger safe bounded in-scope blocker recovery
+- hard blockers still stop execution
 
 ### Prepare target and hand off in one run
 
@@ -106,6 +107,8 @@ Semantics:
 - if `../my-app-v2` does not exist, create it first
 - bootstrap target init docs before implementation handoff
 - then continue into phase execution for `P1`
+
+Forwarded pipeline flags still override preset defaults when they are more explicit.
 
 ## Copyable Command Patterns
 

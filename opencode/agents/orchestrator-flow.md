@@ -146,7 +146,8 @@ If `--full-auto` is provided:
 - Set `autopilot_mode = true`.
 - Set `confirm_mode = false` and `verbose_mode = false`.
 - If no explicit scout flag was provided, set `scout_mode = force`.
-- Prefer the strongest safe autonomous completion path available within the fixed Flow model.
+- Prefer the strongest safe bounded in-scope autonomous completion path available within the fixed Flow model.
+- Still stop on hard blockers.
 
 If an invalid `--scout` value is provided:
 
@@ -202,7 +203,8 @@ If `autopilot_mode = true`:
 
 If `full_auto_mode = true`:
 - Prefer `scout_mode = force` unless the user explicitly selected a different scout mode.
-- Prefer the strongest safe in-scope unblock attempt before surfacing a non-hard blocker.
+- Prefer the strongest safe bounded in-scope unblock attempt before surfacing a non-hard blocker.
+- Do not treat full-auto as permission to add retries, expand scope, or leave resources running.
 
 ## Flow Pipeline (Fixed)
 

@@ -185,7 +185,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.9.1"
+$tag = "v0.10.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
@@ -193,7 +193,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.conf
 macOS/Linux:
 
 ```bash
-tag="v0.9.1"
+tag="v0.10.0"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -215,7 +215,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.9.1"
+$tag = "v0.10.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
@@ -223,7 +223,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HO
 macOS/Linux:
 
 ```bash
-tag="v0.9.1"
+tag="v0.10.0"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -245,7 +245,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.9.1"
+$tag = "v0.10.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
@@ -253,7 +253,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
 
 ```powershell
-$tag = "v0.9.1"
+$tag = "v0.10.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
@@ -261,7 +261,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 macOS/Linux:
 
 ```bash
-tag="v0.9.1"
+tag="v0.10.0"
 curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
 bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
@@ -278,19 +278,19 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.9.1`).
-- Use SemVer tags with `v` prefix (for example: `v0.9.1`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.10.0`).
+- Use SemVer tags with `v` prefix (for example: `v0.10.0`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.9.1` must release as `v0.9.1`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.10.0` must release as `v0.10.0`).
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.9.1`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.10.0`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -314,8 +314,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.9.1
-git push origin v0.9.1
+git tag v0.10.0
+git push origin v0.10.0
 ```
 
 ## Public Release Checklist
@@ -571,8 +571,8 @@ python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/age
 See `opencode/protocols/SCHEMAS.md` and `opencode/protocols/VALIDATION.md` for the status layout fixture set and the negative-fixture expectations enforced in CI.
 For ownership boundaries and the follow-on roadmap, see `opencode/protocols/STATUS_MVP_HANDOFF.md`.
 This repository also includes an optional in-repo `status-cli` as a read-only local status inspection companion.
-Future read-only CLI continuation may stay in this same repo under `status-cli/`; Phase 2 wording for this repo refers to that next same-repo read-only CLI phase, including terminal-local rendering and a self-contained local web viewer or HTML export.
-It is not required for using this repository today and does not imply service-backed dashboard, remote surface, runtime-writer, polling frontend, browser/server-hosted runtime surface, agent/opencode control function, or service/platform support.
+Future read-only CLI continuation may stay in this same repo under `status-cli/`; Phase 2 wording for this repo refers to that next same-repo read-only CLI phase, including terminal-local rendering, a self-contained ephemeral loopback-only localhost read-only viewer mode or HTML export, and a narrow same-process local polling/self-refresh mode for that loopback-only viewer when it only rereads existing status files from local disk during the current local viewing session.
+It is not required for using this repository today and does not imply hosted service or server platform behavior, remote exposure, runtime-writer, daemon/watch process, browser/server-hosted runtime surface beyond that bounded localhost viewer mode, agent/opencode control function, write-back/control plane, or service/platform support.
 See `docs/status-cli-plan.md` for the current scope and boundaries.
 
 If you enable custom tools, you can call the `validate-schema` tool from OpenCode
@@ -617,9 +617,11 @@ For resume-only flows, `--resume` can be used without a new prompt.
 - `--full-auto`
   - Hands-off preset for stronger execution
   - Implies `--autopilot`
+  - Disables interactive pauses
   - For `/run-flow`, defaults to `--force-scout` unless you override scout mode
   - Defaults to `--effort=high` and `--max-retry=5` unless you override them explicitly
-  - Prefers the strongest safe in-scope blocker recovery path before surfacing a non-hard blocker
+  - Prefers the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker
+  - Still stops on hard blockers and does not permit scope expansion or leaving resources running
 
 Flag precedence:
 - `--dry` overrides `--test-only` when both are present.
@@ -641,19 +643,19 @@ Examples:
 | Scenario | Recommended flag | Why |
 |----------|-----------------|-----|
 | Quick task, low risk, you just want no pauses | `--autopilot` | Runs non-interactively with default effort/retries; stops on hard blockers |
-| You want to walk away and let the pipeline finish | `--full-auto` | Max effort, max retries, strongest blocker recovery — true hands-off |
+| You want to walk away and let the pipeline finish | `--full-auto` | Non-interactive preset with strongest safe bounded recovery before surfacing non-hard blockers |
 | You want non-interactive but lower cost | `--autopilot --effort=low` | Autopilot suppresses pauses; effort=low keeps retries minimal |
 | You want full-auto but cap retries | `--full-auto --max-retry=2` | full-auto sets the baseline; explicit flags still override |
 | Flow task, want forced repo scouting | `--full-auto` | Flow full-auto defaults to `--force-scout` |
-| Modernize full-exec, no supervision | `--full-auto` | Defaults depth to `deep`, forwards `--full-auto` to delegated pipeline phases |
+| Modernize full-exec, no supervision | `--full-auto` | Defaults depth to `deep`, disables pauses, and forwards stronger full-auto behavior to delegated pipeline phases |
 
 **Rule of thumb:**
 - `--autopilot` = "don't ask me questions, use safe defaults"
 - `--full-auto` = "don't ask me questions, try your hardest to finish everything"
 
-Both flags stop on **hard blockers** (destructive actions, security/billing impact, missing credentials). The difference is that `--full-auto` also cranks up effort, retries, and blocker recovery before giving up on non-hard blockers.
+Both flags stop on **hard blockers** (destructive actions, security/billing impact, missing credentials). The difference is that `--full-auto` also raises preset defaults and prefers the strongest safe bounded in-scope recovery before giving up on non-hard blockers.
 
-Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you full-auto's blocker recovery but with low effort and only 1 retry.
+Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you full-auto's recovery posture but with low effort and only 1 retry.
 
 ### Execution Resource Control
 

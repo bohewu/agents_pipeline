@@ -10,9 +10,9 @@ This plan keeps Phase 1 intentionally small:
 - Phase 1 is **read-only**.
 - Phase 1 treats `run-status.json` as the primary supported input.
 - Support for `tasks/` and `agents/` files is optional enhanced behavior when present.
-- Phase 1 does **not** include status writing, runtime orchestration, background services, or live update behavior.
+- Phase 1 does **not** include status writing, runtime orchestration, background services, daemon/watch behavior, or any live update mechanism other than a narrow same-process self-refresh mode for an ephemeral loopback-only localhost read-only viewer that rereads existing local files during the current viewing session.
 
-Future read-only CLI continuation is allowed in this same repository under `status-cli/`. For roadmap wording in this repo, Phase 2 means the next in-repo read-only CLI phase, including same-repo local read-only viewer or self-contained HTML export behavior when it stays file-backed, local, and non-controlling, while any true runtime status writing remains deferred to later planning and a separate runtime implementation effort.
+Future read-only CLI continuation is allowed in this same repository under `status-cli/`. For roadmap wording in this repo, Phase 2 means the next in-repo read-only CLI phase, including an ephemeral loopback-only localhost read-only viewer mode or self-contained HTML export, plus a narrow same-process local polling/self-refresh mode for that same-repo viewer when it stays file-backed, local, read-only, and non-controlling during the current viewing session, while any true runtime status writing remains deferred to later planning and a separate runtime implementation effort.
 
 Unless separate install docs/scripts are added alongside the implementation, treat `status-cli` as an in-repo companion rather than a broadly supported install workflow.
 
@@ -31,7 +31,8 @@ Phase 1 goals:
 - help operators or developers inspect status artifacts locally
 - make the required `run-status.json` easier to read in a terminal
 - optionally summarize expanded task/agent detail when those files exist
-- allow small same-repo local read-only views or self-contained HTML exports when they remain file-backed, local, and non-controlling
+- allow small same-repo ephemeral loopback-only localhost read-only viewer sessions or self-contained HTML exports when they remain file-backed, local, and non-controlling
+- allow a narrow same-process local polling/self-refresh mode for the same-repo localhost viewer when it only rereads existing status artifacts from local disk during the current viewing session
 - stay low-complexity and MVP-first
 
 Out of Phase 1 scope:
@@ -39,8 +40,10 @@ Out of Phase 1 scope:
 - writing or mutating status files
 - launching or managing runtime workers
 - daemon/background watch processes
+- hosted service or server platform behavior beyond an ephemeral loopback-only localhost viewer session
 - browser/server-hosted dashboards, service-backed web UI, or service APIs
 - any remote, control-oriented, or write-back dashboard surface
+- any remote exposure or remotely delivered polling/update mechanism
 - runtime reconciliation logic
 - any new protocol fields or schema changes created just for the CLI
 
@@ -54,7 +57,8 @@ Out of Phase 1 scope:
 4. Validate basic file presence and report clear errors when the expected status path is missing.
 5. Work against filesystem status artifacts without requiring a service or database.
 6. Support explicit path targeting so one CLI install can inspect many projects.
-7. Allow optional local read-only visualization, self-contained web viewing, or HTML export of existing status artifacts without adding hosted browser/server, service-backed, remote, or control surfaces.
+7. Allow optional ephemeral loopback-only localhost read-only visualization, self-contained local web viewing, or HTML export of existing status artifacts without adding hosted browser/server platform behavior, service-backed, remote, write-back, or control surfaces.
+8. Allow a narrow same-process local polling/self-refresh mode for the same-repo localhost viewer only when it rereads existing status artifacts from local disk during the current viewing session, stays read-only, and does not introduce watch/daemon or control behavior.
 
 ### Optional enhanced Phase 1 support
 
@@ -131,13 +135,14 @@ status-cli run show --project-dir /path/to/project
 
 #### `status-cli visual`
 
-Optional same-repo read-only local visualization slice.
+Optional same-repo ephemeral loopback-only localhost read-only visualization slice.
 
 Purpose:
 
-- render existing status artifacts in a terminal-local view and leave room for a same-repo self-contained web viewer or HTML export
+- render existing status artifacts in a terminal-local view and leave room for an ephemeral loopback-only localhost read-only viewer mode or self-contained HTML export
+- allow a narrow in-process local polling/self-refresh mode for the same-repo localhost viewer when it only rereads existing local files from disk during the current viewing session
 - stay file-backed and read-only
-- avoid any hosted browser/server runtime, service-backed runtime, remote surface, or control operation semantics
+- avoid any hosted browser/server runtime beyond the bounded loopback-only localhost viewer session, service-backed runtime, remote exposure, write-back, watch/daemon process, or control operation semantics
 
 #### `status-cli dashboard`
 
@@ -182,7 +187,7 @@ Do not include commands for:
 - `stop`
 - any command that triggers agent, runtime, or opencode control actions
 
-Those imply runtime or mutating behavior and should stay out of the Phase 1 plan. Local read-only visualization, including a same-repo self-contained web viewer or HTML export, is allowed only when it does not cross into hosted browser/server, service-backed, remote, write-back, or control behavior.
+Those imply runtime or mutating behavior and should stay out of the Phase 1 plan. Local read-only visualization, including an ephemeral loopback-only localhost viewer mode or self-contained HTML export, is allowed only when it does not cross into hosted browser/server platform behavior, service-backed, remote, watch/daemon, write-back, or control behavior. A narrow same-process local polling/self-refresh mode is allowed only for the same-repo localhost viewer when it rereads existing local status files directly during the current viewing session and stays read-only.
 
 ## Recommended In-Repo Directory Structure
 
@@ -211,7 +216,7 @@ Guidance for these directories:
 - `commands/`: terminal command entrypoints such as `summary` and `run show`
 - `readers/`: read-only filesystem loading for `run-status.json` and optional task/agent files
 - `formatters/`: read-only output rendering for terminal or self-contained local export/view formats
-- `formatters/` may include terminal-local views or self-contained local web/HTML rendering, but not hosted browser/server or service UI surfaces
+- `formatters/` may include terminal-local views, ephemeral loopback-only localhost viewer rendering, self-contained local web/HTML rendering, and narrow same-process local polling/self-refresh that rereads existing files during the current viewing session, but not hosted browser/server platform behavior, remote exposure, or service UI surfaces
 - `discovery/`: project-dir/output-dir/status-path resolution logic
 - `models/`: local typed wrappers around the existing contract, without redefining it
 - `tests/fixtures/`: should prefer reuse or copies of contract-valid example layouts derived from `opencode/protocols/examples/`
@@ -275,9 +280,9 @@ This preserves the MVP-first contract stance already used by the status-layer do
 - Should the next same-repo read-only `status-cli` phase stay focused on richer inspection of `run-status.json`, or add expanded-layout views first?
 - Should future runtime adoption start with run-only layout everywhere, or should some consumers write expanded task/agent files immediately?
 - Should later CLI output include machine-readable export modes, or remain human-first only?
-- At what point would watch/live-refresh behavior be justified, if ever?
+- Is the bounded local polling/self-refresh mode sufficient, or would any broader watch/live-refresh behavior ever be justified later?
 - Should protocol-version compatibility rules be surfaced in CLI output beyond simple display?
 
 ## Recommended Next Step
 
-Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, including same-repo local views or self-contained HTML export behavior, while runtime-writer behavior, services, remote surfaces, browser/server-hosted UI, and broader platform work remain deferred to later planning and a future downstream runtime effort.
+Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, including same-repo terminal-local views, an ephemeral loopback-only localhost read-only viewer mode, self-contained HTML export behavior, and a narrow same-process local polling/self-refresh mode for that localhost viewer when it only rereads existing local status artifacts during the current viewing session, while runtime-writer behavior, hosted services, remote surfaces, write-back/control actions, daemon/watch processes, browser/server-hosted UI beyond that bounded localhost mode, and broader platform work remain deferred to later planning and a future downstream runtime effort.

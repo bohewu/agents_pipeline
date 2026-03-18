@@ -161,7 +161,8 @@ If `--full-auto` is provided:
 - Set `autopilot_mode = true`.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
 - If `--depth=*` was not provided explicitly, set `depth_mode = deep`.
-- In execution-enabled modes, prefer forwarding `--full-auto` to delegated `@orchestrator-pipeline` runs.
+- In execution-enabled modes, prefer forwarding `--full-auto` to delegated `@orchestrator-pipeline` runs where applicable.
+- Explicit flags still override preset defaults.
 
 ## PRE-FLIGHT (before Stage 0)
 
@@ -192,7 +193,7 @@ Autopilot interaction policy:
 - In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
 - In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
 - In `autopilot_mode`, do not request interactive confirmations for stage/task progression or phase-to-phase advancement.
-- In `full_auto_mode`, prefer deeper planning output and strongest safe delegated execution settings before surfacing non-hard blockers.
+- In `full_auto_mode`, prefer deeper planning output and the strongest safe bounded delegated execution settings before surfacing non-hard blockers.
 
 If `confirm_mode = true` and `autopilot_mode != true`:
 - After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
@@ -439,6 +440,7 @@ Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - If `autopilot_mode = true`, ensure `--autopilot` is present in the delegated `pipeline_flags` unless already present.
 - If `full_auto_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
 - If `autopilot_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
+- Forwarded explicit pipeline flags still override `--full-auto` preset defaults inside delegated pipeline execution.
 - If a forbidden forwarded flag is present, warn and drop it before dispatch.
 - Deduplicate exact duplicate forwarded flags while preserving order.
 - Do NOT synthesize or rewrite pipeline flags except:

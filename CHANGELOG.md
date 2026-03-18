@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-03-18
+
+### Added
+
+- Status-layer MVP contract artifacts, schemas, examples, and validation coverage for the in-repo pipeline status layout.
+- In-repo read-only `status-cli` inspection flows for run summaries, record views, visual inspection, task and agent listing, terminal dashboard triage, self-contained HTML export, and a loopback-only localhost web viewer with bounded refresh controls.
+
+### Changed
+
+- Status CLI planning and handoff docs now allow bounded same-repo localhost viewing and HTML export while keeping the feature read-only, local-only, non-controlling, and outside hosted/remote runtime scope.
+- `--full-auto` guidance is now aligned across README, protocol docs, command docs, and orchestrator prompts around pause suppression, explicit flag precedence, bounded recovery, hard blockers, and cleanup boundaries.
+
 ### Fixed
 
 - Release publishing job now checks out the repo before invoking `gh release`, so tag and manual releases can publish assets successfully.
