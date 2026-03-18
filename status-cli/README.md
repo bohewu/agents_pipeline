@@ -155,6 +155,7 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 - serves the same read-only viewer shape as `web export`, but from a transient in-process HTTP server instead of an output file
 - supports browser polling over HTTP via `/api/payload`, so refresh works even when a browser would block local-file fetches from exported HTML
 - optional `--refresh-interval 5|10|15|30|60` controls bounded polling cadence in the browser; default is `15`, and `Off` can still be chosen inside the viewer after startup
+- optional `--open-browser` asks the OS default browser to open the loopback URL after startup; if auto-open is unavailable, the CLI still prints copyable viewer and payload URLs
 - accepts `GET` and `HEAD` only; write-like verbs return `405 Method not allowed`
 - reads existing run/task/agent artifacts only; it never writes into the status directory and closing the process shuts down the loopback socket cleanly
 - use it for local inspection only; do not treat it as a remote dashboard, shared service, watch daemon, or control surface
@@ -162,9 +163,10 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 ```bash
 python status-cli/status_cli.py web serve --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json --host 127.0.0.1 --port 0
 python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host localhost --port 0 --focus blocked --theme dark --refresh-interval 30
+python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host 127.0.0.1 --port 0 --open-browser
 ```
 
-When the viewer starts it prints the selected loopback URL and stays in the foreground until you stop it with `Ctrl+C`. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
+When the viewer starts it prints a copyable `Viewer URL`, a `Payload URL` for the read-only refresh endpoint, and browser-open status, then stays in the foreground until you stop it with `Ctrl+C`. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
 
 ### `task show <task_id>`
 

@@ -717,6 +717,7 @@ class StatusCliTests(unittest.TestCase):
                     focus="blocked",
                     theme="dark",
                     refresh_interval=30,
+                    open_browser=False,
                 )
                 try:
                     with redirect_stdout(stdout):
@@ -758,11 +759,16 @@ class StatusCliTests(unittest.TestCase):
                 polled_payload = json.loads(poll_body)
 
                 self.assertIn("READ-ONLY LOCALHOST VIEWER STARTED", startup_output)
-                self.assertIn(f"URL: {viewer_url}", startup_output)
+                self.assertIn(f"Viewer URL: {viewer_url}", startup_output)
+                self.assertIn(f"Payload URL: {viewer_url}api/payload", startup_output)
                 self.assertIn("Theme: dark", startup_output)
                 self.assertIn("Focus: blocked", startup_output)
                 self.assertIn("Refresh interval: 30s", startup_output)
                 self.assertIn(f"Loaded from: {fixture_copy}", startup_output)
+                self.assertIn(
+                    "Browser: not opened automatically; copy Viewer URL into your browser.",
+                    startup_output,
+                )
                 self.assertIn(
                     "Shutdown: press Ctrl+C to stop and close the loopback socket.",
                     startup_output,
@@ -834,7 +840,85 @@ class StatusCliTests(unittest.TestCase):
                 result_box["result"].splitlines()[0],
                 "READ-ONLY LOCALHOST VIEWER STOPPED",
             )
+            self.assertIn(f"Viewer URL: {viewer_url}", result_box["result"])
             self.assertIn("Cleanup: loopback socket closed.", result_box["result"])
+
+    def test_web_serve_can_request_browser_open(self) -> None:
+        status_cli = load_status_cli_module()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, fixture_copy)
+
+            server_ready = threading.Event()
+            server_box: dict[str, Any] = {}
+            result_box: dict[str, Any] = {}
+            stdout = io.StringIO()
+            opened: list[tuple[str, int]] = []
+            original_server_class = status_cli.LoopbackOnlyStatusServer
+            original_browser_open = status_cli.webbrowser.open
+
+            class TrackingLoopbackServer(original_server_class):
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    super().__init__(*args, **kwargs)
+                    server_box["server"] = self
+                    server_ready.set()
+
+            def fake_browser_open(url: str, new: int = 0) -> bool:
+                opened.append((url, new))
+                return True
+
+            def run_server() -> None:
+                args = status_cli.argparse.Namespace(
+                    status_file=str(fixture_copy),
+                    status_dir=None,
+                    output_dir=None,
+                    project_dir=None,
+                    host="127.0.0.1",
+                    port=0,
+                    focus=None,
+                    theme="auto",
+                    refresh_interval=15,
+                    open_browser=True,
+                )
+                try:
+                    with redirect_stdout(stdout):
+                        result_box["result"] = status_cli.command_web_serve(args)
+                except (
+                    BaseException
+                ) as exc:  # pragma: no cover - surfaced by assertions below
+                    result_box["error"] = exc
+
+            status_cli.LoopbackOnlyStatusServer = TrackingLoopbackServer
+            status_cli.webbrowser.open = fake_browser_open
+            worker = threading.Thread(target=run_server, daemon=True)
+            worker.start()
+            try:
+                self.assertTrue(
+                    server_ready.wait(timeout=5), msg="localhost viewer did not start"
+                )
+                startup_output = wait_for_text(
+                    stdout, "READ-ONLY LOCALHOST VIEWER STARTED"
+                )
+                server = server_box["server"]
+                viewer_url = (
+                    f"http://{server.server_address[0]}:{server.server_address[1]}/"
+                )
+                self.assertEqual(opened, [(viewer_url, 2)])
+                self.assertIn(f"Viewer URL: {viewer_url}", startup_output)
+                self.assertIn("Browser: opened default browser.", startup_output)
+            finally:
+                if "server" in server_box:
+                    server_box["server"].shutdown()
+                worker.join(timeout=5)
+                status_cli.LoopbackOnlyStatusServer = original_server_class
+                status_cli.webbrowser.open = original_browser_open
+
+            self.assertFalse(
+                worker.is_alive(), msg="localhost viewer thread did not stop"
+            )
+            if "error" in result_box:
+                raise result_box["error"]
 
 
 if __name__ == "__main__":

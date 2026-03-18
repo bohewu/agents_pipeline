@@ -6,6 +6,7 @@ from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import sys
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, cast
@@ -1735,6 +1736,18 @@ class LoopbackOnlyStatusServer(ThreadingHTTPServer):
     daemon_threads = True
 
 
+def open_browser_if_requested(viewer_url: str, enabled: bool) -> str:
+    if not enabled:
+        return "Browser: not opened automatically; copy Viewer URL into your browser."
+    try:
+        opened = webbrowser.open(viewer_url, new=2)
+    except Exception as exc:  # pragma: no cover - platform-dependent
+        return f"Browser: failed to open automatically ({exc}). Copy Viewer URL above."
+    if opened:
+        return "Browser: opened default browser."
+    return "Browser: automatic open was not confirmed; copy Viewer URL above."
+
+
 def command_web_serve(args: argparse.Namespace) -> str:
     if args.port < 0 or args.port > 65535:
         raise StatusCliError("--port must be between 0 and 65535.")
@@ -1881,15 +1894,19 @@ def command_web_serve(args: argparse.Namespace) -> str:
 
     bound_host, bound_port = server.server_address[:2]
     viewer_url = f"http://{bound_host}:{bound_port}/"
+    payload_url = f"{viewer_url}api/payload"
+    browser_status = open_browser_if_requested(viewer_url, args.open_browser)
     print(
         "\n".join(
             [
                 "READ-ONLY LOCALHOST VIEWER STARTED",
-                f"URL: {viewer_url}",
+                f"Viewer URL: {viewer_url}",
+                f"Payload URL: {payload_url}",
                 f"Theme: {args.theme}",
                 f"Focus: {args.focus or 'all'}",
                 f"Refresh interval: {args.refresh_interval}s",
                 f"Loaded from: {context.run_status_path}",
+                browser_status,
                 "Shutdown: press Ctrl+C to stop and close the loopback socket.",
             ]
         ),
@@ -1912,7 +1929,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
     return "\n".join(
         [
             "READ-ONLY LOCALHOST VIEWER STOPPED",
-            f"URL: {viewer_url}",
+            f"Viewer URL: {viewer_url}",
             f"Stop reason: {stop_reason}",
             "Cleanup: loopback socket closed.",
         ]
@@ -2052,6 +2069,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=WEB_REFRESH_INTERVAL_CHOICES,
         default=WEB_DEFAULT_REFRESH_INTERVAL,
         help="Bounded live-refresh interval in seconds for the localhost viewer",
+    )
+    web_serve_parser.add_argument(
+        "--open-browser",
+        action="store_true",
+        help="Open the localhost viewer in the default browser after startup",
     )
     add_path_options(web_serve_parser)
     web_serve_parser.set_defaults(handler=command_web_serve)
