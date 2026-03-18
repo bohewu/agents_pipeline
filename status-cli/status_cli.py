@@ -843,31 +843,46 @@ def theme_palette(theme: str) -> dict[str, str]:
     if theme == "light":
         return {
             "scheme": "light",
-            "bg": "#f8fafc",
+            "bg": "#eef4fb",
             "panel": "#ffffff",
             "text": "#0f172a",
-            "muted": "#475569",
-            "border": "#dbe2ea",
+            "muted": "#526075",
+            "border": "#d8e2f0",
             "accent": "#2563eb",
+            "surface": "#f8fbff",
+            "surface_alt": "#edf3fb",
+            "line": "rgba(148, 163, 184, 0.24)",
+            "shadow": "rgba(15, 23, 42, 0.16)",
+            "shadow_soft": "rgba(15, 23, 42, 0.08)",
         }
     if theme == "dark":
         return {
             "scheme": "dark",
-            "bg": "#0b1220",
-            "panel": "#111a2e",
+            "bg": "#08111f",
+            "panel": "#0f1a2d",
             "text": "#e5eefb",
             "muted": "#94a3b8",
             "border": "#24324a",
-            "accent": "#60a5fa",
+            "accent": "#7dd3fc",
+            "surface": "#13213b",
+            "surface_alt": "#0b1628",
+            "line": "rgba(148, 163, 184, 0.18)",
+            "shadow": "rgba(2, 6, 23, 0.55)",
+            "shadow_soft": "rgba(2, 6, 23, 0.34)",
         }
     return {
         "scheme": "light dark",
-        "bg": "#f8fafc",
+        "bg": "#eef4fb",
         "panel": "#ffffff",
         "text": "#0f172a",
-        "muted": "#475569",
-        "border": "#dbe2ea",
+        "muted": "#526075",
+        "border": "#d8e2f0",
         "accent": "#2563eb",
+        "surface": "#f8fbff",
+        "surface_alt": "#edf3fb",
+        "line": "rgba(148, 163, 184, 0.24)",
+        "shadow": "rgba(15, 23, 42, 0.16)",
+        "shadow_soft": "rgba(15, 23, 42, 0.08)",
     }
 
 
@@ -1155,6 +1170,11 @@ def render_web_export(
           --muted: {dark_palette["muted"]};
           --border: {dark_palette["border"]};
           --accent: {dark_palette["accent"]};
+          --surface: {dark_palette["surface"]};
+          --surface-alt: {dark_palette["surface_alt"]};
+          --line: {dark_palette["line"]};
+          --shadow: {dark_palette["shadow"]};
+          --shadow-soft: {dark_palette["shadow_soft"]};
         }}
       }}
 """
@@ -1174,65 +1194,96 @@ def render_web_export(
       --muted: {palette["muted"]};
       --border: {palette["border"]};
       --accent: {palette["accent"]};
-      --line: rgba(148, 163, 184, 0.18);
+      --surface: {palette["surface"]};
+      --surface-alt: {palette["surface_alt"]};
+      --line: {palette["line"]};
+      --shadow: {palette["shadow"]};
+      --shadow-soft: {palette["shadow_soft"]};
+      --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --success: #10b981;
     }}
 {theme_override}    * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       font-family: Inter, Segoe UI, Arial, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(124, 58, 237, 0.18), transparent 28%),
-        radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 24%),
-        linear-gradient(180deg, var(--bg) 0%, #030712 100%);
+        radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 24%, transparent), transparent 28%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 70%, #020617 30%) 100%);
       color: var(--text);
+      min-height: 100vh;
     }}
-    main {{ max-width: 1460px; margin: 0 auto; padding: 28px; }}
-    .panel {{ background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; margin-bottom: 18px; box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35); }}
-    .hero {{ padding: 24px; }}
-    .hero-top {{ display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }}
-    h1 {{ margin: 6px 0 0; font-size: 2rem; }}
-    h2, h3 {{ margin-top: 0; }}
+    body::before {{ content: ''; position: fixed; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 22%); }}
+    main {{ max-width: 1500px; margin: 0 auto; padding: 32px 28px 44px; }}
+    .stack {{ display: grid; gap: 20px; }}
+    .panel {{ background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 90%, white 10%), var(--panel)); border: 1px solid var(--line); border-radius: 24px; padding: 22px; margin-bottom: 0; box-shadow: 0 22px 54px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(10px); }}
+    .hero {{ padding: 26px; position: relative; overflow: hidden; }}
+    .hero::after {{ content: ''; position: absolute; inset: auto -10% -45% 38%; height: 260px; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent) 0%, transparent 68%); pointer-events: none; }}
+    .hero-top {{ display: flex; justify-content: space-between; gap: 22px; flex-wrap: wrap; align-items: flex-start; position: relative; z-index: 1; }}
+    h1 {{ margin: 8px 0 0; font-size: clamp(2rem, 4vw, 2.85rem); line-height: 1.04; letter-spacing: -0.04em; }}
+    h2, h3 {{ margin: 0; letter-spacing: -0.02em; }}
+    h2 {{ font-size: 1.15rem; }}
+    h3 {{ font-size: 1rem; }}
     .eyebrow {{ color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; font-weight: 700; }}
-    .subtitle {{ color: var(--muted); margin-top: 6px; max-width: 900px; }}
-    .meta {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }}
-    .pill {{ display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.92rem; }}
-    .stats, .triage, .two-col {{ display: grid; gap: 18px; }}
-    .stats {{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }}
-    .two-col {{ grid-template-columns: 2.1fr 1.1fr; align-items: start; }}
-    .triage {{ grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }}
-    .refresh-bar {{ margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(2, 6, 23, 0.3); }}
-    .refresh-controls {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }}
-    .control-label {{ color: var(--muted); font-size: 0.92rem; }}
-    .control-select, .control-button {{ border-radius: 12px; border: 1px solid var(--line); background: rgba(15, 23, 42, 0.65); color: var(--text); padding: 9px 12px; font: inherit; }}
+    .subtitle {{ color: var(--muted); margin: 10px 0 0; max-width: 920px; font-size: 0.98rem; line-height: 1.55; }}
+    .hero-actions {{ min-width: min(100%, 380px); display: grid; gap: 12px; justify-items: end; position: relative; z-index: 1; }}
+    .hero-badge {{ display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 72%, transparent); color: var(--text); font-weight: 700; box-shadow: 0 10px 26px var(--shadow-soft); }}
+    .hero-badge-dot {{ width: 10px; height: 10px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent); }}
+    .meta {{ display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; position: relative; z-index: 1; }}
+    .pill {{ display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.9rem; background: color-mix(in srgb, var(--surface) 82%, transparent); }}
+    .stats, .triage, .two-col {{ display: grid; gap: 20px; }}
+    .stats {{ margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(164px, 1fr)); position: relative; z-index: 1; }}
+    .two-col {{ grid-template-columns: minmax(0, 2.15fr) minmax(320px, 1fr); align-items: start; }}
+    .triage {{ grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }}
+    .section-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }}
+    .section-title-group {{ display: grid; gap: 6px; }}
+    .section-kicker {{ color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; }}
+    .refresh-bar {{ margin-top: 22px; padding: 18px; border-radius: 20px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-alt) 92%, transparent)); position: relative; z-index: 1; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }}
+    .refresh-controls {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }}
+    .control-label {{ color: var(--muted); font-size: 0.92rem; font-weight: 600; }}
+    .control-select, .control-button {{ border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text); padding: 10px 13px; font: inherit; box-shadow: 0 8px 20px var(--shadow-soft); }}
     .control-button {{ cursor: pointer; }}
-    .control-button:hover {{ border-color: var(--accent); }}
-    .refresh-status {{ margin-top: 10px; font-size: 0.92rem; color: var(--muted); }}
-    .warning-banner {{ margin-top: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); color: #fbbf24; }}
-    .stat {{ padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(15, 23, 42, 0.45); }}
+    .control-button:hover, .control-select:hover {{ border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); }}
+    .refresh-status {{ margin-top: 12px; font-size: 0.92rem; color: var(--muted); }}
+    .warning-banner {{ margin-top: 12px; padding: 11px 13px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 12%, transparent); color: color-mix(in srgb, var(--warning) 82%, white 18%); }}
+    .stat {{ padding: 18px 18px 16px; border-radius: 20px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 98%, transparent)); box-shadow: 0 12px 26px var(--shadow-soft); min-height: 126px; }}
     .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
-    .stat-value {{ font-size: 28px; font-weight: 700; margin-top: 8px; }}
-    .stat-sub {{ color: var(--muted); font-size: 13px; margin-top: 6px; }}
-    .graph-wrap {{ overflow: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(2, 6, 23, 0.26); }}
-    svg {{ display: block; width: 100%; min-height: 320px; }}
-    .list {{ display: grid; gap: 12px; }}
-    .item {{ background: rgba(15, 23, 42, 0.5); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }}
+    .stat-value {{ font-size: clamp(1.8rem, 3vw, 2.35rem); font-weight: 800; margin-top: 10px; letter-spacing: -0.04em; }}
+    .stat-sub {{ color: var(--muted); font-size: 13px; margin-top: 7px; line-height: 1.4; }}
+    .graph-wrap {{ overflow: auto; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-alt) 98%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }}
+    svg {{ display: block; width: 100%; min-height: 380px; }}
+    .list {{ display: grid; gap: 14px; }}
+    .item {{ background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 100%, transparent)); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 10px 22px var(--shadow-soft); }}
     .item-top {{ display: flex; justify-content: space-between; gap: 10px; align-items: start; }}
-    .item-title {{ font-weight: 700; }}
-    .item-sub {{ color: var(--muted); margin-top: 6px; font-size: 13px; }}
-    .chips, .legend {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
-    .chip {{ font-size: 12px; padding: 6px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); }}
-    .status-pill {{ color: #fff; font-size: 12px; padding: 6px 8px; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }}
-    .legend-item {{ display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }}
-    .dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; }}
+    .item-title {{ font-weight: 700; font-size: 0.98rem; }}
+    .item-sub {{ color: var(--muted); margin-top: 7px; font-size: 13px; line-height: 1.48; }}
+    .chips, .legend {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }}
+    .chip {{ font-size: 12px; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); background: color-mix(in srgb, var(--surface) 86%, transparent); }}
+    .status-pill {{ color: #fff; font-size: 11px; padding: 7px 10px; border-radius: 999px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; box-shadow: 0 8px 18px color-mix(in srgb, currentColor 18%, transparent); }}
+    .legend-item {{ display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 84%, transparent); }}
+    .dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 14%, transparent); }}
     .empty {{ color: var(--muted); }}
-    pre {{ margin: 0; white-space: pre-wrap; word-break: break-word; font-family: Consolas, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; line-height: 1.55; color: var(--text); }}
-    .detail {{ max-height: 680px; overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: rgba(2, 6, 23, 0.35); }}
+    pre {{ margin: 0; white-space: pre-wrap; word-break: break-word; font-family: Consolas, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; line-height: 1.6; color: var(--text); }}
+    .detail-shell {{ border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 100%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }}
+    .detail-toolbar {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface-alt) 86%, transparent); }}
+    .detail-label {{ font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }}
+    .detail {{ max-height: 700px; overflow: auto; padding: 16px; background: transparent; }}
     .note {{ color: var(--muted); margin: 0; }}
-    @media (max-width: 1080px) {{ .two-col {{ grid-template-columns: 1fr; }} }}
+    .triage-panel {{ position: relative; overflow: hidden; }}
+    .triage-panel::before {{ content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--panel-accent, var(--accent)); opacity: 0.92; }}
+    .triage-panel > * {{ position: relative; z-index: 1; }}
+    .triage-panel-blocked {{ --panel-accent: var(--danger); }}
+    .triage-panel-stale {{ --panel-accent: var(--warning); }}
+    .triage-panel-active {{ --panel-accent: var(--success); }}
+    @media (max-width: 1080px) {{ main {{ padding: 22px; }} .two-col {{ grid-template-columns: 1fr; }} .hero-actions {{ justify-items: start; }} }}
+    @media (max-width: 720px) {{ .panel {{ padding: 18px; border-radius: 20px; }} .hero {{ padding: 20px; }} .stats {{ grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); }} .refresh-controls {{ align-items: stretch; }} .control-select, .control-button {{ width: 100%; }} .detail-toolbar {{ flex-direction: column; align-items: flex-start; }} }}
   </style>
 </head>
 <body>
   <main>
+    <div class=\"stack\">
     <section class=\"panel hero\">
       <div class=\"hero-top\">
         <div>
@@ -1240,8 +1291,11 @@ def render_web_export(
           <h1 id=\"hero-title\"></h1>
           <p class=\"subtitle\" id=\"hero-subtitle\"></p>
         </div>
-        <div class=\"meta\" id=\"hero-meta\"></div>
+        <div class=\"hero-actions\">
+          <div class=\"hero-badge\"><span class=\"hero-badge-dot\"></span><span>Self-contained read-only viewer</span></div>
+        </div>
       </div>
+      <div class=\"meta\" id=\"hero-meta\"></div>
       <div class=\"stats\" id=\"stats\"></div>
       <div class=\"refresh-bar\">
         <div class=\"eyebrow\">Bounded live refresh</div>
@@ -1257,26 +1311,44 @@ def render_web_export(
     </section>
     <section class=\"two-col\">
       <div class=\"panel\">
-        <h2>Run → tasks → agents</h2>
+        <div class=\"section-header\">
+          <div class=\"section-title-group\">
+            <div class=\"section-kicker\">Topology</div>
+            <h2>Run → tasks → agents</h2>
+          </div>
+        </div>
         <p class=\"note\">Graph view of existing status artifacts. Click any node to inspect its source JSON.</p>
         <div class=\"graph-wrap\"><svg id=\"graph\" aria-label=\"Status graph\"></svg></div>
         <div class=\"legend\" id=\"legend\"></div>
       </div>
       <div class=\"panel\">
-        <h2>Selected detail</h2>
-        <p class=\"note\" id=\"detail-caption\"></p>
-        <pre class=\"detail\" id=\"detail\"></pre>
+        <div class=\"section-header\">
+          <div class=\"section-title-group\">
+            <div class=\"section-kicker\">Inspection</div>
+            <h2>Selected detail</h2>
+          </div>
+        </div>
+        <div class=\"detail-shell\">
+          <div class=\"detail-toolbar\">
+            <div>
+              <div class=\"detail-label\">Selected node</div>
+              <p class=\"note\" id=\"detail-caption\"></p>
+            </div>
+          </div>
+          <pre class=\"detail\" id=\"detail\"></pre>
+        </div>
       </div>
     </section>
     <section class=\"triage\">
-      <div class=\"panel\"><h3>Blocked</h3><div class=\"list\" id=\"blocked-list\"></div></div>
-      <div class=\"panel\"><h3>Stale</h3><div class=\"list\" id=\"stale-list\"></div></div>
-      <div class=\"panel\"><h3>Active</h3><div class=\"list\" id=\"active-list\"></div></div>
+      <div class=\"panel triage-panel triage-panel-blocked\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Needs action</div><h3>Blocked</h3></div></div><div class=\"list\" id=\"blocked-list\"></div></div>
+      <div class=\"panel triage-panel triage-panel-stale\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Needs refresh</div><h3>Stale</h3></div></div><div class=\"list\" id=\"stale-list\"></div></div>
+      <div class=\"panel triage-panel triage-panel-active\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">In motion</div><h3>Active</h3></div></div><div class=\"list\" id=\"active-list\"></div></div>
     </section>
     <section class=\"two-col\">
-      <div class=\"panel\"><h2>Agent hotspots</h2><div class=\"list\" id=\"hotspots\"></div></div>
-      <div class=\"panel\"><h2>Warnings</h2><div class=\"list\" id=\"warnings\"></div></div>
+      <div class=\"panel\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Concentration</div><h2>Agent hotspots</h2></div></div><div class=\"list\" id=\"hotspots\"></div></div>
+      <div class=\"panel\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Non-fatal issues</div><h2>Warnings</h2></div></div><div class=\"list\" id=\"warnings\"></div></div>
     </section>
+    </div>
     <script id=\"status-data\" type=\"application/json\">{payload_json}</script>
     <script>
       const data = JSON.parse(document.getElementById('status-data').textContent);
@@ -1285,11 +1357,11 @@ def render_web_export(
       function colorFor(status) {{ return COLORS[String(status || 'unknown')] || COLORS.unknown; }}
       function el(name, className, text) {{ const node = document.createElement(name); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }}
       function setText(id, text) {{ document.getElementById(id).textContent = text; }}
-      function renderHero() {{ const run = data.run; setText('viewer-label', String((data.meta || {{}}).viewer_label || 'Read-only web export')); setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
+      function renderHero() {{ const run = data.run; setText('viewer-label', String((data.meta || {{}}).viewer_label || 'Read-only web export')); setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`, `updated=${{run.updated_at ?? '-'}}`, `heartbeat=${{run.last_heartbeat_at ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
       function renderItemList(targetId, items, builder) {{ const root = document.getElementById(targetId); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }}
       function taskCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); const left = el('div'); left.appendChild(el('div', 'item-title', String(item.task_id || 'task'))); left.appendChild(el('div', 'item-sub', String(item.summary || ''))); top.appendChild(left); const pill = el('div', 'status-pill', String(item.status || 'unknown')); pill.style.background = colorFor(item.status); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [item.assigned_agent_id && `agent=${{item.assigned_agent_id}}`, item.assigned_executor && `executor=${{item.assigned_executor}}`, item.resource_status && `resource=${{item.resource_status}}`].filter(Boolean).forEach(text => chips.appendChild(el('div', 'chip', text))); if (chips.childNodes.length) card.appendChild(chips); if (item.error) card.appendChild(el('div', 'item-sub', `issue: ${{item.error}}`)); if (item.resume_note) card.appendChild(el('div', 'item-sub', `resume: ${{item.resume_note}}`)); return card; }}
       function hotspotCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', String(item.agent || 'unknown'))); const pill = el('div', 'status-pill', `count ${{item.count}}`); pill.style.background = colorFor(item.cleanup_issues ? 'blocked' : (item.active ? 'in_progress' : 'done')); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [`active=${{item.active}}`, `cleanup_issues=${{item.cleanup_issues}}`].forEach(text => chips.appendChild(el('div', 'chip', text))); Object.entries(item.statuses || {{}}).forEach(([status, count]) => chips.appendChild(el('div', 'chip', `${{status}}=${{count}}`))); (item.tasks || []).forEach(task => chips.appendChild(el('div', 'chip', `task=${{task}}`))); card.appendChild(chips); return card; }}
-      function warningCard(text) {{ const card = el('div', 'item'); card.appendChild(el('div', 'item-title', 'warning')); card.appendChild(el('div', 'item-sub', String(text))); return card; }}
+      function warningCard(text) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', 'warning')); const pill = el('div', 'status-pill', 'attention'); pill.style.background = colorFor('waiting_for_user'); top.appendChild(pill); card.appendChild(top); card.appendChild(el('div', 'item-sub', String(text))); return card; }}
       function showDetail(title, record) {{ setText('detail-caption', title); setText('detail', JSON.stringify(record, null, 2)); }}
       function renderLegend() {{ const legend = document.getElementById('legend'); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }}
       function renderGraph() {{ const svg = document.getElementById('graph'); const ns = 'http://www.w3.org/2000/svg'; const nodes = data.graph.nodes || []; const edges = data.graph.edges || []; const columns = [nodes.filter(n => n.column === 0), nodes.filter(n => n.column === 1), nodes.filter(n => n.column === 2)]; const colX = [80, 420, 760]; const width = 250; const heightBox = 76; const maxRows = Math.max(...columns.map(col => Math.max(col.length, 1))); svg.setAttribute('viewBox', `0 0 1080 ${{maxRows * 120 + 120}}`); svg.innerHTML = ''; const positions = new Map(); columns.forEach((col, column) => col.forEach((node, row) => positions.set(node.id, {{ x: colX[column], y: 52 + row * 120 }}))); edges.forEach(edge => {{ const from = positions.get(edge.from); const to = positions.get(edge.to); if (!from || !to) return; const path = document.createElementNS(ns, 'path'); path.setAttribute('d', `M ${{from.x + width}} ${{from.y + heightBox / 2}} C ${{from.x + width + 70}} ${{from.y + heightBox / 2}}, ${{to.x - 70}} ${{to.y + heightBox / 2}}, ${{to.x}} ${{to.y + heightBox / 2}}`); path.setAttribute('fill', 'none'); path.setAttribute('stroke', colorFor(edge.status)); path.setAttribute('stroke-opacity', '0.45'); path.setAttribute('stroke-width', '3'); svg.appendChild(path); }}); nodes.forEach(node => {{ const pos = positions.get(node.id); const group = document.createElementNS(ns, 'g'); group.style.cursor = 'pointer'; const rect = document.createElementNS(ns, 'rect'); rect.setAttribute('x', pos.x); rect.setAttribute('y', pos.y); rect.setAttribute('width', width); rect.setAttribute('height', heightBox); rect.setAttribute('rx', '18'); rect.setAttribute('fill', 'rgba(15,23,42,0.95)'); rect.setAttribute('stroke', colorFor(node.type === 'run' ? 'run' : node.status)); rect.setAttribute('stroke-width', '2'); group.appendChild(rect); const glow = document.createElementNS(ns, 'rect'); glow.setAttribute('x', pos.x + 8); glow.setAttribute('y', pos.y + 8); glow.setAttribute('width', '8'); glow.setAttribute('height', String(heightBox - 16)); glow.setAttribute('rx', '4'); glow.setAttribute('fill', colorFor(node.status)); group.appendChild(glow); const label = document.createElementNS(ns, 'text'); label.setAttribute('x', String(pos.x + 28)); label.setAttribute('y', String(pos.y + 30)); label.setAttribute('fill', '#f8fafc'); label.setAttribute('font-size', '15'); label.setAttribute('font-weight', '700'); label.textContent = String(node.label || ''); group.appendChild(label); const subtitle = document.createElementNS(ns, 'text'); subtitle.setAttribute('x', String(pos.x + 28)); subtitle.setAttribute('y', String(pos.y + 52)); subtitle.setAttribute('fill', '#94a3b8'); subtitle.setAttribute('font-size', '12'); subtitle.textContent = String(node.subtitle || '').slice(0, 34); group.appendChild(subtitle); const badge = document.createElementNS(ns, 'text'); badge.setAttribute('x', String(pos.x + width - 18)); badge.setAttribute('y', String(pos.y + 28)); badge.setAttribute('fill', colorFor(node.status)); badge.setAttribute('font-size', '11'); badge.setAttribute('font-weight', '700'); badge.setAttribute('text-anchor', 'end'); badge.textContent = String(node.status || '').toUpperCase(); group.appendChild(badge); group.addEventListener('click', () => showDetail(node.id, node.detail)); svg.appendChild(group); }}); }}
@@ -1317,11 +1389,11 @@ def render_web_export(
       function refreshConfig() {{ return ((data.meta || {{}}).refresh || {{}}); }}
       function refreshSources() {{ return (refreshConfig().source || {{}}); }}
       function setRefreshStatus(message) {{ document.getElementById('refresh-status').textContent = String(message || ''); }}
-      function normalizeRefPath(refPath) {{ return String(refPath || '').replace(/\\/g, '/'); }}
+      function normalizeRefPath(refPath) {{ return String(refPath || '').split('\\\\').join('/'); }}
       function encodeRelativePath(refPath) {{ return normalizeRefPath(refPath).split('/').map(part => encodeURIComponent(part)).join('/'); }}
       function pathToFileUrl(pathText) {{ const normalized = normalizeRefPath(pathText); if (!normalized) return null; if (/^file:/i.test(normalized)) return normalized; if (/^[A-Za-z]:\//.test(normalized)) return 'file:///' + normalized.slice(0, 2) + normalized.slice(2).split('/').map(part => encodeURIComponent(part)).join('/'); if (normalized.startsWith('/')) return 'file://' + normalized.split('/').map((part, index) => index === 0 ? '' : encodeURIComponent(part)).join('/'); return null; }}
       function candidateBaseUrls() {{ const source = refreshSources(); return unique([source.status_root_url, source.status_parent_url, source.status_dir_url, source.output_dir_url, source.project_dir_url]); }}
-      function buildCandidateUrls(refPath) {{ const normalized = normalizeRefPath(refPath); if (!normalized) return []; const absoluteUrl = pathToFileUrl(normalized); if (absoluteUrl) return [absoluteUrl]; const encoded = encodeRelativePath(normalized); const trimmed = normalized.startsWith('status/') ? encodeRelativePath(normalized.slice(7)) : ''; const urls = []; candidateBaseUrls().forEach(base => {{ try {{ urls.push(new URL(encoded, base).href); }} catch (_error) {{ }} if (trimmed) {{ try {{ urls.push(new URL(trimmed, base).href); }} catch (_error) {{ }} }}); return unique(urls); }}
+      function buildCandidateUrls(refPath) {{ const normalized = normalizeRefPath(refPath); if (!normalized) return []; const absoluteUrl = pathToFileUrl(normalized); if (absoluteUrl) return [absoluteUrl]; const encoded = encodeRelativePath(normalized); const trimmed = normalized.startsWith('status/') ? encodeRelativePath(normalized.slice(7)) : ''; const urls = []; candidateBaseUrls().forEach(base => {{ try {{ urls.push(new URL(encoded, base).href); }} catch (_error) {{ }} if (trimmed) {{ try {{ urls.push(new URL(trimmed, base).href); }} catch (_error) {{ }} }} }}); return unique(urls); }}
       async function fetchJsonUrl(url) {{ const response = await fetch(url, {{ cache: 'no-store' }}); const text = await response.text(); if (response.status && !response.ok) throw new Error(`HTTP ${{response.status}} for ${{url}}`); return JSON.parse(text); }}
       async function fetchJsonFromCandidates(candidates) {{ let lastError = null; for (const candidate of candidates) {{ try {{ return {{ url: candidate, data: await fetchJsonUrl(candidate) }}; }} catch (error) {{ lastError = error; }} }} throw lastError || new Error('No readable local status source was available.'); }}
       function matchesFocus(record, focus, activeIds) {{ const status = String((record || {{}}).status || ''); const recordId = String((record || {{}}).task_id || (record || {{}}).agent_id || ''); if (focus === 'blocked') return status === 'blocked'; if (focus === 'stale') return status === 'stale'; if (focus === 'active') return status === 'in_progress' || status === 'waiting_for_user' || activeIds.has(recordId); return false; }}
@@ -1348,7 +1420,7 @@ def render_web_export(
         return payload;
       }}
       function restoreDetail() {{ const key = String(refreshState.lastDetailKey || `run:${{data.run.run_id}}`); const node = (data.graph.nodes || []).find(item => item.id === key); if (node) {{ showDetail(key, node.detail || {{}}); return; }} showDetail(`run:${{data.run.run_id}}`, data.run.record); }}
-      renderHero = function() {{ const run = data.run; document.getElementById('viewer-label').textContent = String((data.meta || {{}}).viewer_label || 'Read-only web export'); document.getElementById('hero-title').textContent = `${{run.run_id}} · ${{run.status}}`; document.getElementById('hero-subtitle').textContent = `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`; const meta = document.getElementById('hero-meta'); clearNode(meta); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); clearNode(stats); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }};
+      renderHero = function() {{ const run = data.run; document.getElementById('viewer-label').textContent = String((data.meta || {{}}).viewer_label || 'Read-only web export'); document.getElementById('hero-title').textContent = `${{run.run_id}} · ${{run.status}}`; document.getElementById('hero-subtitle').textContent = `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`; const meta = document.getElementById('hero-meta'); clearNode(meta); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`, `updated=${{run.updated_at ?? '-'}}`, `heartbeat=${{run.last_heartbeat_at ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); clearNode(stats); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }};
       renderItemList = function(targetId, items, builder) {{ const root = document.getElementById(targetId); clearNode(root); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }};
       renderLegend = function() {{ const legend = document.getElementById('legend'); clearNode(legend); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }};
       function renderRefreshControls() {{ const refresh = refreshConfig(); document.getElementById('refresh-note').textContent = String(refresh.warning || ''); document.getElementById('refresh-warning').textContent = 'Read-only only: this viewer never controls the pipeline and never writes back to status artifacts.'; const select = document.getElementById('refresh-interval'); if (!select.dataset.bound) {{ clearNode(select); const off = document.createElement('option'); off.value = '0'; off.textContent = 'Off'; select.appendChild(off); (refresh.interval_options_seconds || []).forEach(value => {{ const option = document.createElement('option'); option.value = String(value); option.textContent = `${{value}}s`; select.appendChild(option); }}); select.addEventListener('change', event => {{ refreshState.intervalSeconds = Number(event.target.value || 0); restartPolling(); }}); document.getElementById('refresh-now').addEventListener('click', () => refreshFromSource('manual')); select.dataset.bound = 'true'; }} select.value = String(refreshState.intervalSeconds); }}

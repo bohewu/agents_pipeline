@@ -15,6 +15,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 import shutil
 from typing import Any
+from html.parser import HTMLParser
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +56,68 @@ def extract_embedded_status_data(html: str) -> dict[str, Any]:
     start = html.index(start_marker) + len(start_marker)
     end = html.index(end_marker, start)
     return json.loads(html[start:end])
+
+
+class InlineScriptExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._capture_depth = 0
+        self._chunks: list[str] = []
+        self.scripts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "script":
+            return
+        attributes = dict(attrs)
+        if attributes.get("src") is None:
+            self._capture_depth += 1
+            if self._capture_depth == 1:
+                self._chunks = []
+
+    def handle_data(self, data: str) -> None:
+        if self._capture_depth == 1:
+            self._chunks.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag != "script" or self._capture_depth == 0:
+            return
+        if self._capture_depth == 1:
+            self.scripts.append("".join(self._chunks))
+            self._chunks = []
+        self._capture_depth -= 1
+
+
+def extract_inline_scripts(html: str) -> list[str]:
+    parser = InlineScriptExtractor()
+    parser.feed(html)
+    return parser.scripts
+
+
+def assert_inline_javascript_parses(test_case: unittest.TestCase, html: str) -> None:
+    node = shutil.which("node")
+    if node is None:
+        test_case.skipTest("Node.js is required for generated-JS syntax validation")
+
+    scripts = extract_inline_scripts(html)
+    test_case.assertGreaterEqual(
+        len(scripts), 3, msg="Expected embedded JSON plus viewer scripts"
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        js_path = Path(temp_dir) / "viewer-inline.js"
+        js_path.write_text("\n\n".join(scripts[1:]), encoding="utf-8")
+        result = subprocess.run(
+            [node, "--check", str(js_path)],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+    test_case.assertEqual(
+        result.returncode,
+        0,
+        msg=f"Generated inline JavaScript failed syntax check:\n{result.stderr}",
+    )
 
 
 def load_status_cli_module() -> Any:
@@ -588,6 +651,29 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("Auto refresh every", html)
         self.assertEqual(status_data["meta"]["refresh"]["default_interval_seconds"], 15)
         self.assertEqual(after, before)
+
+    def test_web_export_generated_inline_javascript_passes_syntax_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "expanded-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+                "--theme",
+                "dark",
+            )
+            html = output_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Status graph", html)
+        self.assertIn("Refresh now", html)
+        assert_inline_javascript_parses(self, html)
 
     def test_web_export_surfaces_missing_referenced_files_as_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

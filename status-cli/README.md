@@ -2,7 +2,7 @@
 
 Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. This README reflects the current same-repo Phase 2 usage flow: start from the run summary, then drill into run, task, and agent detail without mutating any status files. The current examples are terminal-first, but the same-repo Phase 2 boundary also allows a self-contained local web viewer or HTML export extension when it stays file-backed, read-only, narrowly bounded, and non-controlling.
 
-Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `task`, `agent`) when you want direct shell output. Choose `web export` when you want a richer local HTML artifact for those same already-written status files. Choose `web serve` only when you want that same read-only viewer over loopback HTTP during a bounded local inspection session. The HTML path is still local-only and inspection-only: it reads status artifacts, writes only the explicitly requested output file, and does not host a service, take control actions, or write back into the status directory. Any live-refresh behavior in the exported HTML is limited to bounded re-reads of those same local files from the browser.
+Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `task`, `agent`) when you want direct shell output. Choose `web export` when you want a richer local HTML artifact for those same already-written status files, including the refreshed graph/detail layout and bounded refresh controls. Choose `web serve` only when you want that same read-only viewer over loopback HTTP during a bounded local inspection session. The HTML path is still local-only and inspection-only: it reads status artifacts, writes only the explicitly requested output file, and does not host a service, take control actions, or write back into the status directory. Any live-refresh behavior in the exported HTML is limited to bounded re-reads of those same local files from the browser.
 
 ## Scope
 
@@ -126,6 +126,8 @@ Use `dashboard` for local read-only inspection only. Do not treat it as a hosted
 ### `web export`
 
 Writes a self-contained local HTML viewer with inline CSS/JS/SVG for a more visual read-only run overview.
+
+- presents a refreshed browser view with a status graph, selected-record detail panel, triage columns, hotspot summaries, and bounded refresh controls
 
 - requires explicit `--output <path>`; only that file is written
 - the parent directory for `--output` must already exist
