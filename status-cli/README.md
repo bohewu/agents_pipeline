@@ -1,12 +1,12 @@
 # status-cli
 
-Minimal Phase 1 read-only CLI for inspecting pipeline status artifacts in this repo.
+Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. This README reflects the current same-repo Phase 2 usage flow: start from the run summary, then drill into run, task, and agent detail without mutating any status files.
 
 ## Scope
 
 - Read-only only
 - Primary support: `run-status.json`
-- Optional enhanced support: `task show` and `agent show` when expanded-layout files exist
+- Optional enhanced support: expanded-layout `task show` / `task list` and `agent show` / `agent list` commands when task and agent files exist
 - Minimal local visual inspection via `visual`
 - No installer support is implemented here
 - No dashboard, watch mode, status writing, or runtime worker behavior
@@ -19,8 +19,10 @@ From the repository root:
 python status-cli/status_cli.py summary --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py task show task-local-server-smoke --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py agent show agent-server-01 --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid
 ```
 
 ## Path options
@@ -41,6 +43,25 @@ Lookup priority is:
 5. current working directory fallback
 
 ## Commands
+
+## Phase 2 usage flow
+
+Use the CLI as a bounded read-only inspection flow:
+
+1. `summary` to confirm the run, layout, and top-level status.
+2. `run show` or `visual` to inspect run-wide details and references.
+3. `task list` to scan tasks, optionally narrowing by status.
+4. `task show <task_id>` for one task record.
+5. `agent list` to scan agent attempts, optionally narrowing by status or task.
+6. `agent show <agent_id>` for one agent record.
+
+Example flow:
+
+```bash
+python status-cli/status_cli.py summary --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status done
+python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked --task-id task-local-server-smoke
+```
 
 ### `summary`
 
@@ -75,6 +96,17 @@ Reads `tasks/<task_id>.json` when present. If the current layout does not includ
 python status-cli/status_cli.py task show task-doc-summary --project-dir opencode/protocols/examples/status-layout.expanded.valid
 ```
 
+### `task list`
+
+Lists expanded-layout tasks in a compact, human-readable format. Optional `--status` narrows the output without changing any files. Missing referenced task files are surfaced as warnings.
+
+```bash
+python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked
+```
+
+If task files are not part of the current layout, the CLI returns a clear read-only error instead of guessing or writing anything.
+
 ### `agent show <agent_id>`
 
 Reads `agents/<agent_id>.json` when present. If the current layout does not include agent files, the CLI returns a clear read-only error.
@@ -82,6 +114,17 @@ Reads `agents/<agent_id>.json` when present. If the current layout does not incl
 ```bash
 python status-cli/status_cli.py agent show agent-browser-02 --project-dir opencode/protocols/examples/status-layout.expanded.valid
 ```
+
+### `agent list`
+
+Lists expanded-layout agents in a compact, human-readable format. Optional `--status` and `--task-id` filters narrow the output without changing any files. Missing referenced agent files are surfaced as warnings.
+
+```bash
+python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked --task-id task-local-server-smoke
+```
+
+If agent files are not part of the current layout, the CLI returns a clear read-only error instead of guessing or writing anything.
 
 ## Tests
 

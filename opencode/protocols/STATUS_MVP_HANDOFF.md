@@ -5,7 +5,7 @@
 This document explains how the status-layer MVP artifacts in this repository fit together, what this repository owns today, what is explicitly deferred to a future runtime repository, and how the work should progress from the current Phase 0-1 MVP to a later hardened system.
 
 The MVP in this repository is a contract-and-validation deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that a future runtime implementation must consume.
-This repository also includes an optional in-repo, read-only Phase 1 `status-cli` for local inspection of status artifacts that follow that contract.
+This repository also includes an optional in-repo, read-only `status-cli` for local inspection of status artifacts that follow that contract, and future read-only CLI continuation may stay in this same repo under `status-cli/`.
 It does **not** implement the external runtime itself.
 
 ## Repository Ownership Boundary
@@ -18,7 +18,8 @@ This repository owns the repo-bound status contract and its validation surface:
 - JSON schemas for `RunStatus`, `TaskStatus`, and `AgentStatus`
 - positive and negative example fixtures for the supported layouts
 - validation guidance and default CI enforcement
-- the optional in-repo, read-only Phase 1 `status-cli` for local inspection of status artifacts
+- the optional in-repo, read-only `status-cli` for local inspection of status artifacts
+- future same-repo read-only `status-cli` continuation under `status-cli/`
 - this handoff document
 - run-local planning artifacts in `.pipeline-output/pipeline/` for review traceability
 
@@ -31,7 +32,7 @@ The future runtime repository owns execution-time implementation work, including
 - any database/API/service projection of the status entities
 - any operational storage, retention, auth, or multi-writer controls
 - any operator-facing or customer-facing runtime surfaces
-- any runtime-integrated or service-backed tooling beyond the current in-repo read-only `status-cli`
+- any runtime-integrated or service-backed tooling beyond the current same-repo read-only `status-cli`
 
 ## Explicit MVP Exclusions
 
@@ -126,11 +127,19 @@ That runtime repo may later project the same entities into richer systems, but a
 
 Deliver only repo-owned documentation, schemas, fixtures, validation, and handoff material.
 
-### Phase 2: First runtime adoption in a separate runtime repository
+### Phase 2: Next same-repo read-only CLI phase
+
+Continue optional read-only `status-cli` work in this repository under `status-cli/` as a local contract consumer only. Keep it file-backed and read-only.
+
+### Phase 3: Later planning for separate runtime adoption
+
+Use a later planning phase to decide how the first separate runtime implementation should adopt the contract. This phase is for planning and boundary confirmation, not for runtime writing work in this repository.
+
+### Phase 4: First runtime adoption in a separate runtime repository
 
 Use the repo contract to implement real status writing for orchestrated runs. Keep the output file layout aligned with the current schemas and examples.
 
-### Phase 3: Runtime hardening in the runtime repository
+### Phase 5: Runtime hardening in the runtime repository
 
 Add operational concerns that are intentionally deferred from the MVP, such as:
 
@@ -139,7 +148,7 @@ Add operational concerns that are intentionally deferred from the MVP, such as:
 - runtime-specific contract tests and failure-injection coverage
 - projection into durable stores or service APIs, if needed
 
-### Phase 4: Optional operator-facing surfaces in the runtime repository
+### Phase 6: Optional operator-facing surfaces in the runtime repository
 
 Only after runtime writing is stable should a later system consider optional presentation or delivery layers such as:
 
@@ -148,7 +157,7 @@ Only after runtime writing is stable should a later system consider optional pre
 - websocket or event-bus integrations
 - external reporting or API consumers
 
-The current in-repo `status-cli` remains a local, read-only contract consumer; richer runtime-facing surfaces stay deferred.
+The current in-repo `status-cli` remains a local, read-only contract consumer, including any later same-repo read-only CLI continuation; richer runtime-facing surfaces stay deferred.
 
 These are later consumers of the contract, not part of the MVP contract work in this repository.
 
@@ -169,6 +178,6 @@ If a proposed runtime implementation requires changing the entity contract, layo
 
 ## Open Followups
 
-- Decide which future runtime repository will be the first consumer of this contract.
+- Decide which future runtime repository will be the first consumer of this contract after the later planning phase.
 - Decide whether runtime adoption begins with `run-status.json` only or with the expanded layout from day one.
 - Keep future runtime UX and transport decisions out of MVP contract updates unless they require a contract change.

@@ -69,6 +69,55 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("status: blocked", result.stdout)
         self.assertIn("resource_status: cleanup_failed", result.stdout)
 
+    def test_task_list_reads_expanded_task_files(self) -> None:
+        result = run_cli("task", "list", "--project-dir", str(EXPANDED_FIXTURE_DIR))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Tasks (4):", result.stdout)
+        self.assertIn(
+            "task-local-server-smoke [blocked] Run a local preview server smoke check and verify teardown evidence. (agent=agent-server-01, resource=cleanup_failed)",
+            result.stdout,
+        )
+        self.assertIn(
+            "task-browser-resume [stale] Resume a browser-based validation after an executor crash left ownership uncertain. (agent=agent-browser-02, resource=unknown)",
+            result.stdout,
+        )
+
+    def test_task_list_supports_optional_status_filter(self) -> None:
+        result = run_cli(
+            "task",
+            "list",
+            "--status",
+            "done",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Tasks (2) [status=done]:", result.stdout)
+        self.assertIn("task-doc-summary [done]", result.stdout)
+        self.assertIn("task-process-build [done]", result.stdout)
+        self.assertNotIn("task-local-server-smoke [blocked]", result.stdout)
+
+    def test_task_list_reports_clear_error_when_layout_has_no_task_files(self) -> None:
+        result = run_cli("task", "list", "--status-file", str(RUN_ONLY_FIXTURE))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Task files are not available for this run", result.stderr)
+
+    def test_task_list_reports_missing_referenced_files_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+            missing_task = fixture_copy / "tasks" / "task-browser-resume.json"
+            missing_task.unlink()
+
+            result = run_cli("task", "list", "--project-dir", str(fixture_copy))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Warnings:", result.stdout)
+        self.assertIn(
+            "Missing task file for task-browser-resume: status/tasks/task-browser-resume.json",
+            result.stdout,
+        )
+
     def test_agent_show_reads_expanded_agent_file(self) -> None:
         result = run_cli(
             "agent",
@@ -90,6 +139,61 @@ class StatusCliTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("Agent files are not available for this run", result.stderr)
+
+    def test_agent_list_reads_expanded_agent_files(self) -> None:
+        result = run_cli("agent", "list", "--project-dir", str(EXPANDED_FIXTURE_DIR))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Agents (4):", result.stdout)
+        self.assertIn(
+            "agent-server-01 [blocked] task=task-local-server-smoke agent=executor-core attempt=1 cleanup=failed",
+            result.stdout,
+        )
+        self.assertIn(
+            "agent-doc-01 [done] task=task-doc-summary agent=doc-writer attempt=1",
+            result.stdout,
+        )
+
+    def test_agent_list_supports_status_and_task_filters(self) -> None:
+        result = run_cli(
+            "agent",
+            "list",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+            "--status",
+            "blocked",
+            "--task-id",
+            "task-local-server-smoke",
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn(
+            "Agents (1) [status=blocked, task_id=task-local-server-smoke]:",
+            result.stdout,
+        )
+        self.assertIn("agent-server-01 [blocked]", result.stdout)
+        self.assertNotIn("agent-doc-01", result.stdout)
+
+    def test_agent_list_reports_clear_error_when_layout_has_no_agent_files(
+        self,
+    ) -> None:
+        result = run_cli("agent", "list", "--status-file", str(RUN_ONLY_FIXTURE))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Agent files are not available for this run", result.stderr)
+
+    def test_agent_list_reports_missing_referenced_files_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+            missing_agent = fixture_copy / "agents" / "agent-browser-02.json"
+            missing_agent.unlink()
+
+            result = run_cli("agent", "list", "--project-dir", str(fixture_copy))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Warnings:", result.stdout)
+        self.assertIn(
+            "Missing agent file for agent-browser-02: status/agents/agent-browser-02.json",
+            result.stdout,
+        )
 
     def test_visual_with_run_only_fixture_stays_read_only(self) -> None:
         result = run_cli("visual", "--status-file", str(RUN_ONLY_FIXTURE))

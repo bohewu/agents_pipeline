@@ -12,6 +12,8 @@ This plan keeps Phase 1 intentionally small:
 - Support for `tasks/` and `agents/` files is optional enhanced behavior when present.
 - Phase 1 does **not** include status writing, runtime orchestration, background services, or live update behavior.
 
+Future read-only CLI continuation is allowed in this same repository under `status-cli/`. For roadmap wording in this repo, Phase 2 means the next in-repo read-only CLI phase, while any true runtime status writing remains deferred to later planning and a separate runtime implementation effort.
+
 Unless separate install docs/scripts are added alongside the implementation, treat `status-cli` as an in-repo companion rather than a broadly supported install workflow.
 
 The source of truth for status semantics remains the existing status-layer MVP contract in:
@@ -244,6 +246,7 @@ This preserves the MVP-first contract stance already used by the status-layer do
 
 ## Open Questions for Later Phases
 
+- Should the next same-repo read-only `status-cli` phase stay focused on richer inspection of `run-status.json`, or add expanded-layout views first?
 - Should future runtime adoption start with run-only layout everywhere, or should some consumers write expanded task/agent files immediately?
 - Should later CLI output include machine-readable export modes, or remain human-first only?
 - At what point would watch/live-refresh behavior be justified, if ever?
@@ -251,4 +254,4 @@ This preserves the MVP-first contract stance already used by the status-layer do
 
 ## Recommended Next Step
 
-Keep this document as the main planning reference for `status-cli` in this repository, while leaving actual implementation and runtime-writer behavior to a future downstream effort.
+Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, while runtime-writer behavior, services, and broader platform work remain deferred to later planning and a future downstream runtime effort.

@@ -312,6 +312,7 @@ def load_referenced_records(
 ) -> tuple[list[dict], list[str]]:
     records: list[dict] = []
     warnings: list[str] = []
+    entity_name = id_key[:-3] if id_key.endswith("_id") else id_key
 
     for item in run_status.get(ref_key) or []:
         if not isinstance(item, dict):
@@ -324,7 +325,7 @@ def load_referenced_records(
 
         resolved = resolve_ref_path(str(ref_path), context)
         if resolved is None:
-            warnings.append(f"Missing {id_key} artifact for {entity_id}: {ref_path}")
+            warnings.append(f"Missing {entity_name} file for {entity_id}: {ref_path}")
             continue
 
         try:
@@ -333,6 +334,116 @@ def load_referenced_records(
             warnings.append(str(exc))
 
     return records, warnings
+
+
+def require_expanded_layout(run_status: dict, entity_dir_name: str) -> None:
+    layout = run_status.get("layout")
+    if layout != "expanded":
+        noun = entity_dir_name[:-1].capitalize()
+        raise StatusCliError(
+            f"{noun} files are not available for this run (layout={layout or 'unknown'})."
+        )
+
+
+def render_task_list(
+    run_status: dict,
+    context: StatusContext,
+    status_filter: Optional[str] = None,
+) -> str:
+    require_expanded_layout(run_status, "tasks")
+    tasks, warnings = load_referenced_records(
+        run_status, context, ref_key="task_refs", id_key="task_id"
+    )
+
+    filtered_tasks: list[dict] = []
+    for task in tasks:
+        if status_filter and str(task.get("status")) != status_filter:
+            continue
+        filtered_tasks.append(task)
+
+    heading = f"Tasks ({len(filtered_tasks)})"
+    if status_filter:
+        heading = f"{heading} [status={status_filter}]"
+
+    lines = [heading + ":"]
+    if not filtered_tasks:
+        lines.append("  - none")
+    else:
+        for task in filtered_tasks:
+            details = []
+            if task.get("assigned_agent_id"):
+                details.append(f"agent={render_value(task.get('assigned_agent_id'))}")
+            if task.get("resource_status") not in {None, "not_required"}:
+                details.append(f"resource={render_value(task.get('resource_status'))}")
+            lines.append(
+                f"  - {render_value(task.get('task_id'))} [{render_value(task.get('status'))}] "
+                + render_value(task.get("summary"))
+                + (f" ({', '.join(details)})" if details else "")
+            )
+
+    if warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    return "\n".join(lines)
+
+
+def render_agent_list(
+    run_status: dict,
+    context: StatusContext,
+    status_filter: Optional[str] = None,
+    task_id_filter: Optional[str] = None,
+) -> str:
+    require_expanded_layout(run_status, "agents")
+    agents, warnings = load_referenced_records(
+        run_status, context, ref_key="agent_refs", id_key="agent_id"
+    )
+
+    filtered_agents: list[dict] = []
+    for agent in agents:
+        if status_filter and str(agent.get("status")) != status_filter:
+            continue
+        if task_id_filter and str(agent.get("task_id")) != task_id_filter:
+            continue
+        filtered_agents.append(agent)
+
+    filter_parts: list[str] = []
+    if status_filter:
+        filter_parts.append(f"status={status_filter}")
+    if task_id_filter:
+        filter_parts.append(f"task_id={task_id_filter}")
+
+    heading = f"Agents ({len(filtered_agents)})"
+    if filter_parts:
+        heading = f"{heading} [{', '.join(filter_parts)}]"
+
+    lines = [heading + ":"]
+    if not filtered_agents:
+        lines.append("  - none")
+    else:
+        for agent in filtered_agents:
+            details = [
+                f"task={render_value(agent.get('task_id'))}",
+                f"agent={render_value(agent.get('agent'))}",
+            ]
+            if agent.get("attempt") is not None:
+                details.append(f"attempt={render_value(agent.get('attempt'))}")
+            if agent.get("cleanup_status") not in {None, "not_required"}:
+                details.append(f"cleanup={render_value(agent.get('cleanup_status'))}")
+            lines.append(
+                f"  - {render_value(agent.get('agent_id'))} [{render_value(agent.get('status'))}] "
+                + " ".join(details)
+            )
+
+    if warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    return "\n".join(lines)
 
 
 def render_visual(run_status: dict, context: StatusContext) -> str:
@@ -606,8 +717,9 @@ def resolve_entity_path(
 
     layout = run_status.get("layout")
     if layout != "expanded":
+        noun = entity_dir_name[:-1].capitalize()
         raise StatusCliError(
-            f"{entity_dir_name[:-1].capitalize()} files are not available for this run (layout={layout or 'unknown'})."
+            f"{noun} files are not available for this run (layout={layout or 'unknown'})."
         )
 
     raise StatusCliError(f"Could not find {entity_dir_name[:-1]} file for {entity_id}.")
@@ -663,6 +775,12 @@ def command_task_show(args: argparse.Namespace) -> str:
     )
 
 
+def command_task_list(args: argparse.Namespace) -> str:
+    context = discover_run_status(args)
+    run_status = load_json(context.run_status_path)
+    return render_task_list(run_status, context, status_filter=args.status)
+
+
 def command_agent_show(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
     run_status = load_json(context.run_status_path)
@@ -699,6 +817,17 @@ def command_agent_show(args: argparse.Namespace) -> str:
             "error",
             "evidence_refs",
         ],
+    )
+
+
+def command_agent_list(args: argparse.Namespace) -> str:
+    context = discover_run_status(args)
+    run_status = load_json(context.run_status_path)
+    return render_agent_list(
+        run_status,
+        context,
+        status_filter=args.status,
+        task_id_filter=args.task_id,
     )
 
 
@@ -741,6 +870,12 @@ def build_parser() -> argparse.ArgumentParser:
     task_show_parser.add_argument("task_id", help="Task ID to display")
     add_path_options(task_show_parser)
     task_show_parser.set_defaults(handler=command_task_show)
+    task_list_parser = task_subparsers.add_parser(
+        "list", help="List task records for expanded layout"
+    )
+    task_list_parser.add_argument("--status", help="Optional task status filter")
+    add_path_options(task_list_parser)
+    task_list_parser.set_defaults(handler=command_task_list)
 
     agent_parser = subparsers.add_parser("agent", help="Agent-level commands")
     agent_subparsers = agent_parser.add_subparsers(dest="agent_command")
@@ -751,6 +886,13 @@ def build_parser() -> argparse.ArgumentParser:
     agent_show_parser.add_argument("agent_id", help="Agent ID to display")
     add_path_options(agent_show_parser)
     agent_show_parser.set_defaults(handler=command_agent_show)
+    agent_list_parser = agent_subparsers.add_parser(
+        "list", help="List agent records for expanded layout"
+    )
+    agent_list_parser.add_argument("--status", help="Optional agent status filter")
+    agent_list_parser.add_argument("--task-id", help="Optional task ID filter")
+    add_path_options(agent_list_parser)
+    agent_list_parser.set_defaults(handler=command_agent_list)
 
     visual_parser = subparsers.add_parser(
         "visual", help="Show a read-only local visual inspection"
