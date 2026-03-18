@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from html import escape
 import json
 import sys
 from dataclasses import dataclass
@@ -35,6 +36,20 @@ TASK_COUNT_ORDER = [
 ]
 
 FOCUS_CHOICES = ("blocked", "stale", "active")
+WEB_THEME_CHOICES = ("auto", "light", "dark")
+WEB_STATUS_COLORS = {
+    "pending": "#64748b",
+    "ready": "#0ea5e9",
+    "in_progress": "#8b5cf6",
+    "waiting_for_user": "#f59e0b",
+    "done": "#10b981",
+    "blocked": "#ef4444",
+    "failed": "#dc2626",
+    "skipped": "#94a3b8",
+    "stale": "#f97316",
+    "unknown": "#475569",
+    "run": "#7c3aed",
+}
 
 
 def add_path_options(parser: argparse.ArgumentParser) -> None:
@@ -566,9 +581,9 @@ def render_dashboard_task_entry(task: dict) -> list[str]:
     return lines
 
 
-def render_dashboard_agent_hotspots(
+def build_agent_hotspot_rollups(
     agents: list[dict], active_agent_ids: set[str], focus: Optional[str]
-) -> list[str]:
+) -> list[dict[str, object]]:
     filtered_agents = agents
     if focus:
         filtered_agents = [
@@ -577,17 +592,13 @@ def render_dashboard_agent_hotspots(
             if record_matches_focus(agent, focus, active_agent_ids)
         ]
 
-    lines = ["Agent hotspots:"]
-    if not filtered_agents:
-        lines.append("  - none")
-        return lines
-
     rollups: dict[str, dict[str, object]] = {}
     for agent in filtered_agents:
         agent_name = str(agent.get("agent") or "unknown")
         rollup = rollups.setdefault(
             agent_name,
             {
+                "agent": agent_name,
                 "count": 0,
                 "active": 0,
                 "cleanup_issues": 0,
@@ -596,44 +607,49 @@ def render_dashboard_agent_hotspots(
             },
         )
 
-        count = cast(int, rollup["count"])
-        rollup["count"] = count + 1
+        rollup["count"] = cast(int, rollup["count"]) + 1
 
         agent_id = str(agent.get("agent_id") or "")
         if agent_id in active_agent_ids:
-            active = cast(int, rollup["active"])
-            rollup["active"] = active + 1
+            rollup["active"] = cast(int, rollup["active"]) + 1
 
         status = str(agent.get("status") or "unknown")
-        statuses = rollup["statuses"]
-        assert isinstance(statuses, dict)
+        statuses = cast(dict[str, int], rollup["statuses"])
         statuses[status] = int(statuses.get(status, 0)) + 1
 
         if agent.get("cleanup_status") in {"failed", "unknown"} or agent.get(
             "resource_status"
         ) in {"cleanup_failed", "unknown"}:
-            cleanup_issues = cast(int, rollup["cleanup_issues"])
-            rollup["cleanup_issues"] = cleanup_issues + 1
+            rollup["cleanup_issues"] = cast(int, rollup["cleanup_issues"]) + 1
 
         task_id = agent.get("task_id")
-        tasks = rollup["tasks"]
-        assert isinstance(tasks, list)
+        tasks = cast(list[object], rollup["tasks"])
         if task_id and task_id not in tasks:
             tasks.append(task_id)
 
-    ranked_rollups = sorted(
-        rollups.items(),
+    return sorted(
+        rollups.values(),
         key=lambda item: (
-            -cast(int, item[1]["cleanup_issues"]),
-            -cast(int, item[1]["active"]),
-            -cast(int, item[1]["count"]),
-            item[0],
+            -cast(int, item["cleanup_issues"]),
+            -cast(int, item["active"]),
+            -cast(int, item["count"]),
+            str(item["agent"]),
         ),
     )
 
-    for agent_name, rollup in ranked_rollups:
-        statuses = rollup["statuses"]
-        assert isinstance(statuses, dict)
+
+def render_dashboard_agent_hotspots(
+    agents: list[dict], active_agent_ids: set[str], focus: Optional[str]
+) -> list[str]:
+    lines = ["Agent hotspots:"]
+    ranked_rollups = build_agent_hotspot_rollups(agents, active_agent_ids, focus)
+    if not ranked_rollups:
+        lines.append("  - none")
+        return lines
+
+    for rollup in ranked_rollups:
+        agent_name = str(rollup["agent"])
+        statuses = cast(dict[str, int], rollup["statuses"])
         status_bits = [
             f"{name}={statuses[name]}" for name in TASK_COUNT_ORDER if name in statuses
         ]
@@ -815,6 +831,399 @@ def render_dashboard(
             lines.append(f"  - {warning}")
 
     return "\n".join(lines)
+
+
+def theme_palette(theme: str) -> dict[str, str]:
+    if theme == "light":
+        return {
+            "scheme": "light",
+            "bg": "#f8fafc",
+            "panel": "#ffffff",
+            "text": "#0f172a",
+            "muted": "#475569",
+            "border": "#dbe2ea",
+            "accent": "#2563eb",
+        }
+    if theme == "dark":
+        return {
+            "scheme": "dark",
+            "bg": "#0b1220",
+            "panel": "#111a2e",
+            "text": "#e5eefb",
+            "muted": "#94a3b8",
+            "border": "#24324a",
+            "accent": "#60a5fa",
+        }
+    return {
+        "scheme": "light dark",
+        "bg": "#f8fafc",
+        "panel": "#ffffff",
+        "text": "#0f172a",
+        "muted": "#475569",
+        "border": "#dbe2ea",
+        "accent": "#2563eb",
+    }
+
+
+def serialize_record(record: dict) -> dict[str, object]:
+    return {key: record[key] for key in sorted(record)}
+
+
+def build_web_payload(
+    run_status: dict,
+    context: StatusContext,
+    focus: Optional[str] = None,
+) -> dict[str, object]:
+    active_task_ids = {str(item) for item in run_status.get("active_task_ids") or []}
+    active_agent_ids = {str(item) for item in run_status.get("active_agent_ids") or []}
+    run_id = str(run_status.get("run_id") or "-")
+    warnings: list[str] = []
+
+    payload: dict[str, object] = {
+        "meta": {
+            "title": f"Status viewer: {run_id}",
+            "focus": focus,
+            "loaded_from": str(context.run_status_path),
+            "read_only": True,
+        },
+        "run": {
+            "run_id": run_status.get("run_id"),
+            "status": run_status.get("status"),
+            "orchestrator": run_status.get("orchestrator"),
+            "layout": run_status.get("layout", "-"),
+            "current_stage": run_status.get("current_stage"),
+            "next_stage": run_status.get("next_stage"),
+            "updated_at": run_status.get("updated_at"),
+            "last_heartbeat_at": run_status.get("last_heartbeat_at"),
+            "waiting_on": run_status.get("waiting_on"),
+            "resume_from_checkpoint": run_status.get("resume_from_checkpoint"),
+            "last_error": run_status.get("last_error"),
+            "task_counts": dict(run_status.get("task_counts") or {}),
+            "active_task_ids": sorted(active_task_ids),
+            "active_agent_ids": sorted(active_agent_ids),
+            "record": serialize_record(run_status),
+        },
+        "tasks": [],
+        "agents": [],
+        "warnings": warnings,
+        "hotspots": [],
+        "panels": {"blocked": [], "stale": [], "active": []},
+        "graph": {
+            "nodes": [
+                {
+                    "id": f"run:{run_id}",
+                    "type": "run",
+                    "label": run_id,
+                    "status": str(run_status.get("status") or "unknown"),
+                    "subtitle": str(run_status.get("orchestrator") or "-"),
+                    "column": 0,
+                    "detail": serialize_record(run_status),
+                }
+            ],
+            "edges": [],
+        },
+    }
+
+    panels = cast(dict[str, list[dict[str, object]]], payload["panels"])
+
+    if run_status.get("layout") != "expanded":
+        task_counts = cast(
+            dict[str, int], cast(dict[str, object], payload["run"])["task_counts"]
+        )
+        panels["blocked"] = [
+            {
+                "task_id": "run-only",
+                "summary": f"count={task_counts.get('blocked', 0)} (details unavailable in run-only layout)",
+                "status": "blocked",
+            }
+        ]
+        panels["stale"] = [
+            {
+                "task_id": "run-only",
+                "summary": f"count={task_counts.get('stale', 0)} (details unavailable in run-only layout)",
+                "status": "stale",
+            }
+        ]
+        panels["active"] = [
+            {
+                "task_id": "run-only",
+                "summary": ", ".join(sorted(active_task_ids))
+                if active_task_ids
+                else "none",
+                "status": "in_progress" if active_task_ids else "unknown",
+            }
+        ]
+        return payload
+
+    tasks, task_warnings = load_referenced_records(
+        run_status, context, ref_key="task_refs", id_key="task_id"
+    )
+    agents, agent_warnings = load_referenced_records(
+        run_status, context, ref_key="agent_refs", id_key="agent_id"
+    )
+    warnings.extend([*task_warnings, *agent_warnings])
+
+    task_cards: list[dict[str, object]] = []
+    task_card_by_id: dict[str, dict[str, object]] = {}
+    graph = cast(dict[str, list[dict[str, object]]], payload["graph"])
+
+    for task in tasks:
+        task_id = str(task.get("task_id") or "")
+        card = {
+            "task_id": task.get("task_id"),
+            "summary": task.get("summary"),
+            "status": str(task.get("status") or "unknown"),
+            "assigned_agent_id": task.get("assigned_agent_id"),
+            "assigned_executor": task.get("assigned_executor"),
+            "resource_status": task.get("resource_status"),
+            "result_summary": task.get("result_summary"),
+            "error": task.get("error"),
+            "resume_note": task.get("resume_note"),
+            "record": serialize_record(task),
+        }
+        task_cards.append(card)
+        task_card_by_id[task_id] = card
+        graph["nodes"].append(
+            {
+                "id": f"task:{task_id}",
+                "type": "task",
+                "label": task_id,
+                "status": str(task.get("status") or "unknown"),
+                "subtitle": str(task.get("summary") or "-"),
+                "column": 1,
+                "detail": serialize_record(task),
+            }
+        )
+        graph["edges"].append(
+            {
+                "from": f"run:{run_id}",
+                "to": f"task:{task_id}",
+                "status": str(task.get("status") or "unknown"),
+            }
+        )
+
+    agent_cards: list[dict[str, object]] = []
+    for agent in agents:
+        agent_id = str(agent.get("agent_id") or "")
+        task_id = str(agent.get("task_id") or "")
+        card = {
+            "agent_id": agent.get("agent_id"),
+            "agent": agent.get("agent"),
+            "status": str(agent.get("status") or "unknown"),
+            "task_id": agent.get("task_id"),
+            "attempt": agent.get("attempt"),
+            "cleanup_status": agent.get("cleanup_status"),
+            "resource_status": agent.get("resource_status"),
+            "result_summary": agent.get("result_summary"),
+            "error": agent.get("error"),
+            "resource_handles": agent.get("resource_handles"),
+            "record": serialize_record(agent),
+        }
+        agent_cards.append(card)
+        graph["nodes"].append(
+            {
+                "id": f"agent:{agent_id}",
+                "type": "agent",
+                "label": agent_id,
+                "status": str(agent.get("status") or "unknown"),
+                "subtitle": str(agent.get("agent") or "-"),
+                "column": 2,
+                "detail": serialize_record(agent),
+            }
+        )
+        graph["edges"].append(
+            {
+                "from": f"task:{task_id}",
+                "to": f"agent:{agent_id}",
+                "status": str(agent.get("status") or "unknown"),
+            }
+        )
+
+    for task_id in sorted(active_task_ids):
+        if task_id not in task_card_by_id:
+            warnings.append(f"Missing task file for active task {task_id}.")
+
+    panels["blocked"] = [item for item in task_cards if item["status"] == "blocked"]
+    panels["stale"] = [item for item in task_cards if item["status"] == "stale"]
+    panels["active"] = [
+        task_card_by_id[task_id]
+        for task_id in sorted(active_task_ids)
+        if task_id in task_card_by_id
+    ]
+
+    if focus:
+        task_cards = [
+            item
+            for item in task_cards
+            if record_matches_focus(cast(dict, item["record"]), focus, active_task_ids)
+        ]
+        agent_cards = [
+            item
+            for item in agent_cards
+            if record_matches_focus(cast(dict, item["record"]), focus, active_agent_ids)
+        ]
+        for key in ("blocked", "stale", "active"):
+            panels[key] = [
+                item
+                for item in panels[key]
+                if record_matches_focus(
+                    cast(dict, item["record"]), focus, active_task_ids
+                )
+            ]
+
+    payload["tasks"] = task_cards
+    payload["agents"] = agent_cards
+    payload["hotspots"] = build_agent_hotspot_rollups(agents, active_agent_ids, focus)
+    return payload
+
+
+def render_web_export(
+    run_status: dict,
+    context: StatusContext,
+    focus: Optional[str] = None,
+    theme: str = "auto",
+) -> str:
+    palette = theme_palette(theme)
+    payload = build_web_payload(run_status, context, focus=focus)
+    title = str(cast(dict[str, object], payload["meta"])["title"])
+    payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    theme_override = ""
+    if theme == "auto":
+        dark_palette = theme_palette("dark")
+        theme_override = f"""
+      @media (prefers-color-scheme: dark) {{
+        :root {{
+          --bg: {dark_palette["bg"]};
+          --panel: {dark_palette["panel"]};
+          --text: {dark_palette["text"]};
+          --muted: {dark_palette["muted"]};
+          --border: {dark_palette["border"]};
+          --accent: {dark_palette["accent"]};
+        }}
+      }}
+"""
+
+    return f"""<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>{escape(title)}</title>
+  <style>
+    :root {{
+      color-scheme: {palette["scheme"]};
+      --bg: {palette["bg"]};
+      --panel: {palette["panel"]};
+      --text: {palette["text"]};
+      --muted: {palette["muted"]};
+      --border: {palette["border"]};
+      --accent: {palette["accent"]};
+      --line: rgba(148, 163, 184, 0.18);
+    }}
+{theme_override}    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(124, 58, 237, 0.18), transparent 28%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.14), transparent 24%),
+        linear-gradient(180deg, var(--bg) 0%, #030712 100%);
+      color: var(--text);
+    }}
+    main {{ max-width: 1460px; margin: 0 auto; padding: 28px; }}
+    .panel {{ background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 20px; margin-bottom: 18px; box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35); }}
+    .hero {{ padding: 24px; }}
+    .hero-top {{ display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }}
+    h1 {{ margin: 6px 0 0; font-size: 2rem; }}
+    h2, h3 {{ margin-top: 0; }}
+    .eyebrow {{ color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; font-weight: 700; }}
+    .subtitle {{ color: var(--muted); margin-top: 6px; max-width: 900px; }}
+    .meta {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }}
+    .pill {{ display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.92rem; }}
+    .stats, .triage, .two-col {{ display: grid; gap: 18px; }}
+    .stats {{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }}
+    .two-col {{ grid-template-columns: 2.1fr 1.1fr; align-items: start; }}
+    .triage {{ grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }}
+    .stat {{ padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: rgba(15, 23, 42, 0.45); }}
+    .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
+    .stat-value {{ font-size: 28px; font-weight: 700; margin-top: 8px; }}
+    .stat-sub {{ color: var(--muted); font-size: 13px; margin-top: 6px; }}
+    .graph-wrap {{ overflow: auto; border: 1px solid var(--line); border-radius: 18px; background: rgba(2, 6, 23, 0.26); }}
+    svg {{ display: block; width: 100%; min-height: 320px; }}
+    .list {{ display: grid; gap: 12px; }}
+    .item {{ background: rgba(15, 23, 42, 0.5); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }}
+    .item-top {{ display: flex; justify-content: space-between; gap: 10px; align-items: start; }}
+    .item-title {{ font-weight: 700; }}
+    .item-sub {{ color: var(--muted); margin-top: 6px; font-size: 13px; }}
+    .chips, .legend {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }}
+    .chip {{ font-size: 12px; padding: 6px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); }}
+    .status-pill {{ color: #fff; font-size: 12px; padding: 6px 8px; border-radius: 999px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }}
+    .legend-item {{ display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }}
+    .dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; }}
+    .empty {{ color: var(--muted); }}
+    pre {{ margin: 0; white-space: pre-wrap; word-break: break-word; font-family: Consolas, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; line-height: 1.55; color: var(--text); }}
+    .detail {{ max-height: 680px; overflow: auto; border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: rgba(2, 6, 23, 0.35); }}
+    .note {{ color: var(--muted); margin: 0; }}
+    @media (max-width: 1080px) {{ .two-col {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class=\"panel hero\">
+      <div class=\"hero-top\">
+        <div>
+          <div class=\"eyebrow\">Read-only web export</div>
+          <h1 id=\"hero-title\"></h1>
+          <p class=\"subtitle\" id=\"hero-subtitle\"></p>
+        </div>
+        <div class=\"meta\" id=\"hero-meta\"></div>
+      </div>
+      <div class=\"stats\" id=\"stats\"></div>
+    </section>
+    <section class=\"two-col\">
+      <div class=\"panel\">
+        <h2>Run → tasks → agents</h2>
+        <p class=\"note\">Graph view of existing status artifacts. Click any node to inspect its source JSON.</p>
+        <div class=\"graph-wrap\"><svg id=\"graph\" aria-label=\"Status graph\"></svg></div>
+        <div class=\"legend\" id=\"legend\"></div>
+      </div>
+      <div class=\"panel\">
+        <h2>Selected detail</h2>
+        <p class=\"note\" id=\"detail-caption\"></p>
+        <pre class=\"detail\" id=\"detail\"></pre>
+      </div>
+    </section>
+    <section class=\"triage\">
+      <div class=\"panel\"><h3>Blocked</h3><div class=\"list\" id=\"blocked-list\"></div></div>
+      <div class=\"panel\"><h3>Stale</h3><div class=\"list\" id=\"stale-list\"></div></div>
+      <div class=\"panel\"><h3>Active</h3><div class=\"list\" id=\"active-list\"></div></div>
+    </section>
+    <section class=\"two-col\">
+      <div class=\"panel\"><h2>Agent hotspots</h2><div class=\"list\" id=\"hotspots\"></div></div>
+      <div class=\"panel\"><h2>Warnings</h2><div class=\"list\" id=\"warnings\"></div></div>
+    </section>
+    <script id=\"status-data\" type=\"application/json\">{payload_json}</script>
+    <script>
+      const data = JSON.parse(document.getElementById('status-data').textContent);
+      const COLORS = {json.dumps(WEB_STATUS_COLORS, ensure_ascii=False)};
+      const FIXED_THEME = {json.dumps(theme)};
+      function colorFor(status) {{ return COLORS[String(status || 'unknown')] || COLORS.unknown; }}
+      function el(name, className, text) {{ const node = document.createElement(name); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }}
+      function setText(id, text) {{ document.getElementById(id).textContent = text; }}
+      function renderHero() {{ const run = data.run; setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
+      function renderItemList(targetId, items, builder) {{ const root = document.getElementById(targetId); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }}
+      function taskCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); const left = el('div'); left.appendChild(el('div', 'item-title', String(item.task_id || 'task'))); left.appendChild(el('div', 'item-sub', String(item.summary || ''))); top.appendChild(left); const pill = el('div', 'status-pill', String(item.status || 'unknown')); pill.style.background = colorFor(item.status); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [item.assigned_agent_id && `agent=${{item.assigned_agent_id}}`, item.assigned_executor && `executor=${{item.assigned_executor}}`, item.resource_status && `resource=${{item.resource_status}}`].filter(Boolean).forEach(text => chips.appendChild(el('div', 'chip', text))); if (chips.childNodes.length) card.appendChild(chips); if (item.error) card.appendChild(el('div', 'item-sub', `issue: ${{item.error}}`)); if (item.resume_note) card.appendChild(el('div', 'item-sub', `resume: ${{item.resume_note}}`)); return card; }}
+      function hotspotCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', String(item.agent || 'unknown'))); const pill = el('div', 'status-pill', `count ${{item.count}}`); pill.style.background = colorFor(item.cleanup_issues ? 'blocked' : (item.active ? 'in_progress' : 'done')); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [`active=${{item.active}}`, `cleanup_issues=${{item.cleanup_issues}}`].forEach(text => chips.appendChild(el('div', 'chip', text))); Object.entries(item.statuses || {{}}).forEach(([status, count]) => chips.appendChild(el('div', 'chip', `${{status}}=${{count}}`))); (item.tasks || []).forEach(task => chips.appendChild(el('div', 'chip', `task=${{task}}`))); card.appendChild(chips); return card; }}
+      function warningCard(text) {{ const card = el('div', 'item'); card.appendChild(el('div', 'item-title', 'warning')); card.appendChild(el('div', 'item-sub', String(text))); return card; }}
+      function showDetail(title, record) {{ setText('detail-caption', title); setText('detail', JSON.stringify(record, null, 2)); }}
+      function renderLegend() {{ const legend = document.getElementById('legend'); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }}
+      function renderGraph() {{ const svg = document.getElementById('graph'); const ns = 'http://www.w3.org/2000/svg'; const nodes = data.graph.nodes || []; const edges = data.graph.edges || []; const columns = [nodes.filter(n => n.column === 0), nodes.filter(n => n.column === 1), nodes.filter(n => n.column === 2)]; const colX = [80, 420, 760]; const width = 250; const heightBox = 76; const maxRows = Math.max(...columns.map(col => Math.max(col.length, 1))); svg.setAttribute('viewBox', `0 0 1080 ${{maxRows * 120 + 120}}`); svg.innerHTML = ''; const positions = new Map(); columns.forEach((col, column) => col.forEach((node, row) => positions.set(node.id, {{ x: colX[column], y: 52 + row * 120 }}))); edges.forEach(edge => {{ const from = positions.get(edge.from); const to = positions.get(edge.to); if (!from || !to) return; const path = document.createElementNS(ns, 'path'); path.setAttribute('d', `M ${{from.x + width}} ${{from.y + heightBox / 2}} C ${{from.x + width + 70}} ${{from.y + heightBox / 2}}, ${{to.x - 70}} ${{to.y + heightBox / 2}}, ${{to.x}} ${{to.y + heightBox / 2}}`); path.setAttribute('fill', 'none'); path.setAttribute('stroke', colorFor(edge.status)); path.setAttribute('stroke-opacity', '0.45'); path.setAttribute('stroke-width', '3'); svg.appendChild(path); }}); nodes.forEach(node => {{ const pos = positions.get(node.id); const group = document.createElementNS(ns, 'g'); group.style.cursor = 'pointer'; const rect = document.createElementNS(ns, 'rect'); rect.setAttribute('x', pos.x); rect.setAttribute('y', pos.y); rect.setAttribute('width', width); rect.setAttribute('height', heightBox); rect.setAttribute('rx', '18'); rect.setAttribute('fill', 'rgba(15,23,42,0.95)'); rect.setAttribute('stroke', colorFor(node.type === 'run' ? 'run' : node.status)); rect.setAttribute('stroke-width', '2'); group.appendChild(rect); const glow = document.createElementNS(ns, 'rect'); glow.setAttribute('x', pos.x + 8); glow.setAttribute('y', pos.y + 8); glow.setAttribute('width', '8'); glow.setAttribute('height', String(heightBox - 16)); glow.setAttribute('rx', '4'); glow.setAttribute('fill', colorFor(node.status)); group.appendChild(glow); const label = document.createElementNS(ns, 'text'); label.setAttribute('x', String(pos.x + 28)); label.setAttribute('y', String(pos.y + 30)); label.setAttribute('fill', '#f8fafc'); label.setAttribute('font-size', '15'); label.setAttribute('font-weight', '700'); label.textContent = String(node.label || ''); group.appendChild(label); const subtitle = document.createElementNS(ns, 'text'); subtitle.setAttribute('x', String(pos.x + 28)); subtitle.setAttribute('y', String(pos.y + 52)); subtitle.setAttribute('fill', '#94a3b8'); subtitle.setAttribute('font-size', '12'); subtitle.textContent = String(node.subtitle || '').slice(0, 34); group.appendChild(subtitle); const badge = document.createElementNS(ns, 'text'); badge.setAttribute('x', String(pos.x + width - 18)); badge.setAttribute('y', String(pos.y + 28)); badge.setAttribute('fill', colorFor(node.status)); badge.setAttribute('font-size', '11'); badge.setAttribute('font-weight', '700'); badge.setAttribute('text-anchor', 'end'); badge.textContent = String(node.status || '').toUpperCase(); group.appendChild(badge); group.addEventListener('click', () => showDetail(node.id, node.detail)); svg.appendChild(group); }}); }}
+      renderHero(); renderItemList('blocked-list', data.panels.blocked, taskCard); renderItemList('stale-list', data.panels.stale, taskCard); renderItemList('active-list', data.panels.active, taskCard); renderItemList('hotspots', data.hotspots, hotspotCard); renderItemList('warnings', data.warnings, warningCard); renderLegend(); renderGraph(); showDetail(`run:${{data.run.run_id}}`, data.run.record);
+    </script>
+  </main>
+</body>
+</html>
+"""
 
 
 def render_record(title: str, record: dict, preferred_order: list[str]) -> str:
@@ -1150,6 +1559,32 @@ def command_dashboard(args: argparse.Namespace) -> str:
     return render_dashboard(run_status, context, focus=args.focus)
 
 
+def command_web_export(args: argparse.Namespace) -> str:
+    context = discover_run_status(args)
+    run_status = load_json(context.run_status_path)
+    output_path = Path(args.output).expanduser().resolve()
+
+    if not output_path.parent.is_dir():
+        raise StatusCliError(
+            f"Output directory does not exist for --output: {output_path.parent}"
+        )
+
+    output_path.write_text(
+        render_web_export(run_status, context, focus=args.focus, theme=args.theme),
+        encoding="utf-8",
+    )
+
+    return "\n".join(
+        [
+            "READ-ONLY WEB EXPORT WRITTEN",
+            f"Output: {output_path}",
+            f"Theme: {args.theme}",
+            f"Focus: {args.focus or 'all'}",
+            f"Loaded from: {context.run_status_path}",
+        ]
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read-only status CLI for pipeline status artifacts."
@@ -1220,6 +1655,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_path_options(dashboard_parser)
     dashboard_parser.set_defaults(handler=command_dashboard)
+
+    web_parser = subparsers.add_parser("web", help="Read-only local web export")
+    web_subparsers = web_parser.add_subparsers(dest="web_command")
+    web_subparsers.required = True
+    web_export_parser = web_subparsers.add_parser(
+        "export", help="Write a self-contained read-only HTML dashboard"
+    )
+    web_export_parser.add_argument(
+        "--output", required=True, help="Output path for the HTML export"
+    )
+    web_export_parser.add_argument(
+        "--focus",
+        choices=FOCUS_CHOICES,
+        help="Optional web export focus: blocked, stale, or active",
+    )
+    web_export_parser.add_argument(
+        "--theme",
+        choices=WEB_THEME_CHOICES,
+        default="auto",
+        help="Bounded web export theme: auto, light, or dark",
+    )
+    add_path_options(web_export_parser)
+    web_export_parser.set_defaults(handler=command_web_export)
 
     return parser
 

@@ -1,6 +1,8 @@
 # status-cli
 
-Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. This README reflects the current same-repo Phase 2 usage flow: start from the run summary, then drill into run, task, and agent detail without mutating any status files.
+Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. This README reflects the current same-repo Phase 2 usage flow: start from the run summary, then drill into run, task, and agent detail without mutating any status files. The current examples are terminal-first, but the same-repo Phase 2 boundary also allows a self-contained local web viewer or HTML export extension when it stays file-backed, read-only, and non-controlling.
+
+Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `task`, `agent`) when you want direct shell output. Choose `web export` when you want a richer local HTML artifact for those same already-written status files. The HTML path is still local-only and inspection-only: it reads status artifacts, writes only the explicitly requested output file, and does not host a service, take control actions, or write back into the status directory.
 
 ## Scope
 
@@ -8,9 +10,10 @@ Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. Thi
 - Primary support: `run-status.json`
 - Optional enhanced support: expanded-layout `task show` / `task list` and `agent show` / `agent list` commands when task and agent files exist
 - Optional enhanced support: compact `dashboard` output for terminal-local triage, with optional blocked/stale/active focus modes when fixture-backed task and agent files exist
-- Minimal terminal-local read-only dashboard-style inspection via `visual`
+- Minimal terminal-local read-only inspection via `visual`
+- Optional self-contained local HTML export via `web export`
 - No installer support is implemented here
-- No web/service dashboard, watch mode, status writing, runtime worker behavior, or control actions
+- No service-backed or remote dashboard, watch mode, status writing beyond explicit local HTML export, runtime worker behavior, or control actions
 
 ## Run directly with Python
 
@@ -21,6 +24,7 @@ python status-cli/status_cli.py summary --status-file opencode/protocols/example
 python status-cli/status_cli.py dashboard --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus blocked
+python status-cli/status_cli.py web export --project-dir opencode/protocols/examples/status-layout.expanded.valid --output artifacts/status-view.html
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid
@@ -54,17 +58,19 @@ Use the CLI as a bounded read-only inspection flow:
 
 1. `summary` to confirm the run, layout, and top-level status.
 2. `dashboard` when you want a compact terminal-local triage view of blocked, stale, active, and hotspot information without leaving the shell.
-3. `run show` or `visual` to inspect run-wide details and references.
-4. `task list` to scan tasks, optionally narrowing by status.
-5. `task show <task_id>` for one task record.
-6. `agent list` to scan agent attempts, optionally narrowing by status or task.
-7. `agent show <agent_id>` for one agent record.
+3. `web export` when you want a richer self-contained local HTML view with graph-like run, task, and agent inspection.
+4. `run show` or `visual` to inspect run-wide details and references.
+5. `task list` to scan tasks, optionally narrowing by status.
+6. `task show <task_id>` for one task record.
+7. `agent list` to scan agent attempts, optionally narrowing by status or task.
+8. `agent show <agent_id>` for one agent record.
 
 Example flow:
 
 ```bash
 python status-cli/status_cli.py summary --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus stale
+python status-cli/status_cli.py web export --project-dir opencode/protocols/examples/status-layout.expanded.valid --output artifacts/status-view.html --focus stale
 python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status done
 python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked --task-id task-local-server-smoke
 ```
@@ -111,7 +117,27 @@ python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examp
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus active
 ```
 
-Use `dashboard` for local read-only inspection only. Do not treat it as a browser UI, remote dashboard, watch mode, resume tool, or operational control surface.
+Use `dashboard` for local read-only inspection only. Do not treat it as a hosted browser/server UI, service-backed dashboard, remote dashboard, watch mode, resume tool, or operational control surface.
+
+### `web export`
+
+Writes a self-contained local HTML viewer with inline CSS/JS/SVG for a more visual read-only run overview.
+
+- requires explicit `--output <path>`; only that file is written
+- the parent directory for `--output` must already exist
+- reads existing run/task/agent artifacts only; no write-back to status files
+- no background service, browser launch, watch mode, or control actions
+- local/export-only: no hosted browser/server UI, remote dashboard, or controlling surface
+- works for both run-only and expanded layouts
+- optional `--focus blocked|stale|active` and `--theme auto|light|dark` (defaults: `focus=all`, `theme=auto`)
+- missing referenced task/agent files stay non-fatal and render as warnings inside the exported HTML
+
+```bash
+python status-cli/status_cli.py web export --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json --output artifacts/run-only-status.html
+python status-cli/status_cli.py web export --project-dir opencode/protocols/examples/status-layout.expanded.valid --output artifacts/expanded-status.html --focus blocked --theme dark
+```
+
+Use `web export` only for local read-only inspection artifacts. It is not a live dashboard, hosted app, watch mode, remote viewer, resume tool, or operational control plane.
 
 ### `task show <task_id>`
 

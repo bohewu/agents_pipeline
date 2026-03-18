@@ -449,6 +449,129 @@ class StatusCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(after, before)
 
+    def test_web_export_with_run_only_fixture_writes_self_contained_html(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "run-only-view.html"
+            fixture_copy = Path(temp_dir) / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, fixture_copy)
+
+            before = snapshot_tree(Path(temp_dir))
+            result = run_cli(
+                "web",
+                "export",
+                "--status-file",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+            )
+            after = snapshot_tree(Path(temp_dir))
+            output_exists = output_path.is_file()
+            html = output_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("READ-ONLY WEB EXPORT WRITTEN", result.stdout)
+        self.assertIn(str(output_path), result.stdout)
+        self.assertIn("Theme: auto", result.stdout)
+        self.assertIn("Focus: all", result.stdout)
+        self.assertTrue(output_exists)
+        self.assertIn("Read-only web export", html)
+        self.assertIn("run_status_examples_run_only_01", html)
+        self.assertIn("details unavailable in run-only layout", html)
+        self.assertIn('id="status-data"', html)
+        self.assertEqual(
+            {key: value for key, value in after.items() if key != "run-only-view.html"},
+            before,
+        )
+
+    def test_web_export_with_expanded_fixture_writes_graph_like_html(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "expanded-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            before = snapshot_tree(fixture_copy)
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+                "--focus",
+                "blocked",
+                "--theme",
+                "dark",
+            )
+            after = snapshot_tree(fixture_copy)
+            html = output_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Theme: dark", result.stdout)
+        self.assertIn("Focus: blocked", result.stdout)
+        self.assertIn("Run → tasks → agents", html)
+        self.assertIn("task-local-server-smoke", html)
+        self.assertIn("agent-server-01", html)
+        self.assertIn("Agent hotspots", html)
+        self.assertIn("Status graph", html)
+        self.assertIn("blocked", html)
+        self.assertEqual(after, before)
+
+    def test_web_export_surfaces_missing_referenced_files_as_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "warnings-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+            (fixture_copy / "tasks" / "task-browser-resume.json").unlink()
+            (fixture_copy / "agents" / "agent-server-01.json").unlink()
+
+            before = snapshot_tree(fixture_copy)
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+            )
+            after = snapshot_tree(fixture_copy)
+            html = output_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("READ-ONLY WEB EXPORT WRITTEN", result.stdout)
+        self.assertIn("Warnings", html)
+        self.assertIn(
+            "Missing task file for task-browser-resume: status/tasks/task-browser-resume.json",
+            html,
+        )
+        self.assertIn(
+            "Missing agent file for agent-server-01: status/agents/agent-server-01.json",
+            html,
+        )
+        self.assertIn("Missing task file for active task task-browser-resume.", html)
+        self.assertEqual(after, before)
+
+    def test_web_export_requires_existing_output_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "missing" / "view.html"
+            result = run_cli(
+                "web",
+                "export",
+                "--status-file",
+                str(RUN_ONLY_FIXTURE),
+                "--output",
+                str(output_path),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Output directory does not exist", result.stderr)
+        self.assertFalse(output_path.exists())
+
+    def test_web_export_requires_explicit_output_argument(self) -> None:
+        result = run_cli("web", "export", "--status-file", str(RUN_ONLY_FIXTURE))
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("the following arguments are required: --output", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
