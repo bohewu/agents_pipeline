@@ -293,6 +293,119 @@ def render_run_show(run_status: dict, context: StatusContext) -> str:
     return "\n".join(lines)
 
 
+def format_status_counts(task_counts: object) -> str:
+    if not isinstance(task_counts, dict):
+        return "none"
+    parts = [
+        f"{name}={task_counts[name]}"
+        for name in TASK_COUNT_ORDER
+        if name in task_counts
+    ]
+    return ", ".join(parts) if parts else "none"
+
+
+def load_referenced_records(
+    run_status: dict,
+    context: StatusContext,
+    ref_key: str,
+    id_key: str,
+) -> tuple[list[dict], list[str]]:
+    records: list[dict] = []
+    warnings: list[str] = []
+
+    for item in run_status.get(ref_key) or []:
+        if not isinstance(item, dict):
+            continue
+
+        entity_id = item.get(id_key)
+        ref_path = item.get("path")
+        if not entity_id or not ref_path:
+            continue
+
+        resolved = resolve_ref_path(str(ref_path), context)
+        if resolved is None:
+            warnings.append(f"Missing {id_key} artifact for {entity_id}: {ref_path}")
+            continue
+
+        try:
+            records.append(load_json(resolved))
+        except StatusCliError as exc:
+            warnings.append(str(exc))
+
+    return records, warnings
+
+
+def render_visual(run_status: dict, context: StatusContext) -> str:
+    lines = [
+        "READ-ONLY VISUAL INSPECTION",
+        "This view only reads existing status artifacts and never writes files.",
+        f"Loaded from: {context.run_status_path}",
+        "",
+        f"Run [{render_value(run_status.get('status'))}] {render_value(run_status.get('run_id'))}",
+        f"  Orchestrator: {render_value(run_status.get('orchestrator'))}",
+        f"  Layout: {render_value(run_status.get('layout', '-'))}",
+        f"  Current stage: {render_value(run_status.get('current_stage'))}",
+        f"  Next stage: {render_value(run_status.get('next_stage'))}",
+        f"  Waiting on: {render_value(run_status.get('waiting_on'))}",
+        f"  Task counts: {format_status_counts(run_status.get('task_counts'))}",
+    ]
+
+    if run_status.get("layout") != "expanded":
+        lines.append("  Tasks: not available in run-only layout")
+        return "\n".join(lines)
+
+    tasks, task_warnings = load_referenced_records(
+        run_status, context, ref_key="task_refs", id_key="task_id"
+    )
+    agents, agent_warnings = load_referenced_records(
+        run_status, context, ref_key="agent_refs", id_key="agent_id"
+    )
+    warnings = [*task_warnings, *agent_warnings]
+
+    agents_by_task: dict[str, list[dict]] = {}
+    for agent in agents:
+        task_id = agent.get("task_id")
+        if not isinstance(task_id, str):
+            continue
+        agents_by_task.setdefault(task_id, []).append(agent)
+
+    if not tasks:
+        lines.append("  Tasks: none")
+    else:
+        lines.append("  Tasks:")
+        for index, task in enumerate(tasks):
+            task_id = render_value(task.get("task_id"))
+            task_status = render_value(task.get("status"))
+            summary = render_value(task.get("summary"))
+            is_last_task = index == len(tasks) - 1
+            task_prefix = "  `-- " if is_last_task else "  |-- "
+            child_prefix = "      " if is_last_task else "  |   "
+            lines.append(f"{task_prefix}Task [{task_status}] {task_id} - {summary}")
+
+            task_agents = agents_by_task.get(str(task.get("task_id")), [])
+            if not task_agents:
+                lines.append(f"{child_prefix}`-- Agents: none")
+                continue
+
+            for agent_index, agent in enumerate(task_agents):
+                agent_id = render_value(agent.get("agent_id"))
+                agent_status = render_value(agent.get("status"))
+                agent_name = render_value(agent.get("agent"))
+                is_last_agent = agent_index == len(task_agents) - 1
+                agent_prefix = "`-- " if is_last_agent else "|-- "
+                lines.append(
+                    f"{child_prefix}{agent_prefix}Agent [{agent_status}] {agent_id} ({agent_name})"
+                )
+
+    if warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    return "\n".join(lines)
+
+
 def render_record(title: str, record: dict, preferred_order: list[str]) -> str:
     lines = [title]
     seen: set[str] = set()
@@ -304,6 +417,125 @@ def render_record(title: str, record: dict, preferred_order: list[str]) -> str:
         if key not in seen:
             lines.append(line(key, record.get(key)))
     return "\n".join(lines)
+
+
+def parse_visual_selection(
+    selection: Optional[str],
+) -> Optional[tuple[str, Optional[str]]]:
+    if not selection:
+        return None
+
+    normalized = selection.strip()
+    if not normalized:
+        return None
+
+    if ":" not in normalized:
+        if normalized == "run":
+            return ("run", None)
+        raise StatusCliError(
+            "Unsupported visual selection. Use 'run', 'run:<run_id>', 'task:<task_id>', or 'agent:<agent_id>'."
+        )
+
+    node_type, node_id = normalized.split(":", 1)
+    node_type = node_type.strip()
+    node_id = node_id.strip()
+    if node_type not in {"run", "task", "agent"} or not node_id:
+        raise StatusCliError(
+            "Unsupported visual selection. Use 'run', 'run:<run_id>', 'task:<task_id>', or 'agent:<agent_id>'."
+        )
+
+    return (node_type, node_id)
+
+
+def render_visual_selected_details(
+    run_status: dict, context: StatusContext, selection: str
+) -> str:
+    parsed = parse_visual_selection(selection)
+    if parsed is None:
+        return ""
+
+    node_type, node_id = parsed
+    if node_type == "run":
+        run_id = str(run_status.get("run_id") or "-")
+        if node_id and node_id != run_id:
+            raise StatusCliError(
+                f"Selected run node was not found: {node_id}. Available run: {run_id}."
+            )
+        return render_run_show(run_status, context)
+
+    if node_type == "task":
+        if node_id is None:
+            raise StatusCliError("Task selection requires a task ID.")
+        path = resolve_entity_path(
+            run_status,
+            context,
+            node_id,
+            ref_key="task_refs",
+            id_key="task_id",
+            entity_dir_name="tasks",
+        )
+        task = load_json(path)
+        return render_record(
+            f"Task: {node_id}",
+            task,
+            [
+                "task_id",
+                "run_id",
+                "summary",
+                "status",
+                "assigned_agent_id",
+                "assigned_executor",
+                "resource_class",
+                "resource_status",
+                "teardown_required",
+                "created_at",
+                "started_at",
+                "updated_at",
+                "completed_at",
+                "last_heartbeat_at",
+                "result_summary",
+                "error",
+                "resume_note",
+                "evidence_refs",
+            ],
+        )
+
+    if node_id is None:
+        raise StatusCliError("Agent selection requires an agent ID.")
+    path = resolve_entity_path(
+        run_status,
+        context,
+        node_id,
+        ref_key="agent_refs",
+        id_key="agent_id",
+        entity_dir_name="agents",
+    )
+    agent = load_json(path)
+    return render_record(
+        f"Agent: {node_id}",
+        agent,
+        [
+            "agent_id",
+            "run_id",
+            "agent",
+            "status",
+            "task_id",
+            "attempt",
+            "resource_class",
+            "resource_status",
+            "teardown_required",
+            "cleanup_status",
+            "resource_handles",
+            "created_at",
+            "started_at",
+            "updated_at",
+            "completed_at",
+            "last_heartbeat_at",
+            "result_summary",
+            "error",
+            "evidence_refs",
+        ],
+    )
 
 
 def resolve_ref_path(ref_path: str, context: StatusContext) -> Optional[Path]:
@@ -470,6 +702,19 @@ def command_agent_show(args: argparse.Namespace) -> str:
     )
 
 
+def command_visual(args: argparse.Namespace) -> str:
+    context = discover_run_status(args)
+    run_status = load_json(context.run_status_path)
+    output = render_visual(run_status, context)
+    if not getattr(args, "select", None):
+        return output
+
+    details = render_visual_selected_details(run_status, context, args.select)
+    return "\n".join(
+        [output, "", f"Selected node: {args.select}", "", "NODE DETAILS", details]
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read-only status CLI for pipeline status artifacts."
@@ -506,6 +751,16 @@ def build_parser() -> argparse.ArgumentParser:
     agent_show_parser.add_argument("agent_id", help="Agent ID to display")
     add_path_options(agent_show_parser)
     agent_show_parser.set_defaults(handler=command_agent_show)
+
+    visual_parser = subparsers.add_parser(
+        "visual", help="Show a read-only local visual inspection"
+    )
+    visual_parser.add_argument(
+        "--select",
+        help="Optional node selection: run, run:<run_id>, task:<task_id>, or agent:<agent_id>",
+    )
+    add_path_options(visual_parser)
+    visual_parser.set_defaults(handler=command_visual)
 
     return parser
 

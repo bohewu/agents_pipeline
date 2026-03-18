@@ -7,6 +7,7 @@ Minimal Phase 1 read-only CLI for inspecting pipeline status artifacts in this r
 - Read-only only
 - Primary support: `run-status.json`
 - Optional enhanced support: `task show` and `agent show` when expanded-layout files exist
+- Minimal local visual inspection via `visual`
 - No installer support is implemented here
 - No dashboard, watch mode, status writing, or runtime worker behavior
 
@@ -16,6 +17,7 @@ From the repository root:
 
 ```bash
 python status-cli/status_cli.py summary --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
+python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py task show task-local-server-smoke --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py agent show agent-server-01 --project-dir opencode/protocols/examples/status-layout.expanded.valid
@@ -54,6 +56,15 @@ Shows a more detailed run view from `run-status.json`.
 
 ```bash
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
+```
+
+### `visual`
+
+Shows a self-contained local visual inspection as an ASCII tree. It stays explicitly read-only, only reads existing status artifacts, and does not launch services or write files. Use `--select` to inspect details for an existing run, task, or agent node while keeping the visual tree as context.
+
+```bash
+python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid --select task:task-local-server-smoke
 ```
 
 ### `task show <task_id>`
