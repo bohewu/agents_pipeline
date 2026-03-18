@@ -5,7 +5,7 @@
 This document explains how the status-layer MVP artifacts in this repository fit together, what this repository owns today, what is explicitly deferred to a future runtime repository, and how the work should progress from the current Phase 0-1 MVP to a later hardened system.
 
 The MVP in this repository is a contract-and-validation deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that a future runtime implementation must consume.
-This repository also includes an optional in-repo, read-only `status-cli` for local inspection of status artifacts that follow that contract, and future read-only CLI continuation may stay in this same repo under `status-cli/`.
+This repository also includes an optional in-repo, read-only `status-cli` for local inspection of status artifacts that follow that contract, and future read-only CLI continuation may stay in this same repo under `status-cli/`, including terminal-local dashboard-style rendering that stays file-backed and non-controlling.
 It does **not** implement the external runtime itself.
 
 ## Repository Ownership Boundary
@@ -33,18 +33,20 @@ The future runtime repository owns execution-time implementation work, including
 - any operational storage, retention, auth, or multi-writer controls
 - any operator-facing or customer-facing runtime surfaces
 - any runtime-integrated or service-backed tooling beyond the current same-repo read-only `status-cli`
+- any write-back or control actions triggered from repo-local status inspection views
 
 ## Explicit MVP Exclusions
 
 The following are **out of MVP scope for this repository** and are deferred to a future runtime repository or later system hardening work:
 
-- UI
-- dashboard
+- browser/server UI
+- service-backed dashboard
 - polling frontend
 - websocket or event-bus delivery
 - external runtime implementation
 - runtime database, API, or service layer
 - live orchestration workers beyond the documented contract
+- agent or opencode control functions triggered from status views
 
 ## MVP Artifact Map
 
@@ -129,7 +131,7 @@ Deliver only repo-owned documentation, schemas, fixtures, validation, and handof
 
 ### Phase 2: Next same-repo read-only CLI phase
 
-Continue optional read-only `status-cli` work in this repository under `status-cli/` as a local contract consumer only. Keep it file-backed and read-only.
+Continue optional read-only `status-cli` work in this repository under `status-cli/` as a local contract consumer only. Keep it file-backed and read-only. Same-repo terminal-local dashboard-style rendering is allowed only when it does not become a browser/server/service surface and does not add write-back or control behavior.
 
 ### Phase 3: Later planning for separate runtime adoption
 
@@ -157,7 +159,7 @@ Only after runtime writing is stable should a later system consider optional pre
 - websocket or event-bus integrations
 - external reporting or API consumers
 
-The current in-repo `status-cli` remains a local, read-only contract consumer, including any later same-repo read-only CLI continuation; richer runtime-facing surfaces stay deferred.
+The current in-repo `status-cli` remains a local, read-only contract consumer, including any later same-repo read-only CLI continuation and terminal-local dashboard-style rendering; richer runtime-facing surfaces stay deferred.
 
 These are later consumers of the contract, not part of the MVP contract work in this repository.
 

@@ -12,7 +12,7 @@ This plan keeps Phase 1 intentionally small:
 - Support for `tasks/` and `agents/` files is optional enhanced behavior when present.
 - Phase 1 does **not** include status writing, runtime orchestration, background services, or live update behavior.
 
-Future read-only CLI continuation is allowed in this same repository under `status-cli/`. For roadmap wording in this repo, Phase 2 means the next in-repo read-only CLI phase, while any true runtime status writing remains deferred to later planning and a separate runtime implementation effort.
+Future read-only CLI continuation is allowed in this same repository under `status-cli/`. For roadmap wording in this repo, Phase 2 means the next in-repo read-only CLI phase, including same-repo terminal-only read-only dashboard-style rendering when it stays file-backed and local, while any true runtime status writing remains deferred to later planning and a separate runtime implementation effort.
 
 Unless separate install docs/scripts are added alongside the implementation, treat `status-cli` as an in-repo companion rather than a broadly supported install workflow.
 
@@ -31,6 +31,7 @@ Phase 1 goals:
 - help operators or developers inspect status artifacts locally
 - make the required `run-status.json` easier to read in a terminal
 - optionally summarize expanded task/agent detail when those files exist
+- allow small same-repo terminal-only dashboard-like views when they remain local, file-backed, and read-only
 - stay low-complexity and MVP-first
 
 Out of Phase 1 scope:
@@ -38,7 +39,8 @@ Out of Phase 1 scope:
 - writing or mutating status files
 - launching or managing runtime workers
 - daemon/background watch processes
-- dashboards, web UI, or service APIs
+- browser/server-hosted dashboards, web UI, or service APIs
+- any service-backed, remote, or control-oriented dashboard surface
 - runtime reconciliation logic
 - any new protocol fields or schema changes created just for the CLI
 
@@ -52,6 +54,7 @@ Out of Phase 1 scope:
 4. Validate basic file presence and report clear errors when the expected status path is missing.
 5. Work against filesystem status artifacts without requiring a service or database.
 6. Support explicit path targeting so one CLI install can inspect many projects.
+7. Allow optional terminal-local read-only visualization or dashboard-style rendering of existing status artifacts without adding browser, server, or control surfaces.
 
 ### Optional enhanced Phase 1 support
 
@@ -91,7 +94,7 @@ This keeps the tool useful for:
 
 ## CLI Command Design
 
-Phase 1 should stay small and terminal-oriented.
+Phase 1 should stay small, terminal-oriented, and local-only.
 
 ### Recommended initial command set
 
@@ -126,6 +129,27 @@ Example shape:
 status-cli run show --project-dir /path/to/project
 ```
 
+#### `status-cli visual`
+
+Optional same-repo read-only terminal dashboard slice.
+
+Purpose:
+
+- render existing status artifacts in a terminal-local dashboard-style or visual view
+- stay file-backed and read-only
+- avoid any browser runtime, server runtime, or control operation semantics
+
+#### `status-cli dashboard`
+
+Optional same-repo read-only terminal triage view.
+
+Purpose:
+
+- summarize blocked, stale, and active work from existing status artifacts
+- support compact focus modes such as blocked, stale, or active without mutating files
+- surface missing referenced task or agent files as warnings rather than converting the CLI into a repair tool
+- remain terminal-local, file-backed, and explicitly non-controlling
+
 #### `status-cli task show <task_id>`
 
 Optional enhanced command for expanded layout only.
@@ -156,8 +180,9 @@ Do not include commands for:
 - `resume`
 - `start`
 - `stop`
+- any command that triggers agent, runtime, or opencode control actions
 
-Those imply runtime or mutating behavior and should stay out of the Phase 1 plan.
+Those imply runtime or mutating behavior and should stay out of the Phase 1 plan. Terminal-local read-only visualization is allowed only when it does not cross into browser/server/service/control behavior.
 
 ## Recommended In-Repo Directory Structure
 
@@ -186,6 +211,7 @@ Guidance for these directories:
 - `commands/`: terminal command entrypoints such as `summary` and `run show`
 - `readers/`: read-only filesystem loading for `run-status.json` and optional task/agent files
 - `formatters/`: terminal output rendering only
+- `formatters/` may include terminal-local dashboard-like rendering, but not browser or service UI surfaces
 - `discovery/`: project-dir/output-dir/status-path resolution logic
 - `models/`: local typed wrappers around the existing contract, without redefining it
 - `tests/fixtures/`: should prefer reuse or copies of contract-valid example layouts derived from `opencode/protocols/examples/`
@@ -254,4 +280,4 @@ This preserves the MVP-first contract stance already used by the status-layer do
 
 ## Recommended Next Step
 
-Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, while runtime-writer behavior, services, and broader platform work remain deferred to later planning and a future downstream runtime effort.
+Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, including same-repo terminal-local dashboard-style views, while runtime-writer behavior, services, browser/server UI surfaces, and broader platform work remain deferred to later planning and a future downstream runtime effort.

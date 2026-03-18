@@ -6,7 +6,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, cast
 
 
 class StatusCliError(Exception):
@@ -33,6 +33,8 @@ TASK_COUNT_ORDER = [
     "skipped",
     "stale",
 ]
+
+FOCUS_CHOICES = ("blocked", "stale", "active")
 
 
 def add_path_options(parser: argparse.ArgumentParser) -> None:
@@ -517,6 +519,304 @@ def render_visual(run_status: dict, context: StatusContext) -> str:
     return "\n".join(lines)
 
 
+def record_matches_focus(record: dict, focus: str, active_ids: set[str]) -> bool:
+    status = str(record.get("status") or "")
+    record_id = str(record.get("task_id") or record.get("agent_id") or "")
+
+    if focus == "blocked":
+        return status == "blocked"
+    if focus == "stale":
+        return status == "stale"
+    if focus == "active":
+        return status in {"in_progress", "waiting_for_user"} or record_id in active_ids
+    return False
+
+
+def summarize_status_counts(counts: object) -> list[str]:
+    if not isinstance(counts, dict):
+        return ["  - none"]
+
+    lines: list[str] = []
+    for name in TASK_COUNT_ORDER:
+        if name in counts:
+            lines.append(f"  - {name}: {render_value(counts.get(name))}")
+    return lines or ["  - none"]
+
+
+def render_dashboard_task_entry(task: dict) -> list[str]:
+    details: list[str] = []
+    if task.get("assigned_agent_id"):
+        details.append(f"agent={render_value(task.get('assigned_agent_id'))}")
+    if task.get("assigned_executor"):
+        details.append(f"executor={render_value(task.get('assigned_executor'))}")
+    if task.get("resource_status") not in {None, "not_required"}:
+        details.append(f"resource={render_value(task.get('resource_status'))}")
+
+    lines = [
+        f"  - {render_value(task.get('task_id'))} [{render_value(task.get('status'))}] "
+        f"{render_value(task.get('summary'))}"
+        + (f" ({', '.join(details)})" if details else "")
+    ]
+
+    if task.get("error"):
+        lines.append(f"    issue: {render_value(task.get('error'))}")
+    if task.get("resume_note"):
+        lines.append(f"    resume: {render_value(task.get('resume_note'))}")
+
+    return lines
+
+
+def render_dashboard_agent_hotspots(
+    agents: list[dict], active_agent_ids: set[str], focus: Optional[str]
+) -> list[str]:
+    filtered_agents = agents
+    if focus:
+        filtered_agents = [
+            agent
+            for agent in agents
+            if record_matches_focus(agent, focus, active_agent_ids)
+        ]
+
+    lines = ["Agent hotspots:"]
+    if not filtered_agents:
+        lines.append("  - none")
+        return lines
+
+    rollups: dict[str, dict[str, object]] = {}
+    for agent in filtered_agents:
+        agent_name = str(agent.get("agent") or "unknown")
+        rollup = rollups.setdefault(
+            agent_name,
+            {
+                "count": 0,
+                "active": 0,
+                "cleanup_issues": 0,
+                "statuses": {},
+                "tasks": [],
+            },
+        )
+
+        count = cast(int, rollup["count"])
+        rollup["count"] = count + 1
+
+        agent_id = str(agent.get("agent_id") or "")
+        if agent_id in active_agent_ids:
+            active = cast(int, rollup["active"])
+            rollup["active"] = active + 1
+
+        status = str(agent.get("status") or "unknown")
+        statuses = rollup["statuses"]
+        assert isinstance(statuses, dict)
+        statuses[status] = int(statuses.get(status, 0)) + 1
+
+        if agent.get("cleanup_status") in {"failed", "unknown"} or agent.get(
+            "resource_status"
+        ) in {"cleanup_failed", "unknown"}:
+            cleanup_issues = cast(int, rollup["cleanup_issues"])
+            rollup["cleanup_issues"] = cleanup_issues + 1
+
+        task_id = agent.get("task_id")
+        tasks = rollup["tasks"]
+        assert isinstance(tasks, list)
+        if task_id and task_id not in tasks:
+            tasks.append(task_id)
+
+    ranked_rollups = sorted(
+        rollups.items(),
+        key=lambda item: (
+            -cast(int, item[1]["cleanup_issues"]),
+            -cast(int, item[1]["active"]),
+            -cast(int, item[1]["count"]),
+            item[0],
+        ),
+    )
+
+    for agent_name, rollup in ranked_rollups:
+        statuses = rollup["statuses"]
+        assert isinstance(statuses, dict)
+        status_bits = [
+            f"{name}={statuses[name]}" for name in TASK_COUNT_ORDER if name in statuses
+        ]
+        if "unknown" in statuses:
+            status_bits.append(f"unknown={statuses['unknown']}")
+
+        details = [f"count={cast(int, rollup['count'])}"]
+        if cast(int, rollup["active"]):
+            details.append(f"active={rollup['active']}")
+        if status_bits:
+            details.append("statuses=" + ", ".join(status_bits))
+        if cast(int, rollup["cleanup_issues"]):
+            details.append(f"cleanup_issues={rollup['cleanup_issues']}")
+
+        tasks = rollup["tasks"]
+        assert isinstance(tasks, list)
+        if tasks:
+            details.append("tasks=" + ", ".join(str(task_id) for task_id in tasks))
+
+        lines.append(f"  - {agent_name}: " + "; ".join(details))
+
+    return lines
+
+
+def render_dashboard_section(
+    title: str,
+    tasks: list[dict],
+    focus: Optional[str],
+    active_task_ids: set[str],
+) -> list[str]:
+    if focus:
+        tasks = [
+            task for task in tasks if record_matches_focus(task, focus, active_task_ids)
+        ]
+
+    lines = [f"{title}:"]
+    if not tasks:
+        lines.append("  - none")
+        return lines
+
+    for task in tasks:
+        lines.extend(render_dashboard_task_entry(task))
+    return lines
+
+
+def render_dashboard(
+    run_status: dict, context: StatusContext, focus: Optional[str] = None
+) -> str:
+    header = "READ-ONLY DASHBOARD"
+    if focus:
+        header = f"{header} [focus={focus}]"
+
+    lines = [
+        header,
+        "This dashboard only reads existing status artifacts.",
+        "",
+        "Run overview:",
+        f"  - Run ID: {render_value(run_status.get('run_id'))}",
+        f"  - Status: {render_value(run_status.get('status'))}",
+        f"  - Orchestrator: {render_value(run_status.get('orchestrator'))}",
+        f"  - Layout: {render_value(run_status.get('layout', '-'))}",
+        f"  - Current stage: {render_value(run_status.get('current_stage'))}",
+        f"  - Next stage: {render_value(run_status.get('next_stage'))}",
+        f"  - Updated: {render_value(run_status.get('updated_at'))}",
+        f"  - Last heartbeat: {render_value(run_status.get('last_heartbeat_at'))}",
+        f"  - Loaded from: {render_value(context.run_status_path)}",
+        "",
+        "Task counts:",
+        *summarize_status_counts(run_status.get("task_counts")),
+    ]
+
+    if run_status.get("waiting_on") is not None:
+        lines.append(f"  - Waiting on: {render_value(run_status.get('waiting_on'))}")
+    if run_status.get("resume_from_checkpoint") is not None:
+        lines.append(
+            f"  - Resume from checkpoint: {render_value(run_status.get('resume_from_checkpoint'))}"
+        )
+    if run_status.get("last_error"):
+        lines.append(f"  - Last error: {render_value(run_status.get('last_error'))}")
+
+    active_task_ids = {str(item) for item in run_status.get("active_task_ids") or []}
+    active_agent_ids = {str(item) for item in run_status.get("active_agent_ids") or []}
+
+    if run_status.get("layout") != "expanded":
+        task_counts = run_status.get("task_counts")
+        blocked_count = (
+            task_counts.get("blocked", 0) if isinstance(task_counts, dict) else 0
+        )
+        stale_count = (
+            task_counts.get("stale", 0) if isinstance(task_counts, dict) else 0
+        )
+
+        lines.extend(
+            [
+                "",
+                "Blocked tasks:",
+                f"  - count={blocked_count} (details unavailable in run-only layout)",
+                "",
+                "Stale tasks:",
+                f"  - count={stale_count} (details unavailable in run-only layout)",
+                "",
+                "Active work:",
+            ]
+        )
+        if active_task_ids:
+            for task_id in sorted(active_task_ids):
+                lines.append(f"  - task={task_id}")
+        else:
+            lines.append("  - none")
+
+        lines.extend(["", "Agent hotspots:"])
+        if active_agent_ids:
+            lines.append(
+                "  - active_agent_ids="
+                + ", ".join(sorted(active_agent_ids))
+                + " (details unavailable in run-only layout)"
+            )
+        else:
+            lines.append("  - none (agent files unavailable in run-only layout)")
+
+        return "\n".join(lines)
+
+    tasks, task_warnings = load_referenced_records(
+        run_status, context, ref_key="task_refs", id_key="task_id"
+    )
+    agents, agent_warnings = load_referenced_records(
+        run_status, context, ref_key="agent_refs", id_key="agent_id"
+    )
+    warnings = [*task_warnings, *agent_warnings]
+
+    task_by_id = {
+        str(task.get("task_id")): task
+        for task in tasks
+        if isinstance(task.get("task_id"), str)
+    }
+
+    blocked_tasks = [task for task in tasks if str(task.get("status")) == "blocked"]
+    stale_tasks = [task for task in tasks if str(task.get("status")) == "stale"]
+
+    active_tasks: list[dict] = []
+    for task_id in sorted(active_task_ids):
+        task = task_by_id.get(task_id)
+        if task is None:
+            warnings.append(f"Missing task file for active task {task_id}.")
+            continue
+        active_tasks.append(task)
+
+    lines.extend(
+        [
+            "",
+            *render_dashboard_section(
+                "Blocked tasks", blocked_tasks, focus, active_task_ids
+            ),
+        ]
+    )
+    lines.extend(
+        [
+            "",
+            *render_dashboard_section(
+                "Stale tasks", stale_tasks, focus, active_task_ids
+            ),
+        ]
+    )
+    lines.extend(
+        [
+            "",
+            *render_dashboard_section(
+                "Active work", active_tasks, focus, active_task_ids
+            ),
+        ]
+    )
+    lines.extend(
+        ["", *render_dashboard_agent_hotspots(agents, active_agent_ids, focus)]
+    )
+
+    if warnings:
+        lines.extend(["", "Warnings:"])
+        for warning in warnings:
+            lines.append(f"  - {warning}")
+
+    return "\n".join(lines)
+
+
 def render_record(title: str, record: dict, preferred_order: list[str]) -> str:
     lines = [title]
     seen: set[str] = set()
@@ -844,6 +1144,12 @@ def command_visual(args: argparse.Namespace) -> str:
     )
 
 
+def command_dashboard(args: argparse.Namespace) -> str:
+    context = discover_run_status(args)
+    run_status = load_json(context.run_status_path)
+    return render_dashboard(run_status, context, focus=args.focus)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read-only status CLI for pipeline status artifacts."
@@ -903,6 +1209,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_path_options(visual_parser)
     visual_parser.set_defaults(handler=command_visual)
+
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Show a compact run dashboard"
+    )
+    dashboard_parser.add_argument(
+        "--focus",
+        choices=FOCUS_CHOICES,
+        help="Optional dashboard focus: blocked, stale, or active",
+    )
+    add_path_options(dashboard_parser)
+    dashboard_parser.set_defaults(handler=command_dashboard)
 
     return parser
 

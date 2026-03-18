@@ -326,6 +326,129 @@ class StatusCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("Agent files are not available for this run", result.stderr)
 
+    def test_dashboard_with_run_only_fixture_shows_local_read_only_summary(
+        self,
+    ) -> None:
+        result = run_cli("dashboard", "--status-file", str(RUN_ONLY_FIXTURE))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("READ-ONLY DASHBOARD", result.stdout)
+        self.assertIn(
+            "This dashboard only reads existing status artifacts.", result.stdout
+        )
+        self.assertIn("Layout: run-only", result.stdout)
+        self.assertIn("count=1 (details unavailable in run-only layout)", result.stdout)
+        self.assertIn(
+            "none (agent files unavailable in run-only layout)", result.stdout
+        )
+
+    def test_dashboard_with_expanded_fixture_shows_triage_sections(self) -> None:
+        result = run_cli("dashboard", "--project-dir", str(EXPANDED_FIXTURE_DIR))
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("READ-ONLY DASHBOARD", result.stdout)
+        self.assertIn("Layout: expanded", result.stdout)
+        self.assertIn("Blocked tasks:", result.stdout)
+        self.assertIn("Stale tasks:", result.stdout)
+        self.assertIn("Active work:", result.stdout)
+        self.assertIn(
+            "task-local-server-smoke [blocked] Run a local preview server smoke check and verify teardown evidence.",
+            result.stdout,
+        )
+        self.assertIn(
+            "task-browser-resume [stale] Resume a browser-based validation after an executor crash left ownership uncertain.",
+            result.stdout,
+        )
+        self.assertIn(
+            "executor-core: count=1; active=1; statuses=blocked=1; cleanup_issues=1; tasks=task-local-server-smoke",
+            result.stdout,
+        )
+
+    def test_dashboard_focus_modes_filter_triage_output(self) -> None:
+        blocked_result = run_cli(
+            "dashboard",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+            "--focus",
+            "blocked",
+        )
+        self.assertEqual(blocked_result.returncode, 0, msg=blocked_result.stderr)
+        self.assertIn("READ-ONLY DASHBOARD [focus=blocked]", blocked_result.stdout)
+        self.assertIn("task-local-server-smoke [blocked]", blocked_result.stdout)
+        self.assertIn("Stale tasks:\n  - none", blocked_result.stdout)
+        self.assertNotIn("executor-advanced:", blocked_result.stdout)
+
+        stale_result = run_cli(
+            "dashboard",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+            "--focus",
+            "stale",
+        )
+        self.assertEqual(stale_result.returncode, 0, msg=stale_result.stderr)
+        self.assertIn("READ-ONLY DASHBOARD [focus=stale]", stale_result.stdout)
+        self.assertIn("Blocked tasks:\n  - none", stale_result.stdout)
+        self.assertIn("task-browser-resume [stale]", stale_result.stdout)
+        self.assertIn("executor-advanced:", stale_result.stdout)
+        self.assertNotIn("executor-core:", stale_result.stdout)
+
+        active_result = run_cli(
+            "dashboard",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+            "--focus",
+            "active",
+        )
+        self.assertEqual(active_result.returncode, 0, msg=active_result.stderr)
+        self.assertIn("READ-ONLY DASHBOARD [focus=active]", active_result.stdout)
+        self.assertIn("task-local-server-smoke [blocked]", active_result.stdout)
+        self.assertIn("task-browser-resume [stale]", active_result.stdout)
+        self.assertIn("Agent hotspots:\n  - none", active_result.stdout)
+
+    def test_dashboard_invalid_focus_mode_reports_parser_error(self) -> None:
+        result = run_cli(
+            "dashboard",
+            "--project-dir",
+            str(EXPANDED_FIXTURE_DIR),
+            "--focus",
+            "done",
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice: 'done'", result.stderr)
+
+    def test_dashboard_reports_missing_referenced_files_as_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+            (fixture_copy / "tasks" / "task-browser-resume.json").unlink()
+            (fixture_copy / "agents" / "agent-server-01.json").unlink()
+
+            result = run_cli("dashboard", "--project-dir", str(fixture_copy))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Warnings:", result.stdout)
+        self.assertIn(
+            "Missing task file for task-browser-resume: status/tasks/task-browser-resume.json",
+            result.stdout,
+        )
+        self.assertIn(
+            "Missing agent file for agent-server-01: status/agents/agent-server-01.json",
+            result.stdout,
+        )
+        self.assertIn(
+            "Missing task file for active task task-browser-resume.", result.stdout
+        )
+
+    def test_dashboard_is_read_only_and_does_not_mutate_expanded_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            before = snapshot_tree(fixture_copy)
+            result = run_cli("dashboard", "--project-dir", str(fixture_copy))
+            after = snapshot_tree(fixture_copy)
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(after, before)
+
 
 if __name__ == "__main__":
     unittest.main()

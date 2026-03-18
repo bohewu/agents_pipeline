@@ -7,9 +7,10 @@ Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. Thi
 - Read-only only
 - Primary support: `run-status.json`
 - Optional enhanced support: expanded-layout `task show` / `task list` and `agent show` / `agent list` commands when task and agent files exist
-- Minimal local visual inspection via `visual`
+- Optional enhanced support: compact `dashboard` output for terminal-local triage, with optional blocked/stale/active focus modes when fixture-backed task and agent files exist
+- Minimal terminal-local read-only dashboard-style inspection via `visual`
 - No installer support is implemented here
-- No dashboard, watch mode, status writing, or runtime worker behavior
+- No web/service dashboard, watch mode, status writing, runtime worker behavior, or control actions
 
 ## Run directly with Python
 
@@ -17,6 +18,9 @@ From the repository root:
 
 ```bash
 python status-cli/status_cli.py summary --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
+python status-cli/status_cli.py dashboard --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
+python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus blocked
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid
@@ -49,16 +53,18 @@ Lookup priority is:
 Use the CLI as a bounded read-only inspection flow:
 
 1. `summary` to confirm the run, layout, and top-level status.
-2. `run show` or `visual` to inspect run-wide details and references.
-3. `task list` to scan tasks, optionally narrowing by status.
-4. `task show <task_id>` for one task record.
-5. `agent list` to scan agent attempts, optionally narrowing by status or task.
-6. `agent show <agent_id>` for one agent record.
+2. `dashboard` when you want a compact terminal-local triage view of blocked, stale, active, and hotspot information without leaving the shell.
+3. `run show` or `visual` to inspect run-wide details and references.
+4. `task list` to scan tasks, optionally narrowing by status.
+5. `task show <task_id>` for one task record.
+6. `agent list` to scan agent attempts, optionally narrowing by status or task.
+7. `agent show <agent_id>` for one agent record.
 
 Example flow:
 
 ```bash
 python status-cli/status_cli.py summary --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus stale
 python status-cli/status_cli.py task list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status done
 python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked --task-id task-local-server-smoke
 ```
@@ -81,12 +87,31 @@ python status-cli/status_cli.py run show --project-dir opencode/protocols/exampl
 
 ### `visual`
 
-Shows a self-contained local visual inspection as an ASCII tree. It stays explicitly read-only, only reads existing status artifacts, and does not launch services or write files. Use `--select` to inspect details for an existing run, task, or agent node while keeping the visual tree as context.
+Shows a self-contained terminal-local read-only dashboard-style inspection as an ASCII tree. It stays explicitly read-only, only reads existing status artifacts, and does not launch services, write files, or trigger control actions. Use `--select` to inspect details for an existing run, task, or agent node while keeping the visual tree as context.
 
 ```bash
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid --select task:task-local-server-smoke
 ```
+
+### `dashboard`
+
+Shows a compact terminal-local read-only dashboard for operator triage. This is still file-backed and local to the shell: it only reads existing status artifacts, never writes files, never starts background processes, and is not a control surface.
+
+Use it when you want a faster overview than `run show` and a more status-oriented summary than `visual`:
+
+- run-only layout: count-focused blocked/stale/active summary when only `run-status.json` exists
+- expanded layout: blocked, stale, and active task sections plus agent hotspot rollups
+- optional `--focus blocked|stale|active`: narrow the triage view without mutating any status artifacts
+- missing referenced task/agent files stay non-fatal and surface as warnings in the dashboard output
+
+```bash
+python status-cli/status_cli.py dashboard --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json
+python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid
+python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus active
+```
+
+Use `dashboard` for local read-only inspection only. Do not treat it as a browser UI, remote dashboard, watch mode, resume tool, or operational control surface.
 
 ### `task show <task_id>`
 
