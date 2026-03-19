@@ -2,7 +2,7 @@
 
 Read-only in-repo CLI for inspecting pipeline status artifacts in this repo. This README reflects the current same-repo Phase 2 usage flow: start from the run summary, then drill into run, task, and agent detail without mutating any status files. The current examples are terminal-first, but the same-repo Phase 2 boundary also allows a self-contained local web viewer or HTML export extension when it stays file-backed, read-only, narrowly bounded, and non-controlling.
 
-Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `task`, `agent`) when you want direct shell output. Choose `web export` when you want a richer local HTML artifact for those same already-written status files, including the refreshed graph/detail layout and bounded refresh controls. Choose `web serve` only when you want that same read-only viewer over loopback HTTP during a bounded local inspection session. The HTML path is still local-only and inspection-only: it reads status artifacts, writes only the explicitly requested output file, and does not host a service, take control actions, or write back into the status directory. Any live-refresh behavior in the exported HTML is limited to bounded re-reads of those same local files from the browser.
+Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `task`, `agent`) when you want direct shell output. Choose `web export` when you want a richer local HTML artifact for those same already-written status files, including the refreshed graph/detail layout and bounded refresh controls. Choose `web serve` only when you want that same read-only viewer over loopback HTTP during a bounded local inspection session. The HTML path is still local-only and inspection-only: it reads status artifacts, writes only the explicitly requested export output plus any explicitly selected local viewer assets, and does not host a service, take control actions, or write back into the status directory. Any live-refresh behavior in the exported HTML is limited to bounded re-reads of those same local files from the browser.
 
 ## Scope
 
@@ -12,6 +12,7 @@ Choose the terminal commands (`summary`, `dashboard`, `visual`, `run show`, `tas
 - Optional enhanced support: compact `dashboard` output for terminal-local triage, with optional blocked/stale/active focus modes when fixture-backed task and agent files exist
 - Minimal terminal-local read-only inspection via `visual`
 - Optional self-contained local HTML export via `web export`
+- Optional additive bundled local asset mode for `web export` when available
 - Optional loopback-only localhost viewer via `web serve`
 - No installer support is implemented here
 - No remote dashboard, non-loopback hosting, unbounded watch mode, status writing beyond explicit local HTML export, runtime worker behavior, or control actions
@@ -41,8 +42,12 @@ The CLI supports explicit path targeting with:
 
 - `--status-file`: path to `run-status.json`
 - `--status-dir`: path to a `status/` directory containing `run-status.json`
-- `--output-dir`: path to an output directory; the CLI tries `status/run-status.json` first, then `run-status.json`
+- `--output-dir`: path to an output directory that directly contains `status/run-status.json` or `run-status.json`; this is for compatible status-output layouts, not for arbitrary orchestration artifact folders
 - `--project-dir`: path to a project or fixture directory; the CLI tries predictable direct locations first, then a bounded recursive fallback when there is a single match
+
+Supported direct inputs today are the actual status sources: a specific `run-status.json`, a `status/` directory that contains it, an output directory that directly exposes the compatible status layout, or a project root where status-cli can discover one by the existing precedence rules.
+
+Directories such as `.pipeline-output/flow` and `.pipeline-output/pipeline` are orchestration artifact directories, not special status-cli shorthands. Pointing `--output-dir` at those paths only works if that directory itself contains a compatible `status/run-status.json` or `run-status.json`. Otherwise, point status-cli at the real status source instead: use `--status-file`, `--status-dir`, a compatible `--output-dir`, or the surrounding `--project-dir`.
 
 Lookup priority is:
 
@@ -60,7 +65,7 @@ Use the CLI as a bounded read-only inspection flow:
 
 1. `summary` to confirm the run, layout, and top-level status.
 2. `dashboard` when you want a compact terminal-local triage view of blocked, stale, active, and hotspot information without leaving the shell.
-3. `web export` when you want a richer self-contained local HTML view with graph-like run, task, and agent inspection.
+3. `web export` when you want a richer local HTML view with graph-like run, task, and agent inspection.
 4. `web serve` when you need the same read-only viewer over loopback HTTP so browser polling can re-read the source through a bounded localhost session.
 5. `run show` or `visual` to inspect run-wide details and references.
 6. `task list` to scan tasks, optionally narrowing by status.
@@ -125,13 +130,17 @@ Use `dashboard` for local read-only inspection only. Do not treat it as a hosted
 
 ### `web export`
 
-Writes a self-contained local HTML viewer with inline CSS/JS/SVG for a more visual read-only run overview.
+Writes a local HTML viewer for a more visual read-only run overview.
 
 - presents a refreshed browser view with a status graph, selected-record detail panel, triage columns, hotspot summaries, and bounded refresh controls
+- adds presentational-only inspection aids such as focus/status chips, inline match highlighting, and URL-hash-backed deep links for the currently selected node or search state; these only change the browser view and never mutate source artifacts
 
 - requires explicit `--output <path>`; only that file is written
 - the parent directory for `--output` must already exist
 - reads existing run/task/agent artifacts only; no write-back to status files
+- default behavior remains the self-contained export already covered by existing usage and tests
+- if an additive bundled local asset mode is available in this build, it is just a different packaging option for the same local read-only viewer: it stays local-only, read-only, purely presentational, and non-controlling
+- if a fixed local asset mode is available in this build, treat it the same way: local-only asset layout for presentation, not a framework/runtime claim and not a service mode
 - optional `--refresh-interval 5|10|15|30|60` for bounded browser-side polling of the original local status files (`15` seconds by default, `0`/off can be chosen inside the exported viewer after export)
 - live refresh stays local-file-backed and read-only: the export never hosts a service, never launches a browser, never writes back into the status directory, and never controls the pipeline
 - browsers may block local file fetches for exported HTML; when that happens the viewer degrades gracefully with warnings and stops polling after a few failed attempts
@@ -147,7 +156,9 @@ python status-cli/status_cli.py web export --status-file opencode/protocols/exam
 python status-cli/status_cli.py web export --project-dir opencode/protocols/examples/status-layout.expanded.valid --output artifacts/expanded-status.html --focus blocked --theme dark
 ```
 
-Use `web export` only for local read-only inspection artifacts. Its bounded refresh support is for re-reading already-written local status files only. It is not a hosted app, service-backed dashboard, remote viewer, resume tool, operational control plane, or anything that mutates pipeline state.
+Use `web export` only for local read-only inspection artifacts. Its bounded refresh support is for re-reading already-written local status files only. Self-contained export, bundled local assets, and any fixed local asset layout are all additive presentation options for the same viewer. None of them are hosted apps, service-backed dashboards, remote viewers, resume tools, operational control planes, or anything that mutates pipeline state.
+
+Treat the viewer's focus chips, highlighting, "show matches only" filtering, and hash/deep-link state as inspection helpers only. They are purely presentational browser affordances layered over already-written files.
 
 ### `web serve`
 
@@ -156,6 +167,7 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 - serves only on `127.0.0.1` or `localhost`; external interfaces are rejected
 - serves the same read-only viewer shape as `web export`, but from a transient in-process HTTP server instead of an output file
 - supports browser polling over HTTP via `/api/payload`, so refresh works even when a browser would block local-file fetches from exported HTML
+- keeps the same presentational-only search/highlight/chip/deep-link interactions as `web export`; they only reshape the local browser view and never change pipeline data
 - optional `--refresh-interval 5|10|15|30|60` controls bounded polling cadence in the browser; default is `15`, and `Off` can still be chosen inside the viewer after startup
 - optional `--open-browser` asks the OS default browser to open the loopback URL after startup; if auto-open is unavailable, the CLI still prints copyable viewer and payload URLs
 - accepts `GET` and `HEAD` only; write-like verbs return `405 Method not allowed`

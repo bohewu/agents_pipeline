@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,7 @@ from pathlib import Path
 import shutil
 from typing import Any
 from html.parser import HTMLParser
+from urllib.parse import urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -63,6 +65,7 @@ class InlineScriptExtractor(HTMLParser):
         super().__init__()
         self._capture_depth = 0
         self._chunks: list[str] = []
+        self._capture_script: bool = False
         self.scripts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -72,18 +75,26 @@ class InlineScriptExtractor(HTMLParser):
         if attributes.get("src") is None:
             self._capture_depth += 1
             if self._capture_depth == 1:
+                script_type = (attributes.get("type") or "").strip().lower()
+                self._capture_script = script_type in {
+                    "",
+                    "text/javascript",
+                    "application/javascript",
+                    "module",
+                }
                 self._chunks = []
 
     def handle_data(self, data: str) -> None:
-        if self._capture_depth == 1:
+        if self._capture_depth == 1 and self._capture_script:
             self._chunks.append(data)
 
     def handle_endtag(self, tag: str) -> None:
         if tag != "script" or self._capture_depth == 0:
             return
-        if self._capture_depth == 1:
+        if self._capture_depth == 1 and self._capture_script:
             self.scripts.append("".join(self._chunks))
             self._chunks = []
+            self._capture_script = False
         self._capture_depth -= 1
 
 
@@ -99,13 +110,11 @@ def assert_inline_javascript_parses(test_case: unittest.TestCase, html: str) -> 
         test_case.skipTest("Node.js is required for generated-JS syntax validation")
 
     scripts = extract_inline_scripts(html)
-    test_case.assertGreaterEqual(
-        len(scripts), 3, msg="Expected embedded JSON plus viewer scripts"
-    )
+    test_case.assertGreaterEqual(len(scripts), 1, msg="Expected inline viewer scripts")
 
     with tempfile.TemporaryDirectory() as temp_dir:
         js_path = Path(temp_dir) / "viewer-inline.js"
-        js_path.write_text("\n\n".join(scripts[1:]), encoding="utf-8")
+        js_path.write_text("\n\n".join(scripts), encoding="utf-8")
         result = subprocess.run(
             [node, "--check", str(js_path)],
             cwd=REPO_ROOT,
@@ -128,6 +137,58 @@ def load_status_cli_module() -> Any:
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def web_export_help_text() -> str:
+    result = run_cli("web", "export", "--help")
+    return "\n".join(part for part in (result.stdout, result.stderr) if part)
+
+
+def discover_web_export_asset_modes() -> tuple[str, set[str]] | None:
+    help_text = web_export_help_text()
+    for flag in ("--asset-mode", "--assets"):
+        match = re.search(rf"{re.escape(flag)}\s+\{{([^}}]+)\}}", help_text)
+        if match:
+            return flag, {part.strip() for part in match.group(1).split(",") if part}
+    return None
+
+
+class ReferencedAssetExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.references: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "link" and attributes.get("href"):
+            self.references.append(str(attributes["href"]))
+        if tag in {"script", "img"} and attributes.get("src"):
+            self.references.append(str(attributes["src"]))
+
+
+def extract_local_asset_references(
+    html: str, html_path: Path
+) -> tuple[list[tuple[str, Path]], list[str]]:
+    parser = ReferencedAssetExtractor()
+    parser.feed(html)
+
+    local_refs: list[tuple[str, Path]] = []
+    remote_refs: list[str] = []
+    html_root = html_path.parent.resolve()
+    for reference in parser.references:
+        parsed = urlparse(reference)
+        if parsed.scheme in {"http", "https"} or reference.startswith("//"):
+            remote_refs.append(reference)
+            continue
+        if parsed.scheme or reference.startswith(("data:", "javascript:", "#")):
+            continue
+
+        relative_path = Path(parsed.path)
+        resolved = (html_root / relative_path).resolve()
+        if html_root == resolved or html_root in resolved.parents:
+            local_refs.append((reference, resolved))
+
+    return local_refs, remote_refs
 
 
 def wait_for_text(buffer: io.StringIO, needle: str, timeout: float = 5.0) -> str:
@@ -212,6 +273,47 @@ class StatusCliTests(unittest.TestCase):
         result = run_cli("task", "list", "--status-file", str(RUN_ONLY_FIXTURE))
         self.assertEqual(result.returncode, 1)
         self.assertIn("Task files are not available for this run", result.stderr)
+
+    def test_output_dir_rejects_flow_artifact_directory_with_targeting_guidance(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_dir = Path(temp_dir) / ".pipeline-output" / "flow"
+            artifact_dir.mkdir(parents=True)
+
+            result = run_cli("summary", "--output-dir", str(artifact_dir))
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "Could not find run-status.json from --output-dir.", result.stderr
+        )
+        self.assertIn(
+            "looks like a .pipeline-output/flow orchestration artifact directory",
+            result.stderr,
+        )
+        self.assertIn("--status-file", result.stderr)
+        self.assertIn("--status-dir", result.stderr)
+        self.assertIn("--output-dir", result.stderr)
+        self.assertIn("--project-dir", result.stderr)
+
+    def test_output_dir_rejects_pipeline_artifact_directory_with_targeting_guidance(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_dir = Path(temp_dir) / ".pipeline-output" / "pipeline"
+            artifact_dir.mkdir(parents=True)
+
+            result = run_cli("summary", "--output-dir", str(artifact_dir))
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "looks like a .pipeline-output/pipeline orchestration artifact directory",
+            result.stderr,
+        )
+        self.assertIn(
+            "not a direct status-cli target",
+            result.stderr,
+        )
 
     def test_task_list_reports_missing_referenced_files_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -674,6 +776,189 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("Status graph", html)
         self.assertIn("Refresh now", html)
         assert_inline_javascript_parses(self, html)
+
+    def test_web_export_presentational_search_uses_hash_backed_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "expanded-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            before = snapshot_tree(fixture_copy)
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+            )
+            after = snapshot_tree(fixture_copy)
+            html = output_path.read_text(encoding="utf-8")
+            scripts = "\n".join(extract_inline_scripts(html))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Presentational explorer", html)
+        self.assertIn("Show matches only", html)
+        self.assertIn("Filter, highlight, or deep-link records", html)
+        self.assertIn(
+            "Search is presentational only and never changes source data.", html
+        )
+        self.assertIn('params.get("search")', scripts)
+        self.assertIn('params.get("scope")', scripts)
+        self.assertIn('params.get("matches") === "1"', scripts)
+        self.assertIn('params.set("node", state.selectedKey)', scripts)
+        self.assertIn('params.set("search", state.search)', scripts)
+        self.assertIn("history.replaceState", scripts)
+        self.assertEqual(after, before)
+
+    def test_web_export_viewer_scripts_highlight_and_chip_records_presentationally(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "expanded-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+                "--focus",
+                "blocked",
+            )
+            html = output_path.read_text(encoding="utf-8")
+            status_data = extract_embedded_status_data(html)
+            scripts = "\n".join(extract_inline_scripts(html))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(status_data["meta"]["focus"], "blocked")
+        self.assertTrue(
+            any(
+                task.get("resource_status") == "cleanup_failed"
+                for task in status_data["tasks"]
+            )
+        )
+        self.assertTrue(
+            any(
+                agent.get("cleanup_status") == "failed"
+                for agent in status_data["agents"]
+            )
+        )
+        self.assertIn('const chips = el("div", "chips")', scripts)
+        self.assertIn('el("div", "chip", text)', scripts)
+        self.assertIn('<mark class="mark">', scripts)
+        self.assertIn("Highlighting matches.", scripts)
+        self.assertIn("Showing matches only.", scripts)
+        self.assertIn("syncHash();", scripts)
+
+    def test_web_export_bundled_local_asset_mode_writes_only_local_assets_when_supported(
+        self,
+    ) -> None:
+        asset_mode_support = discover_web_export_asset_modes()
+        if asset_mode_support is None:
+            self.skipTest("Bundled local asset mode is not exposed by this build")
+
+        asset_flag, asset_modes = asset_mode_support
+        if "bundled" not in asset_modes:
+            self.skipTest("Bundled local asset mode is not exposed by this build")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = Path(temp_dir) / "bundled-view.html"
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            before = snapshot_tree(fixture_copy)
+            result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(output_path),
+                asset_flag,
+                "bundled",
+            )
+            after = snapshot_tree(fixture_copy)
+            html = output_path.read_text(encoding="utf-8")
+            asset_refs, remote_refs = extract_local_asset_references(html, output_path)
+            missing_assets = [
+                reference
+                for reference, resolved_path in asset_refs
+                if not resolved_path.is_file()
+            ]
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(after, before)
+        self.assertEqual(remote_refs, [])
+        self.assertTrue(
+            asset_refs, msg="Expected bundled mode to reference local assets"
+        )
+        self.assertIn("Read-only", html)
+        self.assertIn("Refresh now", html)
+        self.assertEqual(missing_assets, [], msg="Missing local bundled assets")
+
+    def test_web_export_fixed_local_asset_mode_reuses_predictable_refs_when_supported(
+        self,
+    ) -> None:
+        asset_mode_support = discover_web_export_asset_modes()
+        if asset_mode_support is None:
+            self.skipTest("Fixed local asset mode is not exposed by this build")
+
+        asset_flag, asset_modes = asset_mode_support
+        if "fixed" not in asset_modes:
+            self.skipTest("Fixed local asset mode is not exposed by this build")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            first_output = Path(temp_dir) / "fixed-view-01.html"
+            second_output = Path(temp_dir) / "fixed-view-02.html"
+
+            first_result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(first_output),
+                asset_flag,
+                "fixed",
+            )
+            second_result = run_cli(
+                "web",
+                "export",
+                "--project-dir",
+                str(fixture_copy),
+                "--output",
+                str(second_output),
+                asset_flag,
+                "fixed",
+            )
+
+            first_html = first_output.read_text(encoding="utf-8")
+            second_html = second_output.read_text(encoding="utf-8")
+            first_refs, first_remote_refs = extract_local_asset_references(
+                first_html, first_output
+            )
+            second_refs, second_remote_refs = extract_local_asset_references(
+                second_html, second_output
+            )
+
+        self.assertEqual(first_result.returncode, 0, msg=first_result.stderr)
+        self.assertEqual(second_result.returncode, 0, msg=second_result.stderr)
+        self.assertEqual(first_remote_refs, [])
+        self.assertEqual(second_remote_refs, [])
+        self.assertTrue(first_refs, msg="Expected fixed mode to reference local assets")
+        self.assertEqual(
+            sorted(reference for reference, _ in first_refs),
+            sorted(reference for reference, _ in second_refs),
+        )
+        for _, resolved_path in [*first_refs, *second_refs]:
+            self.assertTrue(resolved_path.is_file())
 
     def test_web_export_surfaces_missing_referenced_files_as_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -40,9 +40,15 @@ TASK_COUNT_ORDER = [
 
 FOCUS_CHOICES = ("blocked", "stale", "active")
 WEB_THEME_CHOICES = ("auto", "light", "dark")
+WEB_ASSET_MODE_CHOICES = ("inline", "bundled")
 WEB_REFRESH_INTERVAL_CHOICES = (5, 10, 15, 30, 60)
 WEB_DEFAULT_REFRESH_INTERVAL = 15
 WEB_MAX_REFRESH_FAILURES = 3
+BUNDLED_ASSET_DIRNAME = "status-cli-assets"
+BUNDLED_ASSET_FILENAMES = {
+    "css": "status-cli-viewer.css",
+    "js": "status-cli-viewer.js",
+}
 WEB_STATUS_COLORS = {
     "pending": "#64748b",
     "ready": "#0ea5e9",
@@ -56,12 +62,20 @@ WEB_STATUS_COLORS = {
     "unknown": "#475569",
     "run": "#7c3aed",
 }
+STATUS_CLI_DIR = Path(__file__).resolve().parent
+WEB_ASSET_SOURCE_DIR = STATUS_CLI_DIR / "web_assets"
 
 
 def add_path_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--status-file", help="Path to run-status.json")
     parser.add_argument("--status-dir", help="Path to the status/ directory")
-    parser.add_argument("--output-dir", help="Path to the output directory")
+    parser.add_argument(
+        "--output-dir",
+        help=(
+            "Path to an output directory containing status/run-status.json or "
+            "run-status.json"
+        ),
+    )
     parser.add_argument("--project-dir", help="Path to a project or fixture directory")
 
 
@@ -98,6 +112,34 @@ def first_existing(paths: Iterable[Optional[Path]]) -> Optional[Path]:
         if path.is_file():
             return path
     return None
+
+
+def is_orchestration_artifact_dir(path: Path) -> bool:
+    parts = path.resolve().parts
+    if len(parts) < 2:
+        return False
+    return parts[-2] == ".pipeline-output" and parts[-1] in {"flow", "pipeline"}
+
+
+def output_dir_discovery_error(
+    output_dir: Path, candidates: Sequence[Path]
+) -> StatusCliError:
+    candidate_text = "\n  - ".join(str(path.resolve()) for path in candidates)
+    message = (
+        "Could not find run-status.json from --output-dir. Tried:\n"
+        f"  - {candidate_text}"
+    )
+    if is_orchestration_artifact_dir(output_dir):
+        message += (
+            "\n"
+            f"`{output_dir.resolve()}` looks like a .pipeline-output/{output_dir.name} "
+            "orchestration artifact directory, not a direct status-cli target. "
+            "Point status-cli at a compatible status source instead: use --status-file "
+            "for a specific run-status.json, --status-dir for a status/ directory, "
+            "--output-dir for a directory that directly contains status/run-status.json "
+            "or run-status.json, or --project-dir for a project root that contains one."
+        )
+    return StatusCliError(message)
 
 
 def discover_run_status(args: argparse.Namespace) -> StatusContext:
@@ -147,11 +189,7 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         ]
         run_status_path = first_existing(candidates)
         if run_status_path is None:
-            candidate_text = "\n  - ".join(str(path.resolve()) for path in candidates)
-            raise StatusCliError(
-                "Could not find run-status.json from --output-dir. Tried:\n"
-                f"  - {candidate_text}"
-            )
+            raise output_dir_discovery_error(output_dir, candidates)
         return StatusContext(
             run_status_path=run_status_path,
             status_root=run_status_path.parent,
@@ -895,6 +933,81 @@ def file_uri(path: Optional[Path], directory: bool = False) -> Optional[str]:
     return uri
 
 
+def read_web_asset_text(filename: str) -> str:
+    asset_path = WEB_ASSET_SOURCE_DIR / filename
+    try:
+        return asset_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise StatusCliError(f"Bundled web asset is missing: {asset_path}") from exc
+
+
+def ensure_export_assets(output_path: Path) -> Path:
+    asset_dir = output_path.parent / BUNDLED_ASSET_DIRNAME
+    asset_dir.mkdir(exist_ok=True)
+    for filename in BUNDLED_ASSET_FILENAMES.values():
+        (asset_dir / filename).write_text(
+            read_web_asset_text(filename), encoding="utf-8"
+        )
+    return asset_dir
+
+
+def theme_css_variables(theme: str) -> str:
+    palette = theme_palette(theme)
+    theme_override = ""
+    if theme == "auto":
+        dark_palette = theme_palette("dark")
+        theme_override = f"""
+      @media (prefers-color-scheme: dark) {{
+        :root {{
+          --bg: {dark_palette["bg"]};
+          --panel: {dark_palette["panel"]};
+          --text: {dark_palette["text"]};
+          --muted: {dark_palette["muted"]};
+          --border: {dark_palette["border"]};
+          --accent: {dark_palette["accent"]};
+          --surface: {dark_palette["surface"]};
+          --surface-alt: {dark_palette["surface_alt"]};
+          --line: {dark_palette["line"]};
+          --shadow: {dark_palette["shadow"]};
+          --shadow-soft: {dark_palette["shadow_soft"]};
+        }}
+      }}
+"""
+    return f"""
+    :root {{
+      color-scheme: {palette["scheme"]};
+      --bg: {palette["bg"]};
+      --panel: {palette["panel"]};
+      --text: {palette["text"]};
+      --muted: {palette["muted"]};
+      --border: {palette["border"]};
+      --accent: {palette["accent"]};
+      --surface: {palette["surface"]};
+      --surface-alt: {palette["surface_alt"]};
+      --line: {palette["line"]};
+      --shadow: {palette["shadow"]};
+      --shadow-soft: {palette["shadow_soft"]};
+    }}
+{theme_override}"""
+
+
+def render_web_asset_tags(asset_mode: str) -> tuple[str, str]:
+    if asset_mode == "bundled":
+        return (
+            f'  <link rel="stylesheet" href="./{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES["css"]}" />',
+            f'  <script src="./{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES["js"]}"></script>',
+        )
+
+    return (
+        "  <style>\n"
+        + read_web_asset_text(BUNDLED_ASSET_FILENAMES["css"])
+        + "\n  </style>",
+        "  <script>\n"
+        + read_web_asset_text(BUNDLED_ASSET_FILENAMES["js"])
+        + "\n  </script>",
+    )
+
+
 def serialize_record(record: dict) -> dict[str, object]:
     return {key: record[key] for key in sorted(record)}
 
@@ -1145,8 +1258,8 @@ def render_web_export(
     viewer_label: str = "Read-only web export",
     refresh_warning: Optional[str] = None,
     refresh_source_overrides: Optional[dict[str, Optional[str]]] = None,
+    asset_mode: str = "inline",
 ) -> str:
-    palette = theme_palette(theme)
     payload = build_web_payload(
         run_status,
         context,
@@ -1158,279 +1271,109 @@ def render_web_export(
     )
     title = str(cast(dict[str, object], payload["meta"])["title"])
     payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
-    theme_override = ""
-    if theme == "auto":
-        dark_palette = theme_palette("dark")
-        theme_override = f"""
-      @media (prefers-color-scheme: dark) {{
-        :root {{
-          --bg: {dark_palette["bg"]};
-          --panel: {dark_palette["panel"]};
-          --text: {dark_palette["text"]};
-          --muted: {dark_palette["muted"]};
-          --border: {dark_palette["border"]};
-          --accent: {dark_palette["accent"]};
-          --surface: {dark_palette["surface"]};
-          --surface-alt: {dark_palette["surface_alt"]};
-          --line: {dark_palette["line"]};
-          --shadow: {dark_palette["shadow"]};
-          --shadow-soft: {dark_palette["shadow_soft"]};
-        }}
-      }}
-"""
+    viewer_config_json = json.dumps(
+        {"colors": WEB_STATUS_COLORS, "theme": theme, "asset_mode": asset_mode},
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    css_tag, script_tag = render_web_asset_tags(asset_mode)
+    theme_variables = theme_css_variables(theme)
 
     return f"""<!doctype html>
-<html lang=\"en\">
+<html lang="en">
 <head>
-  <meta charset=\"utf-8\" />
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{escape(title)}</title>
   <style>
-    :root {{
-      color-scheme: {palette["scheme"]};
-      --bg: {palette["bg"]};
-      --panel: {palette["panel"]};
-      --text: {palette["text"]};
-      --muted: {palette["muted"]};
-      --border: {palette["border"]};
-      --accent: {palette["accent"]};
-      --surface: {palette["surface"]};
-      --surface-alt: {palette["surface_alt"]};
-      --line: {palette["line"]};
-      --shadow: {palette["shadow"]};
-      --shadow-soft: {palette["shadow_soft"]};
-      --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --success: #10b981;
-    }}
-{theme_override}    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      font-family: Inter, Segoe UI, Arial, sans-serif;
-      background:
-        radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 24%, transparent), transparent 28%),
-        radial-gradient(circle at top right, rgba(14, 165, 233, 0.18), transparent 24%),
-        linear-gradient(180deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 70%, #020617 30%) 100%);
-      color: var(--text);
-      min-height: 100vh;
-    }}
-    body::before {{ content: ''; position: fixed; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 22%); }}
-    main {{ max-width: 1500px; margin: 0 auto; padding: 32px 28px 44px; }}
-    .stack {{ display: grid; gap: 20px; }}
-    .panel {{ background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 90%, white 10%), var(--panel)); border: 1px solid var(--line); border-radius: 24px; padding: 22px; margin-bottom: 0; box-shadow: 0 22px 54px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(10px); }}
-    .hero {{ padding: 26px; position: relative; overflow: hidden; }}
-    .hero::after {{ content: ''; position: absolute; inset: auto -10% -45% 38%; height: 260px; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent) 0%, transparent 68%); pointer-events: none; }}
-    .hero-top {{ display: flex; justify-content: space-between; gap: 22px; flex-wrap: wrap; align-items: flex-start; position: relative; z-index: 1; }}
-    h1 {{ margin: 8px 0 0; font-size: clamp(2rem, 4vw, 2.85rem); line-height: 1.04; letter-spacing: -0.04em; }}
-    h2, h3 {{ margin: 0; letter-spacing: -0.02em; }}
-    h2 {{ font-size: 1.15rem; }}
-    h3 {{ font-size: 1rem; }}
-    .eyebrow {{ color: var(--accent); text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; font-weight: 700; }}
-    .subtitle {{ color: var(--muted); margin: 10px 0 0; max-width: 920px; font-size: 0.98rem; line-height: 1.55; }}
-    .hero-actions {{ min-width: min(100%, 380px); display: grid; gap: 12px; justify-items: end; position: relative; z-index: 1; }}
-    .hero-badge {{ display: inline-flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 72%, transparent); color: var(--text); font-weight: 700; box-shadow: 0 10px 26px var(--shadow-soft); }}
-    .hero-badge-dot {{ width: 10px; height: 10px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent); }}
-    .meta {{ display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; position: relative; z-index: 1; }}
-    .pill {{ display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.9rem; background: color-mix(in srgb, var(--surface) 82%, transparent); }}
-    .stats, .triage, .two-col {{ display: grid; gap: 20px; }}
-    .stats {{ margin-top: 20px; grid-template-columns: repeat(auto-fit, minmax(164px, 1fr)); position: relative; z-index: 1; }}
-    .two-col {{ grid-template-columns: minmax(0, 2.15fr) minmax(320px, 1fr); align-items: start; }}
-    .triage {{ grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }}
-    .section-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }}
-    .section-title-group {{ display: grid; gap: 6px; }}
-    .section-kicker {{ color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.14em; }}
-    .refresh-bar {{ margin-top: 22px; padding: 18px; border-radius: 20px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-alt) 92%, transparent)); position: relative; z-index: 1; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }}
-    .refresh-controls {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }}
-    .control-label {{ color: var(--muted); font-size: 0.92rem; font-weight: 600; }}
-    .control-select, .control-button {{ border-radius: 14px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text); padding: 10px 13px; font: inherit; box-shadow: 0 8px 20px var(--shadow-soft); }}
-    .control-button {{ cursor: pointer; }}
-    .control-button:hover, .control-select:hover {{ border-color: color-mix(in srgb, var(--accent) 56%, var(--line)); }}
-    .refresh-status {{ margin-top: 12px; font-size: 0.92rem; color: var(--muted); }}
-    .warning-banner {{ margin-top: 12px; padding: 11px 13px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 12%, transparent); color: color-mix(in srgb, var(--warning) 82%, white 18%); }}
-    .stat {{ padding: 18px 18px 16px; border-radius: 20px; border: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 98%, transparent)); box-shadow: 0 12px 26px var(--shadow-soft); min-height: 126px; }}
-    .stat-label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }}
-    .stat-value {{ font-size: clamp(1.8rem, 3vw, 2.35rem); font-weight: 800; margin-top: 10px; letter-spacing: -0.04em; }}
-    .stat-sub {{ color: var(--muted); font-size: 13px; margin-top: 7px; line-height: 1.4; }}
-    .graph-wrap {{ overflow: auto; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-alt) 98%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }}
-    svg {{ display: block; width: 100%; min-height: 380px; }}
-    .list {{ display: grid; gap: 14px; }}
-    .item {{ background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 100%, transparent)); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: 0 10px 22px var(--shadow-soft); }}
-    .item-top {{ display: flex; justify-content: space-between; gap: 10px; align-items: start; }}
-    .item-title {{ font-weight: 700; font-size: 0.98rem; }}
-    .item-sub {{ color: var(--muted); margin-top: 7px; font-size: 13px; line-height: 1.48; }}
-    .chips, .legend {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }}
-    .chip {{ font-size: 12px; padding: 6px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--text); background: color-mix(in srgb, var(--surface) 86%, transparent); }}
-    .status-pill {{ color: #fff; font-size: 11px; padding: 7px 10px; border-radius: 999px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; box-shadow: 0 8px 18px color-mix(in srgb, currentColor 18%, transparent); }}
-    .legend-item {{ display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 84%, transparent); }}
-    .dot {{ width: 10px; height: 10px; border-radius: 999px; display: inline-block; box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 14%, transparent); }}
-    .empty {{ color: var(--muted); }}
-    pre {{ margin: 0; white-space: pre-wrap; word-break: break-word; font-family: Consolas, SFMono-Regular, Menlo, monospace; font-size: 0.92rem; line-height: 1.6; color: var(--text); }}
-    .detail-shell {{ border: 1px solid var(--line); border-radius: 20px; overflow: hidden; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface-alt) 100%, transparent)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }}
-    .detail-toolbar {{ display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--surface-alt) 86%, transparent); }}
-    .detail-label {{ font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }}
-    .detail {{ max-height: 700px; overflow: auto; padding: 16px; background: transparent; }}
-    .note {{ color: var(--muted); margin: 0; }}
-    .triage-panel {{ position: relative; overflow: hidden; }}
-    .triage-panel::before {{ content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--panel-accent, var(--accent)); opacity: 0.92; }}
-    .triage-panel > * {{ position: relative; z-index: 1; }}
-    .triage-panel-blocked {{ --panel-accent: var(--danger); }}
-    .triage-panel-stale {{ --panel-accent: var(--warning); }}
-    .triage-panel-active {{ --panel-accent: var(--success); }}
-    @media (max-width: 1080px) {{ main {{ padding: 22px; }} .two-col {{ grid-template-columns: 1fr; }} .hero-actions {{ justify-items: start; }} }}
-    @media (max-width: 720px) {{ .panel {{ padding: 18px; border-radius: 20px; }} .hero {{ padding: 20px; }} .stats {{ grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); }} .refresh-controls {{ align-items: stretch; }} .control-select, .control-button {{ width: 100%; }} .detail-toolbar {{ flex-direction: column; align-items: flex-start; }} }}
+{theme_variables}
   </style>
+{css_tag}
 </head>
 <body>
   <main>
-    <div class=\"stack\">
-    <section class=\"panel hero\">
-      <div class=\"hero-top\">
-        <div>
-          <div class=\"eyebrow\" id=\"viewer-label\"></div>
-          <h1 id=\"hero-title\"></h1>
-          <p class=\"subtitle\" id=\"hero-subtitle\"></p>
-        </div>
-        <div class=\"hero-actions\">
-          <div class=\"hero-badge\"><span class=\"hero-badge-dot\"></span><span>Self-contained read-only viewer</span></div>
-        </div>
-      </div>
-      <div class=\"meta\" id=\"hero-meta\"></div>
-      <div class=\"stats\" id=\"stats\"></div>
-      <div class=\"refresh-bar\">
-        <div class=\"eyebrow\">Bounded live refresh</div>
-        <p class=\"note\" id=\"refresh-note\"></p>
-        <div class=\"refresh-controls\">
-          <label class=\"control-label\" for=\"refresh-interval\">Interval</label>
-          <select class=\"control-select\" id=\"refresh-interval\"></select>
-          <button class=\"control-button\" id=\"refresh-now\" type=\"button\">Refresh now</button>
-        </div>
-        <div class=\"refresh-status\" id=\"refresh-status\"></div>
-        <div class=\"warning-banner\" id=\"refresh-warning\"></div>
-      </div>
-    </section>
-    <section class=\"two-col\">
-      <div class=\"panel\">
-        <div class=\"section-header\">
-          <div class=\"section-title-group\">
-            <div class=\"section-kicker\">Topology</div>
-            <h2>Run → tasks → agents</h2>
+    <div class="stack">
+      <section class="panel hero">
+        <div class="hero-top">
+          <div>
+            <div class="eyebrow" id="viewer-label"></div>
+            <h1 id="hero-title"></h1>
+            <p class="subtitle" id="hero-subtitle"></p>
+          </div>
+          <div class="hero-actions">
+            <div class="hero-badge"><span class="hero-badge-dot"></span><span>Self-contained read-only viewer</span></div>
           </div>
         </div>
-        <p class=\"note\">Graph view of existing status artifacts. Click any node to inspect its source JSON.</p>
-        <div class=\"graph-wrap\"><svg id=\"graph\" aria-label=\"Status graph\"></svg></div>
-        <div class=\"legend\" id=\"legend\"></div>
-      </div>
-      <div class=\"panel\">
-        <div class=\"section-header\">
-          <div class=\"section-title-group\">
-            <div class=\"section-kicker\">Inspection</div>
-            <h2>Selected detail</h2>
-          </div>
-        </div>
-        <div class=\"detail-shell\">
-          <div class=\"detail-toolbar\">
+        <div class="meta" id="hero-meta"></div>
+        <div class="stats" id="stats"></div>
+        <div class="refresh-bar">
+          <div class="toolbar-grid">
             <div>
-              <div class=\"detail-label\">Selected node</div>
-              <p class=\"note\" id=\"detail-caption\"></p>
+              <div class="eyebrow">Bounded live refresh</div>
+              <p class="note" id="refresh-note"></p>
+              <div class="refresh-controls">
+                <label class="control-label" for="refresh-interval">Interval</label>
+                <select class="control-select" id="refresh-interval"></select>
+                <button class="control-button" id="refresh-now" type="button">Refresh now</button>
+              </div>
+              <div class="refresh-status" id="refresh-status"></div>
+            </div>
+            <div>
+              <div class="eyebrow">Client-only focus</div>
+              <div class="focus-controls" id="focus-controls"></div>
+              <div class="focus-status" id="focus-status"></div>
+            </div>
+            <div>
+              <div class="eyebrow">Presentational explorer</div>
+              <div class="search-controls">
+                <label class="control-label" for="search-input">Search</label>
+                <input class="control-input" id="search-input" type="search" placeholder="Filter, highlight, or deep-link records" />
+              </div>
+              <div class="search-controls">
+                <label class="control-label" for="search-scope">Scope</label>
+                <select class="control-select" id="search-scope">
+                  <option value="all">All panels</option>
+                  <option value="tasks">Tasks</option>
+                  <option value="agents">Agents</option>
+                  <option value="hotspots">Hotspots</option>
+                  <option value="warnings">Warnings</option>
+                </select>
+              </div>
+              <div class="toggle-row"><label><input id="matches-only" type="checkbox" /> Show matches only</label></div>
+              <div class="search-status" id="search-status"></div>
             </div>
           </div>
-          <pre class=\"detail\" id=\"detail\"></pre>
+          <div class="warning-banner" id="refresh-warning"></div>
         </div>
-      </div>
-    </section>
-    <section class=\"triage\">
-      <div class=\"panel triage-panel triage-panel-blocked\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Needs action</div><h3>Blocked</h3></div></div><div class=\"list\" id=\"blocked-list\"></div></div>
-      <div class=\"panel triage-panel triage-panel-stale\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Needs refresh</div><h3>Stale</h3></div></div><div class=\"list\" id=\"stale-list\"></div></div>
-      <div class=\"panel triage-panel triage-panel-active\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">In motion</div><h3>Active</h3></div></div><div class=\"list\" id=\"active-list\"></div></div>
-    </section>
-    <section class=\"two-col\">
-      <div class=\"panel\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Concentration</div><h2>Agent hotspots</h2></div></div><div class=\"list\" id=\"hotspots\"></div></div>
-      <div class=\"panel\"><div class=\"section-header\"><div class=\"section-title-group\"><div class=\"section-kicker\">Non-fatal issues</div><h2>Warnings</h2></div></div><div class=\"list\" id=\"warnings\"></div></div>
-    </section>
+      </section>
+      <section class="two-col">
+        <div class="panel">
+          <div class="section-header"><div class="section-title-group"><div class="section-kicker">Topology</div><h2>Run → tasks → agents</h2></div></div>
+          <p class="note">Graph view of existing status artifacts. Click, hover, or focus a node to inspect and cross-highlight its source JSON.</p>
+          <div class="graph-wrap"><svg id="graph" aria-label="Status graph"></svg></div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="panel">
+          <div class="section-header"><div class="section-title-group"><div class="section-kicker">Inspection</div><h2>Selected detail</h2></div></div>
+          <div class="detail-shell" id="detail-shell"><div class="detail-toolbar"><div><div class="detail-label">Selected node</div><p class="note" id="detail-caption"></p></div></div><pre class="detail" id="detail"></pre></div>
+        </div>
+      </section>
+      <section class="triage">
+        <div class="panel triage-panel triage-panel-blocked"><div class="section-header"><div class="section-title-group"><div class="section-kicker">Needs action</div><h3>Blocked</h3></div></div><div class="list" id="blocked-list"></div></div>
+        <div class="panel triage-panel triage-panel-stale"><div class="section-header"><div class="section-title-group"><div class="section-kicker">Needs refresh</div><h3>Stale</h3></div></div><div class="list" id="stale-list"></div></div>
+        <div class="panel triage-panel triage-panel-active"><div class="section-header"><div class="section-title-group"><div class="section-kicker">In motion</div><h3>Active</h3></div></div><div class="list" id="active-list"></div></div>
+      </section>
+      <section class="explorer-grid">
+        <details class="panel" open><summary class="section-header"><div class="section-title-group"><div class="section-kicker">Records</div><h2>Tasks</h2></div><div class="section-meta" id="task-list-meta"></div></summary><div class="list" id="task-list"></div></details>
+        <details class="panel" open><summary class="section-header"><div class="section-title-group"><div class="section-kicker">Records</div><h2>Agents</h2></div><div class="section-meta" id="agent-list-meta"></div></summary><div class="list" id="agent-list"></div></details>
+      </section>
+      <section class="two-col">
+        <div class="panel"><div class="section-header"><div class="section-title-group"><div class="section-kicker">Concentration</div><h2>Agent hotspots</h2></div><div class="section-meta" id="hotspot-meta"></div></div><div class="list" id="hotspots"></div></div>
+        <div class="panel"><div class="section-header"><div class="section-title-group"><div class="section-kicker">Non-fatal issues</div><h2>Warnings</h2></div><div class="section-meta" id="warning-meta"></div></div><div class="list" id="warnings"></div></div>
+      </section>
     </div>
-    <script id=\"status-data\" type=\"application/json\">{payload_json}</script>
-    <script>
-      const data = JSON.parse(document.getElementById('status-data').textContent);
-      const COLORS = {json.dumps(WEB_STATUS_COLORS, ensure_ascii=False)};
-      const FIXED_THEME = {json.dumps(theme)};
-      function colorFor(status) {{ return COLORS[String(status || 'unknown')] || COLORS.unknown; }}
-      function el(name, className, text) {{ const node = document.createElement(name); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }}
-      function setText(id, text) {{ document.getElementById(id).textContent = text; }}
-      function renderHero() {{ const run = data.run; setText('viewer-label', String((data.meta || {{}}).viewer_label || 'Read-only web export')); setText('hero-title', `${{run.run_id}} · ${{run.status}}`); setText('hero-subtitle', `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`); const meta = document.getElementById('hero-meta'); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`, `updated=${{run.updated_at ?? '-'}}`, `heartbeat=${{run.last_heartbeat_at ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }}
-      function renderItemList(targetId, items, builder) {{ const root = document.getElementById(targetId); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }}
-      function taskCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); const left = el('div'); left.appendChild(el('div', 'item-title', String(item.task_id || 'task'))); left.appendChild(el('div', 'item-sub', String(item.summary || ''))); top.appendChild(left); const pill = el('div', 'status-pill', String(item.status || 'unknown')); pill.style.background = colorFor(item.status); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [item.assigned_agent_id && `agent=${{item.assigned_agent_id}}`, item.assigned_executor && `executor=${{item.assigned_executor}}`, item.resource_status && `resource=${{item.resource_status}}`].filter(Boolean).forEach(text => chips.appendChild(el('div', 'chip', text))); if (chips.childNodes.length) card.appendChild(chips); if (item.error) card.appendChild(el('div', 'item-sub', `issue: ${{item.error}}`)); if (item.resume_note) card.appendChild(el('div', 'item-sub', `resume: ${{item.resume_note}}`)); return card; }}
-      function hotspotCard(item) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', String(item.agent || 'unknown'))); const pill = el('div', 'status-pill', `count ${{item.count}}`); pill.style.background = colorFor(item.cleanup_issues ? 'blocked' : (item.active ? 'in_progress' : 'done')); top.appendChild(pill); card.appendChild(top); const chips = el('div', 'chips'); [`active=${{item.active}}`, `cleanup_issues=${{item.cleanup_issues}}`].forEach(text => chips.appendChild(el('div', 'chip', text))); Object.entries(item.statuses || {{}}).forEach(([status, count]) => chips.appendChild(el('div', 'chip', `${{status}}=${{count}}`))); (item.tasks || []).forEach(task => chips.appendChild(el('div', 'chip', `task=${{task}}`))); card.appendChild(chips); return card; }}
-      function warningCard(text) {{ const card = el('div', 'item'); const top = el('div', 'item-top'); top.appendChild(el('div', 'item-title', 'warning')); const pill = el('div', 'status-pill', 'attention'); pill.style.background = colorFor('waiting_for_user'); top.appendChild(pill); card.appendChild(top); card.appendChild(el('div', 'item-sub', String(text))); return card; }}
-      function showDetail(title, record) {{ setText('detail-caption', title); setText('detail', JSON.stringify(record, null, 2)); }}
-      function renderLegend() {{ const legend = document.getElementById('legend'); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }}
-      function renderGraph() {{ const svg = document.getElementById('graph'); const ns = 'http://www.w3.org/2000/svg'; const nodes = data.graph.nodes || []; const edges = data.graph.edges || []; const columns = [nodes.filter(n => n.column === 0), nodes.filter(n => n.column === 1), nodes.filter(n => n.column === 2)]; const colX = [80, 420, 760]; const width = 250; const heightBox = 76; const maxRows = Math.max(...columns.map(col => Math.max(col.length, 1))); svg.setAttribute('viewBox', `0 0 1080 ${{maxRows * 120 + 120}}`); svg.innerHTML = ''; const positions = new Map(); columns.forEach((col, column) => col.forEach((node, row) => positions.set(node.id, {{ x: colX[column], y: 52 + row * 120 }}))); edges.forEach(edge => {{ const from = positions.get(edge.from); const to = positions.get(edge.to); if (!from || !to) return; const path = document.createElementNS(ns, 'path'); path.setAttribute('d', `M ${{from.x + width}} ${{from.y + heightBox / 2}} C ${{from.x + width + 70}} ${{from.y + heightBox / 2}}, ${{to.x - 70}} ${{to.y + heightBox / 2}}, ${{to.x}} ${{to.y + heightBox / 2}}`); path.setAttribute('fill', 'none'); path.setAttribute('stroke', colorFor(edge.status)); path.setAttribute('stroke-opacity', '0.45'); path.setAttribute('stroke-width', '3'); svg.appendChild(path); }}); nodes.forEach(node => {{ const pos = positions.get(node.id); const group = document.createElementNS(ns, 'g'); group.style.cursor = 'pointer'; const rect = document.createElementNS(ns, 'rect'); rect.setAttribute('x', pos.x); rect.setAttribute('y', pos.y); rect.setAttribute('width', width); rect.setAttribute('height', heightBox); rect.setAttribute('rx', '18'); rect.setAttribute('fill', 'rgba(15,23,42,0.95)'); rect.setAttribute('stroke', colorFor(node.type === 'run' ? 'run' : node.status)); rect.setAttribute('stroke-width', '2'); group.appendChild(rect); const glow = document.createElementNS(ns, 'rect'); glow.setAttribute('x', pos.x + 8); glow.setAttribute('y', pos.y + 8); glow.setAttribute('width', '8'); glow.setAttribute('height', String(heightBox - 16)); glow.setAttribute('rx', '4'); glow.setAttribute('fill', colorFor(node.status)); group.appendChild(glow); const label = document.createElementNS(ns, 'text'); label.setAttribute('x', String(pos.x + 28)); label.setAttribute('y', String(pos.y + 30)); label.setAttribute('fill', '#f8fafc'); label.setAttribute('font-size', '15'); label.setAttribute('font-weight', '700'); label.textContent = String(node.label || ''); group.appendChild(label); const subtitle = document.createElementNS(ns, 'text'); subtitle.setAttribute('x', String(pos.x + 28)); subtitle.setAttribute('y', String(pos.y + 52)); subtitle.setAttribute('fill', '#94a3b8'); subtitle.setAttribute('font-size', '12'); subtitle.textContent = String(node.subtitle || '').slice(0, 34); group.appendChild(subtitle); const badge = document.createElementNS(ns, 'text'); badge.setAttribute('x', String(pos.x + width - 18)); badge.setAttribute('y', String(pos.y + 28)); badge.setAttribute('fill', colorFor(node.status)); badge.setAttribute('font-size', '11'); badge.setAttribute('font-weight', '700'); badge.setAttribute('text-anchor', 'end'); badge.textContent = String(node.status || '').toUpperCase(); group.appendChild(badge); group.addEventListener('click', () => showDetail(node.id, node.detail)); svg.appendChild(group); }}); }}
-      renderHero(); renderItemList('blocked-list', data.panels.blocked, taskCard); renderItemList('stale-list', data.panels.stale, taskCard); renderItemList('active-list', data.panels.active, taskCard); renderItemList('hotspots', data.hotspots, hotspotCard); renderItemList('warnings', data.warnings, warningCard); renderLegend(); renderGraph(); showDetail(`run:${{data.run.run_id}}`, data.run.record);
-    </script>
-    <script>
-      const refreshState = {{
-        intervalSeconds: Number((((data.meta || {{}}).refresh || {{}}).default_interval_seconds) || 0),
-        timerId: null,
-        refreshing: false,
-        failureCount: 0,
-        lastDetailKey: `run:${{data.run.run_id}}`,
-        lastDetailRecord: data.run.record,
-      }};
-      const baseShowDetail = showDetail;
-      showDetail = function(title, record) {{
-        refreshState.lastDetailKey = String(title || '');
-        refreshState.lastDetailRecord = record || {{}};
-        baseShowDetail(title, record);
-      }};
-      function clearNode(node) {{ while (node.firstChild) node.removeChild(node.firstChild); }}
-      function replaceData(nextData) {{ Object.keys(data).forEach(key => delete data[key]); Object.assign(data, nextData); }}
-      function unique(values) {{ const seen = new Set(); return values.filter(value => value && !seen.has(value) && seen.add(value)); }}
-      function sortedRecord(record) {{ const next = {{}}; Object.keys(record || {{}}).sort().forEach(key => {{ next[key] = record[key]; }}); return next; }}
-      function refreshConfig() {{ return ((data.meta || {{}}).refresh || {{}}); }}
-      function refreshSources() {{ return (refreshConfig().source || {{}}); }}
-      function setRefreshStatus(message) {{ document.getElementById('refresh-status').textContent = String(message || ''); }}
-      function normalizeRefPath(refPath) {{ return String(refPath || '').split('\\\\').join('/'); }}
-      function encodeRelativePath(refPath) {{ return normalizeRefPath(refPath).split('/').map(part => encodeURIComponent(part)).join('/'); }}
-      function pathToFileUrl(pathText) {{ const normalized = normalizeRefPath(pathText); if (!normalized) return null; if (/^file:/i.test(normalized)) return normalized; if (/^[A-Za-z]:\//.test(normalized)) return 'file:///' + normalized.slice(0, 2) + normalized.slice(2).split('/').map(part => encodeURIComponent(part)).join('/'); if (normalized.startsWith('/')) return 'file://' + normalized.split('/').map((part, index) => index === 0 ? '' : encodeURIComponent(part)).join('/'); return null; }}
-      function candidateBaseUrls() {{ const source = refreshSources(); return unique([source.status_root_url, source.status_parent_url, source.status_dir_url, source.output_dir_url, source.project_dir_url]); }}
-      function buildCandidateUrls(refPath) {{ const normalized = normalizeRefPath(refPath); if (!normalized) return []; const absoluteUrl = pathToFileUrl(normalized); if (absoluteUrl) return [absoluteUrl]; const encoded = encodeRelativePath(normalized); const trimmed = normalized.startsWith('status/') ? encodeRelativePath(normalized.slice(7)) : ''; const urls = []; candidateBaseUrls().forEach(base => {{ try {{ urls.push(new URL(encoded, base).href); }} catch (_error) {{ }} if (trimmed) {{ try {{ urls.push(new URL(trimmed, base).href); }} catch (_error) {{ }} }} }}); return unique(urls); }}
-      async function fetchJsonUrl(url) {{ const response = await fetch(url, {{ cache: 'no-store' }}); const text = await response.text(); if (response.status && !response.ok) throw new Error(`HTTP ${{response.status}} for ${{url}}`); return JSON.parse(text); }}
-      async function fetchJsonFromCandidates(candidates) {{ let lastError = null; for (const candidate of candidates) {{ try {{ return {{ url: candidate, data: await fetchJsonUrl(candidate) }}; }} catch (error) {{ lastError = error; }} }} throw lastError || new Error('No readable local status source was available.'); }}
-      function matchesFocus(record, focus, activeIds) {{ const status = String((record || {{}}).status || ''); const recordId = String((record || {{}}).task_id || (record || {{}}).agent_id || ''); if (focus === 'blocked') return status === 'blocked'; if (focus === 'stale') return status === 'stale'; if (focus === 'active') return status === 'in_progress' || status === 'waiting_for_user' || activeIds.has(recordId); return false; }}
-      function buildHotspots(agents, activeAgentIds, focus) {{ const filtered = focus ? agents.filter(agent => matchesFocus(agent, focus, activeAgentIds)) : agents; const rollups = {{}}; filtered.forEach(agent => {{ const name = String(agent.agent || 'unknown'); if (!rollups[name]) rollups[name] = {{ agent: name, count: 0, active: 0, cleanup_issues: 0, statuses: {{}}, tasks: [] }}; const rollup = rollups[name]; rollup.count += 1; if (activeAgentIds.has(String(agent.agent_id || ''))) rollup.active += 1; const status = String(agent.status || 'unknown'); rollup.statuses[status] = Number(rollup.statuses[status] || 0) + 1; if (agent.cleanup_status === 'failed' || agent.cleanup_status === 'unknown' || agent.resource_status === 'cleanup_failed' || agent.resource_status === 'unknown') rollup.cleanup_issues += 1; if (agent.task_id && !rollup.tasks.includes(agent.task_id)) rollup.tasks.push(agent.task_id); }}); return Object.values(rollups).sort((a, b) => (b.cleanup_issues - a.cleanup_issues) || (b.active - a.active) || (b.count - a.count) || String(a.agent).localeCompare(String(b.agent))); }}
-      async function loadReferencedRecords(runStatus, refKey, idKey) {{ const refs = Array.isArray(runStatus[refKey]) ? runStatus[refKey] : []; const records = []; const warnings = []; const entityName = String(idKey).endsWith('_id') ? String(idKey).slice(0, -3) : String(idKey); for (const item of refs) {{ if (!item || typeof item !== 'object') continue; const entityId = item[idKey]; const refPath = item.path; if (!entityId || !refPath) continue; const candidates = buildCandidateUrls(String(refPath)); if (!candidates.length) {{ warnings.push(`Missing ${{entityName}} file for ${{entityId}}: ${{refPath}}`); continue; }} try {{ const loaded = await fetchJsonFromCandidates(candidates); records.push(loaded.data); }} catch (_error) {{ warnings.push(`Missing ${{entityName}} file for ${{entityId}}: ${{refPath}}`); }} }} return {{ records, warnings }}; }}
-      async function buildPayloadFromRunStatus(runStatus, loadedFrom) {{ const focus = (data.meta || {{}}).focus || null; const refresh = refreshConfig(); const activeTaskIds = new Set((runStatus.active_task_ids || []).map(item => String(item))); const activeAgentIds = new Set((runStatus.active_agent_ids || []).map(item => String(item))); const runId = String(runStatus.run_id || '-'); const payload = {{ meta: {{ title: `Status viewer: ${{runId}}`, focus, loaded_from: String(loadedFrom || (data.meta || {{}}).loaded_from || ''), read_only: true, refresh }}, run: {{ run_id: runStatus.run_id, status: runStatus.status, orchestrator: runStatus.orchestrator, layout: runStatus.layout || '-', current_stage: runStatus.current_stage, next_stage: runStatus.next_stage, updated_at: runStatus.updated_at, last_heartbeat_at: runStatus.last_heartbeat_at, waiting_on: runStatus.waiting_on, resume_from_checkpoint: runStatus.resume_from_checkpoint, last_error: runStatus.last_error, task_counts: Object.assign({{}}, runStatus.task_counts || {{}}), active_task_ids: Array.from(activeTaskIds).sort(), active_agent_ids: Array.from(activeAgentIds).sort(), record: sortedRecord(runStatus) }}, tasks: [], agents: [], warnings: [], hotspots: [], panels: {{ blocked: [], stale: [], active: [] }}, graph: {{ nodes: [{{ id: `run:${{runId}}`, type: 'run', label: runId, status: String(runStatus.status || 'unknown'), subtitle: String(runStatus.orchestrator || '-'), column: 0, detail: sortedRecord(runStatus) }}], edges: [] }} }};
-        if (runStatus.layout !== 'expanded') {{ const counts = payload.run.task_counts || {{}}; payload.panels.blocked = [{{ task_id: 'run-only', summary: `count=${{counts.blocked || 0}} (details unavailable in run-only layout)`, status: 'blocked' }}]; payload.panels.stale = [{{ task_id: 'run-only', summary: `count=${{counts.stale || 0}} (details unavailable in run-only layout)`, status: 'stale' }}]; payload.panels.active = [{{ task_id: 'run-only', summary: payload.run.active_task_ids.length ? payload.run.active_task_ids.join(', ') : 'none', status: payload.run.active_task_ids.length ? 'in_progress' : 'unknown' }}]; return payload; }}
-        const loadedTasks = await loadReferencedRecords(runStatus, 'task_refs', 'task_id');
-        const loadedAgents = await loadReferencedRecords(runStatus, 'agent_refs', 'agent_id');
-        payload.warnings = loadedTasks.warnings.concat(loadedAgents.warnings);
-        const taskCardById = {{}};
-        const taskCards = [];
-        loadedTasks.records.forEach(task => {{ const taskId = String(task.task_id || ''); const card = {{ task_id: task.task_id, summary: task.summary, status: String(task.status || 'unknown'), assigned_agent_id: task.assigned_agent_id, assigned_executor: task.assigned_executor, resource_status: task.resource_status, result_summary: task.result_summary, error: task.error, resume_note: task.resume_note, record: sortedRecord(task) }}; taskCards.push(card); taskCardById[taskId] = card; payload.graph.nodes.push({{ id: `task:${{taskId}}`, type: 'task', label: taskId, status: String(task.status || 'unknown'), subtitle: String(task.summary || '-'), column: 1, detail: sortedRecord(task) }}); payload.graph.edges.push({{ from: `run:${{runId}}`, to: `task:${{taskId}}`, status: String(task.status || 'unknown') }}); }});
-        const agentCards = [];
-        loadedAgents.records.forEach(agent => {{ const agentId = String(agent.agent_id || ''); const taskId = String(agent.task_id || ''); const card = {{ agent_id: agent.agent_id, agent: agent.agent, status: String(agent.status || 'unknown'), task_id: agent.task_id, attempt: agent.attempt, cleanup_status: agent.cleanup_status, resource_status: agent.resource_status, result_summary: agent.result_summary, error: agent.error, resource_handles: agent.resource_handles, record: sortedRecord(agent) }}; agentCards.push(card); payload.graph.nodes.push({{ id: `agent:${{agentId}}`, type: 'agent', label: agentId, status: String(agent.status || 'unknown'), subtitle: String(agent.agent || '-'), column: 2, detail: sortedRecord(agent) }}); payload.graph.edges.push({{ from: `task:${{taskId}}`, to: `agent:${{agentId}}`, status: String(agent.status || 'unknown') }}); }});
-        Array.from(activeTaskIds).sort().forEach(taskId => {{ if (!taskCardById[taskId]) payload.warnings.push(`Missing task file for active task ${{taskId}}.`); }});
-        payload.panels.blocked = taskCards.filter(item => item.status === 'blocked');
-        payload.panels.stale = taskCards.filter(item => item.status === 'stale');
-        payload.panels.active = Array.from(activeTaskIds).sort().filter(taskId => taskCardById[taskId]).map(taskId => taskCardById[taskId]);
-        payload.tasks = focus ? taskCards.filter(item => matchesFocus(item.record, focus, activeTaskIds)) : taskCards;
-        payload.agents = focus ? agentCards.filter(item => matchesFocus(item.record, focus, activeAgentIds)) : agentCards;
-        if (focus) ['blocked', 'stale', 'active'].forEach(key => {{ payload.panels[key] = payload.panels[key].filter(item => item.record ? matchesFocus(item.record, focus, activeTaskIds) : true); }});
-        payload.hotspots = buildHotspots(loadedAgents.records, activeAgentIds, focus);
-        return payload;
-      }}
-      function restoreDetail() {{ const key = String(refreshState.lastDetailKey || `run:${{data.run.run_id}}`); const node = (data.graph.nodes || []).find(item => item.id === key); if (node) {{ showDetail(key, node.detail || {{}}); return; }} showDetail(`run:${{data.run.run_id}}`, data.run.record); }}
-      renderHero = function() {{ const run = data.run; document.getElementById('viewer-label').textContent = String((data.meta || {{}}).viewer_label || 'Read-only web export'); document.getElementById('hero-title').textContent = `${{run.run_id}} · ${{run.status}}`; document.getElementById('hero-subtitle').textContent = `Layout=${{run.layout}}. Orchestrator=${{run.orchestrator}}. Loaded from ${{data.meta.loaded_from}}.`; const meta = document.getElementById('hero-meta'); clearNode(meta); [`theme=${{FIXED_THEME}}`, `focus=${{data.meta.focus || 'all'}}`, `waiting_on=${{run.waiting_on ?? '-'}}`, `current_stage=${{run.current_stage ?? '-'}}`, `next_stage=${{run.next_stage ?? '-'}}`, `updated=${{run.updated_at ?? '-'}}`, `heartbeat=${{run.last_heartbeat_at ?? '-'}}`].forEach(text => meta.appendChild(el('span', 'pill', text))); const stats = document.getElementById('stats'); clearNode(stats); const counts = run.task_counts || {{}}; [['Tasks', data.tasks.length || Object.values(counts).reduce((a, b) => a + Number(b || 0), 0), `layout=${{run.layout}}`], ['Agents', data.agents.length, run.layout === 'expanded' ? 'expanded detail loaded' : 'run-only layout'], ['Blocked', Number(counts.blocked || 0), 'requires review'], ['Stale', Number(counts.stale || 0), 'resume or reconcile'], ['Active refs', (run.active_task_ids || []).length + (run.active_agent_ids || []).length, 'current pointers'], ['Warnings', (data.warnings || []).length, 'non-fatal missing refs']].forEach(([label, value, sub]) => {{ const card = el('div', 'stat'); card.appendChild(el('div', 'stat-label', String(label))); card.appendChild(el('div', 'stat-value', String(value))); card.appendChild(el('div', 'stat-sub', String(sub))); stats.appendChild(card); }}); }};
-      renderItemList = function(targetId, items, builder) {{ const root = document.getElementById(targetId); clearNode(root); if (!items || !items.length) {{ root.appendChild(el('div', 'empty', 'none')); return; }} items.forEach(item => root.appendChild(builder(item))); }};
-      renderLegend = function() {{ const legend = document.getElementById('legend'); clearNode(legend); Object.entries(COLORS).forEach(([status, color]) => {{ if (status === 'run') return; const item = el('div', 'legend-item'); const dot = el('span', 'dot'); dot.style.background = color; item.appendChild(dot); item.appendChild(el('span', '', status)); legend.appendChild(item); }}); }};
-      function renderRefreshControls() {{ const refresh = refreshConfig(); document.getElementById('refresh-note').textContent = String(refresh.warning || ''); document.getElementById('refresh-warning').textContent = 'Read-only only: this viewer never controls the pipeline and never writes back to status artifacts.'; const select = document.getElementById('refresh-interval'); if (!select.dataset.bound) {{ clearNode(select); const off = document.createElement('option'); off.value = '0'; off.textContent = 'Off'; select.appendChild(off); (refresh.interval_options_seconds || []).forEach(value => {{ const option = document.createElement('option'); option.value = String(value); option.textContent = `${{value}}s`; select.appendChild(option); }}); select.addEventListener('change', event => {{ refreshState.intervalSeconds = Number(event.target.value || 0); restartPolling(); }}); document.getElementById('refresh-now').addEventListener('click', () => refreshFromSource('manual')); select.dataset.bound = 'true'; }} select.value = String(refreshState.intervalSeconds); }}
-      function rerenderAll() {{ renderHero(); renderRefreshControls(); renderItemList('blocked-list', data.panels.blocked, taskCard); renderItemList('stale-list', data.panels.stale, taskCard); renderItemList('active-list', data.panels.active, taskCard); renderItemList('hotspots', data.hotspots, hotspotCard); renderItemList('warnings', data.warnings, warningCard); renderLegend(); renderGraph(); restoreDetail(); }}
-      function stopPolling() {{ if (refreshState.timerId !== null) {{ window.clearInterval(refreshState.timerId); refreshState.timerId = null; }} }}
-      function restartPolling() {{ stopPolling(); refreshState.failureCount = 0; renderRefreshControls(); if (refreshState.intervalSeconds > 0) {{ refreshState.timerId = window.setInterval(() => refreshFromSource('poll'), refreshState.intervalSeconds * 1000); setRefreshStatus(`Auto refresh every ${{refreshState.intervalSeconds}}s.`); }} else {{ setRefreshStatus('Auto refresh is off.'); }} }}
-      async function refreshFromSource(reason) {{ if (refreshState.refreshing) return; const source = refreshSources(); const payloadUrl = String((source.payload_url || '')); const runStatusUrl = String((source.run_status_url || '')); if (!payloadUrl && !runStatusUrl) {{ setRefreshStatus('Live refresh unavailable: no original status source was embedded in this viewer.'); return; }} refreshState.refreshing = true; setRefreshStatus(reason === 'manual' ? 'Refreshing now…' : 'Polling original local status artifacts…'); try {{ let nextData; if (payloadUrl) {{ const loaded = await fetchJsonFromCandidates([payloadUrl]); nextData = loaded.data; }} else {{ const loaded = await fetchJsonFromCandidates([runStatusUrl]); nextData = await buildPayloadFromRunStatus(loaded.data, loaded.url); }} replaceData(nextData); refreshState.failureCount = 0; rerenderAll(); setRefreshStatus('Live refresh updated at ' + new Date().toLocaleTimeString() + (refreshState.intervalSeconds > 0 ? ' · next poll in ' + refreshState.intervalSeconds + 's.' : '.')); }} catch (_error) {{ refreshState.failureCount += 1; const maxFailures = Number(refreshConfig().max_failures || 1); if (refreshState.failureCount >= maxFailures) {{ stopPolling(); setRefreshStatus('Live refresh unavailable after ' + refreshState.failureCount + ' failed attempt(s).'); }} else {{ setRefreshStatus('Refresh attempt failed (' + refreshState.failureCount + '/' + maxFailures + '). The viewer stays read-only.'); }} }} finally {{ refreshState.refreshing = false; renderRefreshControls(); }} }}
-      rerenderAll();
-      restartPolling();
-    </script>
+    <script id="status-data" type="application/json">{payload_json}</script>
+    <script id="status-config" type="application/json">{viewer_config_json}</script>
+{script_tag}
   </main>
 </body>
 </html>
@@ -1774,11 +1717,15 @@ def command_web_export(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
     run_status = load_json(context.run_status_path)
     output_path = Path(args.output).expanduser().resolve()
+    asset_mode = getattr(args, "asset_mode", "inline")
 
     if not output_path.parent.is_dir():
         raise StatusCliError(
             f"Output directory does not exist for --output: {output_path.parent}"
         )
+
+    if asset_mode == "bundled":
+        ensure_export_assets(output_path)
 
     output_path.write_text(
         render_web_export(
@@ -1787,6 +1734,7 @@ def command_web_export(args: argparse.Namespace) -> str:
             focus=args.focus,
             theme=args.theme,
             refresh_interval=args.refresh_interval,
+            asset_mode=asset_mode,
         ),
         encoding="utf-8",
     )
@@ -1795,6 +1743,7 @@ def command_web_export(args: argparse.Namespace) -> str:
         [
             "READ-ONLY WEB EXPORT WRITTEN",
             f"Output: {output_path}",
+            f"Asset mode: {asset_mode}",
             f"Theme: {args.theme}",
             f"Focus: {args.focus or 'all'}",
             f"Refresh interval: {args.refresh_interval}s",
@@ -1826,6 +1775,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
 
     context = discover_run_status(args)
     load_json(context.run_status_path)
+    asset_mode = getattr(args, "asset_mode", "inline")
 
     refresh_source_overrides = {
         "payload_url": "/api/payload",
@@ -1836,10 +1786,19 @@ def command_web_serve(args: argparse.Namespace) -> str:
         "output_dir_url": None,
         "project_dir_url": None,
     }
+    if asset_mode == "bundled":
+        refresh_source_overrides.update(
+            {
+                "asset_css_url": f"/{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES['css']}",
+                "asset_js_url": f"/{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES['js']}",
+            }
+        )
     refresh_warning = (
         "Live refresh is read-only and re-reads local status artifacts through this "
         "loopback-only HTTP viewer."
     )
+    asset_css = read_web_asset_text(BUNDLED_ASSET_FILENAMES["css"]).encode("utf-8")
+    asset_js = read_web_asset_text(BUNDLED_ASSET_FILENAMES["js"]).encode("utf-8")
 
     def render_html() -> bytes:
         run_status = load_json(context.run_status_path)
@@ -1852,6 +1811,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
             viewer_label="Read-only localhost viewer",
             refresh_warning=refresh_warning,
             refresh_source_overrides=refresh_source_overrides,
+            asset_mode=asset_mode,
         ).encode("utf-8")
 
     def render_payload_json() -> bytes:
@@ -1922,6 +1882,30 @@ def command_web_serve(args: argparse.Namespace) -> str:
                         include_body=include_body,
                     )
                     return
+
+                if (
+                    request_path
+                    == f"/{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES['css']}"
+                ):
+                    self._send_response(
+                        200,
+                        "text/css; charset=utf-8",
+                        asset_css,
+                        include_body=include_body,
+                    )
+                    return
+
+                if (
+                    request_path
+                    == f"/{BUNDLED_ASSET_DIRNAME}/{BUNDLED_ASSET_FILENAMES['js']}"
+                ):
+                    self._send_response(
+                        200,
+                        "application/javascript; charset=utf-8",
+                        asset_js,
+                        include_body=include_body,
+                    )
+                    return
             except StatusCliError as exc:
                 body = f"ERROR: {exc}\n".encode("utf-8")
                 self._send_response(
@@ -1974,6 +1958,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
                 "READ-ONLY LOCALHOST VIEWER STARTED",
                 f"Viewer URL: {viewer_url}",
                 f"Payload URL: {payload_url}",
+                f"Asset mode: {asset_mode}",
                 f"Theme: {args.theme}",
                 f"Focus: {args.focus or 'all'}",
                 f"Refresh interval: {args.refresh_interval}s",
@@ -2106,6 +2091,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=WEB_DEFAULT_REFRESH_INTERVAL,
         help="Bounded live-refresh interval in seconds for the exported viewer",
     )
+    web_export_parser.add_argument(
+        "--asset-mode",
+        choices=WEB_ASSET_MODE_CHOICES,
+        default="inline",
+        help="Viewer asset mode: inline self-contained or bounded local bundled assets",
+    )
     add_path_options(web_export_parser)
     web_export_parser.set_defaults(handler=command_web_export)
 
@@ -2141,6 +2132,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=WEB_REFRESH_INTERVAL_CHOICES,
         default=WEB_DEFAULT_REFRESH_INTERVAL,
         help="Bounded live-refresh interval in seconds for the localhost viewer",
+    )
+    web_serve_parser.add_argument(
+        "--asset-mode",
+        choices=WEB_ASSET_MODE_CHOICES,
+        default="inline",
+        help="Viewer asset mode: inline page assets or fixed bundled localhost assets",
     )
     web_serve_parser.add_argument(
         "--open-browser",
