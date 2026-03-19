@@ -104,10 +104,22 @@ Supported flags:
 
 After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json`).
 
+# RUN STATUS PROTOCOL
+
+Maintain a real run status file at `<output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
+
+- Use `layout = run-only` for this orchestrator unless a future change explicitly needs expanded task/agent files.
+- Create/update the file as a `RunStatus` record for `orchestrator-general`.
+- Keep `checkpoint_path` pointing at `<output_dir>/checkpoint.json`.
+- Prefer including: `run_id`, `orchestrator`, `status`, `created_at`, `updated_at`, `output_dir`, `checkpoint_path`, `user_prompt`, `current_stage`, `completed_stages`, `next_stage`, `waiting_on`, `resume_from_checkpoint`, and `notes` when useful.
+- Set `status = running` during active execution, `waiting_for_user` during confirm/verbose pauses, `completed` on success, `partial` when bounded outputs finish with surfaced leftovers, `failed` on unrecoverable blockers, and `aborted` when the user stops the run.
+- Update `run-status.json` alongside normal checkpoint writes so stage progress and checkpoint lifecycle stay aligned.
+
 # CONFIRM / VERBOSE PROTOCOL
 
 If `confirm_mode = true`:
 - After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
+- Before waiting, update `run-status.json` to `status = waiting_for_user` and `waiting_on = user`.
 - On `abort`: write checkpoint and stop.
 
 If `verbose_mode = true` (implies `confirm_mode`):

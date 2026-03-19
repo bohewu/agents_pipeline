@@ -244,8 +244,29 @@ After each stage completes successfully:
    - `current_stage`: the stage number just completed
    - `completed_stages[]`: array of `{ stage, name, status, artifact_key, timestamp }`
    - `stage_artifacts`: map of stage outputs (the JSON produced at each stage)
-   - `created_at` / `updated_at`: ISO 8601 timestamps
+    - `created_at` / `updated_at`: ISO 8601 timestamps
 2. The checkpoint file MUST conform to `opencode/protocols/schemas/checkpoint.schema.json`.
+
+# STATUS ARTIFACT PROTOCOL
+
+Write real status artifacts under `<output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+
+- `run-status.json` at `<output_dir>/status/run-status.json` is REQUIRED for every run. Create it before Stage 0 begins with `status = queued` or `running`.
+- Status files are operational visibility and recovery metadata. They do NOT replace checkpointing, and checkpoint ownership remains unchanged: `<output_dir>/checkpoint.json` is still the authoritative stage-resume record.
+- The orchestrator is the only writer that may create or replace `RunStatus`.
+- Update `run-status.json` after each successful checkpoint write so `current_stage`, `completed_stages`, `next_stage`, `updated_at`, and overall run `status` stay aligned.
+- Record the resolved `output_dir`, checkpoint path, orchestrator name, and any available artifact paths such as `task_list_path` and `dispatch_plan_path`.
+- Use `waiting_for_user` in `RunStatus.status` when `--confirm` / `--verbose` pauses the run; use `completed`, `partial`, `failed`, or `aborted` for the final terminal state.
+- On resume, inspect prior status files as hints for incomplete work, but trust checkpoint state for completed stages. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
+
+Use the expanded status layout for this orchestrator once task decomposition begins:
+
+- After Stage 3 creates `task-list.json`, switch `RunStatus.layout` to `expanded` and create `<output_dir>/status/tasks/<task_id>.json` for each canonical task id.
+- Initialize task records from the TaskList with `status = pending`, then move tasks to `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` as orchestration logic decides.
+- After Stage 4 routing, enrich each task status with dispatch metadata when available, including `assigned_executor`, `resource_class`, `max_parallelism`, `teardown_required`, dependencies, and any task/agent references kept in `run-status.json`.
+- When Stage 5 dispatches a task, require the assigned executor to update only its own task record to `in_progress` and create or maintain `<output_dir>/status/agents/<agent_id>.json` when executor-level liveness or heavy-resource tracking matters.
+- Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
+- During reconciliation, merge executor outcomes back into task and run status, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -337,16 +358,18 @@ Stage 0: @specifier -> `problem-spec.json`
 Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce `dev-spec.json`, then call @doc-writer to render a Markdown artifact from the same contract and persist its content to the canonical path `dev-spec.md`
 Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
 Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
-Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`
-Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata)
+Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`; then create/update expanded task status files under `<output_dir>/status/tasks/` for every task in the TaskList and refresh `run-status.json` with `layout = expanded`, `task_list_path`, `task_counts`, and task refs
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then enrich the task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`, and refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
+- Include status-writing expectations in every task handoff: executors may update only the assigned task status plus their own agent status, must maintain `updated_at` / `last_heartbeat_at` while active when practical, must record heavy-resource fields for browser/server/process work, and must not claim success until required cleanup is reflected in status.
 - If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
 - If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
+- After each task completion or reconciliation event, immediately refresh the affected task status file(s), any agent status file(s), `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec

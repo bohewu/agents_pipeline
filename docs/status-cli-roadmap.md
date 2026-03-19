@@ -1,6 +1,6 @@
 # Status CLI Deferred Roadmap
 
-This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing files from local disk during the current viewing session, but this roadmap does **not** expand that into hosted service or server platform behavior, remote exposure, runtime-writer, write-back/control actions, daemon/watch behavior, browser/server-hosted runtime beyond that bounded localhost mode, or broader service/platform scope.
+This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing files from local disk during the current viewing session, but this roadmap does **not** expand that into hosted service or server platform behavior, remote exposure, write-back/control actions, daemon/watch behavior, browser/server-hosted runtime beyond that bounded localhost mode, or broader service/platform scope. In-repo run commands and orchestrators are now expected to emit the filesystem status artifacts that `status-cli` reads under `<output_dir>/status/`.
 
 Current contract sources remain:
 
@@ -15,8 +15,9 @@ Any future `status-cli` work should stay downstream of those docs and should not
 - [x] The canonical status layout remains filesystem-based under `<output_dir>/status/`.
 - [x] `run-status.json` remains the required top-level record.
 - [x] Expanded layout stays optional via `tasks/<task_id>.json` and `agents/<agent_id>.json`.
-- [x] Runtime writing, service-backed UI, browser/server-hosted dashboards, remote surfaces, websocket/event-bus delivery, external runtime services, write-back/control actions, and any polling beyond a narrow same-process local file-backed self-refresh mode for an ephemeral loopback-only localhost viewer remain out of scope here.
-- [x] This roadmap allows future same-repo read-only `status-cli` continuation without pulling runtime writing into current scope.
+- [x] In-repo run commands and orchestrators are expected to write real status artifacts under `<output_dir>/status/` for local inspection.
+- [x] Service-backed UI, browser/server-hosted dashboards, remote surfaces, websocket/event-bus delivery, external runtime services, write-back/control actions, and any polling beyond a narrow same-process local file-backed self-refresh mode for an ephemeral loopback-only localhost viewer remain out of scope here.
+- [x] This roadmap allows future same-repo read-only `status-cli` continuation without changing the read-only viewer boundary.
 
 ## Phase 2 / Same-Repo Read-Only CLI Continuation
 
@@ -26,13 +27,13 @@ Phase 2 in this repository means the next read-only CLI phase under `status-cli/
 - [ ] Keep Phase 2 focused on filesystem-backed inspection of `run-status.json` and optional expanded layout files.
 - [ ] Allow terminal-local read-only rendering plus an ephemeral loopback-only localhost read-only viewer mode or self-contained HTML export behavior only when it remains file-backed, local, and non-controlling during the current viewing session.
 - [ ] Allow a narrow same-process local polling/self-refresh mode for the same-repo localhost viewer only when it rereads existing local status artifacts and does not introduce watch/daemon, hosted server/platform, remote, write-back, or control behavior.
-- [ ] Avoid adding runtime writing, background services, browser/server-hosted UI beyond the bounded localhost viewer mode, service-backed dashboards, remote exposure, or platform/service responsibilities.
+- [ ] Avoid adding background services, browser/server-hosted UI beyond the bounded localhost viewer mode, service-backed dashboards, remote exposure, or platform/service responsibilities.
 
 ## Phase 3 / Later Planning Boundary
 
 Phase 3 is later planning only. It is where follow-on decisions can be prepared before any separate runtime implementation begins.
 
-- [ ] Reconfirm the handoff boundary before proposing any runtime writer or service-backed work.
+- [ ] Reconfirm the handoff boundary before proposing any service-backed or remote-integrated work.
 - [ ] Decide what the first separate runtime consumer should adopt from this contract.
 - [ ] Keep any Phase 3 discussion framed as planning, not as current runtime writing work in this repository.
 
@@ -58,13 +59,13 @@ Phase 3 is later planning only. It is where follow-on decisions can be prepared 
 
 ### 4. Runtime integration boundary decisions
 
-- [ ] Decide whether a future `status-cli` reads repo-bound status files directly, relies on a separate runtime implementation, or supports both modes.
+- [ ] Decide whether a future `status-cli` reads repo-bound status files directly, reads status from a separate runtime implementation, or supports both modes.
 - [ ] Decide where runtime-only concerns stay owned: heartbeat cadence, stale reconciliation, cleanup verification, and multi-writer behavior.
 - [ ] Keep those decisions in the runtime boundary discussion unless they require a contract change in this repository first.
 
 ## Open Questions
 
-- Which future runtime repository will be the first real consumer of the status-layer contract after Phase 3 planning is complete?
+- Which future runtime repository will be the first external consumer of the status-layer contract after Phase 3 planning is complete?
 - Should later CLI work target `run-status.json` only first, or require expanded task/agent files immediately?
 - What compatibility promise, if any, should exist between CLI behavior and `protocol_version`?
 - At what point would packaging/install work be mature enough to justify documenting as supported workflow instead of experimental tooling?

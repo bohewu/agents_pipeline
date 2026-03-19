@@ -4,20 +4,21 @@
 
 This document explains how the status-layer MVP artifacts in this repository fit together, what this repository owns today, what is explicitly deferred to a future runtime repository, and how the work should progress from the current Phase 0-1 MVP to a later hardened system.
 
-The MVP in this repository is a contract-and-validation deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that a future runtime implementation must consume.
+The MVP in this repository is a contract-plus-local-runtime deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that in-repo run commands and orchestrators are expected to emit under `<output_dir>/status/` for local inspection.
 This repository also includes an optional in-repo, read-only `status-cli` for local inspection of status artifacts that follow that contract, and future read-only CLI continuation may stay in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export that stays file-backed and non-controlling during the current viewing session, and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing status files from local disk.
-It does **not** implement the external runtime itself.
+It does **not** expand into an external control runtime, hosted service, or write-back surface.
 
 ## Repository Ownership Boundary
 
 ### Owned in this repository now
 
-This repository owns the repo-bound status contract and its validation surface:
+This repository owns the repo-bound status contract, local status production expectation, and validation surface:
 
 - protocol documentation that defines the status-layer contract
 - JSON schemas for `RunStatus`, `TaskStatus`, and `AgentStatus`
 - positive and negative example fixtures for the supported layouts
 - validation guidance and default CI enforcement
+- the expectation that in-repo run commands/orchestrators write real status artifacts under `<output_dir>/status/`
 - the optional in-repo, read-only `status-cli` for local inspection of status artifacts
 - future same-repo read-only `status-cli` continuation under `status-cli/`
 - this handoff document
@@ -27,7 +28,6 @@ This repository owns the repo-bound status contract and its validation surface:
 
 The future runtime repository owns execution-time implementation work, including:
 
-- writing real status files during orchestrated runs
 - deciding how runtime code creates, updates, locks, and reconciles status records
 - any database/API/service projection of the status entities
 - any operational storage, retention, auth, or multi-writer controls
@@ -88,7 +88,7 @@ Future implementation teams should review these touchpoints first.
 
 ## Phase 0-1 MVP Plan (Atomic In-Repo Workstreams)
 
-Phase 0-1 is intentionally limited to repo-owned artifacts and validation.
+Phase 0-1 is intentionally limited to repo-owned artifacts, local status-writer expectation, and validation.
 
 | Workstream ID | Phase | Atomic outcome | Primary touchpoints |
 |---|---|---|---|
@@ -96,7 +96,7 @@ Phase 0-1 is intentionally limited to repo-owned artifacts and validation.
 | WS-SCHEMAS | Phase 0 | Add machine-readable schemas for `RunStatus`, `TaskStatus`, and `AgentStatus` | `opencode/protocols/schemas/run-status.schema.json`, `opencode/protocols/schemas/task-status.schema.json`, `opencode/protocols/schemas/agent-status.schema.json` |
 | WS-EXAMPLES | Phase 0 | Add reviewable positive and negative fixtures for run-only, expanded, and contract-invalid layouts | `opencode/protocols/examples/status-layout.run-only.valid/`, `opencode/protocols/examples/status-layout.expanded.valid/`, `opencode/protocols/examples/status-layout.contract.invalid/` |
 | WS-VALIDATION | Phase 1 | Enforce local and CI validation against the status schemas and fixtures | `opencode/protocols/VALIDATION.md`, `README.md`, `.github/workflows/ci.yml` |
-| WS-HANDOFF | Phase 1 | Publish implementation handoff guidance that separates repo ownership from deferred runtime responsibilities | `opencode/protocols/STATUS_MVP_HANDOFF.md`, `.pipeline-output/pipeline/` |
+| WS-HANDOFF | Phase 1 | Publish implementation handoff guidance that separates repo-owned local status writing from deferred runtime/service responsibilities | `opencode/protocols/STATUS_MVP_HANDOFF.md`, `.pipeline-output/pipeline/` |
 
 ### Phase 0 exit condition
 
@@ -120,7 +120,7 @@ When a separate implementation team starts runtime work, it should treat this re
 
 1. Read and adopt the schema contracts from `opencode/protocols/schemas/`.
 2. Use the positive and negative fixtures as contract-test inputs.
-3. Implement real writers for `<output_dir>/status/run-status.json` and, when needed, `tasks/<task_id>.json` and `agents/<agent_id>.json`.
+3. Reuse the same `<output_dir>/status/` layout already expected from in-repo runs, including `run-status.json` and, when needed, `tasks/<task_id>.json` and `agents/<agent_id>.json`.
 4. Decide runtime-specific behavior for concurrency control, heartbeat updates, stale reconciliation, cleanup verification, and operational storage.
 5. Add its own implementation tests without changing MVP scope in this repository.
 
@@ -138,11 +138,11 @@ Continue optional read-only `status-cli` work in this repository under `status-c
 
 ### Phase 3: Later planning for separate runtime adoption
 
-Use a later planning phase to decide how the first separate runtime implementation should adopt the contract. This phase is for planning and boundary confirmation, not for runtime writing work in this repository.
+Use a later planning phase to decide how the first separate runtime implementation should adopt the contract already written locally in this repository. This phase is for planning and boundary confirmation, not for changing the local writer expectation in this repository.
 
 ### Phase 4: First runtime adoption in a separate runtime repository
 
-Use the repo contract to implement real status writing for orchestrated runs. Keep the output file layout aligned with the current schemas and examples.
+Use the repo contract to implement a separate runtime that preserves the same status writing layout for orchestrated runs. Keep the output file layout aligned with the current schemas and examples.
 
 ### Phase 5: Runtime hardening in the runtime repository
 

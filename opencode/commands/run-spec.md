@@ -35,5 +35,6 @@ $ARGUMENTS
 
 - No direct code implementation in this pipeline.
 - Structured staged execution with artifact traceability under `.pipeline-output/spec/` by default.
+- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
 - The human-readable spec is written to `<output_dir>/spec/dev-spec.md`.
 - Outputs are designed so humans can review them and `/run-pipeline` can later implement them.

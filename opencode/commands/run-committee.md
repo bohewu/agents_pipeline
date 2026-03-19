@@ -27,6 +27,10 @@ $ARGUMENTS
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`
 
+## Notes
+
+- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
+
 ## Examples
 
 ```text
