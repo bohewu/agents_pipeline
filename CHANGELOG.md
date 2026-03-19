@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-03-19
+
+### Changed
+
+- All primary `run-*` orchestrator prompts and command docs now require real status artifacts under `<output_dir>/status/`, so fresh runs can produce inputs that `status-cli` can inspect across repos.
+
+### Fixed
+
+- `checkpoint.schema.json` now includes `orchestrator-spec`, allowing `/run-spec` checkpoint smoke validation to pass end-to-end.
+
 ## [0.10.0] - 2026-03-18
 
 ### Added
