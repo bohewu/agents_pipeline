@@ -372,8 +372,9 @@ jobs:
                   raise SystemExit(f'Expected {label} exporter to generate at least one marked output.')
 
               sample = generated_files[0]
-              stale = sample.with_name(f'stale-generated{sample.suffix}')
-              custom = sample.with_name(f'custom-kept{sample.suffix}')
+              suffix = ''.join(sample.suffixes)
+              stale = sample.with_name(f'stale-generated{suffix}')
+              custom = sample.with_name(f'custom-kept{suffix}')
               stale.write_text(stale_marker_text(marker), encoding='utf-8')
               custom.write_text(f'custom {label} content\n', encoding='utf-8')
 
