@@ -289,7 +289,7 @@ Copy-Item "$tmp\bundle\opencode\agents\*.md" $target
 macOS/Linux:
 
 ```bash
-tag="v0.10.1"
+tag="v0.11.0"
 tmp="$(mktemp -d)"
 curl -fsSL -o "$tmp/bundle.tar.gz" "https://github.com/bohewu/agents_pipeline/releases/download/${tag}/agents-pipeline-opencode-bundle-${tag}.tar.gz"
 tar -xzf "$tmp/bundle.tar.gz" -C "$tmp"
@@ -315,7 +315,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
 
 ```powershell
-$tag = "v0.10.1"
+$tag = "v0.11.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
