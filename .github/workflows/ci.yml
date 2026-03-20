@@ -372,6 +372,10 @@ jobs:
                   raise SystemExit(f'Expected {label} exporter to generate at least one marked output.')
 
               sample = generated_files[0]
+              if label == 'codex' and sample.name == 'config.toml':
+                  sample = next(
+                      path for path in generated_files if path.parent.name == 'agents'
+                  )
               suffix = ''.join(sample.suffixes)
               stale = sample.with_name(f'stale-generated{suffix}')
               custom = sample.with_name(f'custom-kept{suffix}')
