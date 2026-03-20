@@ -230,7 +230,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.2"
+$tag = "v0.11.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
@@ -238,7 +238,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.conf
 macOS/Linux:
 
 ```bash
-tag="v0.11.2"
+tag="v0.11.3"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -260,7 +260,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.2"
+$tag = "v0.11.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
@@ -268,7 +268,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HO
 macOS/Linux:
 
 ```bash
-tag="v0.11.2"
+tag="v0.11.3"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -292,31 +292,28 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.11.2"
-$tmp = Join-Path $env:TEMP "agents-pipeline-$release"
-New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-Invoke-WebRequest "https://github.com/bohewu/agents_pipeline/releases/download/$release/agents-pipeline-opencode-bundle-$release.zip" -OutFile "$tmp\bundle.zip"
-Expand-Archive "$tmp\bundle.zip" -DestinationPath "$tmp\bundle" -Force
+$release = "v0.11.3"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
 pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-release="v0.11.0"
-tmp="$(mktemp -d)"
-curl -fsSL -o "$tmp/bundle.tar.gz" "https://github.com/bohewu/agents_pipeline/releases/download/${release}/agents-pipeline-opencode-bundle-${release}.tar.gz"
-tar -xzf "$tmp/bundle.tar.gz" -C "$tmp"
+release="v0.11.2"
+curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
 bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
 Optional project-local override:
 
 ```powershell
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
 pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "C:\path\to\your-project\.claude\agents"
 ```
 
 ```bash
+curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
 bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
 ```
 
@@ -329,7 +326,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.2"
+$tag = "v0.11.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
@@ -337,7 +334,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
 
 ```powershell
-$tag = "v0.11.2"
+$tag = "v0.11.3"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
@@ -345,7 +342,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 macOS/Linux:
 
 ```bash
-tag="v0.11.2"
+tag="v0.11.3"
 curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
 bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
@@ -362,19 +359,19 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.11.2`).
-- Use SemVer tags with `v` prefix (for example: `v0.11.2`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.11.3`).
+- Use SemVer tags with `v` prefix (for example: `v0.11.3`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.11.2` must release as `v0.11.2`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.11.3` must release as `v0.11.3`).
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.11.2`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.11.3`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -398,8 +395,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.11.2
-git push origin v0.11.2
+git tag v0.11.3
+git push origin v0.11.3
 ```
 
 ## Public Release Checklist

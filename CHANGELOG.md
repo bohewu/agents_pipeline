@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-03-20
+
+### Fixed
+
+- Claude bootstrap install examples in `README.md` now use directly downloadable bootstrap scripts, so the documented copy-paste install flow works as written for global and optional project-local targets.
+
 ## [0.11.2] - 2026-03-20
 
 ### Fixed
