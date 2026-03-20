@@ -202,10 +202,11 @@ jobs:
           assert codex_tools == {"bash": True}
           assert codex_body == "Body line.\n"
 
-          claude_fm, claude_body = claude.parse_frontmatter(
+          claude_fm, claude_tools, claude_body = claude.parse_frontmatter(
               valid_scalar_fixture, Path("valid-claude.md")
           )
           assert claude_fm["name"] == "bounded-valid"
+          assert claude_tools == {}
           assert claude_body == "Body line.\n"
 
           invalid_cases = [
