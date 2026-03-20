@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-03-19
+
+### Added
+
+- Claude Code support docs covering project-local `.claude/agents` installs, release-bundle bootstrap copying, and mapping guidance alongside existing OpenCode, Copilot, and Codex docs.
+- `docs/claude-mapping.md` documenting source-of-truth usage, frontmatter/tool mapping, input adaptation, and current inline/no-nested-subagent guidance for Claude Code orchestrators.
+- Claude Code exporter/install/bootstrap support with release-bundle and CI coverage via `scripts/export-claude-agents.py`, `scripts/install-claude.*`, and `scripts/bootstrap-install-claude.*`.
+
+### Changed
+
+- Root docs and exporter notes now describe Claude Code output generation alongside Copilot and Codex outputs.
+- `status-cli/README.md` now includes a short cross-repo `web serve` cheatsheet for monitoring a fresh `run-*` execution from another repository via `.pipeline-output/status/...`.
+
 ## [0.10.1] - 2026-03-19
 
 ### Changed

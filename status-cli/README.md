@@ -84,6 +84,28 @@ python status-cli/status_cli.py task list --project-dir opencode/protocols/examp
 python status-cli/status_cli.py agent list --project-dir opencode/protocols/examples/status-layout.expanded.valid --status blocked --task-id task-local-server-smoke
 ```
 
+## Fresh run monitoring cheatsheet
+
+To inspect a fresh `run-*` execution from another repo, point `status-cli` at that repo's real status path under `.pipeline-output/status/...`.
+
+Typical flow from this repo:
+
+```bash
+# summary from another repo's status directory
+python status-cli/status_cli.py summary --status-dir /path/to/other-repo/.pipeline-output/status
+
+# richer localhost viewer for the same files
+python status-cli/status_cli.py web serve --status-dir /path/to/other-repo/.pipeline-output/status --host 127.0.0.1 --port 0
+```
+
+If the other repo keeps status under a deeper run-specific path, point to that exact directory instead, for example:
+
+```bash
+python status-cli/status_cli.py web serve --status-dir /path/to/other-repo/.pipeline-output/status/run-20260320-101530 --host 127.0.0.1 --port 0
+```
+
+Use `Ctrl+C` to stop the viewer when you are done. The command stays read-only and does not modify the other repo's status files.
+
 ### `summary`
 
 Shows a compact run summary that works with `run-status.json` alone.
