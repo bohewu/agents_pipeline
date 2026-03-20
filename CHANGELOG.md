@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-03-20
+
+### Fixed
+
+- Claude support follow-up fixes now align README pinned release examples and stabilize the new CI regressions for Claude exporter frontmatter and stale generated-file cleanup coverage.
+
 ## [0.11.0] - 2026-03-19
 
 ### Added
