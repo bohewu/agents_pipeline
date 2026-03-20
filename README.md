@@ -276,10 +276,10 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.0"
-$tmp = Join-Path $env:TEMP "agents-pipeline-$tag"
+$release = "v0.11.0"
+$tmp = Join-Path $env:TEMP "agents-pipeline-$release"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-Invoke-WebRequest "https://github.com/bohewu/agents_pipeline/releases/download/$tag/agents-pipeline-opencode-bundle-$tag.zip" -OutFile "$tmp\bundle.zip"
+Invoke-WebRequest "https://github.com/bohewu/agents_pipeline/releases/download/$release/agents-pipeline-opencode-bundle-$release.zip" -OutFile "$tmp\bundle.zip"
 Expand-Archive "$tmp\bundle.zip" -DestinationPath "$tmp\bundle" -Force
 $target = "C:\path\to\your-project\.claude\agents"
 New-Item -ItemType Directory -Force -Path $target | Out-Null
@@ -289,9 +289,9 @@ Copy-Item "$tmp\bundle\opencode\agents\*.md" $target
 macOS/Linux:
 
 ```bash
-tag="v0.11.0"
+release="v0.11.0"
 tmp="$(mktemp -d)"
-curl -fsSL -o "$tmp/bundle.tar.gz" "https://github.com/bohewu/agents_pipeline/releases/download/${tag}/agents-pipeline-opencode-bundle-${tag}.tar.gz"
+curl -fsSL -o "$tmp/bundle.tar.gz" "https://github.com/bohewu/agents_pipeline/releases/download/${release}/agents-pipeline-opencode-bundle-${release}.tar.gz"
 tar -xzf "$tmp/bundle.tar.gz" -C "$tmp"
 target="/path/to/your-project/.claude/agents"
 mkdir -p "$target"
