@@ -11,7 +11,7 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 ### Required Tools
 
 - OpenCode (with model providers configured)
-- Claude Code (optional; for project-local `.claude/agents` usage)
+- Claude Code (optional; default install target: `~/.claude/agents`)
 - VS Code with GitHub Copilot (for Copilot custom-agent usage)
 - Codex CLI (optional; for Codex multi-agent usage)
 - Python 3.9+ (required for `opencode/tools/validate-schema.py`, `scripts/export-copilot-agents.py`, and `scripts/export-codex-agents.py`)
@@ -113,27 +113,43 @@ pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup
 bash scripts/install-copilot.sh --no-backup
 ```
 
-## Install Claude Code Subagents (Project-local)
+## Install Claude Code Subagents (Recommended)
 
-Claude Code support is project-local and file-based today. Treat `opencode/agents/*.md` as the source of truth, install copies into the target repo's `.claude/agents/`, and apply the small Claude-specific adaptations described in `docs/claude-mapping.md`.
+Claude Code support is file-based today. Treat `opencode/agents/*.md` as the source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
 
 Default target:
-- Project-local: `<your-project>/.claude/agents`
+- All platforms: `~/.claude/agents`
 
 Windows (PowerShell):
 
 ```powershell
-$target = "C:\path\to\your-project\.claude\agents"
-New-Item -ItemType Directory -Force -Path $target | Out-Null
-Copy-Item opencode/agents/*.md $target
+pwsh -NoProfile -File scripts/install-claude.ps1
 ```
 
 macOS/Linux:
 
 ```bash
-target="/path/to/your-project/.claude/agents"
-mkdir -p "$target"
-cp opencode/agents/*.md "$target"
+bash scripts/install-claude.sh
+```
+
+Preview only (no file writes):
+
+```powershell
+pwsh -NoProfile -File scripts/install-claude.ps1 -DryRun
+```
+
+```bash
+bash scripts/install-claude.sh --dry-run
+```
+
+Custom target path (optional project-local override):
+
+```powershell
+pwsh -NoProfile -File scripts/install-claude.ps1 -Target C:\path\to\your-project\.claude\agents
+```
+
+```bash
+bash scripts/install-claude.sh --target /path/to/your-project/.claude/agents
 ```
 
 Claude Code limitation note:
@@ -214,7 +230,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.1"
+$tag = "v0.11.2"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
 pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
@@ -222,7 +238,7 @@ pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.conf
 macOS/Linux:
 
 ```bash
-tag="v0.11.1"
+tag="v0.11.2"
 curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
 bash ./bootstrap-install.sh --version "${tag}"
 ```
@@ -244,7 +260,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.1"
+$tag = "v0.11.2"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
 pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
@@ -252,7 +268,7 @@ pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HO
 macOS/Linux:
 
 ```bash
-tag="v0.11.1"
+tag="v0.11.2"
 curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
 bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
@@ -269,21 +285,19 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Install Claude Code Without Clone (Release Bundle)
 
-Use a tagged release bundle, then copy the source agents into the target repo's `.claude/agents/`.
+Use a tagged release bundle to install Claude Code subagents without cloning this repo.
 
 Pinned version (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.11.1"
+$release = "v0.11.2"
 $tmp = Join-Path $env:TEMP "agents-pipeline-$release"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 Invoke-WebRequest "https://github.com/bohewu/agents_pipeline/releases/download/$release/agents-pipeline-opencode-bundle-$release.zip" -OutFile "$tmp\bundle.zip"
 Expand-Archive "$tmp\bundle.zip" -DestinationPath "$tmp\bundle" -Force
-$target = "C:\path\to\your-project\.claude\agents"
-New-Item -ItemType Directory -Force -Path $target | Out-Null
-Copy-Item "$tmp\bundle\opencode\agents\*.md" $target
+pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
@@ -293,12 +307,20 @@ release="v0.11.0"
 tmp="$(mktemp -d)"
 curl -fsSL -o "$tmp/bundle.tar.gz" "https://github.com/bohewu/agents_pipeline/releases/download/${release}/agents-pipeline-opencode-bundle-${release}.tar.gz"
 tar -xzf "$tmp/bundle.tar.gz" -C "$tmp"
-target="/path/to/your-project/.claude/agents"
-mkdir -p "$target"
-cp "$tmp/opencode/agents/"*.md "$target"
+bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
-After copying, make the Claude Code-specific frontmatter and input-adapter adjustments from `docs/claude-mapping.md` before relying on the installed orchestrators.
+Optional project-local override:
+
+```powershell
+pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "C:\path\to\your-project\.claude\agents"
+```
+
+```bash
+bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
+```
+
+See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, and the current orchestrator limitations.
 
 ## Install Codex Without Clone (Release Bundle)
 
@@ -307,7 +329,7 @@ Pinned version (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.11.1"
+$tag = "v0.11.2"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
@@ -315,7 +337,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
 
 ```powershell
-$tag = "v0.11.1"
+$tag = "v0.11.2"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
 pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
@@ -323,7 +345,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 macOS/Linux:
 
 ```bash
-tag="v0.11.1"
+tag="v0.11.2"
 curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
 bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
@@ -340,19 +362,19 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Versioning
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.11.1`).
-- Use SemVer tags with `v` prefix (for example: `v0.11.1`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.11.2`).
+- Use SemVer tags with `v` prefix (for example: `v0.11.2`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.11.1` must release as `v0.11.1`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.11.2` must release as `v0.11.2`).
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.11.1`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.11.2`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -376,8 +398,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.11.1
-git push origin v0.11.1
+git tag v0.11.2
+git push origin v0.11.2
 ```
 
 ## Public Release Checklist
@@ -472,7 +494,8 @@ After install, add your generated directory to VS Code user settings:
 
 This repo also supports Claude Code with the same `opencode/agents/*.md` source files.
 
-- Install target: `.claude/agents/` in the repo where you want Claude Code to use the agents.
+- Default install target: `~/.claude/agents`.
+- Optional override target: `<project>/.claude/agents` when you explicitly want repo-scoped Claude agents.
 - Source of truth stays in `opencode/agents/*.md`; do not fork a separate long-lived Claude-only source set.
 - See `docs/claude-mapping.md` for the frontmatter/tool mapping and `$ARGUMENTS` input adaptation notes.
 - Keep orchestrator expectations conservative: Claude Code support here is for inline orchestration or direct leaf-subagent use, not guaranteed nested orchestrator-managed subagent trees.

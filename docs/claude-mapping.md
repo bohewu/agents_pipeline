@@ -5,7 +5,7 @@ This document defines how OpenCode agent definitions map to Claude Code custom s
 ## Source Of Truth
 
 - Source: `opencode/agents/*.md`
-- Generated output: `<target-dir>/*.md` for Claude Code, typically `<project>/.claude/agents/*.md` or `~/.claude/agents/*.md`
+- Generated output: `<target-dir>/*.md` for Claude Code, typically `~/.claude/agents/*.md` by default or `<project>/.claude/agents/*.md` when you explicitly want repo-scoped overrides
 - Generator: `scripts/export-claude-agents.py`
 
 Do not manually maintain a separate Claude-only source tree as the primary definition set.
@@ -68,7 +68,7 @@ This keeps Claude Code support accurate without overstating nested subagent beha
 
 ## Install Targets
 
-- User-level install target: `~/.claude/agents`
-- Project-local target: `<project>/.claude/agents`
+- Default install target: `~/.claude/agents`
+- Optional project-local override: `<project>/.claude/agents`
 
 Use `scripts/install-claude.sh` or `scripts/install-claude.ps1` for local installs, and `scripts/bootstrap-install-claude.sh` or `scripts/bootstrap-install-claude.ps1` for release-bundle installs without cloning.

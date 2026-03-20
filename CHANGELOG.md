@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-03-20
+
+### Fixed
+
+- Claude Code docs now correctly treat the global `~/.claude/agents` directory as the default install target, with project-local `.claude/agents` documented only as an explicit override.
+
 ## [0.11.1] - 2026-03-20
 
 ### Fixed
