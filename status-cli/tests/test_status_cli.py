@@ -1057,6 +1057,113 @@ class StatusCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("invalid choice: '12'", result.stderr)
 
+    def test_web_serve_can_start_without_preselected_target(self) -> None:
+        status_cli = load_status_cli_module()
+
+        server_ready = threading.Event()
+        server_box: dict[str, Any] = {}
+        result_box: dict[str, Any] = {}
+        stdout = io.StringIO()
+        original_server_class = status_cli.LoopbackOnlyStatusServer
+        original_discover_run_status = status_cli.discover_run_status
+
+        class TrackingLoopbackServer(original_server_class):
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                server_box["server"] = self
+                server_ready.set()
+
+        def fail_discover_run_status(_args: Any) -> Any:
+            raise AssertionError("discover_run_status should not be called")
+
+        def run_server() -> None:
+            args = status_cli.argparse.Namespace(
+                status_file=None,
+                status_dir=None,
+                output_dir=None,
+                project_dir=None,
+                host="127.0.0.1",
+                port=0,
+                focus=None,
+                theme="auto",
+                refresh_interval=15,
+                open_browser=False,
+                asset_mode="inline",
+            )
+            try:
+                with redirect_stdout(stdout):
+                    result_box["result"] = status_cli.command_web_serve(args)
+            except (
+                BaseException
+            ) as exc:  # pragma: no cover - surfaced by assertions below
+                result_box["error"] = exc
+
+        status_cli.LoopbackOnlyStatusServer = TrackingLoopbackServer
+        status_cli.discover_run_status = fail_discover_run_status
+        worker = threading.Thread(target=run_server, daemon=True)
+        worker.start()
+        try:
+            self.assertTrue(
+                server_ready.wait(timeout=5), msg="localhost viewer did not start"
+            )
+            startup_output = wait_for_text(stdout, "READ-ONLY LOCALHOST VIEWER STARTED")
+            server = server_box["server"]
+            viewer_url = f"http://{server.server_address[0]}:{server.server_address[1]}/"
+
+            html_status, html_body, _ = request_url(viewer_url)
+            payload_status, payload_body, payload_headers = request_url(
+                viewer_url + "api/payload"
+            )
+
+            html = html_body.decode("utf-8")
+            payload = json.loads(payload_body)
+            scripts = "\n".join(extract_inline_scripts(html))
+
+            self.assertIn("Loaded from: no target selected", startup_output)
+            self.assertEqual(html_status, 200)
+            self.assertIn("Read-only localhost viewer", html)
+            self.assertIn("No target selected yet", html)
+            self.assertIn("showOpenFilePicker", scripts)
+            self.assertIn("showDirectoryPicker", scripts)
+            self.assertIn("Choose a local status source", scripts)
+            self.assertIn("Choose folder", scripts)
+            self.assertIn("Choose run-status.json", scripts)
+            self.assertIn(
+                "Pick a local folder or run-status.json file to populate this read-only viewer.",
+                scripts,
+            )
+
+            self.assertEqual(payload_status, 200)
+            self.assertEqual(payload_headers.get("Cache-Control"), "no-store")
+            self.assertTrue(payload["meta"]["read_only"])
+            self.assertEqual(payload["meta"]["viewer_label"], "Read-only localhost viewer")
+            self.assertEqual(payload["meta"]["shell_state"], "awaiting_target")
+            self.assertIsNone(payload["meta"]["loaded_from"])
+            self.assertEqual(payload["run"]["layout"], "shell")
+            self.assertEqual(payload["run"]["status"], "idle")
+            self.assertEqual(
+                payload["warnings"],
+                [
+                    "No target selected yet. This loopback viewer is in a read-only shell state."
+                ],
+            )
+            self.assertEqual(payload["tasks"], [])
+            self.assertEqual(payload["agents"], [])
+            self.assertEqual(payload["meta"]["refresh"]["source"]["payload_url"], "/api/payload")
+            self.assertIsNone(
+                payload["meta"]["refresh"]["source"]["run_status_url"]
+            )
+        finally:
+            if "server" in server_box:
+                server_box["server"].shutdown()
+            worker.join(timeout=5)
+            status_cli.LoopbackOnlyStatusServer = original_server_class
+            status_cli.discover_run_status = original_discover_run_status
+
+        self.assertFalse(worker.is_alive(), msg="localhost viewer thread did not stop")
+        if "error" in result_box:
+            raise result_box["error"]
+
     def test_web_serve_lifecycle_is_read_only_and_cleanup_safe(self) -> None:
         status_cli = load_status_cli_module()
 

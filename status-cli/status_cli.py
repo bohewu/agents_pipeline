@@ -255,6 +255,13 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
     )
 
 
+def has_explicit_status_target(args: argparse.Namespace) -> bool:
+    return any(
+        getattr(args, field, None)
+        for field in ("status_file", "status_dir", "output_dir", "project_dir")
+    )
+
+
 def render_value(value: object) -> str:
     if value is None:
         return "-"
@@ -1012,9 +1019,31 @@ def serialize_record(record: dict) -> dict[str, object]:
     return {key: record[key] for key in sorted(record)}
 
 
+def build_web_shell_run_status() -> dict[str, object]:
+    return {
+        "run_id": None,
+        "status": "idle",
+        "orchestrator": None,
+        "layout": "shell",
+        "current_stage": None,
+        "next_stage": None,
+        "updated_at": None,
+        "last_heartbeat_at": None,
+        "waiting_on": "status target selection",
+        "resume_from_checkpoint": None,
+        "last_error": None,
+        "task_counts": {},
+        "active_task_ids": [],
+        "active_agent_ids": [],
+        "notes": [
+            "No status target selected yet. This loopback viewer is still read-only."
+        ],
+    }
+
+
 def build_web_payload(
     run_status: dict,
-    context: StatusContext,
+    context: Optional[StatusContext],
     focus: Optional[str] = None,
     refresh_interval: int = WEB_DEFAULT_REFRESH_INTERVAL,
     viewer_label: str = "Read-only web export",
@@ -1024,30 +1053,48 @@ def build_web_payload(
     active_task_ids = {str(item) for item in run_status.get("active_task_ids") or []}
     active_agent_ids = {str(item) for item in run_status.get("active_agent_ids") or []}
     run_id = str(run_status.get("run_id") or "-")
+    loaded_from = str(context.run_status_path) if context is not None else None
     warnings: list[str] = []
+    if context is None:
+        warnings.append(
+            "No target selected yet. This loopback viewer is in a read-only shell state."
+        )
     refresh_source = {
-        "run_status_url": file_uri(context.run_status_path),
-        "status_root_url": file_uri(context.status_root, directory=True),
+        "run_status_url": file_uri(context.run_status_path) if context is not None else None,
+        "status_root_url": file_uri(context.status_root, directory=True)
+        if context is not None
+        else None,
         "status_parent_url": file_uri(
             context.status_root.parent
-            if context.status_root.name == "status"
+            if context is not None and context.status_root.name == "status"
             else None,
             directory=True,
         ),
-        "status_dir_url": file_uri(context.status_dir, directory=True),
-        "output_dir_url": file_uri(context.output_dir, directory=True),
-        "project_dir_url": file_uri(context.project_dir, directory=True),
+        "status_dir_url": file_uri(context.status_dir, directory=True)
+        if context is not None
+        else None,
+        "output_dir_url": file_uri(context.output_dir, directory=True)
+        if context is not None
+        else None,
+        "project_dir_url": file_uri(context.project_dir, directory=True)
+        if context is not None
+        else None,
     }
     if refresh_source_overrides:
         refresh_source.update(refresh_source_overrides)
 
     payload: dict[str, object] = {
         "meta": {
-            "title": f"Status viewer: {run_id}",
+            "title": (
+                f"Status viewer: {run_id}"
+                if run_status.get("run_id")
+                else "Status viewer: no target selected"
+            ),
             "focus": focus,
-            "loaded_from": str(context.run_status_path),
+            "loaded_from": loaded_from,
             "read_only": True,
             "viewer_label": viewer_label,
+            "shell_state": "awaiting_target" if context is None else None,
             "refresh": {
                 "enabled": True,
                 "default_interval_seconds": refresh_interval,
@@ -1251,7 +1298,7 @@ def build_web_payload(
 
 def render_web_export(
     run_status: dict,
-    context: StatusContext,
+    context: Optional[StatusContext],
     focus: Optional[str] = None,
     theme: str = "auto",
     refresh_interval: int = WEB_DEFAULT_REFRESH_INTERVAL,
@@ -1773,8 +1820,12 @@ def command_web_serve(args: argparse.Namespace) -> str:
     if args.port < 0 or args.port > 65535:
         raise StatusCliError("--port must be between 0 and 65535.")
 
-    context = discover_run_status(args)
-    load_json(context.run_status_path)
+    context: Optional[StatusContext]
+    if has_explicit_status_target(args):
+        context = discover_run_status(args)
+        load_json(context.run_status_path)
+    else:
+        context = None
     asset_mode = getattr(args, "asset_mode", "inline")
 
     refresh_source_overrides = {
@@ -1801,7 +1852,11 @@ def command_web_serve(args: argparse.Namespace) -> str:
     asset_js = read_web_asset_text(BUNDLED_ASSET_FILENAMES["js"]).encode("utf-8")
 
     def render_html() -> bytes:
-        run_status = load_json(context.run_status_path)
+        run_status = (
+            load_json(context.run_status_path)
+            if context is not None
+            else build_web_shell_run_status()
+        )
         return render_web_export(
             run_status,
             context,
@@ -1815,7 +1870,11 @@ def command_web_serve(args: argparse.Namespace) -> str:
         ).encode("utf-8")
 
     def render_payload_json() -> bytes:
-        run_status = load_json(context.run_status_path)
+        run_status = (
+            load_json(context.run_status_path)
+            if context is not None
+            else build_web_shell_run_status()
+        )
         payload = build_web_payload(
             run_status,
             context,
@@ -1962,7 +2021,9 @@ def command_web_serve(args: argparse.Namespace) -> str:
                 f"Theme: {args.theme}",
                 f"Focus: {args.focus or 'all'}",
                 f"Refresh interval: {args.refresh_interval}s",
-                f"Loaded from: {context.run_status_path}",
+                "Loaded from: no target selected"
+                if context is None
+                else f"Loaded from: {context.run_status_path}",
                 browser_status,
                 "Shutdown: press Ctrl+C to stop and close the loopback socket.",
             ]

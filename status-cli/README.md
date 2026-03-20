@@ -27,6 +27,7 @@ python status-cli/status_cli.py dashboard --status-file opencode/protocols/examp
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py dashboard --project-dir opencode/protocols/examples/status-layout.expanded.valid --focus blocked
 python status-cli/status_cli.py web export --project-dir opencode/protocols/examples/status-layout.expanded.valid --output artifacts/status-view.html
+python status-cli/status_cli.py web serve --host 127.0.0.1 --port 0
 python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host 127.0.0.1 --port 0
 python status-cli/status_cli.py visual --project-dir opencode/protocols/examples/status-layout.expanded.valid
 python status-cli/status_cli.py run show --project-dir opencode/protocols/examples/status-layout.expanded.valid
@@ -66,7 +67,7 @@ Use the CLI as a bounded read-only inspection flow:
 1. `summary` to confirm the run, layout, and top-level status.
 2. `dashboard` when you want a compact terminal-local triage view of blocked, stale, active, and hotspot information without leaving the shell.
 3. `web export` when you want a richer local HTML view with graph-like run, task, and agent inspection.
-4. `web serve` when you need the same read-only viewer over loopback HTTP so browser polling can re-read the source through a bounded localhost session.
+4. `web serve` when you need the same read-only viewer over loopback HTTP so browser polling can re-read the source through a bounded localhost session. You can start with an explicit target or start untargeted and pick a folder or `run-status.json` in the browser.
 5. `run show` or `visual` to inspect run-wide details and references.
 6. `task list` to scan tasks, optionally narrowing by status.
 7. `task show <task_id>` for one task record.
@@ -188,6 +189,8 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 
 - serves only on `127.0.0.1` or `localhost`; external interfaces are rejected
 - serves the same read-only viewer shape as `web export`, but from a transient in-process HTTP server instead of an output file
+- can start with an explicit CLI target (`--status-file`, `--status-dir`, `--output-dir`, or `--project-dir`) or with no target at all
+- when started without a target, the browser opens in a neutral read-only shell and lets you choose either a local folder with status artifacts or a single `run-status.json`; browser-native pickers are used when available, with file input fallbacks otherwise
 - supports browser polling over HTTP via `/api/payload`, so refresh works even when a browser would block local-file fetches from exported HTML
 - keeps the same presentational-only search/highlight/chip/deep-link interactions as `web export`; they only reshape the local browser view and never change pipeline data
 - optional `--refresh-interval 5|10|15|30|60` controls bounded polling cadence in the browser; default is `15`, and `Off` can still be chosen inside the viewer after startup
@@ -197,12 +200,13 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 - use it for local inspection only; do not treat it as a remote dashboard, shared service, watch daemon, or control surface
 
 ```bash
+python status-cli/status_cli.py web serve --host 127.0.0.1 --port 0
 python status-cli/status_cli.py web serve --status-file opencode/protocols/examples/status-layout.run-only.valid/run-status.json --host 127.0.0.1 --port 0
 python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host localhost --port 0 --focus blocked --theme dark --refresh-interval 30
 python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host 127.0.0.1 --port 0 --open-browser
 ```
 
-When the viewer starts it prints a copyable `Viewer URL`, a `Payload URL` for the read-only refresh endpoint, and browser-open status, then stays in the foreground until you stop it with `Ctrl+C`. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
+When the viewer starts it prints a copyable `Viewer URL`, a `Payload URL` for the read-only refresh endpoint, and browser-open status, then stays in the foreground until you stop it with `Ctrl+C`. If you launched without a target, use the browser UI to choose a folder or `run-status.json`; refresh then re-reads that browser-granted local source without changing any status artifacts. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
 
 ### `task show <task_id>`
 

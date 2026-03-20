@@ -25,6 +25,7 @@
       : "all",
     hoveredKey: "",
     pendingReveal: null,
+    localSource: null,
   };
 
   function colorFor(status) {
@@ -61,6 +62,18 @@
     return values.filter((value) => value && !seen.has(value) && seen.add(value));
   }
 
+  function shellState() {
+    return String((data.meta || {}).shell_state || "");
+  }
+
+  function isAwaitingTargetShell() {
+    return shellState() === "awaiting_target";
+  }
+
+  function sourcePickerVisible() {
+    return isAwaitingTargetShell() || Boolean(state.localSource);
+  }
+
   function sortedRecord(record) {
     const next = {};
     Object.keys(record || {})
@@ -77,6 +90,11 @@
 
   function refreshSources() {
     return refreshConfig().source || {};
+  }
+
+  function hasEmbeddedRefreshSource() {
+    const source = refreshSources();
+    return Boolean(source.payload_url || source.run_status_url);
   }
 
   function activeTaskIdsSet() {
@@ -191,6 +209,160 @@
       }
     }
     throw lastError || new Error("No readable local status source was available.");
+  }
+
+  async function readJsonFile(file) {
+    const text = await file.text();
+    return JSON.parse(text);
+  }
+
+  function localPathVariants(pathText) {
+    const normalized = normalizeRefPath(pathText).replace(/^\.\//, "");
+    const variants = new Set();
+    if (!normalized) return [];
+    variants.add(normalized);
+    const segments = normalized.split("/").filter(Boolean);
+    if (segments.length > 1) variants.add(segments.slice(1).join("/"));
+    if (normalized.startsWith("status/")) variants.add(normalized.slice(7));
+    variants.add(segments[segments.length - 1] || normalized);
+    return Array.from(variants).filter(Boolean);
+  }
+
+  function buildLocalFileIndex(entries) {
+    const filesByPath = new Map();
+    (entries || []).forEach((entry) => {
+      const file = entry && entry.file;
+      const pathText = normalizeRefPath((entry && entry.path) || (file && file.name) || "");
+      if (!file || !pathText) return;
+      localPathVariants(pathText).forEach((variant) => {
+        if (!filesByPath.has(variant)) filesByPath.set(variant, file);
+      });
+    });
+    return filesByPath;
+  }
+
+  function chooseRunStatusEntry(entries) {
+    const normalizedEntries = (entries || []).map((entry) => ({
+      path: normalizeRefPath((entry && entry.path) || ((entry && entry.file && entry.file.name) || "")),
+      file: entry && entry.file,
+    }));
+    const preferred = ["status/run-status.json", "run-status.json"];
+    for (const candidate of preferred) {
+      const exact = normalizedEntries.find((entry) => entry.path === candidate);
+      if (exact) return exact;
+    }
+    const suffix = normalizedEntries.find((entry) => entry.path.endsWith("/status/run-status.json"));
+    if (suffix) return suffix;
+    const fallback = normalizedEntries.find((entry) => entry.path.endsWith("/run-status.json") || entry.path === "run-status.json");
+    return fallback || null;
+  }
+
+  async function readLocalRefJson(refPath, localIndex) {
+    const file = localPathVariants(refPath).map((variant) => localIndex.filesByPath.get(variant)).find(Boolean);
+    if (!file) throw new Error(`Missing local file for ${refPath}`);
+    return readJsonFile(file);
+  }
+
+  async function listDirectoryHandleEntries(dirHandle, prefix) {
+    const entries = [];
+    for await (const [name, handle] of dirHandle.entries()) {
+      const nextPath = prefix ? `${prefix}/${name}` : name;
+      if (handle.kind === "file") {
+        entries.push({ path: nextPath, file: await handle.getFile() });
+      } else if (handle.kind === "directory") {
+        entries.push(...(await listDirectoryHandleEntries(handle, nextPath)));
+      }
+    }
+    return entries;
+  }
+
+  function buildLocalIndex(entries) {
+    return {
+      entries: entries || [],
+      filesByPath: buildLocalFileIndex(entries || []),
+    };
+  }
+
+  async function buildPayloadFromLocalSource(localSource) {
+    const entries = await localSource.readEntries();
+    const localIndex = buildLocalIndex(entries);
+    const runStatusEntry = chooseRunStatusEntry(entries);
+    if (!runStatusEntry || !runStatusEntry.file) {
+      throw new Error("No run-status.json file was found in the selected local source.");
+    }
+    const runStatus = await readJsonFile(runStatusEntry.file);
+    const payload = await buildPayloadFromRunStatus(runStatus, localSource.loadedFromLabel(runStatusEntry.path), {
+      readRefJson: (refPath) => readLocalRefJson(refPath, localIndex),
+    });
+    payload.meta = payload.meta || {};
+    payload.meta.read_only = true;
+    payload.meta.local_source = {
+      kind: localSource.kind,
+      label: localSource.label,
+      refresh_mode: localSource.refreshMode,
+    };
+    return payload;
+  }
+
+  async function setLocalSource(localSource) {
+    state.localSource = localSource;
+    setRefreshStatus(`Loading local ${localSource.kind}…`);
+    const nextData = await buildPayloadFromLocalSource(localSource);
+    replaceData(nextData);
+    state.selectedKey = `run:${(nextData.run || {}).run_id || "-"}`;
+    state.pendingReveal = "selection";
+    rerenderAll();
+    setRefreshStatus(localSource.refreshMessage());
+  }
+
+  function clearLocalSource() {
+    state.localSource = null;
+    rerenderAll();
+    if (isAwaitingTargetShell()) {
+      setRefreshStatus("Pick a local folder or run-status.json file to populate this read-only viewer.");
+    } else {
+      setRefreshStatus("Local selection cleared. Current viewer data remains read-only until you pick another source or reload.");
+    }
+  }
+
+  function createLocalSourceFromFileList(kind, label, files, refreshMode) {
+    const storedEntries = Array.from(files || []).map((file) => ({
+      path: normalizeRefPath(file.webkitRelativePath || file.name),
+      file,
+    }));
+    return {
+      kind,
+      label,
+      refreshMode,
+      readEntries: async () => storedEntries,
+      loadedFromLabel: (pathText) => `${label}:${pathText}`,
+      refreshMessage: () =>
+        refreshMode === "handle"
+          ? `Local ${kind} selected. Refresh re-reads the latest files from this browser-granted ${kind}.`
+          : `Local ${kind} selected. Refresh re-reads the same browser snapshot captured when you picked it.`,
+    };
+  }
+
+  async function createLocalSourceFromFileHandle(fileHandle) {
+    return {
+      kind: "file",
+      label: fileHandle.name,
+      refreshMode: "handle",
+      readEntries: async () => [{ path: fileHandle.name, file: await fileHandle.getFile() }],
+      loadedFromLabel: (pathText) => `local-file:${pathText}`,
+      refreshMessage: () => "Local file selected. Refresh re-reads the latest run-status.json from this browser-granted file.",
+    };
+  }
+
+  async function createLocalSourceFromDirectoryHandle(dirHandle) {
+    return {
+      kind: "folder",
+      label: dirHandle.name,
+      refreshMode: "handle",
+      readEntries: async () => listDirectoryHandleEntries(dirHandle, ""),
+      loadedFromLabel: (pathText) => `local-folder:${dirHandle.name}/${pathText}`,
+      refreshMessage: () => "Local folder selected. Refresh re-reads the latest files from this browser-granted folder.",
+    };
   }
 
   function matchesFocus(record, focus, activeIds) {
@@ -435,22 +607,27 @@
     );
   }
 
-  async function loadReferencedRecords(runStatus, refKey, idKey) {
+  async function loadReferencedRecords(runStatus, refKey, idKey, options) {
     const refs = Array.isArray(runStatus[refKey]) ? runStatus[refKey] : [];
     const records = [];
     const warnings = [];
     const entityName = String(idKey).endsWith("_id") ? String(idKey).slice(0, -3) : String(idKey);
+    const readRefJson = options && options.readRefJson;
     for (const item of refs) {
       if (!item || typeof item !== "object") continue;
       const entityId = item[idKey];
       const refPath = item.path;
       if (!entityId || !refPath) continue;
-      const candidates = buildCandidateUrls(String(refPath));
-      if (!candidates.length) {
-        warnings.push(`Missing ${entityName} file for ${entityId}: ${refPath}`);
-        continue;
-      }
       try {
+        if (readRefJson) {
+          records.push(await readRefJson(String(refPath)));
+          continue;
+        }
+        const candidates = buildCandidateUrls(String(refPath));
+        if (!candidates.length) {
+          warnings.push(`Missing ${entityName} file for ${entityId}: ${refPath}`);
+          continue;
+        }
         const loaded = await fetchJsonFromCandidates(candidates);
         records.push(loaded.data);
       } catch (_error) {
@@ -460,7 +637,7 @@
     return { records, warnings };
   }
 
-  async function buildPayloadFromRunStatus(runStatus, loadedFrom) {
+  async function buildPayloadFromRunStatus(runStatus, loadedFrom, options) {
     const focus = (data.meta || {}).focus || null;
     const refresh = refreshConfig();
     const activeTaskIds = new Set((runStatus.active_task_ids || []).map((item) => String(item)));
@@ -531,8 +708,8 @@
       return payload;
     }
 
-    const loadedTasks = await loadReferencedRecords(runStatus, "task_refs", "task_id");
-    const loadedAgents = await loadReferencedRecords(runStatus, "agent_refs", "agent_id");
+    const loadedTasks = await loadReferencedRecords(runStatus, "task_refs", "task_id", options);
+    const loadedAgents = await loadReferencedRecords(runStatus, "agent_refs", "agent_id", options);
     payload.warnings = loadedTasks.warnings.concat(loadedAgents.warnings);
 
     const taskCardById = {};
@@ -714,6 +891,142 @@
       card.appendChild(el("div", "stat-sub", String(sub)));
       stats.appendChild(card);
     });
+  }
+
+  function ensureSourcePickerRoot() {
+    const refreshBar = document.querySelector(".refresh-bar");
+    const toolbar = refreshBar && refreshBar.querySelector(".toolbar-grid");
+    if (!refreshBar || !toolbar) return null;
+    let root = document.getElementById("source-picker");
+    if (!root) {
+      root = el("div", "source-picker");
+      root.id = "source-picker";
+      refreshBar.insertBefore(root, toolbar);
+    }
+    return root;
+  }
+
+  function renderSourcePicker() {
+    const root = ensureSourcePickerRoot();
+    if (!root) return;
+    if (!sourcePickerVisible()) {
+      root.hidden = true;
+      root.innerHTML = "";
+      return;
+    }
+    root.hidden = false;
+    clearNode(root);
+
+    const titleGroup = el("div", "source-picker-header");
+    titleGroup.appendChild(el("div", "eyebrow", "Local source picker"));
+    titleGroup.appendChild(el("h2", "source-picker-title", "Choose a local status source"));
+    titleGroup.appendChild(
+      el(
+        "p",
+        "note source-picker-note",
+        state.localSource
+          ? "This viewer stays read-only. You can swap to another local source at any time during this browser session."
+          : "Pick a folder with status artifacts or a single run-status.json file. The viewer reads files only inside this browser session.",
+      ),
+    );
+    root.appendChild(titleGroup);
+
+    const controls = el("div", "source-picker-controls");
+    const folderButton = el("button", "control-button", "Choose folder");
+    folderButton.type = "button";
+    folderButton.addEventListener("click", () => pickLocalFolder());
+    controls.appendChild(folderButton);
+
+    const fileButton = el("button", "control-button", "Choose run-status.json");
+    fileButton.type = "button";
+    fileButton.addEventListener("click", () => pickLocalRunStatusFile());
+    controls.appendChild(fileButton);
+
+    if (state.localSource) {
+      const clearButton = el("button", "control-button", "Clear local selection");
+      clearButton.type = "button";
+      clearButton.addEventListener("click", () => clearLocalSource());
+      controls.appendChild(clearButton);
+    }
+    root.appendChild(controls);
+
+    const status = el(
+      "div",
+      "source-picker-status",
+      state.localSource
+        ? `Current source: ${state.localSource.kind} ${state.localSource.label}.`
+        : "No local source loaded yet.",
+    );
+    root.appendChild(status);
+
+    const hiddenFileInput = document.createElement("input");
+    hiddenFileInput.type = "file";
+    hiddenFileInput.accept = ".json,application/json";
+    hiddenFileInput.hidden = true;
+    hiddenFileInput.addEventListener("change", async (event) => {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      try {
+        await setLocalSource(createLocalSourceFromFileList("file", files[0].name, [files[0]], "snapshot"));
+      } catch (error) {
+        setRefreshStatus(error instanceof Error ? error.message : "Failed to load the selected local file.");
+      }
+      hiddenFileInput.value = "";
+    });
+    root.appendChild(hiddenFileInput);
+
+    const hiddenFolderInput = document.createElement("input");
+    hiddenFolderInput.type = "file";
+    hiddenFolderInput.hidden = true;
+    hiddenFolderInput.multiple = true;
+    hiddenFolderInput.setAttribute("webkitdirectory", "");
+    hiddenFolderInput.setAttribute("directory", "");
+    hiddenFolderInput.addEventListener("change", async (event) => {
+      const files = event.target.files;
+      if (!files || !files.length) return;
+      try {
+        const label = String((files[0] && files[0].webkitRelativePath) || "local-folder").split("/")[0] || "local-folder";
+        await setLocalSource(createLocalSourceFromFileList("folder", label, files, "snapshot"));
+      } catch (error) {
+        setRefreshStatus(error instanceof Error ? error.message : "Failed to load the selected local folder.");
+      }
+      hiddenFolderInput.value = "";
+    });
+    root.appendChild(hiddenFolderInput);
+
+    async function pickLocalRunStatusFile() {
+      if (typeof window.showOpenFilePicker === "function") {
+        try {
+          const handles = await window.showOpenFilePicker({
+            excludeAcceptAllOption: false,
+            multiple: false,
+            types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+          });
+          if (handles && handles[0]) {
+            await setLocalSource(await createLocalSourceFromFileHandle(handles[0]));
+            return;
+          }
+        } catch (error) {
+          if (error && error.name === "AbortError") return;
+        }
+      }
+      hiddenFileInput.click();
+    }
+
+    async function pickLocalFolder() {
+      if (typeof window.showDirectoryPicker === "function") {
+        try {
+          const handle = await window.showDirectoryPicker();
+          if (handle) {
+            await setLocalSource(await createLocalSourceFromDirectoryHandle(handle));
+            return;
+          }
+        } catch (error) {
+          if (error && error.name === "AbortError") return;
+        }
+      }
+      hiddenFolderInput.click();
+    }
   }
 
   function countVisibleSearchHits() {
@@ -1066,7 +1379,10 @@
 
   function renderRefreshControls() {
     const refresh = refreshConfig();
-    setText("refresh-note", String(refresh.warning || ""));
+    setText(
+      "refresh-note",
+      state.localSource ? state.localSource.refreshMessage() : String(refresh.warning || ""),
+    );
     setText("refresh-warning", "Read-only only: this viewer never controls the pipeline and never writes back to status artifacts.");
     const select = document.getElementById("refresh-interval");
     if (!select.dataset.bound) {
@@ -1132,6 +1448,7 @@
 
   function rerenderAll() {
     renderHero();
+    renderSourcePicker();
     renderFocusControls();
     renderSearchControls();
     renderRefreshControls();
@@ -1164,11 +1481,46 @@
 
   async function refreshFromSource(reason) {
     if (state.refreshing) return;
+    if (state.localSource) {
+      state.refreshing = true;
+      setRefreshStatus(reason === "manual" ? "Refreshing local selection…" : "Polling selected local source…");
+      try {
+        const nextData = await buildPayloadFromLocalSource(state.localSource);
+        replaceData(nextData);
+        state.failureCount = 0;
+        rerenderAll();
+        setRefreshStatus(
+          "Local refresh updated at " +
+            new Date().toLocaleTimeString() +
+            (state.intervalSeconds > 0 ? ` · next poll in ${state.intervalSeconds}s.` : "."),
+        );
+      } catch (error) {
+        state.failureCount += 1;
+        const maxFailures = Number(refreshConfig().max_failures || 1);
+        if (state.failureCount >= maxFailures) {
+          stopPolling();
+          setRefreshStatus(`Local refresh unavailable after ${state.failureCount} failed attempt(s).`);
+        } else {
+          setRefreshStatus(
+            (error instanceof Error && error.message) ||
+              `Refresh attempt failed (${state.failureCount}/${maxFailures}). The viewer stays read-only.`,
+          );
+        }
+      } finally {
+        state.refreshing = false;
+        renderRefreshControls();
+      }
+      return;
+    }
     const source = refreshSources();
     const payloadUrl = String(source.payload_url || "");
     const runStatusUrl = String(source.run_status_url || "");
     if (!payloadUrl && !runStatusUrl) {
-      setRefreshStatus("Live refresh unavailable: no original status source was embedded in this viewer.");
+      setRefreshStatus(
+        hasEmbeddedRefreshSource()
+          ? "Live refresh unavailable."
+          : "Live refresh unavailable: pick a local folder or run-status.json file first.",
+      );
       return;
     }
     state.refreshing = true;
@@ -1208,4 +1560,7 @@
   loadHashState();
   rerenderAll();
   restartPolling();
+  if (isAwaitingTargetShell()) {
+    setRefreshStatus("Pick a local folder or run-status.json file to populate this read-only viewer.");
+  }
 })();
