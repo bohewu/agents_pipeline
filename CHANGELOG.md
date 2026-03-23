@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-03-23
+
+### Changed
+
+- Flow and Pipeline guidance now treat the selected output path as a base output root, with fresh runs writing checkpoint, status, and artifacts into run-specific subdirectories and resume-only flows preferring the newest compatible run.
+
+### Fixed
+
+- `status-cli` now rejects non-canonical status JSON instead of guessing through legacy layouts, and its project-root discovery now prefers the newest run-specific status directory under `.pipeline-output/status/`.
+
+### Added
+
+- `docs/status-runtime-plugin-spec.md` describing a small runtime-owned plugin that can emit canonical run/task/agent status artifacts from lifecycle events.
+
 ## [0.11.4] - 2026-03-20
 
 ### Changed
