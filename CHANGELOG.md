@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-03-20
+
+### Changed
+
+- Status contract and orchestrator guidance now require visible `AgentStatus` records for delegated stage-scoped subagents such as `repo-scout`, even before canonical task ids exist.
+
+### Fixed
+
+- `status-cli` terminal and web graph views now show run-scoped agents directly under the run instead of silently dropping task-less subagents from the visualization.
+
 ## [0.11.3] - 2026-03-20
 
 ### Fixed
