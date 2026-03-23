@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -64,6 +65,135 @@ WEB_STATUS_COLORS = {
 }
 STATUS_CLI_DIR = Path(__file__).resolve().parent
 WEB_ASSET_SOURCE_DIR = STATUS_CLI_DIR / "web_assets"
+RUN_STATUS_ALLOWED_FIELDS = {
+    "protocol_version",
+    "run_id",
+    "orchestrator",
+    "status",
+    "created_at",
+    "updated_at",
+    "output_dir",
+    "checkpoint_path",
+    "user_prompt",
+    "current_stage",
+    "completed_stages",
+    "next_stage",
+    "task_list_path",
+    "dispatch_plan_path",
+    "layout",
+    "task_counts",
+    "active_task_ids",
+    "active_agent_ids",
+    "waiting_on",
+    "resume_from_checkpoint",
+    "last_heartbeat_at",
+    "last_error",
+    "notes",
+    "task_refs",
+    "agent_refs",
+}
+RUN_STATUS_ALLOWED_ORCHESTRATORS = {
+    "orchestrator-pipeline",
+    "orchestrator-flow",
+    "orchestrator-init",
+    "orchestrator-ci",
+    "orchestrator-modernize",
+    "orchestrator-spec",
+    "orchestrator-committee",
+    "orchestrator-general",
+}
+RUN_STATUS_ALLOWED_STATUSES = {
+    "queued",
+    "running",
+    "waiting_for_user",
+    "completed",
+    "partial",
+    "failed",
+    "aborted",
+    "stale",
+}
+RUN_STATUS_ALLOWED_LAYOUTS = {"run-only", "expanded"}
+RUN_STATUS_ALLOWED_WAITING_ON = {"user", "dependency", "cleanup", "resume", "none"}
+STAGE_COMPLETION_ALLOWED_STATUSES = {"completed", "skipped", "failed"}
+TASK_STATUS_ALLOWED_FIELDS = {
+    "protocol_version",
+    "run_id",
+    "task_id",
+    "summary",
+    "status",
+    "created_at",
+    "updated_at",
+    "trace_ids",
+    "batch_id",
+    "depends_on",
+    "assigned_agent_id",
+    "assigned_executor",
+    "resource_class",
+    "max_parallelism",
+    "teardown_required",
+    "resource_status",
+    "started_at",
+    "completed_at",
+    "last_heartbeat_at",
+    "result_summary",
+    "evidence_refs",
+    "error",
+    "resume_note",
+    "agent_ref",
+}
+AGENT_STATUS_ALLOWED_FIELDS = {
+    "protocol_version",
+    "run_id",
+    "agent_id",
+    "agent",
+    "status",
+    "created_at",
+    "updated_at",
+    "task_id",
+    "batch_id",
+    "attempt",
+    "started_at",
+    "completed_at",
+    "last_heartbeat_at",
+    "resource_class",
+    "resource_status",
+    "teardown_required",
+    "resource_handles",
+    "cleanup_status",
+    "result_summary",
+    "evidence_refs",
+    "error",
+}
+TASK_STATUS_ALLOWED_STATUSES = set(TASK_COUNT_ORDER)
+AGENT_STATUS_ALLOWED_STATUSES = {
+    "assigned",
+    "starting",
+    "running",
+    "waiting_for_user",
+    "done",
+    "blocked",
+    "failed",
+    "stale",
+}
+RESOURCE_CLASSES = {"light", "process", "server", "browser"}
+RESOURCE_STATUSES = {
+    "not_required",
+    "reserved",
+    "starting",
+    "running",
+    "teardown_pending",
+    "cleaned",
+    "cleanup_failed",
+    "unknown",
+}
+CLEANUP_STATUSES = {
+    "not_required",
+    "pending",
+    "in_progress",
+    "cleaned",
+    "failed",
+    "unknown",
+}
 
 
 def add_path_options(parser: argparse.ArgumentParser) -> None:
@@ -90,6 +220,498 @@ def load_json(path: Path) -> dict:
 
     if not isinstance(data, dict):
         raise StatusCliError(f"Expected a JSON object in {path}")
+    return data
+
+
+def validate_iso_datetime(value: object, label: str, path: Path) -> None:
+    if not isinstance(value, str):
+        raise StatusCliError(f"{path} is not a canonical status artifact: {label} must be an ISO 8601 string.")
+    try:
+        datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: {label} must be an ISO 8601 timestamp."
+        ) from exc
+
+
+def validate_ref_list(
+    refs: object, *, ref_key: str, id_key: str, path: Path, expected_dir: str
+) -> None:
+    if not isinstance(refs, list):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: {ref_key} must be an array of objects."
+        )
+    for index, item in enumerate(refs):
+        if not isinstance(item, dict):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {ref_key}[{index}] must be an object."
+            )
+        if set(item) != {id_key, "path"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {ref_key}[{index}] must contain only `{id_key}` and `path`."
+            )
+        entity_id = item.get(id_key)
+        ref_path = item.get("path")
+        if not isinstance(entity_id, str) or not entity_id:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {ref_key}[{index}].{id_key} must be a non-empty string."
+            )
+        if not isinstance(ref_path, str) or not ref_path:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {ref_key}[{index}].path must be a non-empty string."
+            )
+        normalized = ref_path.replace("\\", "/")
+        if f"/{expected_dir}/" not in f"/{normalized}":
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {ref_key}[{index}].path must point into `{expected_dir}/`."
+            )
+
+
+def validate_run_status_record(data: dict, path: Path) -> None:
+    unknown = sorted(set(data) - RUN_STATUS_ALLOWED_FIELDS)
+    if unknown:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: unexpected run-status field(s): {', '.join(unknown)}."
+        )
+
+    required = [
+        "run_id",
+        "orchestrator",
+        "status",
+        "created_at",
+        "updated_at",
+        "output_dir",
+        "checkpoint_path",
+    ]
+    for field in required:
+        if field not in data:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: missing required run-status field `{field}`."
+            )
+
+    if "protocol_version" in data:
+        protocol_version = data.get("protocol_version")
+        if not isinstance(protocol_version, str) or not protocol_version:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: protocol_version must be a non-empty string."
+            )
+
+    if not isinstance(data.get("run_id"), str) or not data.get("run_id"):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: run_id must be a non-empty string."
+        )
+    if data.get("orchestrator") not in RUN_STATUS_ALLOWED_ORCHESTRATORS:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: orchestrator must be a supported orchestrator name."
+        )
+    if data.get("status") not in RUN_STATUS_ALLOWED_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: status must be a canonical run status value."
+        )
+    validate_iso_datetime(data.get("created_at"), "created_at", path)
+    validate_iso_datetime(data.get("updated_at"), "updated_at", path)
+
+    for field in ("output_dir", "checkpoint_path", "user_prompt", "last_error"):
+        if field in data and (not isinstance(data.get(field), str) or not data.get(field)):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be a non-empty string when present."
+            )
+
+    if "current_stage" in data and not isinstance(data.get("current_stage"), int):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: current_stage must be an integer when present."
+        )
+    if "next_stage" in data and data.get("next_stage") is not None and not isinstance(
+        data.get("next_stage"), int
+    ):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: next_stage must be an integer or null when present."
+        )
+    if "layout" in data and data.get("layout") not in RUN_STATUS_ALLOWED_LAYOUTS:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: layout must be `run-only` or `expanded`."
+        )
+    if "waiting_on" in data and data.get("waiting_on") not in RUN_STATUS_ALLOWED_WAITING_ON:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: waiting_on must be a canonical waiting state."
+        )
+    if "resume_from_checkpoint" in data and not isinstance(
+        data.get("resume_from_checkpoint"), bool
+    ):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resume_from_checkpoint must be a boolean when present."
+        )
+    if "last_heartbeat_at" in data:
+        validate_iso_datetime(data.get("last_heartbeat_at"), "last_heartbeat_at", path)
+
+    completed_stages = data.get("completed_stages")
+    if completed_stages is not None:
+        if not isinstance(completed_stages, list):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: completed_stages must be an array of objects."
+            )
+        for index, item in enumerate(completed_stages):
+            if not isinstance(item, dict):
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}] must be an object."
+                )
+            required_stage_fields = {"stage", "name", "status", "timestamp"}
+            if not required_stage_fields.issubset(item):
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}] is missing required fields."
+                )
+            allowed_stage_fields = {"stage", "name", "status", "artifact_key", "timestamp"}
+            extra_stage_fields = sorted(set(item) - allowed_stage_fields)
+            if extra_stage_fields:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}] has unexpected field(s): {', '.join(extra_stage_fields)}."
+                )
+            if not isinstance(item.get("stage"), int):
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}].stage must be an integer."
+                )
+            if not isinstance(item.get("name"), str) or not item.get("name"):
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}].name must be a non-empty string."
+                )
+            if item.get("status") not in STAGE_COMPLETION_ALLOWED_STATUSES:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}].status must be completed, skipped, or failed."
+                )
+            if "artifact_key" in item and (
+                not isinstance(item.get("artifact_key"), str) or not item.get("artifact_key")
+            ):
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: completed_stages[{index}].artifact_key must be a non-empty string when present."
+                )
+            validate_iso_datetime(item.get("timestamp"), f"completed_stages[{index}].timestamp", path)
+
+    task_counts = data.get("task_counts")
+    if task_counts is not None:
+        if not isinstance(task_counts, dict):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: task_counts must be an object."
+            )
+        missing_counts = [name for name in TASK_COUNT_ORDER if name not in task_counts]
+        extra_counts = sorted(set(task_counts) - set(TASK_COUNT_ORDER))
+        if missing_counts or extra_counts:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: task_counts must contain exactly the canonical task count keys."
+            )
+        for name in TASK_COUNT_ORDER:
+            value = task_counts.get(name)
+            if not isinstance(value, int) or value < 0:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: task_counts.{name} must be a non-negative integer."
+                )
+
+    for field in ("active_task_ids", "active_agent_ids", "notes"):
+        if field not in data:
+            continue
+        value = data.get(field)
+        if not isinstance(value, list):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be an array when present."
+            )
+        for index, item in enumerate(value):
+            if not isinstance(item, str) or not item:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: {field}[{index}] must be a non-empty string."
+                )
+
+    if "task_refs" in data:
+        validate_ref_list(data.get("task_refs"), ref_key="task_refs", id_key="task_id", path=path, expected_dir="tasks")
+    if "agent_refs" in data:
+        validate_ref_list(data.get("agent_refs"), ref_key="agent_refs", id_key="agent_id", path=path, expected_dir="agents")
+
+
+def validate_task_status_record(data: dict, path: Path) -> None:
+    unknown = sorted(set(data) - TASK_STATUS_ALLOWED_FIELDS)
+    if unknown:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: unexpected task-status field(s): {', '.join(unknown)}."
+        )
+
+    required = {"run_id", "task_id", "summary", "status", "created_at", "updated_at"}
+    missing = sorted(required - set(data))
+    if missing:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: missing required task-status field(s): {', '.join(missing)}."
+        )
+
+    for field in ("run_id", "task_id", "summary"):
+        if not isinstance(data.get(field), str) or not data.get(field):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be a non-empty string."
+            )
+    if data.get("status") not in TASK_STATUS_ALLOWED_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: status must be a canonical task status value."
+        )
+    validate_iso_datetime(data.get("created_at"), "created_at", path)
+    validate_iso_datetime(data.get("updated_at"), "updated_at", path)
+
+    for field in (
+        "batch_id",
+        "assigned_agent_id",
+        "assigned_executor",
+        "result_summary",
+        "error",
+        "resume_note",
+    ):
+        if field in data and (not isinstance(data.get(field), str) or not data.get(field)):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be a non-empty string when present."
+            )
+    if "trace_ids" in data:
+        trace_ids = data.get("trace_ids")
+        if not isinstance(trace_ids, list) or not trace_ids:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: trace_ids must be a non-empty array when present."
+            )
+        for index, item in enumerate(trace_ids):
+            if not isinstance(item, str) or not item:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: trace_ids[{index}] must be a non-empty string."
+                )
+    if "depends_on" in data:
+        depends_on = data.get("depends_on")
+        if not isinstance(depends_on, list):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: depends_on must be an array when present."
+            )
+        for index, item in enumerate(depends_on):
+            if not isinstance(item, str) or not item:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: depends_on[{index}] must be a non-empty string."
+                )
+    if "max_parallelism" in data and (
+        not isinstance(data.get("max_parallelism"), int)
+        or cast(int, data.get("max_parallelism")) < 1
+    ):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: max_parallelism must be an integer >= 1 when present."
+        )
+    for field in ("started_at", "completed_at", "last_heartbeat_at"):
+        if field in data:
+            validate_iso_datetime(data.get(field), field, path)
+    if "resource_class" in data and data.get("resource_class") not in RESOURCE_CLASSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_class must be a canonical resource class when present."
+        )
+    if "resource_status" in data and data.get("resource_status") not in RESOURCE_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_status must be a canonical resource status when present."
+        )
+    if "teardown_required" in data and not isinstance(data.get("teardown_required"), bool):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: teardown_required must be a boolean when present."
+        )
+    if "evidence_refs" in data:
+        evidence_refs = data.get("evidence_refs")
+        if not isinstance(evidence_refs, list):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: evidence_refs must be an array when present."
+            )
+        for index, item in enumerate(evidence_refs):
+            if not isinstance(item, str) or not item:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: evidence_refs[{index}] must be a non-empty string."
+                )
+    if "agent_ref" in data:
+        agent_ref = data.get("agent_ref")
+        if not isinstance(agent_ref, dict):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: agent_ref must be an object when present."
+            )
+        if set(agent_ref) != {"agent_id", "path"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: agent_ref must contain only `agent_id` and `path`."
+            )
+        if not isinstance(agent_ref.get("agent_id"), str) or not agent_ref.get("agent_id"):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: agent_ref.agent_id must be a non-empty string."
+            )
+        if not isinstance(agent_ref.get("path"), str) or not agent_ref.get("path"):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: agent_ref.path must be a non-empty string."
+            )
+
+    dependent_fields = ("max_parallelism", "teardown_required", "resource_status")
+    if any(field in data for field in dependent_fields) and "resource_class" not in data:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_class is required when resource metadata is present."
+        )
+    if data.get("resource_class") == "light":
+        if data.get("teardown_required") not in {None, False}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: light tasks must set teardown_required=false."
+            )
+        if data.get("resource_status") not in {None, "not_required", "unknown"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: light tasks cannot use that resource_status."
+            )
+    if data.get("resource_class") == "process" and "max_parallelism" in data:
+        max_parallelism = cast(int, data.get("max_parallelism"))
+        if max_parallelism > 2:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: process tasks cannot set max_parallelism above 2."
+            )
+    if data.get("resource_class") in {"server", "browser"}:
+        if data.get("max_parallelism") not in {None, 1}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: server/browser tasks must set max_parallelism=1."
+            )
+        if data.get("teardown_required") not in {None, True}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: server/browser tasks must set teardown_required=true."
+            )
+    if data.get("status") == "done" and data.get("resource_status") not in {
+        None,
+        "not_required",
+        "cleaned",
+    }:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: done tasks cannot keep a non-terminal resource_status."
+        )
+
+
+def validate_agent_status_record(data: dict, path: Path) -> None:
+    unknown = sorted(set(data) - AGENT_STATUS_ALLOWED_FIELDS)
+    if unknown:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: unexpected agent-status field(s): {', '.join(unknown)}."
+        )
+
+    required = {"run_id", "agent_id", "agent", "status", "created_at", "updated_at"}
+    missing = sorted(required - set(data))
+    if missing:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: missing required agent-status field(s): {', '.join(missing)}."
+        )
+
+    for field in ("run_id", "agent_id", "agent"):
+        if not isinstance(data.get(field), str) or not data.get(field):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be a non-empty string."
+            )
+    if data.get("status") not in AGENT_STATUS_ALLOWED_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: status must be a canonical agent status value."
+        )
+    validate_iso_datetime(data.get("created_at"), "created_at", path)
+    validate_iso_datetime(data.get("updated_at"), "updated_at", path)
+
+    for field in (
+        "task_id",
+        "batch_id",
+        "result_summary",
+        "error",
+    ):
+        if field in data and (not isinstance(data.get(field), str) or not data.get(field)):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: {field} must be a non-empty string when present."
+            )
+    if "attempt" in data and (
+        not isinstance(data.get("attempt"), int) or cast(int, data.get("attempt")) < 1
+    ):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: attempt must be an integer >= 1 when present."
+        )
+    for field in ("started_at", "completed_at", "last_heartbeat_at"):
+        if field in data:
+            validate_iso_datetime(data.get(field), field, path)
+    if "resource_class" in data and data.get("resource_class") not in RESOURCE_CLASSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_class must be a canonical resource class when present."
+        )
+    if "resource_status" in data and data.get("resource_status") not in RESOURCE_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_status must be a canonical resource status when present."
+        )
+    if "teardown_required" in data and not isinstance(data.get("teardown_required"), bool):
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: teardown_required must be a boolean when present."
+        )
+    if "cleanup_status" in data and data.get("cleanup_status") not in CLEANUP_STATUSES:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: cleanup_status must be a canonical cleanup state when present."
+        )
+    if "evidence_refs" in data:
+        evidence_refs = data.get("evidence_refs")
+        if not isinstance(evidence_refs, list):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: evidence_refs must be an array when present."
+            )
+        for index, item in enumerate(evidence_refs):
+            if not isinstance(item, str) or not item:
+                raise StatusCliError(
+                    f"{path} is not a canonical status artifact: evidence_refs[{index}] must be a non-empty string."
+                )
+    if "resource_handles" in data:
+        resource_handles = data.get("resource_handles")
+        if not isinstance(resource_handles, dict):
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: resource_handles must be an object when present."
+            )
+        allowed_resource_handles = {"pid", "port", "profile_dir", "process_label", "url"}
+        extra_handles = sorted(set(resource_handles) - allowed_resource_handles)
+        if extra_handles:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: resource_handles has unexpected field(s): {', '.join(extra_handles)}."
+            )
+
+    dependent_fields = ("resource_status", "teardown_required", "resource_handles", "cleanup_status")
+    if any(field in data for field in dependent_fields) and "resource_class" not in data:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: resource_class is required when cleanup/resource metadata is present."
+        )
+    if data.get("resource_class") == "light":
+        if data.get("teardown_required") not in {None, False}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: light agents must set teardown_required=false."
+            )
+        if data.get("resource_status") not in {None, "not_required", "unknown"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: light agents cannot use that resource_status."
+            )
+        if data.get("cleanup_status") not in {None, "not_required", "unknown"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: light agents cannot use that cleanup_status."
+            )
+    if data.get("resource_class") in {"server", "browser"} and data.get(
+        "teardown_required"
+    ) not in {None, True}:
+        raise StatusCliError(
+            f"{path} is not a canonical status artifact: server/browser agents must set teardown_required=true."
+        )
+    if data.get("status") == "done":
+        if data.get("resource_status") not in {None, "not_required", "cleaned"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: done agents cannot keep a non-terminal resource_status."
+            )
+        if data.get("cleanup_status") not in {None, "not_required", "cleaned"}:
+            raise StatusCliError(
+                f"{path} is not a canonical status artifact: done agents cannot keep a non-terminal cleanup_status."
+            )
+
+
+def validate_status_record(data: dict, path: Path, record_kind: str) -> None:
+    if record_kind == "run":
+        validate_run_status_record(data, path)
+        return
+    if record_kind == "task":
+        validate_task_status_record(data, path)
+        return
+    if record_kind == "agent":
+        validate_agent_status_record(data, path)
+        return
+    raise ValueError(f"Unsupported record kind: {record_kind}")
+
+
+def load_and_validate_json(path: Path, record_kind: str) -> dict:
+    data = load_json(path)
+    validate_status_record(data, path, record_kind)
     return data
 
 
@@ -203,9 +825,11 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         )
 
     base_dir = project_dir or Path.cwd()
+    latest_status_run_dir = latest_run_subdir(base_dir / ".pipeline-output" / "status")
     direct_candidates = [
         base_dir / "status" / "run-status.json",
         base_dir / "run-status.json",
+        latest_status_run_dir / "run-status.json" if latest_status_run_dir else None,
         base_dir / ".pipeline-output" / "status" / "run-status.json",
         base_dir / ".pipeline-output" / "run-status.json",
     ]
@@ -253,6 +877,18 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
     raise StatusCliError(
         "Could not discover run-status.json. Provide --status-file, --status-dir, --output-dir, or --project-dir."
     )
+
+
+def latest_run_subdir(status_dir: Path) -> Optional[Path]:
+    if not status_dir.is_dir():
+        return None
+    candidates = [
+        path for path in status_dir.iterdir() if path.is_dir() and (path / "run-status.json").is_file()
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True)
+    return candidates[0]
 
 
 def has_explicit_status_target(args: argparse.Namespace) -> bool:
@@ -397,7 +1033,7 @@ def load_referenced_records(
             continue
 
         try:
-            records.append(load_json(resolved))
+            records.append(load_and_validate_json(resolved, entity_name))
         except StatusCliError as exc:
             warnings.append(str(exc))
 
@@ -1513,7 +2149,7 @@ def render_visual_selected_details(
             id_key="task_id",
             entity_dir_name="tasks",
         )
-        task = load_json(path)
+        task = load_and_validate_json(path, "task")
         return render_record(
             f"Task: {node_id}",
             task,
@@ -1549,7 +2185,7 @@ def render_visual_selected_details(
         id_key="agent_id",
         entity_dir_name="agents",
     )
-    agent = load_json(path)
+    agent = load_and_validate_json(path, "agent")
     return render_record(
         f"Agent: {node_id}",
         agent,
@@ -1655,19 +2291,19 @@ def resolve_entity_path(
 
 def command_summary(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     return render_summary(run_status, context)
 
 
 def command_run_show(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     return render_run_show(run_status, context)
 
 
 def command_task_show(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     path = resolve_entity_path(
         run_status,
         context,
@@ -1676,7 +2312,7 @@ def command_task_show(args: argparse.Namespace) -> str:
         id_key="task_id",
         entity_dir_name="tasks",
     )
-    task = load_json(path)
+    task = load_and_validate_json(path, "task")
     return render_record(
         f"Task: {args.task_id}",
         task,
@@ -1705,13 +2341,13 @@ def command_task_show(args: argparse.Namespace) -> str:
 
 def command_task_list(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     return render_task_list(run_status, context, status_filter=args.status)
 
 
 def command_agent_show(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     path = resolve_entity_path(
         run_status,
         context,
@@ -1720,7 +2356,7 @@ def command_agent_show(args: argparse.Namespace) -> str:
         id_key="agent_id",
         entity_dir_name="agents",
     )
-    agent = load_json(path)
+    agent = load_and_validate_json(path, "agent")
     return render_record(
         f"Agent: {args.agent_id}",
         agent,
@@ -1750,7 +2386,7 @@ def command_agent_show(args: argparse.Namespace) -> str:
 
 def command_agent_list(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     return render_agent_list(
         run_status,
         context,
@@ -1761,7 +2397,7 @@ def command_agent_list(args: argparse.Namespace) -> str:
 
 def command_visual(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     output = render_visual(run_status, context)
     if not getattr(args, "select", None):
         return output
@@ -1774,13 +2410,13 @@ def command_visual(args: argparse.Namespace) -> str:
 
 def command_dashboard(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     return render_dashboard(run_status, context, focus=args.focus)
 
 
 def command_web_export(args: argparse.Namespace) -> str:
     context = discover_run_status(args)
-    run_status = load_json(context.run_status_path)
+    run_status = load_and_validate_json(context.run_status_path, "run")
     output_path = Path(args.output).expanduser().resolve()
     asset_mode = getattr(args, "asset_mode", "inline")
 
@@ -1841,7 +2477,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
     context: Optional[StatusContext]
     if has_explicit_status_target(args):
         context = discover_run_status(args)
-        load_json(context.run_status_path)
+        load_and_validate_json(context.run_status_path, "run")
     else:
         context = None
     asset_mode = getattr(args, "asset_mode", "inline")
@@ -1871,7 +2507,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
 
     def render_html() -> bytes:
         run_status = (
-            load_json(context.run_status_path)
+            load_and_validate_json(context.run_status_path, "run")
             if context is not None
             else build_web_shell_run_status()
         )
@@ -1889,7 +2525,7 @@ def command_web_serve(args: argparse.Namespace) -> str:
 
     def render_payload_json() -> bytes:
         run_status = (
-            load_json(context.run_status_path)
+            load_and_validate_json(context.run_status_path, "run")
             if context is not None
             else build_web_shell_run_status()
         )

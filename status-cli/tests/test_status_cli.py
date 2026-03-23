@@ -30,6 +30,9 @@ RUN_ONLY_FIXTURE = (
     / "status-layout.run-only.valid"
     / "run-status.json"
 )
+INVALID_STATUS_FIXTURE_DIR = (
+    REPO_ROOT / "opencode" / "protocols" / "examples" / "status-layout.contract.invalid"
+)
 EXPANDED_FIXTURE_DIR = (
     REPO_ROOT / "opencode" / "protocols" / "examples" / "status-layout.expanded.valid"
 )
@@ -314,6 +317,100 @@ class StatusCliTests(unittest.TestCase):
             "not a direct status-cli target",
             result.stderr,
         )
+
+    def test_summary_rejects_non_canonical_run_status_shape(self) -> None:
+        result = run_cli(
+            "summary", "--project-dir", str(INVALID_STATUS_FIXTURE_DIR)
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is not a canonical status artifact", result.stderr)
+        self.assertIn("waiting_on must be a canonical waiting state", result.stderr)
+
+    def test_agent_show_rejects_non_canonical_agent_record(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+            run_status_path = fixture_copy / "run-status.json"
+            run_status = json.loads(run_status_path.read_text(encoding="utf-8"))
+            for ref in run_status["agent_refs"]:
+                if ref["agent_id"] == "agent-server-01":
+                    ref["path"] = "agents/agent-server-01.json"
+                    break
+            run_status_path.write_text(
+                json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
+            )
+
+            bad_agent = fixture_copy / "agents" / "agent-server-01.json"
+            bad_agent.write_text(
+                json.dumps(
+                    {
+                        "run_id": "run_status_examples_expanded_01",
+                        "agent_id": "agent-server-01",
+                        "agent": "executor-core",
+                        "status": "done",
+                        "created_at": "2026-03-17T15:03:00Z",
+                        "updated_at": "2026-03-17T15:08:30Z",
+                        "cleanup_status": "failed",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = run_cli(
+                "agent",
+                "show",
+                "agent-server-01",
+                "--project-dir",
+                str(fixture_copy),
+            )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is not a canonical status artifact", result.stderr)
+        self.assertIn("resource_class", result.stderr)
+
+    def test_project_dir_prefers_latest_run_subdir_when_status_root_contains_many_runs(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            status_root = repo_root / ".pipeline-output" / "status"
+            old_run_dir = status_root / "run-20260320-101500"
+            new_run_dir = status_root / "run-20260320-101530"
+            old_run_dir.mkdir(parents=True)
+            new_run_dir.mkdir(parents=True)
+            shutil.copy2(RUN_ONLY_FIXTURE, old_run_dir / "run-status.json")
+            shutil.copy2(RUN_ONLY_FIXTURE, new_run_dir / "run-status.json")
+            new_run_status_path = new_run_dir / "run-status.json"
+            run_status = json.loads(new_run_status_path.read_text(encoding="utf-8"))
+            run_status["run_id"] = "latest-run-picked"
+            new_run_status_path.write_text(
+                json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
+            )
+
+            result = run_cli("summary", "--project-dir", str(repo_root))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Run ID: latest-run-picked", result.stdout)
+
+    def test_status_dir_can_target_specific_run_subdir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            status_root = Path(temp_dir) / ".pipeline-output" / "status"
+            run_dir = status_root / "run-20260320-101530"
+            run_dir.mkdir(parents=True)
+            run_status_path = run_dir / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, run_status_path)
+            run_status = json.loads(run_status_path.read_text(encoding="utf-8"))
+            run_status["run_id"] = "explicit-run-dir"
+            run_status_path.write_text(
+                json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
+            )
+
+            result = run_cli("summary", "--status-dir", str(run_dir))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Run ID: explicit-run-dir", result.stdout)
 
     def test_task_list_reports_missing_referenced_files_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -168,9 +168,9 @@ If an invalid `--scout` value is provided:
 
 ## PRE-FLIGHT (before Stage 0)
 
-1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+1. **Resolve output root and run dir**: If `--output-dir` was provided, treat it as the base output root. Otherwise default to `.pipeline-output/`. For fresh runs, create and use a run-specific directory `<base_output_dir>/<run_id>/`. For resume, search under the base output root for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-flow`; on mismatch, treat checkpoint as invalid.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
@@ -179,26 +179,26 @@ If an invalid `--scout` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
 
 ## STATUS ARTIFACT PROTOCOL
 
-Write real status artifacts under `<output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Write real status artifacts under `<run_output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- `run-status.json` at `<output_dir>/status/run-status.json` is REQUIRED for every flow run. Create it before Stage 0 begins with `status = queued` or `running`.
-- Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and checkpoint ownership stays with `<output_dir>/checkpoint.json` for resume decisions.
+- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every flow run. Create it before Stage 0 begins with `status = queued` or `running`.
+- Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and checkpoint ownership stays with `<run_output_dir>/checkpoint.json` for resume decisions.
 - The orchestrator is the only writer that may create or replace `RunStatus`.
 - Update `run-status.json` after each successful checkpoint write so `current_stage`, `completed_stages`, `next_stage`, `updated_at`, and run `status` remain aligned.
-- Record the resolved `output_dir`, checkpoint path, orchestrator name, and the current flow artifact paths when known.
+- Record the resolved run-specific `output_dir`, checkpoint path, orchestrator name, base output root if useful in notes, and the current flow artifact paths when known.
 - Use `waiting_for_user` in `RunStatus.status` when confirm/verbose pauses the flow. End in `completed`, `partial`, `failed`, or `aborted` as appropriate.
 - On resume, treat status files as hints for unfinished work, not proof of stage completion. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
 
 Because Flow decomposes and dispatches tasks, use the expanded status layout once Stage 2 creates the task list:
 
-- Set `RunStatus.layout = expanded` and create `<output_dir>/status/tasks/<task_id>.json` for each flow task.
+- Set `RunStatus.layout = expanded` and create `<run_output_dir>/status/tasks/<task_id>.json` for each flow task.
 - Initialize each task as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
 - When tasks are grouped for Stage 3, enrich task status files with `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
-- Create `<output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
+- Create `<run_output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
 - Keep `run-status.json` as the lightweight run index with task counts, active ids, and references to task/agent files rather than duplicating all live task detail there.
 
 ## CONFIRM / VERBOSE PROTOCOL
@@ -237,7 +237,7 @@ If `full_auto_mode = true`:
 - Stage 3 (Dispatch & Execution): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
 
-All outputs are written to `<output_dir>/flow/` for traceability.
+All outputs are written to `<run_output_dir>/flow/` for traceability.
 
 Stage 0 — Repo Scout (optional)
 - Determine scout_mode from flags (default: auto).
@@ -286,7 +286,7 @@ Stage 2 — Atomic Task Decomposition
   ]
 }
 ```
-- After writing the flow task artifact, create/update `<output_dir>/status/tasks/<task_id>.json` for every task, set `RunStatus.layout = expanded`, and refresh `run-status.json` with task refs, `task_counts`, and any ready/pending task ids.
+- After writing the flow task artifact, create/update `<run_output_dir>/status/tasks/<task_id>.json` for every task, set `RunStatus.layout = expanded`, and refresh `run-status.json` with task refs, `task_counts`, and any ready/pending task ids.
 
 Stage 3 — Dispatch & Execution
 - Group tasks into:

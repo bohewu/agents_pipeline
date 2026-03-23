@@ -695,7 +695,7 @@ For resume-only flows, `--resume` can be used without a new prompt.
   - balanced: Practical default depth with standard validation
   - high: Allow deeper analysis and higher execution rigor
 - `--resume`
-  - Resume from `<output_dir>/checkpoint.json`
+  - Resume from the newest compatible `<run_output_dir>/checkpoint.json` under the selected output root
   - Can be used without a new prompt (reuses `checkpoint.user_prompt` when valid)
 - `--confirm`
   - Pause after each stage for review
@@ -760,8 +760,8 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 ### Session vs Checkpoint Behavior
 
 - A new chat/session does not automatically inherit prior runtime state or stage progress.
-- Cross-session continuation works through persisted files under `<output_dir>/` (default: `.pipeline-output/`), especially `<output_dir>/checkpoint.json`.
-- To continue an interrupted Flow or Pipeline run, use `--resume` from the same project and output root.
+- Cross-session continuation works through persisted files under the selected output root (default: `.pipeline-output/`), with each run written to its own `<run_output_dir> = <output_root>/<run_id>/` directory.
+- To continue an interrupted Flow or Pipeline run, use `--resume` from the same project and output root; resume-only flows should pick the newest compatible run directory unless you explicitly target a specific run directory.
 - If `--resume` is not provided, the orchestrator starts a fresh run even if older artifacts still exist.
 - Persisted artifacts may still be reused as inputs when the prompt explicitly references them or when the protocol treats them as optional context, but that is not the same as checkpoint resume.
 

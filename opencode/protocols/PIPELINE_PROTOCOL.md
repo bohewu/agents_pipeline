@@ -246,13 +246,13 @@ One `RunStatus` exists per orchestrator invocation.
 
 Required fields:
 
-- `run_id`: stable id for the run
+- `run_id`: stable id for the run and the canonical basename for run-scoped artifact directories under `<output_dir>/status/<run_id>/`
 - `orchestrator`: orchestrator name
 - `status`: current run state
 - `created_at`: first write timestamp
 - `updated_at`: last successful write timestamp
-- `output_dir`: resolved artifact root
-- `checkpoint_path`: path to the checkpoint file used by the run
+- `output_dir`: resolved artifact root for the run, typically `<base_output_dir>/<run_id>/`
+- `checkpoint_path`: path to the checkpoint file used by the run, typically `<base_output_dir>/<run_id>/checkpoint.json`
 
 Optional fields:
 
@@ -280,6 +280,7 @@ Relationship rules:
 - A `RunStatus` MAY summarize many `TaskStatus` records.
 - A `RunStatus` MAY reference many `AgentStatus` records.
 - `RunStatus` is the authoritative parent record for lifecycle, layout choice, and checkpoint linkage.
+- Multiple historical runs may coexist under a shared base output root; resume logic should pick the intended run directory explicitly or, for resume-only flows, the newest compatible run directory by modification time.
 
 Run status vocabulary:
 

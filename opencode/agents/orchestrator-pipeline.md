@@ -210,9 +210,9 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 
 # PRE-FLIGHT (before Stage 0)
 
-1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
+1. **Resolve output root and run dir**: If `--output-dir` was provided, treat it as the base output root. Otherwise default to `.pipeline-output/`. For fresh runs, create and use a run-specific directory `<base_output_dir>/<run_id>/`. For resume, search under the base output root for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user: "Warning: `<output_dir>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation.
@@ -221,12 +221,12 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
-5. **Init docs**: If `init/` docs or `<output_dir>/init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
-6. **Approved spec artifacts (optional)**: If `<output_dir>/spec/problem-spec.json` and/or `<output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
-   - treat `<output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
-   - treat `<output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
-   - treat `<output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
-   - treat `<output_dir>/spec/dev-spec.md` as human-readable context only when needed
+5. **Init docs**: If `init/` docs or `<run_output_dir>/init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
+6. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
+   - treat `<run_output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
+   - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
+   - treat `<run_output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
+   - treat `<run_output_dir>/spec/dev-spec.md` as human-readable context only when needed
 7. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
    - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
    - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
@@ -236,7 +236,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 # CHECKPOINT PROTOCOL
 
 After each stage completes successfully:
-1. Write/update `<output_dir>/checkpoint.json` with:
+1. Write/update `<run_output_dir>/checkpoint.json` with:
    - `pipeline_id`: unique identifier for this run
    - `orchestrator`: "orchestrator-pipeline"
    - `user_prompt`: the original main_task_prompt
@@ -249,28 +249,28 @@ After each stage completes successfully:
 
 # STATUS ARTIFACT PROTOCOL
 
-Write real status artifacts under `<output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Write real status artifacts under `<run_output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- `run-status.json` at `<output_dir>/status/run-status.json` is REQUIRED for every run. Create it before Stage 0 begins with `status = queued` or `running`.
-- Status files are operational visibility and recovery metadata. They do NOT replace checkpointing, and checkpoint ownership remains unchanged: `<output_dir>/checkpoint.json` is still the authoritative stage-resume record.
+- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every run. Create it before Stage 0 begins with `status = queued` or `running`.
+- Status files are operational visibility and recovery metadata. They do NOT replace checkpointing, and checkpoint ownership remains unchanged: `<run_output_dir>/checkpoint.json` is still the authoritative stage-resume record.
 - The orchestrator is the only writer that may create or replace `RunStatus`.
 - Update `run-status.json` after each successful checkpoint write so `current_stage`, `completed_stages`, `next_stage`, `updated_at`, and overall run `status` stay aligned.
-- Record the resolved `output_dir`, checkpoint path, orchestrator name, and any available artifact paths such as `task_list_path` and `dispatch_plan_path`.
+- Record the resolved run-specific `output_dir`, checkpoint path, orchestrator name, base output root if useful in notes, and any available artifact paths such as `task_list_path` and `dispatch_plan_path`.
 - Use `waiting_for_user` in `RunStatus.status` when `--confirm` / `--verbose` pauses the run; use `completed`, `partial`, `failed`, or `aborted` for the final terminal state.
 - On resume, inspect prior status files as hints for incomplete work, but trust checkpoint state for completed stages. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
 
 Use the expanded status layout for this orchestrator once task decomposition begins:
 
-- After Stage 3 creates `task-list.json`, switch `RunStatus.layout` to `expanded` and create `<output_dir>/status/tasks/<task_id>.json` for each canonical task id.
+- After Stage 3 creates `task-list.json`, switch `RunStatus.layout` to `expanded` and create `<run_output_dir>/status/tasks/<task_id>.json` for each canonical task id.
 - Initialize task records from the TaskList with `status = pending`, then move tasks to `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` as orchestration logic decides.
 - After Stage 4 routing, enrich each task status with dispatch metadata when available, including `assigned_executor`, `resource_class`, `max_parallelism`, `teardown_required`, dependencies, and any task/agent references kept in `run-status.json`.
-- Create or maintain `<output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
+- Create or maintain `<run_output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
 - Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
 - During reconciliation, merge executor outcomes back into task and run status, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
-Write these fixed filenames under `<output_dir>/pipeline/` whenever the artifact exists:
+Write these fixed filenames under `<run_output_dir>/pipeline/` whenever the artifact exists:
 
 - `problem-spec.json`
 - `dev-spec.json`
