@@ -377,6 +377,7 @@ Relationship rules:
 
 - Each `AgentStatus` belongs to one `RunStatus`.
 - An `AgentStatus` SHOULD reference at most one active `task_id` at a time in MVP.
+- `task_id` remains optional so stage-scoped or run-scoped subagents (for example repo scouting, planning, or synthesis helpers) can still be tracked even when no canonical task record exists yet.
 - Multiple `AgentStatus` records for retries or re-dispatch are allowed over time, but only one should be marked active for a task at once.
 
 Agent status vocabulary:
@@ -452,6 +453,7 @@ The orchestrator is the only writer that may create or replace `RunStatus`.
 - Update `RunStatus` after each successful stage checkpoint write so checkpoint progress and run status stay aligned.
 - Decide layout (`run-only` or `expanded`) and record that choice in `RunStatus.layout`.
 - Create initial `TaskStatus` records once `TaskList` exists and enrich them with `DispatchPlan` metadata once routing is complete.
+- Create or register `AgentStatus` records for every delegated subagent attempt that should be visible in the run, including stage-scoped subagents that are not attached to a canonical `task_id`.
 - Transition tasks into `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` when that decision comes from orchestration logic, dependency resolution, or resume reconciliation.
 - Reconcile executor-reported outcomes into terminal task and run states.
 - On resume, mark previously abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
@@ -461,6 +463,7 @@ The orchestrator is the only writer that may create or replace `RunStatus`.
 Executors may only write status for the task they were assigned.
 
 - When work starts, update the assigned `TaskStatus` to `in_progress` and create or update the corresponding `AgentStatus` as `assigned`, `starting`, or `running`.
+- If the delegated work is stage-scoped and has no canonical `task_id`, update only the corresponding `AgentStatus` while the orchestrator keeps `RunStatus` aligned.
 - Maintain `updated_at` and, when practical, `last_heartbeat_at` while the task is active.
 - Copy or confirm heavy-resource fields (`resource_class`, `resource_status`, `teardown_required`, `resource_handles`) for browser/server/process work.
 - Before reporting success, move heavy-resource work through `teardown_pending` to `cleaned` when cleanup succeeds.

@@ -356,7 +356,11 @@ class StatusCliTests(unittest.TestCase):
     def test_agent_list_reads_expanded_agent_files(self) -> None:
         result = run_cli("agent", "list", "--project-dir", str(EXPANDED_FIXTURE_DIR))
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertIn("Agents (4):", result.stdout)
+        self.assertIn("Agents (5):", result.stdout)
+        self.assertIn(
+            "agent-scout-01 [done] scope=run agent=repo-scout",
+            result.stdout,
+        )
         self.assertIn(
             "agent-server-01 [blocked] task=task-local-server-smoke agent=executor-core attempt=1 cleanup=failed",
             result.stdout,
@@ -468,6 +472,8 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn(
             "Run [waiting_for_user] run_status_examples_expanded_01", result.stdout
         )
+        self.assertIn("Run agents:", result.stdout)
+        self.assertIn("Agent [done] agent-scout-01 (repo-scout)", result.stdout)
         self.assertIn(
             "Task [blocked] task-local-server-smoke - Run a local preview server smoke check and verify teardown evidence.",
             result.stdout,
@@ -572,6 +578,10 @@ class StatusCliTests(unittest.TestCase):
         )
         self.assertIn(
             "executor-core: count=1; active=1; statuses=blocked=1; cleanup_issues=1; tasks=task-local-server-smoke",
+            result.stdout,
+        )
+        self.assertIn(
+            "repo-scout: count=1; statuses=done=1; run_scoped=1",
             result.stdout,
         )
 
@@ -745,12 +755,20 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("Refresh interval: 15s", result.stdout)
         self.assertIn("Run → tasks → agents", html)
         self.assertIn("task-local-server-smoke", html)
+        self.assertIn("agent-scout-01", html)
         self.assertIn("agent-server-01", html)
         self.assertIn("Agent hotspots", html)
         self.assertIn("Status graph", html)
         self.assertIn("blocked", html)
         self.assertIn('id="refresh-interval"', html)
         self.assertIn("Auto refresh every", html)
+        self.assertTrue(
+            any(
+                edge.get("from")
+                == f"run:{status_data['run']['run_id']}" and edge.get("to") == "agent:agent-scout-01"
+                for edge in status_data["graph"]["edges"]
+            )
+        )
         self.assertEqual(status_data["meta"]["refresh"]["default_interval_seconds"], 15)
         self.assertEqual(after, before)
 

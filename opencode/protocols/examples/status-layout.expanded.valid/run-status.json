@@ -84,6 +84,10 @@
   ],
   "agent_refs": [
     {
+      "agent_id": "agent-scout-01",
+      "path": "status/agents/agent-scout-01.json"
+    },
+    {
       "agent_id": "agent-doc-01",
       "path": "status/agents/agent-doc-01.json"
     },

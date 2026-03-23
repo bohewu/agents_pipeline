@@ -577,6 +577,7 @@
           count: 0,
           active: 0,
           cleanup_issues: 0,
+          run_scoped: 0,
           statuses: {},
           tasks: [],
         };
@@ -596,6 +597,9 @@
       }
       if (agent.task_id && !rollup.tasks.includes(agent.task_id)) {
         rollup.tasks.push(agent.task_id);
+      }
+      if (!agent.task_id) {
+        rollup.run_scoped += 1;
       }
     });
     return Object.values(rollups).sort(
@@ -766,10 +770,14 @@
         label: agentId,
         status: String(agent.status || "unknown"),
         subtitle: String(agent.agent || "-"),
-        column: 2,
+        column: taskId ? 2 : 1,
         detail: sortedRecord(agent),
       });
-      payload.graph.edges.push({ from: `task:${taskId}`, to: `agent:${agentId}`, status: String(agent.status || "unknown") });
+      payload.graph.edges.push({
+        from: taskId ? `task:${taskId}` : `run:${runId}`,
+        to: `agent:${agentId}`,
+        status: String(agent.status || "unknown"),
+      });
     });
 
     Array.from(activeTaskIds)
@@ -1099,7 +1107,11 @@
     title.innerHTML = highlightText(item.agent_id || "agent");
     left.appendChild(title);
     const subtitle = el("div", "item-sub");
-    subtitle.innerHTML = highlightText(`${item.agent || "unknown"} · task=${item.task_id || "-"}`);
+    subtitle.innerHTML = highlightText(
+      item.task_id
+        ? `${item.agent || "unknown"} · task=${item.task_id}`
+        : `${item.agent || "unknown"} · scope=run`,
+    );
     left.appendChild(subtitle);
     top.appendChild(left);
     const pill = el("div", "status-pill", String(item.status || "unknown"));
@@ -1137,7 +1149,9 @@
     top.appendChild(pill);
     card.appendChild(top);
     const chips = el("div", "chips");
-    [`active=${item.active}`, `cleanup_issues=${item.cleanup_issues}`].forEach((text) => chips.appendChild(el("div", "chip", text)));
+    [`active=${item.active}`, `cleanup_issues=${item.cleanup_issues}`]
+      .concat(item.run_scoped ? [`run_scoped=${item.run_scoped}`] : [])
+      .forEach((text) => chips.appendChild(el("div", "chip", text)));
     Object.entries(item.statuses || {}).forEach(([status, count]) => chips.appendChild(el("div", "chip", `${status}=${count}`)));
     (item.tasks || []).forEach((task) => chips.appendChild(el("div", "chip", `task=${task}`)));
     card.appendChild(chips);

@@ -264,7 +264,7 @@ Use the expanded status layout for this orchestrator once task decomposition beg
 - After Stage 3 creates `task-list.json`, switch `RunStatus.layout` to `expanded` and create `<output_dir>/status/tasks/<task_id>.json` for each canonical task id.
 - Initialize task records from the TaskList with `status = pending`, then move tasks to `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` as orchestration logic decides.
 - After Stage 4 routing, enrich each task status with dispatch metadata when available, including `assigned_executor`, `resource_class`, `max_parallelism`, `teardown_required`, dependencies, and any task/agent references kept in `run-status.json`.
-- When Stage 5 dispatches a task, require the assigned executor to update only its own task record to `in_progress` and create or maintain `<output_dir>/status/agents/<agent_id>.json` when executor-level liveness or heavy-resource tracking matters.
+- Create or maintain `<output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
 - Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
 - During reconciliation, merge executor outcomes back into task and run status, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
 
@@ -369,7 +369,7 @@ Stage 5: Execute batches + optional validation:
 - Include status-writing expectations in every task handoff: executors may update only the assigned task status plus their own agent status, must maintain `updated_at` / `last_heartbeat_at` while active when practical, must record heavy-resource fields for browser/server/process work, and must not claim success until required cleanup is reflected in status.
 - If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
 - If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
-- After each task completion or reconciliation event, immediately refresh the affected task status file(s), any agent status file(s), `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
+- After each task completion or reconciliation event, immediately refresh the affected task status file(s), any agent status file(s), `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec

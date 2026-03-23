@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run_status_examples_expanded_01",
+  "agent_id": "agent-scout-01",
+  "agent": "repo-scout",
+  "status": "done",
+  "created_at": "2026-03-17T15:00:10Z",
+  "updated_at": "2026-03-17T15:02:45Z",
+  "completed_at": "2026-03-17T15:02:45Z",
+  "result_summary": "Repo scout finished before task decomposition and recorded repo findings for later planning.",
+  "evidence_refs": [
+    "artifacts/repo-findings.json"
+  ]
+}

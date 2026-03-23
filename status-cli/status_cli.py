@@ -492,10 +492,11 @@ def render_agent_list(
         lines.append("  - none")
     else:
         for agent in filtered_agents:
-            details = [
-                f"task={render_value(agent.get('task_id'))}",
-                f"agent={render_value(agent.get('agent'))}",
-            ]
+            details = [f"agent={render_value(agent.get('agent'))}"]
+            if agent.get("task_id"):
+                details.insert(0, f"task={render_value(agent.get('task_id'))}")
+            else:
+                details.insert(0, "scope=run")
             if agent.get("attempt") is not None:
                 details.append(f"attempt={render_value(agent.get('attempt'))}")
             if agent.get("cleanup_status") not in {None, "not_required"}:
@@ -542,11 +543,21 @@ def render_visual(run_status: dict, context: StatusContext) -> str:
     warnings = [*task_warnings, *agent_warnings]
 
     agents_by_task: dict[str, list[dict]] = {}
+    run_agents: list[dict] = []
     for agent in agents:
         task_id = agent.get("task_id")
-        if not isinstance(task_id, str):
+        if not isinstance(task_id, str) or not task_id:
+            run_agents.append(agent)
             continue
         agents_by_task.setdefault(task_id, []).append(agent)
+
+    if run_agents:
+        lines.append("  Run agents:")
+        for agent in run_agents:
+            agent_id = render_value(agent.get("agent_id"))
+            agent_status = render_value(agent.get("status"))
+            agent_name = render_value(agent.get("agent"))
+            lines.append(f"  - Agent [{agent_status}] {agent_id} ({agent_name})")
 
     if not tasks:
         lines.append("  Tasks: none")
@@ -653,6 +664,7 @@ def build_agent_hotspot_rollups(
                 "count": 0,
                 "active": 0,
                 "cleanup_issues": 0,
+                "run_scoped": 0,
                 "statuses": {},
                 "tasks": [],
             },
@@ -677,6 +689,8 @@ def build_agent_hotspot_rollups(
         tasks = cast(list[object], rollup["tasks"])
         if task_id and task_id not in tasks:
             tasks.append(task_id)
+        if not task_id:
+            rollup["run_scoped"] = cast(int, rollup["run_scoped"]) + 1
 
     return sorted(
         rollups.values(),
@@ -714,6 +728,8 @@ def render_dashboard_agent_hotspots(
             details.append("statuses=" + ", ".join(status_bits))
         if cast(int, rollup["cleanup_issues"]):
             details.append(f"cleanup_issues={rollup['cleanup_issues']}")
+        if cast(int, rollup["run_scoped"]):
+            details.append(f"run_scoped={rollup['run_scoped']}")
 
         tasks = rollup["tasks"]
         assert isinstance(tasks, list)
@@ -1225,6 +1241,8 @@ def build_web_payload(
     for agent in agents:
         agent_id = str(agent.get("agent_id") or "")
         task_id = str(agent.get("task_id") or "")
+        graph_column = 2 if task_id else 1
+        edge_from = f"task:{task_id}" if task_id else f"run:{run_id}"
         card = {
             "agent_id": agent.get("agent_id"),
             "agent": agent.get("agent"),
@@ -1246,13 +1264,13 @@ def build_web_payload(
                 "label": agent_id,
                 "status": str(agent.get("status") or "unknown"),
                 "subtitle": str(agent.get("agent") or "-"),
-                "column": 2,
+                "column": graph_column,
                 "detail": serialize_record(agent),
             }
         )
         graph["edges"].append(
             {
-                "from": f"task:{task_id}",
+                "from": edge_from,
                 "to": f"agent:{agent_id}",
                 "status": str(agent.get("status") or "unknown"),
             }
@@ -1395,7 +1413,7 @@ def render_web_export(
       <section class="two-col">
         <div class="panel">
           <div class="section-header"><div class="section-title-group"><div class="section-kicker">Topology</div><h2>Run → tasks → agents</h2></div></div>
-          <p class="note">Graph view of existing status artifacts. Click, hover, or focus a node to inspect and cross-highlight its source JSON.</p>
+          <p class="note">Graph view of existing status artifacts. Click, hover, or focus a node to inspect and cross-highlight its source JSON. Stage-scoped agents without a task id connect directly to the run.</p>
           <div class="graph-wrap"><svg id="graph" aria-label="Status graph"></svg></div>
           <div class="legend" id="legend"></div>
         </div>

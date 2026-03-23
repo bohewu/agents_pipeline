@@ -198,7 +198,7 @@ Because Flow decomposes and dispatches tasks, use the expanded status layout onc
 - Set `RunStatus.layout = expanded` and create `<output_dir>/status/tasks/<task_id>.json` for each flow task.
 - Initialize each task as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
 - When tasks are grouped for Stage 3, enrich task status files with `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
-- Create `<output_dir>/status/agents/<agent_id>.json` when executor-level liveness or heavy-resource cleanup detail matters, especially for `process`, `server`, or `browser` work.
+- Create `<output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
 - Keep `run-status.json` as the lightweight run index with task counts, active ids, and references to task/agent files rather than duplicating all live task detail there.
 
 ## CONFIRM / VERBOSE PROTOCOL
@@ -305,7 +305,7 @@ Stage 3 — Dispatch & Execution
 - For each task handoff, include status-writing instructions: executors may update only their assigned task status and their own agent status, must keep timestamps current while active when practical, and must reflect cleanup state before reporting success.
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".
-- Before dispatch, move eligible tasks to `ready`; when a task is handed off, move it to `in_progress` and create/update `agents/<agent_id>.json` when needed for executor liveness or heavy-resource tracking.
+- Before dispatch, move eligible tasks to `ready`; when any subagent is handed off, create/update `agents/<agent_id>.json`, register it in `run-status.json`, and keep `active_agent_ids` aligned even if the subagent is not attached to a task yet.
 - After each task result, immediately reconcile the task status, any related agent status, `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
