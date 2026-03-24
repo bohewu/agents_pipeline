@@ -93,8 +93,6 @@ bash scripts/install.sh --no-backup
 ## Install OpenCode Status Plugin Only (Local)
 
 Use this when OpenCode is already set up and you only want the status runtime plugin.
-
-Use this when you already have OpenCode configured and only want the status runtime plugin.
 OpenCode local plugins are loaded from a JS/TS entry file in the plugins directory, so this installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
 
