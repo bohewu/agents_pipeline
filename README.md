@@ -312,6 +312,9 @@ PowerShell tips:
 - When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
 - Bootstrap installers create backups by default when they detect existing installed files.
 
+<details>
+<summary>OpenCode core bundle</summary>
+
 Pinned version (recommended):
 
 Windows (PowerShell):
@@ -340,16 +343,22 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
 ```
 
+</details>
+
 ## Install OpenCode Status Plugin Without Clone (Release Bundle)
 
 Use the bootstrap plugin installers when you want only the OpenCode status runtime plugin from a release bundle.
 As with the local installer, the target must be the plugin entry file path, not a directory.
-To keep README version validation stable, use your intended release tag in place of `<release-tag>` below.
+
+<details>
+<summary>Plugin-only bundle</summary>
+
+Pinned version (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "<release-tag>"
+$tag = "v0.12.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1
 pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
@@ -357,7 +366,7 @@ pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $ta
 macOS/Linux:
 
 ```bash
-tag="<release-tag>"
+tag="v0.12.0"
 curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"
 bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
@@ -372,15 +381,21 @@ pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $ta
 bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
 ```
 
+</details>
+
 ## Install All Local Assets Without Clone (Release Bundle)
 
 Use the bootstrap all-in-one installers to download a release bundle and install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together.
-To keep README version validation stable, use your intended release tag in place of `<release-tag>` below.
+
+<details>
+<summary>All-in-one bundle</summary>
+
+Pinned version (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "<release-tag>"
+$tag = "v0.12.0"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1
 pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
 ```
@@ -388,7 +403,7 @@ pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeT
 macOS/Linux:
 
 ```bash
-tag="<release-tag>"
+tag="v0.12.0"
 curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
 bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
 ```
@@ -403,7 +418,12 @@ pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeT
 bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
 ```
 
+</details>
+
 ## Install Copilot Without Clone (Release Bundle)
+
+<details>
+<summary>Copilot bundle</summary>
 
 Pinned version (recommended):
 
@@ -433,9 +453,14 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
 ```
 
+</details>
+
 ## Install Claude Code Without Clone (Release Bundle)
 
 Use a tagged release bundle to install Claude Code subagents without cloning this repo.
+
+<details>
+<summary>Claude Code bundle</summary>
 
 Pinned version (recommended):
 
@@ -467,9 +492,14 @@ curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/b
 bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
 ```
 
+</details>
+
 See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, and the current orchestrator limitations.
 
 ## Install Codex Without Clone (Release Bundle)
+
+<details>
+<summary>Codex bundle</summary>
 
 Pinned version (recommended):
 
@@ -507,6 +537,8 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
 ```
 
+</details>
+
 ## Versioning
 
 - Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.12.0`).
@@ -515,6 +547,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
 - Release CI checks `VERSION` and tag alignment (`VERSION=0.12.0` must release as `v0.12.0`).
+- After bumping `VERSION`, run `python scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
 

@@ -58,69 +58,34 @@ jobs:
       - name: Validate README pinned version references
         shell: bash
         run: |
+          python3 scripts/sync-readme-version.py --check
           python3 - <<'PY'
-          import re
+          import subprocess
           import tempfile
           from pathlib import Path
 
-          def validate_readme(version_path: Path, readme_path: Path) -> None:
-              version = version_path.read_text(encoding="utf-8").strip()
-              if not re.fullmatch(r"\d+\.\d+\.\d+", version):
-                  raise SystemExit(f"VERSION must be MAJOR.MINOR.PATCH. Got: {version}")
-
-              readme = readme_path.read_text(encoding="utf-8")
-              tag = f"v{version}"
-              expected_counts = {
-                  f'$tag = "{tag}"': 4,
-                  f'tag="{tag}"': 3,
-                  f'`VERSION={version}` must release as `{tag}`': 1,
-                  f'SemVer without `v`, for example `{version}`': 1,
-                  f'(for example: `{tag}`).': 1,
-                  f'(for example `{tag}`)': 1,
-                  f'git tag {tag}': 1,
-                  f'git push origin {tag}': 1,
-              }
-
-              count_mismatches = [
-                  (snippet, expected, readme.count(snippet))
-                  for snippet, expected in expected_counts.items()
-                  if readme.count(snippet) != expected
-              ]
-              if count_mismatches:
-                  print("README.md version validation failed.")
-                  print(f"Expected VERSION-derived tag: {tag}")
-                  print("Snippet counts did not match expected values:")
-                  for snippet, expected, actual in count_mismatches:
-                      print(f"- expected {expected} occurrence(s), found {actual}: {snippet}")
-                  raise SystemExit(1)
-
-              pattern = re.compile(r'(?:\$tag = "|tag=")v\d+\.\d+\.\d+|git tag v\d+\.\d+\.\d+|git push origin v\d+\.\d+\.\d+|`VERSION=\d+\.\d+\.\d+` must release as `v\d+\.\d+\.\d+`|\(for example `\d+\.\d+\.\d+`\)\.|\(for example: `v\d+\.\d+\.\d+`\)\.|\(for example `v\d+\.\d+\.\d+`\)')
-              mismatches = sorted({match.group(0) for match in pattern.finditer(readme) if version not in match.group(0)})
-              if mismatches:
-                  print("README.md contains pinned version references that do not match VERSION.")
-                  print(f"Expected VERSION-derived tag: {tag}")
-                  print("Mismatched snippets:")
-                  for snippet in mismatches:
-                      print(f"- {snippet}")
-                  raise SystemExit(1)
-
-          validate_readme(Path("VERSION"), Path("README.md"))
-
+          script = Path("scripts/sync-readme-version.py")
           version = Path("VERSION").read_text(encoding="utf-8").strip()
           temp_dir = Path(tempfile.mkdtemp(prefix="readme-version-regression-"))
+
+          def expect_failure(args, label):
+              result = subprocess.run(
+                  ["python3", str(script), "--check", *args],
+                  check=False,
+                  capture_output=True,
+                  text=True,
+              )
+              if result.returncode == 0:
+                  raise SystemExit(f"Expected README validation to fail for {label}")
 
           mismatched_version = temp_dir / "VERSION"
           mismatched_version.write_text("9.9.9\n", encoding="utf-8")
           readme_copy = temp_dir / "README.md"
           readme_copy.write_text(Path("README.md").read_text(encoding="utf-8"), encoding="utf-8")
-
-          try:
-              validate_readme(mismatched_version, readme_copy)
-          except SystemExit as exc:
-              if exc.code == 0:
-                  raise
-          else:
-              raise SystemExit("Expected README validation to fail for a VERSION mismatch fixture")
+          expect_failure(
+              ["--version-file", str(mismatched_version), "--readme", str(readme_copy)],
+              "a VERSION mismatch fixture",
+          )
 
           mismatched_readme = temp_dir / "README-mismatch.md"
           mismatched_readme.write_text(
@@ -131,14 +96,10 @@ jobs:
               ),
               encoding="utf-8",
           )
-
-          try:
-              validate_readme(Path("VERSION"), mismatched_readme)
-          except SystemExit as exc:
-              if exc.code == 0:
-                  raise
-          else:
-              raise SystemExit("Expected README validation to fail for a pinned tag mismatch fixture")
+          expect_failure(
+              ["--version-file", "VERSION", "--readme", str(mismatched_readme)],
+              "a pinned tag mismatch fixture",
+          )
 
           print(f"README pinned version references match VERSION={version} and reject mismatches.")
           PY

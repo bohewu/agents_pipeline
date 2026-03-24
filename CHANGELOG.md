@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- Release-bundle install sections in `README.md` now use collapsible blocks, and pinned bootstrap examples are synchronized from `VERSION` via `scripts/sync-readme-version.py` so future version bumps are easier to keep in sync.
+
 ## [0.12.0] - 2026-03-24
 
 ### Added
