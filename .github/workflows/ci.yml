@@ -852,11 +852,11 @@ jobs:
           & ./scripts/bootstrap-install-copilot.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-copilot -NoBackup -DryRun
           & ./scripts/bootstrap-install-claude.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-claude -NoBackup -DryRun
           & ./scripts/bootstrap-install-codex.ps1 -Repo example/agents -Version v1.2.3 -Target .\.tmp-bootstrap-codex -NoBackup -Force -DryRun
-          $bootstrapPluginOutput = & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapPluginTarget -NoBackup -DryRun | Out-String
+          $bootstrapPluginOutput = & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapPluginTarget -NoBackup -DryRun 6>&1 | Out-String
           if ($bootstrapPluginOutput -notmatch [regex]::Escape("Install target override: $bootstrapPluginTarget")) {
             throw 'bootstrap-install-plugin-status-runtime.ps1 did not report the plugin entry-file target.'
           }
-          $bootstrapAllOutput = & ./scripts/bootstrap-install-all-local.ps1 -Repo example/agents -Version v1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -PluginTarget $bootstrapPluginTarget -CopilotTarget .\.tmp-bootstrap-copilot -ClaudeTarget .\.tmp-bootstrap-claude -CodexTarget .\.tmp-bootstrap-codex -NoBackup -ForceCodex -DryRun | Out-String
+          $bootstrapAllOutput = & ./scripts/bootstrap-install-all-local.ps1 -Repo example/agents -Version v1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -PluginTarget $bootstrapPluginTarget -CopilotTarget .\.tmp-bootstrap-copilot -ClaudeTarget .\.tmp-bootstrap-claude -CodexTarget .\.tmp-bootstrap-codex -NoBackup -ForceCodex -DryRun 6>&1 | Out-String
           if ($bootstrapAllOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
             throw 'bootstrap-install-all-local.ps1 dry-run did not complete successfully.'
           }

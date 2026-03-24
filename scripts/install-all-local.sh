@@ -85,11 +85,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-OPEN_CODE_CMD=("${SCRIPT_DIR}/install.sh")
-PLUGIN_CMD=("${SCRIPT_DIR}/install-plugin-status-runtime.sh")
-COPILOT_CMD=("${SCRIPT_DIR}/install-copilot.sh")
-CLAUDE_CMD=("${SCRIPT_DIR}/install-claude.sh")
-CODEX_CMD=("${SCRIPT_DIR}/install-codex.sh")
+OPEN_CODE_CMD=(bash "${SCRIPT_DIR}/install.sh")
+PLUGIN_CMD=(bash "${SCRIPT_DIR}/install-plugin-status-runtime.sh")
+COPILOT_CMD=(bash "${SCRIPT_DIR}/install-copilot.sh")
+CLAUDE_CMD=(bash "${SCRIPT_DIR}/install-claude.sh")
+CODEX_CMD=(bash "${SCRIPT_DIR}/install-codex.sh")
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
   OPEN_CODE_CMD+=(--dry-run)
