@@ -179,26 +179,26 @@ If an invalid `--scout` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
 
 ## STATUS ARTIFACT PROTOCOL
 
-Write real status artifacts under `<run_output_dir>/status/` throughout the run using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Runtime/plugin owns canonical status/checkpoint writes under `<run_output_dir>/status/` using the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every flow run. Create it before Stage 0 begins with `status = queued` or `running`.
-- Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and checkpoint ownership stays with `<run_output_dir>/checkpoint.json` for resume decisions.
-- The orchestrator is the only writer that may create or replace `RunStatus`.
-- Update `run-status.json` after each successful checkpoint write so `current_stage`, `completed_stages`, `next_stage`, `updated_at`, and run `status` remain aligned.
-- Record the resolved run-specific `output_dir`, checkpoint path, orchestrator name, base output root if useful in notes, and the current flow artifact paths when known.
-- Use `waiting_for_user` in `RunStatus.status` when confirm/verbose pauses the flow. End in `completed`, `partial`, `failed`, or `aborted` as appropriate.
+- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every flow run.
+- Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and `<run_output_dir>/checkpoint.json` remains the authoritative stage-resume record.
+- Runtime/plugin owns file creation, timestamps, refs, counts, active ids, and reconciliation.
+- The orchestrator owns semantic transitions only: stage completion, task registration, dispatch metadata, waiting states, and final outcomes.
+- Emit enough semantic data for runtime/plugin to keep `current_stage`, `completed_stages`, `next_stage`, `updated_at`, run `status`, artifact paths, and expanded-layout refs aligned.
+- Use `waiting_for_user` semantics when confirm/verbose pauses the flow. End in `completed`, `partial`, `failed`, or `aborted` as appropriate.
 - On resume, treat status files as hints for unfinished work, not proof of stage completion. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
 
-Because Flow decomposes and dispatches tasks, use the expanded status layout once Stage 2 creates the task list:
+Because Flow decomposes and dispatches tasks, request the expanded status layout once Stage 2 creates the task list:
 
-- Set `RunStatus.layout = expanded` and create `<run_output_dir>/status/tasks/<task_id>.json` for each flow task.
-- Initialize each task as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
-- When tasks are grouped for Stage 3, enrich task status files with `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
-- Create `<run_output_dir>/status/agents/<agent_id>.json` for every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
+- Emit that `RunStatus.layout = expanded` should be used and register each canonical task so runtime/plugin can create `<run_output_dir>/status/tasks/<task_id>.json` records.
+- Initialize each task semantically as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
+- When tasks are grouped for Stage 3, emit dispatch metadata such as `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
+- Register every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
 - Keep `run-status.json` as the lightweight run index with task counts, active ids, and references to task/agent files rather than duplicating all live task detail there.
 
 ## CONFIRM / VERBOSE PROTOCOL
@@ -286,7 +286,7 @@ Stage 2 — Atomic Task Decomposition
   ]
 }
 ```
-- After writing the flow task artifact, create/update `<run_output_dir>/status/tasks/<task_id>.json` for every task, set `RunStatus.layout = expanded`, and refresh `run-status.json` with task refs, `task_counts`, and any ready/pending task ids.
+- After writing the flow task artifact, emit task-registration events for every task, request `RunStatus.layout = expanded`, and provide enough semantic data for runtime/plugin to refresh task refs, `task_counts`, and any ready/pending task ids.
 
 Stage 3 — Dispatch & Execution
 - Group tasks into:
@@ -302,11 +302,11 @@ Stage 3 — Dispatch & Execution
   - Task details
   - Expected output
   - Artifact output contract (below)
-- For each task handoff, include status-writing instructions: executors may update only their assigned task status and their own agent status, must keep timestamps current while active when practical, and must reflect cleanup state before reporting success.
+- For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should heartbeat while active when practical, and must reflect cleanup state before reporting success.
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".
-- Before dispatch, move eligible tasks to `ready`; when any subagent is handed off, create/update `agents/<agent_id>.json`, register it in `run-status.json`, and keep `active_agent_ids` aligned even if the subagent is not attached to a task yet.
-- After each task result, immediately reconcile the task status, any related agent status, `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
+- Before dispatch, move eligible tasks to `ready`; when any subagent is handed off, emit the agent registration/update event and keep `active_agent_ids` aligned even if the subagent is not attached to a task yet.
+- After each task result, immediately reconcile the semantic task outcome, any related agent outcome, and the run summary inputs so runtime/plugin can refresh `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
 
@@ -352,7 +352,7 @@ If expected_output is implementation:
   - Note the conflict.
   - Prefer the more concrete / scoped output.
 - No reviewer involvement.
-- Before returning, finalize task and run status files so terminal states, cleanup results, errors, and remaining blockers match the synthesis outcome.
+- Before returning, emit final task/run outcomes so runtime/plugin can persist terminal states, cleanup results, errors, and remaining blockers consistently.
 
 STOP after synthesis.
 

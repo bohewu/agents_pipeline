@@ -39,6 +39,6 @@ $ARGUMENTS
 
 ## Notes
 
-- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
-- In `--generate` mode, if `<output_dir>/ci/ci-plan.md`, `<output_dir>/ci/cd-plan.md`, `<output_dir>/ci/docker-plan.md`, and `<output_dir>/ci/runbook.md` already exist, the orchestrator will reuse them and skip re-planning.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
+- In `--generate` mode, if `<run_output_dir>/ci/ci-plan.md`, `<run_output_dir>/ci/cd-plan.md`, `<run_output_dir>/ci/docker-plan.md`, and `<run_output_dir>/ci/runbook.md` already exist, the orchestrator will reuse them and skip re-planning.
 - To refresh docs, run `/run-ci` without `--generate`, review/update, then run with `--generate`.

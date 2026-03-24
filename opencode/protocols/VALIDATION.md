@@ -41,9 +41,9 @@ These gates define minimal acceptance for each stage output.
 
 ## Status Contract Gate
 
-- `run-status.json` must always exist at `<output_dir>/status/run-status.json` and validate against `./protocols/schemas/run-status.schema.json`.
-- Expanded layouts must validate each `tasks/<task_id>.json` file against `./protocols/schemas/task-status.schema.json`.
-- Expanded layouts must validate each `agents/<agent_id>.json` file against `./protocols/schemas/agent-status.schema.json`.
+- `run-status.json` must always exist at `<run_output_dir>/status/run-status.json` and validate against `./protocols/schemas/run-status.schema.json`.
+- Expanded layouts must validate each `<run_output_dir>/status/tasks/<task_id>.json` file against `./protocols/schemas/task-status.schema.json`.
+- Expanded layouts must validate each `<run_output_dir>/status/agents/<agent_id>.json` file against `./protocols/schemas/agent-status.schema.json`.
 - `TaskStatus.status = done` must not coexist with uncleared heavy-resource states such as `resource_status = cleanup_failed`.
 - `AgentStatus.status = done` must not coexist with live or failed-cleanup resource states.
 - Invalid status fixtures are expected to fail validation; CI should treat an unexpected pass as a regression.

@@ -198,12 +198,14 @@ CLEANUP_STATUSES = {
 
 def add_path_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--status-file", help="Path to run-status.json")
-    parser.add_argument("--status-dir", help="Path to the status/ directory")
+    parser.add_argument(
+        "--status-dir", help="Path to the status/ directory inside a run output directory"
+    )
     parser.add_argument(
         "--output-dir",
         help=(
-            "Path to an output directory containing status/run-status.json or "
-            "run-status.json"
+            "Path to a run output directory containing status/run-status.json, or to a base "
+            "output root whose immediate run subdirectories contain status/run-status.json"
         ),
     )
     parser.add_argument("--project-dir", help="Path to a project or fixture directory")
@@ -746,7 +748,7 @@ def is_orchestration_artifact_dir(path: Path) -> bool:
 def output_dir_discovery_error(
     output_dir: Path, candidates: Sequence[Path]
 ) -> StatusCliError:
-    candidate_text = "\n  - ".join(str(path.resolve()) for path in candidates)
+    candidate_text = "\n  - ".join(str(path.resolve()) for path in candidates if path is not None)
     message = (
         "Could not find run-status.json from --output-dir. Tried:\n"
         f"  - {candidate_text}"
@@ -758,8 +760,8 @@ def output_dir_discovery_error(
             "orchestration artifact directory, not a direct status-cli target. "
             "Point status-cli at a compatible status source instead: use --status-file "
             "for a specific run-status.json, --status-dir for a status/ directory, "
-            "--output-dir for a directory that directly contains status/run-status.json "
-            "or run-status.json, or --project-dir for a project root that contains one."
+            "--output-dir for a run output directory or base output root that resolves "
+            "to status/run-status.json, or --project-dir for a project root that contains one."
         )
     return StatusCliError(message)
 
@@ -805,9 +807,11 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         )
 
     if output_dir is not None:
+        latest_run_dir = latest_run_subdir(output_dir)
         candidates = [
             output_dir / "status" / "run-status.json",
             output_dir / "run-status.json",
+            latest_run_dir / "status" / "run-status.json" if latest_run_dir else None,
         ]
         run_status_path = first_existing(candidates)
         if run_status_path is None:
@@ -816,7 +820,11 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
             run_status_path=run_status_path,
             status_root=run_status_path.parent,
             project_dir=project_dir.resolve() if project_dir else None,
-            output_dir=output_dir.resolve(),
+            output_dir=(
+                run_status_path.parent.parent
+                if run_status_path.parent.name == "status"
+                else output_dir.resolve()
+            ),
             status_dir=(
                 run_status_path.parent
                 if run_status_path.parent.name == "status"
@@ -825,13 +833,13 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         )
 
     base_dir = project_dir or Path.cwd()
-    latest_status_run_dir = latest_run_subdir(base_dir / ".pipeline-output" / "status")
+    latest_output_run_dir = latest_run_subdir(base_dir / ".pipeline-output")
     direct_candidates = [
         base_dir / "status" / "run-status.json",
         base_dir / "run-status.json",
-        latest_status_run_dir / "run-status.json" if latest_status_run_dir else None,
         base_dir / ".pipeline-output" / "status" / "run-status.json",
         base_dir / ".pipeline-output" / "run-status.json",
+        latest_output_run_dir / "status" / "run-status.json" if latest_output_run_dir else None,
     ]
     run_status_path = first_existing(direct_candidates)
     if run_status_path is not None:
@@ -839,7 +847,11 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
             run_status_path=run_status_path,
             status_root=run_status_path.parent,
             project_dir=base_dir.resolve(),
-            output_dir=output_dir.resolve() if output_dir else None,
+            output_dir=(
+                run_status_path.parent.parent
+                if run_status_path.parent.name == "status"
+                else None
+            ),
             status_dir=(
                 run_status_path.parent
                 if run_status_path.parent.name == "status"
@@ -883,7 +895,9 @@ def latest_run_subdir(status_dir: Path) -> Optional[Path]:
     if not status_dir.is_dir():
         return None
     candidates = [
-        path for path in status_dir.iterdir() if path.is_dir() and (path / "run-status.json").is_file()
+        path
+        for path in status_dir.iterdir()
+        if path.is_dir() and (path / "status" / "run-status.json").is_file()
     ]
     if not candidates:
         return None

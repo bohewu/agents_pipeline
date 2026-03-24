@@ -62,6 +62,6 @@ $ARGUMENTS
 - `--pipeline-flag` is only for `run-pipeline`-compatible flags. `run-modernize` flags such as `--mode`, `--target`, `--depth`, `--iterate`, and `--execute-phase` should not be forwarded.
 - `--autopilot` makes the modernize orchestrator non-interactive, and in execution modes it also forwards non-interactive behavior to delegated pipeline runs.
 - `--full-auto` is the strongest non-interactive preset for modernization runs and execution-enabled handoffs; it still stops on hard blockers and does not permit scope expansion or leaving resources running.
-- Output documents are written to `.pipeline-output/modernize/` by default.
-- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
+- Output documents are written under `.pipeline-output/<run_id>/modernize/` by default.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
 - A navigation index (`modernize-index.md`) is generated during synthesis and links the documents produced in that run (5 by default; 3 in `--decision-only`).

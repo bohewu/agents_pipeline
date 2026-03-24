@@ -8,7 +8,7 @@ This plan keeps Phase 1 intentionally small:
 
 - `status-cli` is **optional** and is **not required** for teams that only use the protocol docs, schemas, or validation fixtures.
 - Phase 1 is **read-only**.
-- In-repo run commands and orchestrators are expected to emit real status artifacts under `<output_dir>/status/` for the CLI to inspect.
+- Runtime/plugin is expected to emit real status artifacts under `<run_output_dir>/status/` for the CLI to inspect.
 - Phase 1 treats `run-status.json` as the primary supported input.
 - Support for `tasks/` and `agents/` files is optional enhanced behavior when present.
 - Phase 1 does **not** add control behavior, background services, daemon/watch behavior, or any live update mechanism other than a narrow same-process self-refresh mode for an ephemeral loopback-only localhost read-only viewer that rereads existing local files during the current viewing session.
@@ -30,7 +30,7 @@ The source of truth for status semantics remains the existing status-layer MVP c
 Phase 1 goals:
 
 - help operators or developers inspect status artifacts locally
-- assume repo runs already wrote those artifacts under `<output_dir>/status/`
+- assume repo runs already wrote those artifacts under `<run_output_dir>/status/`
 - make the required `run-status.json` easier to read in a terminal
 - optionally summarize expanded task/agent detail when those files exist
 - allow small same-repo ephemeral loopback-only localhost read-only viewer sessions or self-contained HTML exports when they remain file-backed, local, and non-controlling
@@ -80,7 +80,7 @@ Recommended model:
 
 - the CLI runs from any shell location
 - the user points it at a project directory, output directory, or specific status file path
-- the CLI discovers `<output_dir>/status/run-status.json` from that target
+- the CLI discovers `<run_output_dir>/status/run-status.json` from that target
 - the CLI does not require installation inside each project
 
 Preferred lookup order:
@@ -92,7 +92,7 @@ Preferred lookup order:
 
 This keeps the tool useful for:
 
-- local development repos whose runs emit `<output_dir>/status/`
+- local development repos whose runs emit `<run_output_dir>/status/`
 - separate runtime repos that adopt this contract later
 - archived or copied output directories
 - operators inspecting multiple runs across different project roots
@@ -260,7 +260,7 @@ Key alignment rules:
 
 - `run-status.json` remains the required top-level index
 - `tasks/` and `agents/` remain optional expanded layout details
-- in-repo runs are expected to write those files under `<output_dir>/status/`
+- runtime/plugin is expected to write those files under `<run_output_dir>/status/`
 - status vocabulary should come from the existing protocol docs and schemas
 - the CLI should not invent alternative lifecycle names or layout rules
 - if future CLI needs expose a real contract gap, the protocol docs and schemas should be updated first in this repository
@@ -286,4 +286,4 @@ This preserves the MVP-first contract stance already used by the status-layer do
 
 ## Recommended Next Step
 
-Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, including same-repo terminal-local views, an ephemeral loopback-only localhost read-only viewer mode, self-contained HTML export behavior, and a narrow same-process local polling/self-refresh mode for that localhost viewer when it only rereads existing local status artifacts during the current viewing session. Repo runs are expected to keep producing those artifacts under `<output_dir>/status/`, while hosted services, remote surfaces, write-back/control actions, daemon/watch processes, browser/server-hosted UI beyond that bounded localhost mode, and broader platform work remain deferred to later planning and a future downstream runtime effort.
+Keep this document as the main planning reference for `status-cli` in this repository. Future read-only CLI work may continue here under `status-cli/`, including same-repo terminal-local views, an ephemeral loopback-only localhost read-only viewer mode, self-contained HTML export behavior, and a narrow same-process local polling/self-refresh mode for that localhost viewer when it only rereads existing local status artifacts during the current viewing session. Repo runs are expected to keep producing those artifacts under `<run_output_dir>/status/`, while hosted services, remote surfaces, write-back/control actions, daemon/watch processes, browser/server-hosted UI beyond that bounded localhost mode, and broader platform work remain deferred to later planning and a future downstream runtime effort.

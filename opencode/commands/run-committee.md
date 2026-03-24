@@ -29,7 +29,7 @@ $ARGUMENTS
 
 ## Notes
 
-- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
 
 ## Examples
 

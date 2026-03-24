@@ -19,12 +19,12 @@ The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
 
 ## Optional Input: Approved Spec Artifacts
 
-When `orchestrator-pipeline` follows `orchestrator-spec`, the caller MAY provide or reference these artifacts under the shared output root:
+When `orchestrator-pipeline` follows `orchestrator-spec`, the caller MAY provide or reference these artifacts from the selected prior run directory:
 
-- `<output_dir>/spec/problem-spec.json`
-- `<output_dir>/spec/dev-spec.json`
-- `<output_dir>/spec/dev-spec.md`
-- `<output_dir>/spec/plan-outline.json`
+- `<run_output_dir>/spec/problem-spec.json`
+- `<run_output_dir>/spec/dev-spec.json`
+- `<run_output_dir>/spec/dev-spec.md`
+- `<run_output_dir>/spec/plan-outline.json`
 
 Usage rules:
 
@@ -43,8 +43,8 @@ The orchestrator prompts remain the execution source of truth, but the schema pr
 
 Persisted handoff files may also be used for later manual `/run-pipeline` invocation after a prior `/run-modernize` session. Recommended canonical locations:
 
-- `<output_dir>/modernize/latest-handoff.json`
-- `<output_dir>/modernize/phase-<phase_id>.handoff.json`
+- `<run_output_dir>/modernize/latest-handoff.json`
+- `<run_output_dir>/modernize/phase-<phase_id>.handoff.json`
 
 Reference examples:
 - `./protocols/examples/modernize-exec-handoff.valid.json`
@@ -73,10 +73,10 @@ Use this optional contract when the workflow needs a human-readable development 
 
 Canonical pipeline paths when this stage is used:
 
-- `<output_dir>/pipeline/dev-spec.json`
-- `<output_dir>/pipeline/dev-spec.md`
+- `<run_output_dir>/pipeline/dev-spec.json`
+- `<run_output_dir>/pipeline/dev-spec.md`
 
-When `doc-writer` is used to render the Markdown artifact, the emitted artifact block may still include a task-specific filename. The orchestrator should persist that artifact content to the canonical path `<output_dir>/pipeline/dev-spec.md`.
+When `doc-writer` is used to render the Markdown artifact, the emitted artifact block may still include a task-specific filename. The orchestrator should persist that artifact content to the canonical path `<run_output_dir>/pipeline/dev-spec.md`.
 
 **Stage 1: Planner**
 Agent: `planner`
@@ -134,41 +134,41 @@ Output: User-facing summary text
 
 ## Artifact Output Convention
 
-All pipeline artifacts MUST be written under a single root directory to keep the target project clean and prevent accidental git commits.
+All pipeline artifacts MUST live under a single configurable base output root so the target project stays clean and accidental git commits are avoided.
 
-- **Default artifact root:** `.pipeline-output/`
+- **Default base output root:** `.pipeline-output/`
 - **Override flag:** `--output-dir=<path>` (available on all orchestrators)
-- **Sub-directories by pipeline:**
-  - `.pipeline-output/pipeline/` — orchestrator-pipeline intermediates
-  - `.pipeline-output/spec/` — orchestrator-spec outputs
-  - `.pipeline-output/init/` — orchestrator-init docs
-  - `.pipeline-output/ci/` — orchestrator-ci docs
-  - `.pipeline-output/modernize/` — orchestrator-modernize docs
-  - `.pipeline-output/flow/` — orchestrator-flow outputs
-  - `.pipeline-output/committee/` — orchestrator-committee outputs
-  - `.pipeline-output/status/` — repo-bound run/task/agent status files for active or recent runs
-- **Checkpoint file:** `.pipeline-output/checkpoint.json` (see Checkpoint Protocol below)
-- **Gitignore requirement:** The target project's `.gitignore` MUST include `.pipeline-output/`. Orchestrators verify this in the pre-flight stage and warn the user if it is missing.
+- **Fresh run layout:** runtime allocates a run-specific directory at `<output_root>/<run_id>/`
+- **Canonical run-local sub-directories by orchestrator:**
+  - `<run_output_dir>/pipeline/` — orchestrator-pipeline intermediates
+  - `<run_output_dir>/spec/` — orchestrator-spec outputs
+  - `<run_output_dir>/init/` — orchestrator-init docs
+  - `<run_output_dir>/ci/` — orchestrator-ci docs
+  - `<run_output_dir>/modernize/` — orchestrator-modernize docs
+  - `<run_output_dir>/flow/` — orchestrator-flow outputs
+  - `<run_output_dir>/committee/` — orchestrator-committee outputs
+- **Canonical checkpoint file:** `<run_output_dir>/checkpoint.json` (see Checkpoint Protocol below)
+- **Gitignore requirement:** The target project's `.gitignore` MUST include the base output root (default `.pipeline-output/`). Orchestrators verify this in pre-flight and warn the user if it is missing.
 
 ### Canonical Filenames For `orchestrator-pipeline`
 
-- `.pipeline-output/pipeline/problem-spec.json`
-- `.pipeline-output/pipeline/dev-spec.json` (optional)
-- `.pipeline-output/pipeline/dev-spec.md` (optional human-readable spec)
-- `.pipeline-output/pipeline/plan-outline.json`
-- `.pipeline-output/pipeline/repo-findings.json`
-- `.pipeline-output/pipeline/task-list.json`
-- `.pipeline-output/pipeline/dispatch-plan.json`
-- `.pipeline-output/pipeline/test-report.json`
-- `.pipeline-output/pipeline/review-report.json`
-- `.pipeline-output/pipeline/context-pack.json`
+- `<run_output_dir>/pipeline/problem-spec.json`
+- `<run_output_dir>/pipeline/dev-spec.json` (optional)
+- `<run_output_dir>/pipeline/dev-spec.md` (optional human-readable spec)
+- `<run_output_dir>/pipeline/plan-outline.json`
+- `<run_output_dir>/pipeline/repo-findings.json`
+- `<run_output_dir>/pipeline/task-list.json`
+- `<run_output_dir>/pipeline/dispatch-plan.json`
+- `<run_output_dir>/pipeline/test-report.json`
+- `<run_output_dir>/pipeline/review-report.json`
+- `<run_output_dir>/pipeline/context-pack.json`
 
 ### Canonical Filenames For `orchestrator-spec`
 
-- `.pipeline-output/spec/problem-spec.json`
-- `.pipeline-output/spec/dev-spec.json`
-- `.pipeline-output/spec/dev-spec.md`
-- `.pipeline-output/spec/plan-outline.json`
+- `<run_output_dir>/spec/problem-spec.json`
+- `<run_output_dir>/spec/dev-spec.json`
+- `<run_output_dir>/spec/dev-spec.md`
+- `<run_output_dir>/spec/plan-outline.json`
 
 ## Artifact Rules
 
@@ -196,17 +196,18 @@ Each JSON output MAY include `protocol_version`. When present, it MUST follow `m
 Pipeline runs support interrupt/resume via checkpoint files.
 
 - **Session boundary:** Chat/session state is not the resume mechanism. A new session does not automatically recover in-memory progress from an earlier session.
-- **Persistence boundary:** Cross-session continuation relies on files under `<output_dir>/`, especially `<output_dir>/checkpoint.json`.
+- **Persistence boundary:** Cross-session continuation relies on files under the selected run directory, especially `<run_output_dir>/checkpoint.json`.
 
-- **Location:** `<output_dir>/checkpoint.json` (default: `.pipeline-output/checkpoint.json`)
+- **Location:** `<run_output_dir>/checkpoint.json` (default fresh-run layout: `.pipeline-output/<run_id>/checkpoint.json`)
 - **Schema:** `./protocols/schemas/checkpoint.schema.json`
-- **Write timing:** After each stage completes successfully, the orchestrator MUST update the checkpoint file with the stage output.
+- **Ownership:** runtime/plugin owns checkpoint file creation and canonical writes; orchestrators emit semantic stage-completion and run-finish events that the runtime persists.
+- **Write timing:** After each stage completes successfully, runtime/plugin MUST update the checkpoint file with the stage output.
 - **Resume flow:**
-   1. User passes `--resume` flag
-      - `--resume` may be used with a new prompt or as resume-only invocation without a new prompt.
-   2. Orchestrator loads `<output_dir>/checkpoint.json`
-   3. Validates that the checkpoint's `orchestrator` field matches the current orchestrator
-      - If resume-only invocation is used and checkpoint is valid, orchestrator reuses `checkpoint.user_prompt` as the run prompt.
+    1. User passes `--resume` flag
+       - `--resume` may be used with a new prompt or as resume-only invocation without a new prompt.
+    2. Runtime resolves the intended run directory, then loads `<run_output_dir>/checkpoint.json`
+    3. Validates that the checkpoint's `orchestrator` field matches the current orchestrator
+       - If resume-only invocation is used and checkpoint is valid, orchestrator reuses `checkpoint.user_prompt` as the run prompt.
    4. Displays a summary of completed stages and the next stage to run
    5. Asks user to confirm before resuming
    6. Skips completed stages and continues from the next incomplete stage
@@ -222,7 +223,7 @@ Pipeline runs support interrupt/resume via checkpoint files.
 This status layer is an adjacent, repo-bound filesystem contract for pipeline visibility and resume hygiene. It is intentionally narrow:
 
 - Reuse existing checkpoint and `DispatchPlan` concepts instead of redefining them.
-- Keep status as JSON files under `<output_dir>/status/`; do not introduce UI, websocket, event-bus, daemon, or external service requirements.
+- Keep status as JSON files under `<run_output_dir>/status/`; do not introduce UI, websocket, event-bus, daemon, or external service requirements.
 - Treat the status layer as operational metadata for the current repo and local run lifecycle.
 - Do not broaden checkpoint semantics beyond stage resume, task ownership, and basic crash/stale cleanup guidance.
 
@@ -230,11 +231,11 @@ Future runtime repos MAY project the same entities into a database, API, or rich
 
 ### Canonical Status Files
 
-- Status root: `<output_dir>/status/`
-- Required base file: `<output_dir>/status/run-status.json`
+- Status root: `<run_output_dir>/status/`
+- Required base file: `<run_output_dir>/status/run-status.json`
 - Optional expanded files:
-  - `<output_dir>/status/tasks/<task_id>.json`
-  - `<output_dir>/status/agents/<agent_id>.json`
+  - `<run_output_dir>/status/tasks/<task_id>.json`
+  - `<run_output_dir>/status/agents/<agent_id>.json`
 
 `run-status.json` is always the top-level index for the run. When expanded files are used, `run-status.json` SHOULD keep a lightweight summary plus references to task and agent status files rather than duplicating every live detail.
 
@@ -246,7 +247,7 @@ One `RunStatus` exists per orchestrator invocation.
 
 Required fields:
 
-- `run_id`: stable id for the run and the canonical basename for run-scoped artifact directories under `<output_dir>/status/<run_id>/`
+- `run_id`: stable id for the run and the canonical basename of `<run_output_dir>` under the configured base output root
 - `orchestrator`: orchestrator name
 - `status`: current run state
 - `created_at`: first write timestamp
@@ -414,7 +415,7 @@ Heavy-resource tracking MUST align with `DispatchPlan` metadata and stay low-com
 
 #### Recommended default: `run-status.json` only
 
-Use a single `<output_dir>/status/run-status.json` when all of the following are true:
+Use a single `<run_output_dir>/status/run-status.json` when all of the following are true:
 
 - the run is primarily stage-oriented or has only a small number of tasks
 - expected task execution is mostly sequential or otherwise low-churn
@@ -446,38 +447,44 @@ Rationale: separate agent files keep volatile execution detail out of the run su
 
 ### Write and Update Responsibilities
 
+#### Runtime/plugin responsibilities
+
+Runtime/plugin is the only component that may create or replace canonical checkpoint/status files.
+
+- Create `<run_output_dir>/checkpoint.json` and `<run_output_dir>/status/run-status.json` for the run.
+- Persist canonical `RunStatus`, `TaskStatus`, and `AgentStatus` records from semantic events only.
+- Own file creation, timestamps, refs, counts, active id lists, and reconciliation.
+- Decide concrete file paths and maintain `RunStatus.layout` consistently with emitted task/agent files.
+- On resume, mark previously abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
+
 #### Orchestrator responsibilities
 
-The orchestrator is the only writer that may create or replace `RunStatus`.
-
-- Create `run-status.json` before stage execution begins with `status = queued` or `running`.
-- Update `RunStatus` after each successful stage checkpoint write so checkpoint progress and run status stay aligned.
-- Decide layout (`run-only` or `expanded`) and record that choice in `RunStatus.layout`.
-- Create initial `TaskStatus` records once `TaskList` exists and enrich them with `DispatchPlan` metadata once routing is complete.
-- Create or register `AgentStatus` records for every delegated subagent attempt that should be visible in the run, including stage-scoped subagents that are not attached to a canonical `task_id`.
-- Transition tasks into `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` when that decision comes from orchestration logic, dependency resolution, or resume reconciliation.
+- Emit semantic stage/run events through the runtime API.
+- Decide layout intent (`run-only` or `expanded`) and provide the semantic task/agent data needed for that layout.
+- Provide initial task content once `TaskList` exists and dispatch metadata once routing is complete.
+- Signal stage-scoped subagent visibility when no canonical `task_id` exists yet.
+- Decide semantic task transitions such as `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` when that decision comes from orchestration logic, dependency resolution, or resume reconciliation.
 - Reconcile executor-reported outcomes into terminal task and run states.
-- On resume, mark previously abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
 
 #### Executor responsibilities
 
-Executors may only write status for the task they were assigned.
+Executors may only report status for the task they were assigned, and only through the runtime API.
 
-- When work starts, update the assigned `TaskStatus` to `in_progress` and create or update the corresponding `AgentStatus` as `assigned`, `starting`, or `running`.
-- If the delegated work is stage-scoped and has no canonical `task_id`, update only the corresponding `AgentStatus` while the orchestrator keeps `RunStatus` aligned.
-- Maintain `updated_at` and, when practical, `last_heartbeat_at` while the task is active.
+- When work starts, report the assigned `TaskStatus` as `in_progress` and the corresponding `AgentStatus` as `assigned`, `starting`, or `running`.
+- If the delegated work is stage-scoped and has no canonical `task_id`, report only the corresponding `AgentStatus` while the orchestrator keeps `RunStatus` aligned.
+- Maintain `updated_at` and, when practical, `last_heartbeat_at` through runtime heartbeats while the task is active.
 - Copy or confirm heavy-resource fields (`resource_class`, `resource_status`, `teardown_required`, `resource_handles`) for browser/server/process work.
 - Before reporting success, move heavy-resource work through `teardown_pending` to `cleaned` when cleanup succeeds.
-- If task execution fails, set `failed` or `blocked` with a concise `error` and any evidence references.
+- If task execution fails, report `failed` or `blocked` with a concise `error` and any evidence references.
 - If cleanup fails, do not report `done`; set `resource_status = cleanup_failed` and return `partial`, `blocked`, or `failed` according to task impact.
 
 #### Shared write rule
 
 MVP prefers one active writer per entity at a time:
 
-- orchestrator owns `RunStatus`
-- executor owns its live `AgentStatus`
-- `TaskStatus` is orchestrator-created and executor-updated only for the executor's assigned task
+- runtime/plugin owns canonical file writes for all status entities
+- orchestrator owns semantic run/task transitions
+- executor owns only its live semantic attempt/task updates through runtime APIs
 
 If a conflict is detected during resume or reconciliation, the orchestrator's latest confirmed checkpoint-aligned write wins.
 

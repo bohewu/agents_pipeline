@@ -34,6 +34,6 @@ $ARGUMENTS
 ## Guarantees
 
 - No direct code implementation in this pipeline.
-- Structured staged execution with artifact traceability under `.pipeline-output/general/` by default.
-- This command writes real status artifacts under `<output_dir>/status/` for `status-cli`.
+- Structured staged execution with artifact traceability under `.pipeline-output/<run_id>/general/` by default.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
 - File outputs are human-friendly by default (plain language, clear structure, actionable next steps).

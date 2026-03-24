@@ -125,24 +125,24 @@ If `generate_mode = false`, ignore all generate-only flags.
 
 ## PRE-FLIGHT (before Stage 0)
 
-1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
-2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-3. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-ci`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
+1. **Resolve output root**: If `--output-dir` was provided, use that base path. Otherwise default to `.pipeline-output/`. Fresh runs use `<output_root>/<run_id>/`.
+2. **Gitignore check**: Verify the base output root is listed in the project's `.gitignore`. If missing, warn the user.
+3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-ci`; on mismatch, warn and start fresh. If valid, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
 
 ## RUN STATUS PROTOCOL
 
-Maintain a real run status file at `<output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
+Runtime/plugin maintains the canonical run status file at `<run_output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
 
 - Use `layout = run-only` for this orchestrator unless a future change explicitly needs expanded task/agent files.
-- Create/update the file as a `RunStatus` record for `orchestrator-ci`.
-- Keep `checkpoint_path` pointing at `<output_dir>/checkpoint.json`.
+- Emit semantic run-stage transitions for `orchestrator-ci`; runtime/plugin persists the `RunStatus` record.
+- Keep `checkpoint_path` pointing at `<run_output_dir>/checkpoint.json`.
 - Prefer including: `run_id`, `orchestrator`, `status`, `created_at`, `updated_at`, `output_dir`, `checkpoint_path`, `user_prompt`, `current_stage`, `completed_stages`, `next_stage`, `waiting_on`, `resume_from_checkpoint`, and `notes` when useful.
 - Set `status = running` during active execution, `waiting_for_user` during confirm/verbose pauses, `completed` on success, `partial` when bounded outputs finish with surfaced leftovers, `failed` on unrecoverable blockers, and `aborted` when the user stops the run.
-- Update `run-status.json` alongside normal checkpoint writes so stage progress and checkpoint lifecycle stay aligned.
+- Keep status/checkpoint semantics aligned by emitting semantic updates alongside normal checkpoint events.
 
 ## CONFIRM / VERBOSE PROTOCOL
 

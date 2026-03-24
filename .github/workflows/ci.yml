@@ -143,6 +143,36 @@ jobs:
           print(f"README pinned version references match VERSION={version} and reject mismatches.")
           PY
 
+      - name: Validate README installer coverage
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          readme = Path("README.md").read_text(encoding="utf-8")
+          required_snippets = [
+              "scripts/install-plugin-status-runtime.ps1",
+              "scripts/install-plugin-status-runtime.sh",
+              "scripts/install-all-local.ps1",
+              "scripts/install-all-local.sh",
+              "scripts/bootstrap-install-plugin-status-runtime.ps1",
+              "scripts/bootstrap-install-plugin-status-runtime.sh",
+              "scripts/bootstrap-install-all-local.ps1",
+              "scripts/bootstrap-install-all-local.sh",
+              "The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`",
+              "Dry-run preview (resolves release metadata only):",
+          ]
+
+          missing = [snippet for snippet in required_snippets if snippet not in readme]
+          if missing:
+              print("README.md is missing required installer/status-runtime coverage snippets:")
+              for snippet in missing:
+                  print(f"- {snippet}")
+              raise SystemExit(1)
+
+          print("README installer coverage includes local/release plugin flows and canonical status layout notes.")
+          PY
+
       - name: Validate bounded frontmatter regressions
         shell: bash
         run: |
@@ -620,14 +650,20 @@ jobs:
           bash -n scripts/install-copilot.sh
           bash -n scripts/install-claude.sh
           bash -n scripts/install-codex.sh
+          bash -n scripts/install-plugin-status-runtime.sh
+          bash -n scripts/install-all-local.sh
           bash -n scripts/bootstrap-install.sh
           bash -n scripts/bootstrap-install-copilot.sh
           bash -n scripts/bootstrap-install-claude.sh
           bash -n scripts/bootstrap-install-codex.sh
+          bash -n scripts/bootstrap-install-plugin-status-runtime.sh
+          bash -n scripts/bootstrap-install-all-local.sh
           bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
           bash scripts/install-copilot.sh --target ./.tmp-copilot-install --dry-run
           bash scripts/install-claude.sh --target ./.tmp-claude-install --dry-run
           bash scripts/install-codex.sh --target ./.tmp-codex-install --dry-run
+          bash scripts/install-plugin-status-runtime.sh --target ./.tmp-plugin-install --dry-run
+          bash scripts/install-all-local.sh --opencode-target ./.tmp-opencode-install --plugin-target ./.tmp-plugin-install --copilot-target ./.tmp-copilot-install --claude-target ./.tmp-claude-install --codex-target ./.tmp-codex-install --dry-run
 
       - name: Validate shell bootstrap installers
         shell: bash
@@ -662,6 +698,8 @@ jobs:
           bash scripts/bootstrap-install-copilot.sh --repo example/agents --version 1.2.3 --target ./.tmp-bootstrap-copilot --no-backup --dry-run
           bash scripts/bootstrap-install-claude.sh --repo example/agents --version 1.2.3 --target ./.tmp-bootstrap-claude --no-backup --dry-run
           bash scripts/bootstrap-install-codex.sh --repo example/agents --version v1.2.3 --target ./.tmp-bootstrap-codex --no-backup --force --dry-run
+          bash scripts/bootstrap-install-plugin-status-runtime.sh --repo example/agents --version 1.2.3 --target ./.tmp-bootstrap-plugin --no-backup --dry-run
+          bash scripts/bootstrap-install-all-local.sh --repo example/agents --version v1.2.3 --opencode-target ./.tmp-bootstrap-install --plugin-target ./.tmp-bootstrap-plugin --copilot-target ./.tmp-bootstrap-copilot --claude-target ./.tmp-bootstrap-claude --codex-target ./.tmp-bootstrap-codex --no-backup --force-codex --dry-run
 
   validate-release-bundle:
     needs: release-bundle-vars
@@ -688,14 +726,20 @@ jobs:
           [void](Get-Command -Name ./scripts/install-copilot.ps1)
           [void](Get-Command -Name ./scripts/install-claude.ps1)
           [void](Get-Command -Name ./scripts/install-codex.ps1)
+          [void](Get-Command -Name ./scripts/install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/install-all-local.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-copilot.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-claude.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-codex.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install-all-local.ps1)
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
           pwsh -NoProfile -File scripts/install-claude.ps1 -Target .\.tmp-claude-install -DryRun
           pwsh -NoProfile -File scripts/install-codex.ps1 -Target .\.tmp-codex-install -DryRun
+          pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target .\.tmp-plugin-install -DryRun
+          pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget .\.tmp-opencode-install -PluginTarget .\.tmp-plugin-install -CopilotTarget .\.tmp-copilot-install -ClaudeTarget .\.tmp-claude-install -CodexTarget .\.tmp-codex-install -DryRun
 
           $previousNativeSetting = $PSNativeCommandUseErrorActionPreference
           $PSNativeCommandUseErrorActionPreference = $false
@@ -718,6 +762,11 @@ jobs:
           & pwsh -NoProfile -File scripts/install-codex.ps1 -Target '-Force' -DryRun 2>$null
           if ($LASTEXITCODE -eq 0) {
             throw 'install-codex.ps1 should reject switch-like target values.'
+          }
+
+          & pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target '-NoBackup' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'install-plugin-status-runtime.ps1 should reject switch-like target values.'
           }
 
           $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
@@ -760,3 +809,5 @@ jobs:
           & ./scripts/bootstrap-install-copilot.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-copilot -NoBackup -DryRun
           & ./scripts/bootstrap-install-claude.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-claude -NoBackup -DryRun
           & ./scripts/bootstrap-install-codex.ps1 -Repo example/agents -Version v1.2.3 -Target .\.tmp-bootstrap-codex -NoBackup -Force -DryRun
+          & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-plugin -NoBackup -DryRun
+          & ./scripts/bootstrap-install-all-local.ps1 -Repo example/agents -Version v1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -PluginTarget .\.tmp-bootstrap-plugin -CopilotTarget .\.tmp-bootstrap-copilot -ClaudeTarget .\.tmp-bootstrap-claude -CodexTarget .\.tmp-bootstrap-codex -NoBackup -ForceCodex -DryRun

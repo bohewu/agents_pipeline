@@ -370,19 +370,21 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("is not a canonical status artifact", result.stderr)
         self.assertIn("resource_class", result.stderr)
 
-    def test_project_dir_prefers_latest_run_subdir_when_status_root_contains_many_runs(
+    def test_project_dir_prefers_latest_run_subdir_under_base_output_root(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
-            status_root = repo_root / ".pipeline-output" / "status"
-            old_run_dir = status_root / "run-20260320-101500"
-            new_run_dir = status_root / "run-20260320-101530"
+            output_root = repo_root / ".pipeline-output"
+            old_run_dir = output_root / "run-20260320-101500"
+            new_run_dir = output_root / "run-20260320-101530"
             old_run_dir.mkdir(parents=True)
             new_run_dir.mkdir(parents=True)
-            shutil.copy2(RUN_ONLY_FIXTURE, old_run_dir / "run-status.json")
-            shutil.copy2(RUN_ONLY_FIXTURE, new_run_dir / "run-status.json")
-            new_run_status_path = new_run_dir / "run-status.json"
+            (old_run_dir / "status").mkdir()
+            (new_run_dir / "status").mkdir()
+            shutil.copy2(RUN_ONLY_FIXTURE, old_run_dir / "status" / "run-status.json")
+            shutil.copy2(RUN_ONLY_FIXTURE, new_run_dir / "status" / "run-status.json")
+            new_run_status_path = new_run_dir / "status" / "run-status.json"
             run_status = json.loads(new_run_status_path.read_text(encoding="utf-8"))
             run_status["run_id"] = "latest-run-picked"
             new_run_status_path.write_text(
@@ -394,12 +396,12 @@ class StatusCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Run ID: latest-run-picked", result.stdout)
 
-    def test_status_dir_can_target_specific_run_subdir(self) -> None:
+    def test_output_dir_can_target_specific_run_subdir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            status_root = Path(temp_dir) / ".pipeline-output" / "status"
-            run_dir = status_root / "run-20260320-101530"
-            run_dir.mkdir(parents=True)
-            run_status_path = run_dir / "run-status.json"
+            output_root = Path(temp_dir) / ".pipeline-output"
+            run_dir = output_root / "run-20260320-101530"
+            (run_dir / "status").mkdir(parents=True)
+            run_status_path = run_dir / "status" / "run-status.json"
             shutil.copy2(RUN_ONLY_FIXTURE, run_status_path)
             run_status = json.loads(run_status_path.read_text(encoding="utf-8"))
             run_status["run_id"] = "explicit-run-dir"
@@ -407,10 +409,31 @@ class StatusCliTests(unittest.TestCase):
                 json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
             )
 
-            result = run_cli("summary", "--status-dir", str(run_dir))
+            result = run_cli("summary", "--output-dir", str(run_dir))
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Run ID: explicit-run-dir", result.stdout)
+
+    def test_output_dir_base_root_prefers_latest_run_subdir(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir) / ".pipeline-output"
+            old_run_dir = output_root / "run-20260320-101500"
+            new_run_dir = output_root / "run-20260320-101530"
+            (old_run_dir / "status").mkdir(parents=True)
+            (new_run_dir / "status").mkdir(parents=True)
+            shutil.copy2(RUN_ONLY_FIXTURE, old_run_dir / "status" / "run-status.json")
+            shutil.copy2(RUN_ONLY_FIXTURE, new_run_dir / "status" / "run-status.json")
+            run_status_path = new_run_dir / "status" / "run-status.json"
+            run_status = json.loads(run_status_path.read_text(encoding="utf-8"))
+            run_status["run_id"] = "latest-output-dir-run"
+            run_status_path.write_text(
+                json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
+            )
+
+            result = run_cli("summary", "--output-dir", str(output_root))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Run ID: latest-output-dir-run", result.stdout)
 
     def test_task_list_reports_missing_referenced_files_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -172,31 +172,31 @@ If `--full-auto` is provided:
      - If `init_target_mode = true`, create the target project directory and continue to target bootstrap.
      - If `init_target_mode != true`, stop and report that execution modes require an existing target project directory. Provide two exact next-step options: create the target directory manually, or rerun `run-modernize` with `--init-target`.
 3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
-4. **Checkpoint resume**: If `resume_mode = true`, check for `<output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation. If valid and `autopilot_mode != true`, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
+4. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation. If valid and `autopilot_mode != true`, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
 Execution root policy:
 
 - `orchestrator-modernize` starts from the source project because planning docs describe migration from system A to system B.
-- The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/modernize/` artifacts.
+- The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/<run_id>/modernize/` artifacts.
 - Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`).
 - After a handoff exists, later manual `/run-pipeline` sessions SHOULD start from the target project, not the source project.
 - `--init-target` is the supported one-shot bridge when the target project directory does not exist yet.
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
 
 ## RUN STATUS PROTOCOL
 
-Maintain a real run status file at `<output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
+Runtime/plugin maintains the canonical run status file at `<run_output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
 
 - Use `layout = run-only` for `orchestrator-modernize` itself. Do not add modernize-owned `tasks/` or `agents/` status files unless this prompt is later expanded deliberately.
-- Create/update the file as a `RunStatus` record for `orchestrator-modernize`.
-- Keep `checkpoint_path` pointing at the source-project `<output_dir>/checkpoint.json`.
+- Emit semantic run-stage transitions for `orchestrator-modernize`; runtime/plugin persists the `RunStatus` record.
+- Keep `checkpoint_path` pointing at the source-project `<run_output_dir>/checkpoint.json`.
 - Prefer including: `run_id`, `orchestrator`, `status`, `created_at`, `updated_at`, `output_dir`, `checkpoint_path`, `user_prompt`, `current_stage`, `completed_stages`, `next_stage`, `waiting_on`, `resume_from_checkpoint`, and `notes` when useful.
 - Set `status = running` during active modernization planning or handoff orchestration, `waiting_for_user` during confirm/verbose pauses, `completed` on success, `partial` when bounded outputs finish with surfaced leftovers or delegated work remains intentionally deferred, `failed` on unrecoverable blockers, and `aborted` when the user stops the run.
 - If execution is delegated to `@orchestrator-pipeline`, keep modernize ownership limited to the source-project run-level summary. Record delegated pipeline status in `notes` or equivalent run-level fields instead of trying to own the target project's pipeline task/agent status.
-- Update `run-status.json` alongside normal checkpoint writes so stage progress and checkpoint lifecycle stay aligned.
+- Keep status/checkpoint semantics aligned by emitting semantic updates alongside normal checkpoint events.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -570,7 +570,7 @@ Fallback Human Command Rendering (when agent dispatch unavailable):
 - Command format:
   - `/run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
 - Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
-- If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/modernize/phase-<phase_id>.handoff.json as the execution contract.`
+- If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/<run_id>/modernize/phase-<phase_id>.handoff.json as the execution contract.`
 - If `init_target_mode = true` and target bootstrap could not be delegated, render an exact `/run-init ...` command for `target_project_dir` before the `/run-pipeline ...` command.
 
 Recommended delegated prompt templates:

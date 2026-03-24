@@ -14,7 +14,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Fixed
 
-- `status-cli` now rejects non-canonical status JSON instead of guessing through legacy layouts, and its project-root discovery now prefers the newest run-specific status directory under `.pipeline-output/status/`.
+- `status-cli` now rejects non-canonical status JSON instead of guessing through legacy layouts, and its project-root discovery now prefers the newest run-specific output directory under `.pipeline-output/`.
 
 ### Added
 
@@ -59,13 +59,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - Root docs and exporter notes now describe Claude Code output generation alongside Copilot and Codex outputs.
-- `status-cli/README.md` now includes a short cross-repo `web serve` cheatsheet for monitoring a fresh `run-*` execution from another repository via `.pipeline-output/status/...`.
+- `status-cli/README.md` now includes a short cross-repo `web serve` cheatsheet for monitoring a fresh `run-*` execution from another repository via `.pipeline-output/<run-id>/...`.
 
 ## [0.10.1] - 2026-03-19
 
 ### Changed
 
-- All primary `run-*` orchestrator prompts and command docs now require real status artifacts under `<output_dir>/status/`, so fresh runs can produce inputs that `status-cli` can inspect across repos.
+- All primary `run-*` orchestrator prompts and command docs now align to runtime/plugin-owned status artifacts under `<run_output_dir>/status/`, so fresh runs can produce inputs that `status-cli` can inspect across repos.
 
 ### Fixed
 

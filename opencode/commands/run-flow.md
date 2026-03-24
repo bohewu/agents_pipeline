@@ -16,7 +16,7 @@ $ARGUMENTS
 - Input before the first flag token is the main task prompt.
 - `--resume` also supports resume-only invocation without a new prompt (reuses checkpoint prompt when valid).
 - Source of truth for flag parsing/behavior: `opencode/agents/orchestrator-flow.md`.
-- This command writes real status artifacts under `<run_output_dir>/status/`, where `<run_output_dir>` is a run-specific directory under the selected output root.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`, where `<run_output_dir>` is a run-specific directory under the selected output root.
 - Heavy resource tasks such as local servers and browser automation are routed conservatively and require teardown evidence before the next heavy task.
 - Supported flags (Flow-only, minimal):
   - `--scout=auto|skip|force`

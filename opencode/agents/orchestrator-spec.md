@@ -95,35 +95,35 @@ If unsupported flags are provided:
 
 # PRE-FLIGHT (before Stage 0)
 
-1. Resolve output_dir: default `.pipeline-output/` unless overridden.
-2. Verify output_dir in `.gitignore`; warn if missing.
-3. If `resume_mode = true`, attempt to load `<output_dir>/checkpoint.json`; validate `checkpoint.orchestrator = orchestrator-spec`; if mismatched or missing, warn and start fresh.
+1. Resolve the base output root: default `.pipeline-output/` unless overridden; fresh runs use `<output_root>/<run_id>/`.
+2. Verify the base output root is in `.gitignore`; warn if missing.
+3. If `resume_mode = true`, attempt to load `<run_output_dir>/checkpoint.json`; validate `checkpoint.orchestrator = orchestrator-spec`; if mismatched or missing, warn and start fresh.
 
 # CHECKPOINT PROTOCOL
 
-After each stage completes successfully, write/update `<output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json`).
+After each stage completes successfully, emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json`).
 
 # RUN STATUS PROTOCOL
 
-Maintain a real run status file at `<output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
+Runtime/plugin maintains the canonical run status file at `<run_output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
 
 - Use `layout = run-only` for this orchestrator.
-- Create/update the file as a `RunStatus` record for `orchestrator-spec`.
-- Keep `checkpoint_path` pointing at `<output_dir>/checkpoint.json`.
+- Emit semantic run-stage transitions for `orchestrator-spec`; runtime/plugin persists the `RunStatus` record.
+- Keep `checkpoint_path` pointing at `<run_output_dir>/checkpoint.json`.
 - Prefer including: `run_id`, `orchestrator`, `status`, `created_at`, `updated_at`, `output_dir`, `checkpoint_path`, `user_prompt`, `current_stage`, `completed_stages`, `next_stage`, `waiting_on`, `resume_from_checkpoint`, and `notes` when useful.
 - Set `status = running` during active execution, `waiting_for_user` during confirm/verbose pauses, `completed` on success, `partial` when bounded outputs finish with surfaced leftovers, `failed` on unrecoverable blockers, and `aborted` when the user stops the run.
-- Update `run-status.json` alongside normal checkpoint writes so stage progress and checkpoint lifecycle stay aligned.
+- Keep status/checkpoint semantics aligned by emitting semantic updates alongside normal checkpoint events.
 
 # CANONICAL SPEC ARTIFACT PATHS
 
-Write these fixed filenames under `<output_dir>/spec/`:
+Write these fixed filenames under `<run_output_dir>/spec/`:
 
 - `problem-spec.json`
 - `dev-spec.json`
 - `dev-spec.md`
 - `plan-outline.json`
 
-For the human-readable spec, do NOT invent alternate filenames. Always use `<output_dir>/spec/dev-spec.md`.
+For the human-readable spec, do NOT invent alternate filenames. Always use `<run_output_dir>/spec/dev-spec.md`.
 
 # CONFIRM / VERBOSE PROTOCOL
 
@@ -147,7 +147,7 @@ If `verbose_mode = true` (implies `confirm_mode`):
 - Stage 2 (Spec Rendering): @doc-writer
 - Stage 3 (Summary): @summarizer
 
-All intermediate artifacts are written to `<output_dir>/spec/`.
+All intermediate artifacts are written to `<run_output_dir>/spec/`.
 
 ## Stage 0 — Problem Spec (@specifier)
 
@@ -172,7 +172,7 @@ Purpose:
 
 ## Stage 2 — Spec Rendering (@doc-writer)
 
-Render a human-readable Markdown artifact from `dev-spec.json` and persist it to `<output_dir>/spec/dev-spec.md`.
+Render a human-readable Markdown artifact from `dev-spec.json` and persist it to `<run_output_dir>/spec/dev-spec.md`.
 
 Rules:
 - Preserve stable ids.

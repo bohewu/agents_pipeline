@@ -42,13 +42,13 @@ python status-cli/status_cli.py agent list --project-dir opencode/protocols/exam
 The CLI supports explicit path targeting with:
 
 - `--status-file`: path to `run-status.json`
-- `--status-dir`: path to a `status/` directory containing `run-status.json`
-- `--output-dir`: path to an output directory that directly contains `status/run-status.json` or `run-status.json`; this is for compatible status-output layouts, not for arbitrary orchestration artifact folders
-- `--project-dir`: path to a project or fixture directory; the CLI tries predictable direct locations first, then prefers the newest run-specific subdirectory under `.pipeline-output/status/` when present, then falls back to a bounded recursive search when there is a single canonical match
+- `--status-dir`: path to a run-local `status/` directory containing `run-status.json`
+- `--output-dir`: path to either a run output directory that contains `status/run-status.json`, or a base output root whose immediate run subdirectories do
+- `--project-dir`: path to a project or fixture directory; the CLI tries predictable direct locations first, then prefers the newest run-specific subdirectory under `.pipeline-output/` when present, then falls back to a bounded recursive search when there is a single canonical match
 
-Supported direct inputs today are the actual status sources: a specific `run-status.json`, a `status/` directory that contains it, an output directory that directly exposes the compatible status layout, or a project root where status-cli can discover one by the existing precedence rules.
+Supported direct inputs today are the actual status sources: a specific `run-status.json`, a run-local `status/` directory that contains it, a run output directory, a base output root whose immediate children are run output directories, or a project root where status-cli can discover one by the existing precedence rules.
 
-Directories such as `.pipeline-output/flow` and `.pipeline-output/pipeline` are orchestration artifact directories, not special status-cli shorthands. Pointing `--output-dir` at those paths only works if that directory itself contains a compatible `status/run-status.json` or `run-status.json`. Otherwise, point status-cli at the real status source instead: use `--status-file`, `--status-dir`, a compatible `--output-dir`, or the surrounding `--project-dir`.
+Directories such as `.pipeline-output/flow` and `.pipeline-output/pipeline` are orchestration artifact directories, not special status-cli shorthands. Pointing `--output-dir` at those paths only works if that directory itself contains a compatible `status/run-status.json` or `run-status.json`. Otherwise, point status-cli at the real status source instead: use `--status-file`, `--status-dir`, a compatible run/base-root `--output-dir`, or the surrounding `--project-dir`.
 
 Lookup priority is:
 
@@ -87,22 +87,22 @@ python status-cli/status_cli.py agent list --project-dir opencode/protocols/exam
 
 ## Fresh run monitoring cheatsheet
 
-To inspect a fresh `run-*` execution from another repo, point `status-cli` at that repo's real status path under `.pipeline-output/status/...`.
+To inspect a fresh `run-*` execution from another repo, point `status-cli` at that repo's real run directory or run-local `status/` path under `.pipeline-output/<run-id>/...`.
 
 Typical flow from this repo:
 
 ```bash
 # summary from another repo's specific run directory
-python status-cli/status_cli.py summary --status-dir /path/to/other-repo/.pipeline-output/status/run-20260320-101530
+python status-cli/status_cli.py summary --output-dir /path/to/other-repo/.pipeline-output/run-20260320-101530
 
 # richer localhost viewer for the same files
-python status-cli/status_cli.py web serve --status-dir /path/to/other-repo/.pipeline-output/status/run-20260320-101530 --host 127.0.0.1 --port 0
+python status-cli/status_cli.py web serve --output-dir /path/to/other-repo/.pipeline-output/run-20260320-101530 --host 127.0.0.1 --port 0
 ```
 
-If you only know the project root, `--project-dir` will prefer the newest run-specific subdirectory under `.pipeline-output/status/`. If you want a specific historical run, point to that exact run directory instead, for example:
+If you only know the project root, `--project-dir` will prefer the newest run-specific subdirectory under `.pipeline-output/`. If you want a specific historical run, point to that exact run directory instead, for example:
 
 ```bash
-python status-cli/status_cli.py web serve --status-dir /path/to/other-repo/.pipeline-output/status/run-20260320-101530 --host 127.0.0.1 --port 0
+python status-cli/status_cli.py web serve --output-dir /path/to/other-repo/.pipeline-output/run-20260320-101530 --host 127.0.0.1 --port 0
 ```
 
 Use `Ctrl+C` to stop the viewer when you are done. The command stays read-only and does not modify the other repo's status files. `status-cli` now expects canonical status artifacts and fails fast on older or ad hoc JSON layouts instead of guessing.

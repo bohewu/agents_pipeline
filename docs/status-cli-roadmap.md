@@ -1,6 +1,6 @@
 # Status CLI Deferred Roadmap
 
-This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing files from local disk during the current viewing session, but this roadmap does **not** expand that into hosted service or server platform behavior, remote exposure, write-back/control actions, daemon/watch behavior, browser/server-hosted runtime beyond that bounded localhost mode, or broader service/platform scope. In-repo run commands and orchestrators are now expected to emit the filesystem status artifacts that `status-cli` reads under `<output_dir>/status/`.
+This document parks post-Phase-1 follow-up work as later work only. The repository may continue read-only `status-cli` work in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing files from local disk during the current viewing session, but this roadmap does **not** expand that into hosted service or server platform behavior, remote exposure, write-back/control actions, daemon/watch behavior, browser/server-hosted runtime beyond that bounded localhost mode, or broader service/platform scope. Runtime/plugin is expected to emit the filesystem status artifacts that `status-cli` reads under `<run_output_dir>/status/`.
 
 Current contract sources remain:
 
@@ -12,10 +12,10 @@ Any future `status-cli` work should stay downstream of those docs and should not
 ## Now / Current Baseline
 
 - [x] The repository defines the status-layer contract, schema set, examples, validation guidance, and handoff boundaries.
-- [x] The canonical status layout remains filesystem-based under `<output_dir>/status/`.
+- [x] The canonical status layout remains filesystem-based under `<run_output_dir>/status/`.
 - [x] `run-status.json` remains the required top-level record.
 - [x] Expanded layout stays optional via `tasks/<task_id>.json` and `agents/<agent_id>.json`.
-- [x] In-repo run commands and orchestrators are expected to write real status artifacts under `<output_dir>/status/` for local inspection.
+- [x] Runtime/plugin is expected to write real status artifacts under `<run_output_dir>/status/` for local inspection.
 - [x] Service-backed UI, browser/server-hosted dashboards, remote surfaces, websocket/event-bus delivery, external runtime services, write-back/control actions, and any polling beyond a narrow same-process local file-backed self-refresh mode for an ephemeral loopback-only localhost viewer remain out of scope here.
 - [x] This roadmap allows future same-repo read-only `status-cli` continuation without changing the read-only viewer boundary.
 
