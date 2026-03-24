@@ -319,9 +319,7 @@ class StatusCliTests(unittest.TestCase):
         )
 
     def test_summary_rejects_non_canonical_run_status_shape(self) -> None:
-        result = run_cli(
-            "summary", "--project-dir", str(INVALID_STATUS_FIXTURE_DIR)
-        )
+        result = run_cli("summary", "--project-dir", str(INVALID_STATUS_FIXTURE_DIR))
         self.assertEqual(result.returncode, 1)
         self.assertIn("is not a canonical status artifact", result.stderr)
         self.assertIn("waiting_on must be a canonical waiting state", result.stderr)
@@ -1001,8 +999,8 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("Auto refresh every", html)
         self.assertTrue(
             any(
-                edge.get("from")
-                == f"run:{status_data['run']['run_id']}" and edge.get("to") == "agent:agent-scout-01"
+                edge.get("from") == f"run:{status_data['run']['run_id']}"
+                and edge.get("to") == "agent:agent-scout-01"
                 for edge in status_data["graph"]["edges"]
             )
         )
@@ -1031,6 +1029,50 @@ class StatusCliTests(unittest.TestCase):
         self.assertIn("Status graph", html)
         self.assertIn("Refresh now", html)
         assert_inline_javascript_parses(self, html)
+
+    def test_web_viewer_folder_picker_prefers_newest_nested_run_status(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required for viewer behavior validation")
+
+        viewer_script = (
+            REPO_ROOT / "status-cli" / "web_assets" / "status-cli-viewer.js"
+        ).read_text(encoding="utf-8")
+        normalize_start = viewer_script.index("function normalizeRefPath(")
+        normalize_end = viewer_script.index(
+            "\n\n  function encodeRelativePath(", normalize_start
+        )
+        choose_start = viewer_script.index("function chooseRunStatusEntry(")
+        choose_end = viewer_script.index(
+            "\n\n  async function readLocalRefJson(", choose_start
+        )
+        js_source = "\n\n".join(
+            [
+                "const assert = require('node:assert/strict');",
+                viewer_script[normalize_start:normalize_end],
+                viewer_script[choose_start:choose_end],
+                "const selected = chooseRunStatusEntry([",
+                "  { path: 'runs/run-001/status/run-status.json', file: { lastModified: 100 } },",
+                "  { path: 'runs/run-002/status/run-status.json', file: { lastModified: 900 } },",
+                "  { path: 'runs/run-003/status/run-status.json', file: { lastModified: 500 } },",
+                "]);",
+                "assert.equal(selected.path, 'runs/run-002/status/run-status.json');",
+                "console.log(selected.path);",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            script_path = Path(temp_dir) / "viewer-folder-picker-test.js"
+            script_path.write_text(js_source, encoding="utf-8")
+            result = subprocess.run(
+                [node, str(script_path)],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "runs/run-002/status/run-status.json")
 
     def test_web_export_presentational_search_uses_hash_backed_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1363,7 +1405,9 @@ class StatusCliTests(unittest.TestCase):
             )
             startup_output = wait_for_text(stdout, "READ-ONLY LOCALHOST VIEWER STARTED")
             server = server_box["server"]
-            viewer_url = f"http://{server.server_address[0]}:{server.server_address[1]}/"
+            viewer_url = (
+                f"http://{server.server_address[0]}:{server.server_address[1]}/"
+            )
 
             html_status, html_body, _ = request_url(viewer_url)
             payload_status, payload_body, payload_headers = request_url(
@@ -1384,14 +1428,16 @@ class StatusCliTests(unittest.TestCase):
             self.assertIn("Choose folder", scripts)
             self.assertIn("Choose run-status.json", scripts)
             self.assertIn(
-                "Pick a local folder or run-status.json file to populate this read-only viewer.",
+                "Pick a folder with status artifacts or a single run-status.json file. If the folder contains multiple run subdirectories, the newest matching run-status.json is used.",
                 scripts,
             )
 
             self.assertEqual(payload_status, 200)
             self.assertEqual(payload_headers.get("Cache-Control"), "no-store")
             self.assertTrue(payload["meta"]["read_only"])
-            self.assertEqual(payload["meta"]["viewer_label"], "Read-only localhost viewer")
+            self.assertEqual(
+                payload["meta"]["viewer_label"], "Read-only localhost viewer"
+            )
             self.assertEqual(payload["meta"]["shell_state"], "awaiting_target")
             self.assertIsNone(payload["meta"]["loaded_from"])
             self.assertEqual(payload["run"]["layout"], "shell")
@@ -1404,10 +1450,10 @@ class StatusCliTests(unittest.TestCase):
             )
             self.assertEqual(payload["tasks"], [])
             self.assertEqual(payload["agents"], [])
-            self.assertEqual(payload["meta"]["refresh"]["source"]["payload_url"], "/api/payload")
-            self.assertIsNone(
-                payload["meta"]["refresh"]["source"]["run_status_url"]
+            self.assertEqual(
+                payload["meta"]["refresh"]["source"]["payload_url"], "/api/payload"
             )
+            self.assertIsNone(payload["meta"]["refresh"]["source"]["run_status_url"])
         finally:
             if "server" in server_box:
                 server_box["server"].shutdown()

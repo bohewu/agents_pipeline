@@ -246,14 +246,24 @@
       path: normalizeRefPath((entry && entry.path) || ((entry && entry.file && entry.file.name) || "")),
       file: entry && entry.file,
     }));
+    const newestEntry = (matches) =>
+      matches.reduce((best, entry) => {
+        if (!best) return entry;
+        const bestModified = Number((best.file && best.file.lastModified) || 0);
+        const entryModified = Number((entry.file && entry.file.lastModified) || 0);
+        if (entryModified !== bestModified) return entryModified > bestModified ? entry : best;
+        return entry.path.localeCompare(best.path) > 0 ? entry : best;
+      }, null);
     const preferred = ["status/run-status.json", "run-status.json"];
     for (const candidate of preferred) {
       const exact = normalizedEntries.find((entry) => entry.path === candidate);
       if (exact) return exact;
     }
-    const suffix = normalizedEntries.find((entry) => entry.path.endsWith("/status/run-status.json"));
+    const suffix = newestEntry(normalizedEntries.filter((entry) => entry.path.endsWith("/status/run-status.json")));
     if (suffix) return suffix;
-    const fallback = normalizedEntries.find((entry) => entry.path.endsWith("/run-status.json") || entry.path === "run-status.json");
+    const fallback = newestEntry(
+      normalizedEntries.filter((entry) => entry.path.endsWith("/run-status.json") || entry.path === "run-status.json"),
+    );
     return fallback || null;
   }
 
@@ -929,14 +939,14 @@
     titleGroup.appendChild(el("div", "eyebrow", "Local source picker"));
     titleGroup.appendChild(el("h2", "source-picker-title", "Choose a local status source"));
     titleGroup.appendChild(
-      el(
-        "p",
-        "note source-picker-note",
-        state.localSource
-          ? "This viewer stays read-only. You can swap to another local source at any time during this browser session."
-          : "Pick a folder with status artifacts or a single run-status.json file. The viewer reads files only inside this browser session.",
-      ),
-    );
+        el(
+          "p",
+          "note source-picker-note",
+          state.localSource
+            ? "This viewer stays read-only. You can swap to another local source at any time during this browser session."
+            : "Pick a folder with status artifacts or a single run-status.json file. If the folder contains multiple run subdirectories, the newest matching run-status.json is used. The viewer reads files only inside this browser session.",
+        ),
+      );
     root.appendChild(titleGroup);
 
     const controls = el("div", "source-picker-controls");
