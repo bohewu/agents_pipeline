@@ -190,7 +190,7 @@ Starts a read-only localhost viewer over loopback HTTP for a bounded local inspe
 - serves only on `127.0.0.1` or `localhost`; external interfaces are rejected
 - serves the same read-only viewer shape as `web export`, but from a transient in-process HTTP server instead of an output file
 - can start with an explicit CLI target (`--status-file`, `--status-dir`, `--output-dir`, or `--project-dir`) or with no target at all
-- when started without a target, the browser opens in a neutral read-only shell and lets you choose either a local folder with status artifacts or a single `run-status.json`; browser-native pickers are used when available, with file input fallbacks otherwise
+- when started without a target, the browser opens in a neutral read-only shell and lets you choose either a local folder with status artifacts or a single `run-status.json`; if you choose a base output root like `.pipeline-output/` and it contains multiple run subdirectories, the viewer uses the newest matching nested `run-status.json`; browser-native pickers are used when available, with file input fallbacks otherwise
 - supports browser polling over HTTP via `/api/payload`, so refresh works even when a browser would block local-file fetches from exported HTML
 - keeps the same presentational-only search/highlight/chip/deep-link interactions as `web export`; they only reshape the local browser view and never change pipeline data
 - optional `--refresh-interval 5|10|15|30|60` controls bounded polling cadence in the browser; default is `15`, and `Off` can still be chosen inside the viewer after startup
@@ -206,7 +206,7 @@ python status-cli/status_cli.py web serve --project-dir opencode/protocols/examp
 python status-cli/status_cli.py web serve --project-dir opencode/protocols/examples/status-layout.expanded.valid --host 127.0.0.1 --port 0 --open-browser
 ```
 
-When the viewer starts it prints a copyable `Viewer URL`, a `Payload URL` for the read-only refresh endpoint, and browser-open status, then stays in the foreground until you stop it with `Ctrl+C`. If you launched without a target, use the browser UI to choose a folder or `run-status.json`; refresh then re-reads that browser-granted local source without changing any status artifacts. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
+When the viewer starts it prints a copyable `Viewer URL`, a `Payload URL` for the read-only refresh endpoint, and browser-open status, then stays in the foreground until you stop it with `Ctrl+C`. If you launched without a target, use the browser UI to choose a folder or `run-status.json`; choosing a base output root like `.pipeline-output/` automatically resolves to the newest matching nested run, and refresh re-reads that browser-granted local source without changing any status artifacts. Shutdown is explicit and cleanup-safe: stopping the command closes the loopback socket and leaves the status artifacts unchanged.
 
 ### `task show <task_id>`
 
