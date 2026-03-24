@@ -63,6 +63,20 @@ resolve_bundle_dir() {
   return 1
 }
 
+normalize_bundle_permissions() {
+  local bundle_dir="$1"
+  local path
+
+  shopt -s nullglob
+  for path in "${bundle_dir}/scripts"/*.sh; do
+    chmod u+rwx,go+rx "${path}" 2>/dev/null || true
+  done
+  for path in "${bundle_dir}/scripts"/*.py; do
+    chmod u+rwx,go+rx "${path}" 2>/dev/null || true
+  done
+  shopt -u nullglob
+}
+
 REPO="bohewu/agents_pipeline"
 VERSION="latest"
 OPENCODE_TARGET=""
@@ -289,6 +303,8 @@ if ! BUNDLE_DIR="$(resolve_bundle_dir "${EXTRACT_DIR}")"; then
   echo "Bundle root directory not found after extraction." >&2
   exit 1
 fi
+
+normalize_bundle_permissions "${BUNDLE_DIR}"
 
 verify_bundle "${BUNDLE_DIR}"
 

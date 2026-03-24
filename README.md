@@ -3,6 +3,25 @@
 Multi-agent workflows for OpenCode with companion agent docs for Claude Code, VS Code Copilot, and Codex.
 This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.md` as the single source of truth. See the **How To Use** section below for usage instructions.
 
+## Contents
+
+- [Usage Prerequisites](#usage-prerequisites)
+- [Local Install Options](#install-recommended)
+- [Release Bundle Install Options](#install-without-clone-release-bundle)
+- [How To Use](#how-to-use)
+- [Quick Start](#quick-start)
+- [Protocol Validation](#protocol-validation)
+- [Config Example](#config-example)
+- [Flags](#flags)
+- [Orchestrators](#orchestrators)
+- [Agent Responsibility Matrix](#agent-responsibility-matrix)
+
+## TL;DR
+
+- Local install: `bash scripts/install.sh` or `pwsh -NoProfile -File scripts/install.ps1`
+- Release bundle install: expand `Install Without Clone (Release Bundle)` and use the pinned bootstrap command you need
+- Most common run: `/run-pipeline Implement OAuth2 login --effort=balanced`
+
 ## Usage Prerequisites
 
 This repo assumes you have configured the required model providers in OpenCode.
@@ -20,7 +39,12 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 
 ## Install (Recommended)
 
+Use this when you already cloned the repo and want the standard OpenCode local install.
+
 Install into your local OpenCode config directory with local scripts (default target: `~/.config/opencode`):
+
+<details>
+<summary>OpenCode local install commands</summary>
 
 Windows (PowerShell):
 
@@ -64,11 +88,18 @@ pwsh -NoProfile -File scripts/install.ps1 -NoBackup
 bash scripts/install.sh --no-backup
 ```
 
+</details>
+
 ## Install OpenCode Status Plugin Only (Local)
+
+Use this when OpenCode is already set up and you only want the status runtime plugin.
 
 Use this when you already have OpenCode configured and only want the status runtime plugin.
 OpenCode local plugins are loaded from a JS/TS entry file in the plugins directory, so this installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
+
+<details>
+<summary>Status plugin local install commands</summary>
 
 Installed file layout:
 
@@ -115,9 +146,16 @@ pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\
 bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime.js
 ```
 
+</details>
+
 ## Install All Local Assets (OpenCode + Plugin + Copilot + Claude + Codex)
 
+Use this when you want one command to install every supported local asset together.
+
 Use the all-in-one local installers when you want the OpenCode core config, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together with one command.
+
+<details>
+<summary>All local assets install commands</summary>
 
 Windows (PowerShell):
 
@@ -151,9 +189,16 @@ pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\o
 bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex
 ```
 
+</details>
+
 ## Install Copilot Agents (Recommended)
 
+Use this when you only need the generated VS Code Copilot agents.
+
 Generate and install VS Code Copilot custom agents to your global Copilot location.
+
+<details>
+<summary>Copilot install commands</summary>
 
 Default target:
 - All platforms: `~/.copilot/agents`
@@ -200,9 +245,16 @@ pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup
 bash scripts/install-copilot.sh --no-backup
 ```
 
+</details>
+
 ## Install Claude Code Subagents (Recommended)
 
+Use this when you only need the generated Claude Code subagents.
+
 Claude Code support is file-based today. Treat `opencode/agents/*.md` as the source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
+
+<details>
+<summary>Claude install commands</summary>
 
 Default target:
 - All platforms: `~/.claude/agents`
@@ -244,9 +296,16 @@ Claude Code limitation note:
 - Keep orchestrator guidance conservative: do not assume nested orchestrator -> subagent -> subagent routing in Claude Code.
 - Prefer inline execution for orchestrator-owned stages, or invoke leaf subagents directly when needed.
 
+</details>
+
 ## Install Codex Roles (Recommended)
 
+Use this when you only need the generated Codex role config.
+
 Generate and install Codex multi-agent role config to a Codex config directory.
+
+<details>
+<summary>Codex install commands</summary>
 
 Default target:
 - All platforms: `~/.codex`
@@ -300,7 +359,11 @@ Important Codex usage note:
 - Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
 - Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`
 
+</details>
+
 ## Install Without Clone (Release Bundle)
+
+Use this when you do not want to clone the repo and prefer installing from a published release.
 
 Use bootstrap installers to download a release bundle and install without cloning this repo.
 Bootstrap scripts verify the downloaded archive checksum against the release `SHA256SUMS` asset before install.
@@ -311,6 +374,9 @@ PowerShell tips:
 - Pass `-Target` explicitly when you know the install location.
 - When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
 - Bootstrap installers create backups by default when they detect existing installed files.
+
+<details>
+<summary>Release bundle install commands</summary>
 
 <details>
 <summary>OpenCode core bundle</summary>
@@ -386,6 +452,9 @@ bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$
 ## Install All Local Assets Without Clone (Release Bundle)
 
 Use the bootstrap all-in-one installers to download a release bundle and install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together.
+
+- Ubuntu/macOS/Linux tip: run the downloaded bootstrap script as `bash ./bootstrap-install-all-local.sh ...`.
+- If you prefer `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
 
 <details>
 <summary>All-in-one bundle</summary>
@@ -539,7 +608,12 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 </details>
 
+</details>
+
 ## Versioning
+
+<details>
+<summary>Maintainer release notes</summary>
 
 - Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.12.0`).
 - Use SemVer tags with `v` prefix (for example: `v0.12.0`).
@@ -604,7 +678,12 @@ trufflehog filesystem .
 
 Use whichever tool your team prefers.
 
+</details>
+
 ## How To Use
+
+<details>
+<summary>Repo map and platform export notes</summary>
 
 - Agent definitions live in `opencode/agents/` (one file per agent)
 - Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
@@ -641,7 +720,12 @@ Use whichever tool your team prefers.
 - Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
 - Use `/run-general` in `opencode/commands/run-general.md` for non-coding general-purpose workflows (planning/writing/analysis/checklists)
 
+</details>
+
 ## VS Code Copilot Agents
+
+<details>
+<summary>Copilot / Claude / Codex reference</summary>
 
 This repo can generate VS Code Copilot custom agents from `opencode/agents/*.md` with single-source maintenance.
 
@@ -705,6 +789,8 @@ python scripts/export-codex-agents.py --source-agents opencode/agents --target-d
   - Do not expect `/agent` to display generated custom roles from `config.toml`.
   - Example: `Have reviewer inspect the patch and have generalist draft the migration notes.`
 
+</details>
+
 ## Quick Start
 
 1) Load the orchestrator (handoff protocol is embedded for portability):
@@ -719,6 +805,9 @@ python scripts/export-codex-agents.py --source-agents opencode/agents --target-d
 ```text
 /run-pipeline Run tests only --test-only
 ```
+
+<details>
+<summary>More command references</summary>
 
 ## Init Pipeline
 
@@ -818,6 +907,8 @@ Modernization work:
 3. Review roadmap + handoff
 4. `/run-pipeline` from the target project for actual implementation
 
+</details>
+
 ## Protocol Validation
 
 Validate a JSON output against the protocol schemas:
@@ -856,6 +947,9 @@ instead of running the script manually (see `opencode/tools/validate-schema.ts`)
 ## Config Example
 
 An example OpenCode config is provided at `opencode.json.example`.
+
+<details>
+<summary>Flags and execution behavior</summary>
 
 ## Flags
 
@@ -948,6 +1042,11 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - If `--resume` is not provided, the orchestrator starts a fresh run even if older artifacts still exist.
 - Persisted artifacts may still be reused as inputs when the prompt explicitly references them or when the protocol treats them as optional context, but that is not the same as checkpoint resume.
 
+</details>
+
+<details>
+<summary>Agent catalog quick reference</summary>
+
 ## Orchestrators
 
 - Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
@@ -986,6 +1085,8 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
+
+</details>
 
 ## AGENT RESPONSIBILITY MATRIX
 

@@ -123,6 +123,8 @@ jobs:
           cp scripts/export-claude-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
+          chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.sh
+          chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
 
           (
             cd dist

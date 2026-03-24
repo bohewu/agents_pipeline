@@ -9,6 +9,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - Release-bundle install sections in `README.md` now use collapsible blocks, and pinned bootstrap examples are synchronized from `VERSION` via `scripts/sync-readme-version.py` so future version bumps are easier to keep in sync.
+- `README.md` now folds more maintainer/reference sections into collapsible blocks and clarifies the Bash-first Ubuntu/macOS/Linux all-in-one bootstrap flow.
+
+### Fixed
+
+- Release bundle packaging now normalizes shipped shell/Python script permissions, and the all-in-one Bash bootstrap installer reapplies readable/executable bits after extraction to avoid Linux permission-denied install failures.
 
 ## [0.12.0] - 2026-03-24
 
