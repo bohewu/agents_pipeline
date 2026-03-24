@@ -27,6 +27,13 @@ class StatusContext:
     status_dir: Optional[Path]
 
 
+@dataclass(frozen=True)
+class RunDirectoryCandidate:
+    run_dir: Path
+    run_status_path: Path
+    sort_mtime_ns: int
+
+
 TASK_COUNT_ORDER = [
     "pending",
     "ready",
@@ -223,6 +230,15 @@ def load_json(path: Path) -> dict:
     if not isinstance(data, dict):
         raise StatusCliError(f"Expected a JSON object in {path}")
     return data
+
+
+def try_load_json(path: Path) -> Optional[dict]:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def validate_iso_datetime(value: object, label: str, path: Path) -> None:
@@ -738,6 +754,61 @@ def first_existing(paths: Iterable[Optional[Path]]) -> Optional[Path]:
     return None
 
 
+def has_matching_orchestrators(
+    checkpoint: Optional[dict], run_status: Optional[dict]
+) -> bool:
+    checkpoint_orchestrator = checkpoint.get("orchestrator") if checkpoint else None
+    run_status_orchestrator = run_status.get("orchestrator") if run_status else None
+    return not (
+        checkpoint_orchestrator
+        and run_status_orchestrator
+        and checkpoint_orchestrator != run_status_orchestrator
+    )
+
+
+def newest_compatible_run_subdir(base_dir: Path) -> Optional[RunDirectoryCandidate]:
+    if not base_dir.is_dir():
+        return None
+
+    candidates: list[RunDirectoryCandidate] = []
+    for path in base_dir.iterdir():
+        if not path.is_dir():
+            continue
+        run_status_path = path / "status" / "run-status.json"
+        checkpoint_path = path / "checkpoint.json"
+        if not run_status_path.is_file():
+            continue
+
+        checkpoint = try_load_json(checkpoint_path) if checkpoint_path.is_file() else None
+        run_status = try_load_json(run_status_path)
+        if run_status is None:
+            continue
+        if not has_matching_orchestrators(checkpoint, run_status):
+            continue
+
+        sort_path = checkpoint_path if checkpoint is not None else run_status_path
+        try:
+            sort_mtime_ns = sort_path.stat().st_mtime_ns
+        except OSError:
+            continue
+
+        candidates.append(
+            RunDirectoryCandidate(
+                run_dir=path,
+                run_status_path=run_status_path,
+                sort_mtime_ns=sort_mtime_ns,
+            )
+        )
+
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda candidate: (candidate.sort_mtime_ns, candidate.run_dir.name),
+        reverse=True,
+    )
+    return candidates[0]
+
+
 def is_orchestration_artifact_dir(path: Path) -> bool:
     parts = path.resolve().parts
     if len(parts) < 2:
@@ -807,11 +878,11 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         )
 
     if output_dir is not None:
-        latest_run_dir = latest_run_subdir(output_dir)
+        latest_run_candidate = newest_compatible_run_subdir(output_dir)
         candidates = [
             output_dir / "status" / "run-status.json",
             output_dir / "run-status.json",
-            latest_run_dir / "status" / "run-status.json" if latest_run_dir else None,
+            latest_run_candidate.run_status_path if latest_run_candidate else None,
         ]
         run_status_path = first_existing(candidates)
         if run_status_path is None:
@@ -833,13 +904,17 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
         )
 
     base_dir = project_dir or Path.cwd()
-    latest_output_run_dir = latest_run_subdir(base_dir / ".pipeline-output")
+    latest_output_run_candidate = newest_compatible_run_subdir(
+        base_dir / ".pipeline-output"
+    )
     direct_candidates = [
         base_dir / "status" / "run-status.json",
         base_dir / "run-status.json",
         base_dir / ".pipeline-output" / "status" / "run-status.json",
         base_dir / ".pipeline-output" / "run-status.json",
-        latest_output_run_dir / "status" / "run-status.json" if latest_output_run_dir else None,
+        latest_output_run_candidate.run_status_path
+        if latest_output_run_candidate
+        else None,
     ]
     run_status_path = first_existing(direct_candidates)
     if run_status_path is not None:
@@ -889,22 +964,6 @@ def discover_run_status(args: argparse.Namespace) -> StatusContext:
     raise StatusCliError(
         "Could not discover run-status.json. Provide --status-file, --status-dir, --output-dir, or --project-dir."
     )
-
-
-def latest_run_subdir(status_dir: Path) -> Optional[Path]:
-    if not status_dir.is_dir():
-        return None
-    candidates = [
-        path
-        for path in status_dir.iterdir()
-        if path.is_dir() and (path / "status" / "run-status.json").is_file()
-    ]
-    if not candidates:
-        return None
-    candidates.sort(key=lambda path: (path.stat().st_mtime_ns, path.name), reverse=True)
-    return candidates[0]
-
-
 def has_explicit_status_target(args: argparse.Namespace) -> bool:
     return any(
         getattr(args, field, None)

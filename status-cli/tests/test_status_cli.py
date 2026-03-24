@@ -435,6 +435,123 @@ class StatusCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertIn("Run ID: latest-output-dir-run", result.stdout)
 
+    def test_output_dir_base_root_skips_newer_orchestrator_mismatch_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir) / ".pipeline-output"
+            compatible_run_dir = output_root / "run-20260320-101500"
+            mismatched_run_dir = output_root / "run-20260320-101530"
+            (compatible_run_dir / "status").mkdir(parents=True)
+            (mismatched_run_dir / "status").mkdir(parents=True)
+
+            compatible_status_path = compatible_run_dir / "status" / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, compatible_status_path)
+            compatible_status = json.loads(
+                compatible_status_path.read_text(encoding="utf-8")
+            )
+            compatible_status["run_id"] = "compatible-run-picked"
+            compatible_status["orchestrator"] = "orchestrator-pipeline"
+            compatible_status_path.write_text(
+                json.dumps(compatible_status, indent=2) + "\n", encoding="utf-8"
+            )
+            (compatible_run_dir / "checkpoint.json").write_text(
+                json.dumps(
+                    {
+                        "pipeline_id": "compatible-run-picked",
+                        "orchestrator": "orchestrator-pipeline",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            mismatched_status_path = mismatched_run_dir / "status" / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, mismatched_status_path)
+            mismatched_status = json.loads(
+                mismatched_status_path.read_text(encoding="utf-8")
+            )
+            mismatched_status["run_id"] = "mismatched-run-skipped"
+            mismatched_status["orchestrator"] = "orchestrator-pipeline"
+            mismatched_status_path.write_text(
+                json.dumps(mismatched_status, indent=2) + "\n", encoding="utf-8"
+            )
+            (mismatched_run_dir / "checkpoint.json").write_text(
+                json.dumps(
+                    {
+                        "pipeline_id": "mismatched-run-skipped",
+                        "orchestrator": "orchestrator-flow",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = run_cli("summary", "--output-dir", str(output_root))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Run ID: compatible-run-picked", result.stdout)
+        self.assertNotIn("mismatched-run-skipped", result.stdout)
+
+    def test_project_dir_skips_newer_orchestrator_mismatch_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            output_root = repo_root / ".pipeline-output"
+            compatible_run_dir = output_root / "run-20260320-101500"
+            mismatched_run_dir = output_root / "run-20260320-101530"
+            (compatible_run_dir / "status").mkdir(parents=True)
+            (mismatched_run_dir / "status").mkdir(parents=True)
+
+            compatible_status_path = compatible_run_dir / "status" / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, compatible_status_path)
+            compatible_status = json.loads(
+                compatible_status_path.read_text(encoding="utf-8")
+            )
+            compatible_status["run_id"] = "project-compatible-run-picked"
+            compatible_status["orchestrator"] = "orchestrator-pipeline"
+            compatible_status_path.write_text(
+                json.dumps(compatible_status, indent=2) + "\n", encoding="utf-8"
+            )
+            (compatible_run_dir / "checkpoint.json").write_text(
+                json.dumps(
+                    {
+                        "pipeline_id": "project-compatible-run-picked",
+                        "orchestrator": "orchestrator-pipeline",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            mismatched_status_path = mismatched_run_dir / "status" / "run-status.json"
+            shutil.copy2(RUN_ONLY_FIXTURE, mismatched_status_path)
+            mismatched_status = json.loads(
+                mismatched_status_path.read_text(encoding="utf-8")
+            )
+            mismatched_status["run_id"] = "project-mismatched-run-skipped"
+            mismatched_status["orchestrator"] = "orchestrator-pipeline"
+            mismatched_status_path.write_text(
+                json.dumps(mismatched_status, indent=2) + "\n", encoding="utf-8"
+            )
+            (mismatched_run_dir / "checkpoint.json").write_text(
+                json.dumps(
+                    {
+                        "pipeline_id": "project-mismatched-run-skipped",
+                        "orchestrator": "orchestrator-flow",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = run_cli("summary", "--project-dir", str(repo_root))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Run ID: project-compatible-run-picked", result.stdout)
+        self.assertNotIn("project-mismatched-run-skipped", result.stdout)
+
     def test_task_list_reports_missing_referenced_files_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"

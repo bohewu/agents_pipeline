@@ -1,6 +1,7 @@
 const fs = require("fs/promises");
 const path = require("path");
 
+const { selectNewestCompatibleRun } = require("./run-resolution");
 const { StatusWriter } = require("./status-writer");
 const { assert } = require("./utils");
 
@@ -28,47 +29,17 @@ class RunRegistry {
       return this.describeRun(runDir, run_id);
     }
 
-    const directRunCheckpoint = path.join(path.resolve(output_root), "checkpoint.json");
-    try {
-      await fs.access(directRunCheckpoint);
-      const checkpoint = await this.writer.readJson(directRunCheckpoint);
-      if (!orchestrator || checkpoint?.orchestrator === orchestrator) {
-        const runDir = path.dirname(directRunCheckpoint);
-        const runStatus = await this.writer.readJson(path.join(runDir, "status", "run-status.json"));
-        return this.describeRun(runDir, runStatus?.run_id || path.basename(runDir));
-      }
-    } catch {
-      // ignore direct path miss
-    }
-
     const baseDir = path.resolve(output_root);
-    const entries = await fs.readdir(baseDir, { withFileTypes: true }).catch(() => []);
-    const matches = [];
+    const match = await selectNewestCompatibleRun({
+      baseDir,
+      readJson: (filePath) => this.writer.readJson(filePath),
+      expectedOrchestrator: orchestrator,
+      requireCheckpoint: true,
+      allowBaseDir: true
+    });
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-      const runDir = path.join(baseDir, entry.name);
-      const checkpointPath = path.join(runDir, "checkpoint.json");
-      try {
-        const checkpoint = await this.writer.readJson(checkpointPath);
-        if (!checkpoint) {
-          continue;
-        }
-        if (orchestrator && checkpoint.orchestrator !== orchestrator) {
-          continue;
-        }
-        const stats = await fs.stat(checkpointPath);
-        matches.push({ runDir, run_id: checkpoint.pipeline_id || entry.name, mtimeMs: stats.mtimeMs });
-      } catch {
-        // ignore invalid candidates
-      }
-    }
-
-    matches.sort((a, b) => b.mtimeMs - a.mtimeMs);
-    assert(matches.length > 0, `No compatible resumable run found under ${baseDir}`);
-    return this.describeRun(matches[0].runDir, matches[0].run_id);
+    assert(match, `No compatible resumable run found under ${baseDir}`);
+    return this.describeRun(match.runDir, match.runId);
   }
 
   async loadState(runDir) {

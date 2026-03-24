@@ -25,14 +25,14 @@ $ARGUMENTS
 - `--mode=plan|plan+handoff|phase-exec|full-exec` — planning only (default) or continue into execution via agent handoff
 - `--decision-only` — only source-assessment/target-design/migration-strategy
 - `--iterate` — one revision round after synthesis
-- `--target=<path>` — target project path reference (auto-created only when paired with `--init-target`)
-- `--init-target` — create/bootstrap the target project path and init docs before implementation handoff when needed
-- `--execute-phase=<phase-id>` — required in `phase-exec`; roadmap phase identifier to implement in target project
-- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
-- `--depth=lite|standard|deep` — control doc verbosity (default: standard)
-- `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults modernize depth to `deep`, forwards pipeline `--full-auto` in execution-enabled modes where applicable, and explicit forwarded flags still override preset defaults
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`, `--autopilot`
+- `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults modernize depth to `deep`, forwards pipeline `--full-auto` in execution-enabled modes where applicable, and explicit forwarded flags still override preset defaults
+- `--target=<path>` — target project path reference (auto-created only when paired with `--init-target`)
+- `--init-target` — create/bootstrap the target project path and init docs before implementation handoff when needed
+- `--depth=lite|standard|deep` — control doc verbosity (default: standard)
+- `--execute-phase=<phase-id>` — required in `phase-exec`; roadmap phase identifier to implement in target project
+- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
 
 ## Examples
 

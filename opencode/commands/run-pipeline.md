@@ -26,13 +26,13 @@ $ARGUMENTS
 - `--dry` — stop after `atomizer + router`
 - `--no-test` — skip test-runner (reviewer warns)
 - `--test-only` — run test-runner + reviewer only
-- `--decision-only` — planning/design only, no execution
 - `--loose-review` — allow unverified outputs with warning
+- `--decision-only` — planning/design only, no execution
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
+- `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 - `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults to `--effort=high` and `--max-retry=5`, and explicit flags still override those defaults
-- `--output-dir=<path>` — override the base artifact output root (fresh runs use a run-specific subdirectory under it; resume searches that root for the newest compatible run unless a specific run dir is targeted), `--resume`, `--confirm`, `--verbose`, `--autopilot`
 
 ## Examples
 

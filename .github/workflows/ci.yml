@@ -490,6 +490,13 @@ jobs:
             exit 1
           fi
 
+      - name: Validate run-command flag contracts
+        shell: bash
+        run: |
+          python3 scripts/validate-flag-contracts.py --help
+          python3 -m py_compile scripts/validate-flag-contracts.py
+          python3 scripts/validate-flag-contracts.py
+
       - name: Validate status schemas and fixtures
         shell: bash
         run: |
@@ -566,6 +573,11 @@ jobs:
             echo "Expected invalid status layout agent fixture to fail schema validation." >&2
             exit 1
           fi
+
+      - name: Validate status-runtime smoke harness
+        shell: bash
+        run: |
+          node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate resource-control prompt coverage
         shell: bash
