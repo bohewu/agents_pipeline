@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-03-24
+
+### Added
+
+- OpenCode status runtime plugin support is now documented and release-published as a first-class install target alongside the core asset bundle.
+
+### Changed
+
+- OpenCode entry-contract guidance and release examples now align around the runtime-owned status plugin entry path and updated install shape.
+- Deterministic pipeline glue helpers now centralize run-resolution and flag-contract checks, with a smoke harness covering the status runtime integration path.
+
 ## [0.11.5] - 2026-03-23
 
 ### Changed
