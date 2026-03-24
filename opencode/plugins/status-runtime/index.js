@@ -4,6 +4,18 @@ const { RunRegistry } = require("./run-registry");
 const { StatusProjector } = require("./status-projector");
 const { StatusWriter } = require("./status-writer");
 
+const STATUS_RUNTIME_EVENTS = [
+  "run.started",
+  "run.resumed",
+  "stage.completed",
+  "tasks.registered",
+  "task.updated",
+  "agent.started",
+  "agent.heartbeat",
+  "agent.finished",
+  "run.finished"
+];
+
 class StatusRuntime {
   constructor(options = {}) {
     this.writer = options.writer || new StatusWriter();
@@ -66,6 +78,7 @@ function createStatusRuntime(options) {
 
 module.exports = {
   RunRegistry,
+  STATUS_RUNTIME_EVENTS,
   StatusProjector,
   StatusRuntime,
   StatusWriter,

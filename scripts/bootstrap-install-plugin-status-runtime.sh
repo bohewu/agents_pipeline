@@ -11,7 +11,7 @@ Usage:
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
   --version <value>     Release tag (for example: v0.5.1) or latest (default: latest)
-  --target <path>       Install destination (forwarded to install-plugin-status-runtime.sh)
+  --target <path>       Install plugin entry file path (forwarded to install-plugin-status-runtime.sh)
   --no-backup           Do not back up existing installed files
   --dry-run             Resolve release and print actions only
   --keep-temp           Keep downloaded temporary files
@@ -24,6 +24,7 @@ EOF
 verify_bundle() {
   local bundle_dir="$1"
   local required_paths=(
+    "${bundle_dir}/opencode/plugins/status-runtime.js"
     "${bundle_dir}/opencode/plugins/status-runtime"
     "${bundle_dir}/scripts/install-plugin-status-runtime.sh"
   )

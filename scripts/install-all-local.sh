@@ -10,7 +10,7 @@ Usage:
 
 Options:
   --opencode-target <path>  Override OpenCode core install target
-  --plugin-target <path>    Override OpenCode status plugin install target
+  --plugin-target <path>    Override OpenCode status plugin entry file target
   --copilot-target <path>   Override Copilot agents install target
   --claude-target <path>    Override Claude agents install target
   --codex-target <path>     Override Codex config install target

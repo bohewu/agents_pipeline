@@ -49,6 +49,7 @@ function Test-ReleaseBundle {
     )
 
     $requiredPaths = @(
+        (Join-Path $BundleDir "opencode/plugins/status-runtime.js"),
         (Join-Path $BundleDir "opencode/plugins/status-runtime"),
         (Join-Path $BundleDir "scripts/install-plugin-status-runtime.ps1")
     )

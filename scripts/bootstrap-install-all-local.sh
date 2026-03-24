@@ -12,7 +12,7 @@ Options:
   --repo <owner/repo>          GitHub repository (default: bohewu/agents_pipeline)
   --version <value>            Release tag (for example: v0.5.1) or latest (default: latest)
   --opencode-target <path>     Override OpenCode core install target
-  --plugin-target <path>       Override OpenCode status plugin install target
+  --plugin-target <path>       Override OpenCode status plugin entry file target
   --copilot-target <path>      Override Copilot agents install target
   --claude-target <path>       Override Claude agents install target
   --codex-target <path>        Override Codex config install target
@@ -29,6 +29,7 @@ EOF
 verify_bundle() {
   local bundle_dir="$1"
   local required_paths=(
+    "${bundle_dir}/opencode/plugins/status-runtime.js"
     "${bundle_dir}/opencode/plugins/status-runtime"
     "${bundle_dir}/scripts/install-all-local.sh"
     "${bundle_dir}/scripts/install-plugin-status-runtime.sh"

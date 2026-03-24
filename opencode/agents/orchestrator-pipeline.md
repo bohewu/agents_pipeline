@@ -210,7 +210,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 
 # PRE-FLIGHT (before Stage 0)
 
-1. **Resolve output root and run dir**: If `--output-dir` was provided, treat it as the base output root. Otherwise default to `.pipeline-output/`. For fresh runs, create and use a run-specific directory `<base_output_dir>/<run_id>/`. For resume, search under the base output root for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory.
+1. **Resolve output root and run dir**: If `--output-dir` was provided, treat it as `output_root` (the base output root). Otherwise default to `.pipeline-output/`. Derive `run_output_dir = <output_root>/<run_id>/` for the active run. For resume, search under `output_root` for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory. Do **not** pass `run_output_dir` back as `output_root`; the status runtime contract requires `output_root` + `run_id` separately.
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user: "Warning: `<output_dir>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
@@ -236,10 +236,10 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 # CHECKPOINT PROTOCOL
 
 After each stage completes successfully:
-1. Emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` with:
-   - `pipeline_id`: unique identifier for this run
-   - `orchestrator`: "orchestrator-pipeline"
-   - `user_prompt`: the original main_task_prompt
+1. Call the plugin tool `status_runtime_event` with `event = "stage.completed"` and a `payload_json` object so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` with:
+    - `pipeline_id`: unique identifier for this run
+    - `orchestrator`: "orchestrator-pipeline"
+    - `user_prompt`: the original main_task_prompt
    - `flags`: all parsed flag values
    - `current_stage`: the stage number just completed
    - `completed_stages[]`: array of `{ stage, name, status, artifact_key, timestamp }`
@@ -249,7 +249,9 @@ After each stage completes successfully:
 
 # STATUS ARTIFACT PROTOCOL
 
-Runtime/plugin owns canonical checkpoint/status writes under `<run_output_dir>/status/` using the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Runtime/plugin owns canonical checkpoint/status writes under `<run_output_dir>/status/` using the plugin tool `status_runtime_event` and the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+
+- Follow the shared `status_runtime_event` tool contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
 - `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every run.
 - Status files are operational visibility and recovery metadata. They do NOT replace checkpointing, and `<run_output_dir>/checkpoint.json` remains the authoritative stage-resume record.
@@ -267,6 +269,16 @@ Use the expanded status layout for this orchestrator once task decomposition beg
 - Register every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
 - Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
 - During reconciliation, merge executor outcomes back into task/run semantics, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
+
+Minimum required `status_runtime_event` call sites for `orchestrator-pipeline`:
+
+- **Fresh run initialization**: emit `run.started` once after resolving `output_root` and `run_id`.
+- **Resume initialization**: emit `run.resumed` once after selecting the resumable run.
+- **After every successful stage**: emit `stage.completed`.
+- **After Stage 3 task materialization**: emit `tasks.registered`.
+- **Whenever a canonical task changes semantic state**: emit `task.updated`.
+- **For every visible subagent attempt**: emit `agent.started`, `agent.heartbeat` when practical, and `agent.finished`.
+- **On terminal outcome**: emit `run.finished` exactly once.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -358,8 +370,8 @@ Stage 0: @specifier -> `problem-spec.json`
 Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce `dev-spec.json`, then call @doc-writer to render a Markdown artifact from the same contract and persist its content to the canonical path `dev-spec.md`
 Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
 Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
-Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`; then emit expanded task registration events for every task in the TaskList so runtime/plugin can refresh `run-status.json` with `layout = expanded`, `task_list_path`, `task_counts`, and task refs
-Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then enrich the task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`, and refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids
+Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`; then call `status_runtime_event` with `event = "tasks.registered"` for every canonical task so runtime/plugin can refresh `run-status.json` with `layout = expanded`, `task_list_path`, `task_counts`, and task refs
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then call `status_runtime_event` with `event = "task.updated"` to enrich task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`, and refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
@@ -369,7 +381,7 @@ Stage 5: Execute batches + optional validation:
 - Include runtime-status expectations in every task handoff: executors may report updates only for the assigned task plus their own agent attempt through runtime APIs, should maintain heartbeats while active when practical, must record heavy-resource fields for browser/server/process work, and must not claim success until required cleanup is reflected in status.
 - If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
 - If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
-- After each task completion or reconciliation event, immediately emit the semantic updates needed for runtime/plugin to refresh the affected task/agent records, `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
+- After each task completion or reconciliation event, immediately call `status_runtime_event` with the matching `task.updated`, `agent.started`, `agent.heartbeat`, or `agent.finished` event so runtime/plugin can refresh the affected task/agent records, `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec

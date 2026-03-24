@@ -229,6 +229,41 @@ This status layer is an adjacent, repo-bound filesystem contract for pipeline vi
 
 Future runtime repos MAY project the same entities into a database, API, or richer orchestration system, but this repo's contract remains the source of truth for the entity names, core fields, and state meanings.
 
+### `status_runtime_event` Tool Contract
+
+Use the plugin tool name literally: `status_runtime_event`.
+
+- Fixed args:
+  - `event`: string
+  - `payload_json`: JSON string that decodes to exactly one object
+- Base path rule: every call MUST include `payload_json.output_root` and `payload_json.run_id`.
+- `output_root` is the base artifact root (for example `.pipeline-output`), not `<run_output_dir>`.
+- Runtime/plugin derives `<run_output_dir>` as `<output_root>/<run_id>/` and owns resolved paths, timestamps, refs, counts, active ids, and reconciliation.
+
+Required event vocabulary for Flow and Pipeline status/checkpoint writes:
+
+- `run.started`
+- `run.resumed`
+- `stage.completed`
+- `tasks.registered`
+- `task.updated`
+- `agent.started`
+- `agent.heartbeat`
+- `agent.finished`
+- `run.finished`
+
+Minimal payload skeleton guidance:
+
+- Common envelope for every event: `{ "output_root": "...", "run_id": "..." }`
+- `run.started` / `run.resumed`: add `orchestrator`; include `user_prompt` when known and `flags` when available.
+- `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed.
+- `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.
+- `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
+- `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
+- `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
+
+These event payloads are semantic deltas, not full file rewrites.
+
 ### Canonical Status Files
 
 - Status root: `<run_output_dir>/status/`

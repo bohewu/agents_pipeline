@@ -153,6 +153,8 @@ jobs:
           test -f "${BUNDLE_DIR}/scripts/bootstrap-install-all-local.ps1"
           test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
+          test -f "${BUNDLE_DIR}/opencode/plugins/status-runtime.js"
+          test -d "${BUNDLE_DIR}/opencode/plugins/status-runtime"
           test -f "${BUNDLE_DIR}/opencode/plugins/status-runtime/index.js"
           test -f "${BUNDLE_DIR}/opencode/protocols/MODERNIZE_TO_PIPELINE.md"
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.tar.gz"

@@ -66,8 +66,22 @@ bash scripts/install.sh --no-backup
 
 ## Install OpenCode Status Plugin Only (Local)
 
-Use this when you already have OpenCode configured and only want the status runtime plugin at `~/.config/opencode/plugins/status-runtime`.
+Use this when you already have OpenCode configured and only want the status runtime plugin.
+OpenCode local plugins are loaded from a JS/TS entry file in the plugins directory, so this installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
+
+Installed file layout:
+
+```text
+~/.config/opencode/
+├─ opencode.json
+└─ plugins/
+   ├─ status-runtime.js
+   └─ status-runtime/
+      └─ index.js
+```
+
+No extra `opencode.json` plugin stanza is required for this repository's local plugin install; the entry file lives directly under `plugins/`.
 
 Windows (PowerShell):
 
@@ -91,14 +105,14 @@ pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -DryRun
 bash scripts/install-plugin-status-runtime.sh --dry-run
 ```
 
-Custom target path:
+Custom target entry-file path:
 
 ```powershell
-pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\to\opencode-config\plugins\status-runtime
+pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\to\opencode-config\plugins\status-runtime.js
 ```
 
 ```bash
-bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime
+bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime.js
 ```
 
 ## Install All Local Assets (OpenCode + Plugin + Copilot + Claude + Codex)
@@ -130,11 +144,11 @@ bash scripts/install-all-local.sh --dry-run
 Per-target overrides:
 
 ```powershell
-pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex
+pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex
 ```
 
 ```bash
-bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex
+bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex
 ```
 
 ## Install Copilot Agents (Recommended)
@@ -329,6 +343,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 ## Install OpenCode Status Plugin Without Clone (Release Bundle)
 
 Use the bootstrap plugin installers when you want only the OpenCode status runtime plugin from a release bundle.
+As with the local installer, the target must be the plugin entry file path, not a directory.
 To keep README version validation stable, use your intended release tag in place of `<release-tag>` below.
 
 Windows (PowerShell):
@@ -336,7 +351,7 @@ Windows (PowerShell):
 ```powershell
 $tag = "<release-tag>"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime"
+pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
 macOS/Linux:
@@ -344,17 +359,17 @@ macOS/Linux:
 ```bash
 tag="<release-tag>"
 curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime"
+bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
 Dry-run preview (resolves release metadata only):
 
 ```powershell
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime" -DryRun
+pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js" -DryRun
 ```
 
 ```bash
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime" --dry-run
+bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
 ```
 
 ## Install All Local Assets Without Clone (Release Bundle)
@@ -367,7 +382,7 @@ Windows (PowerShell):
 ```powershell
 $tag = "<release-tag>"
 Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
 ```
 
 macOS/Linux:
@@ -375,17 +390,17 @@ macOS/Linux:
 ```bash
 tag="<release-tag>"
 curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
+bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
 ```
 
 Dry-run preview (resolves release metadata only):
 
 ```powershell
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex" -DryRun
+pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex" -DryRun
 ```
 
 ```bash
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
+bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
 ```
 
 ## Install Copilot Without Clone (Release Bundle)

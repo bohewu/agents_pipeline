@@ -9,7 +9,7 @@ Usage:
   scripts/install-plugin-status-runtime.sh [--target <path>] [--dry-run] [--no-backup]
 
 Options:
-  --target <path>  Install destination (default: $XDG_CONFIG_HOME/opencode/plugins/status-runtime or ~/.config/opencode/plugins/status-runtime)
+  --target <path>  Install plugin entry file (default: $XDG_CONFIG_HOME/opencode/plugins/status-runtime.js or ~/.config/opencode/plugins/status-runtime.js)
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing status-runtime plugin files
   -h, --help       Show this help
@@ -20,17 +20,23 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SOURCE_DIR="${REPO_ROOT}/opencode/plugins/status-runtime"
+SOURCE_ENTRY_FILE="${REPO_ROOT}/opencode/plugins/status-runtime.js"
+SOURCE_SUPPORT_DIR="${REPO_ROOT}/opencode/plugins/status-runtime"
 
-if [[ ! -d "${SOURCE_DIR}" ]]; then
-  echo "Source plugin directory not found: ${SOURCE_DIR}" >&2
+if [[ ! -f "${SOURCE_ENTRY_FILE}" ]]; then
+  echo "Source plugin entry file not found: ${SOURCE_ENTRY_FILE}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${SOURCE_SUPPORT_DIR}" ]]; then
+  echo "Source plugin support directory not found: ${SOURCE_SUPPORT_DIR}" >&2
   exit 1
 fi
 
 if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
-  TARGET_DIR="${XDG_CONFIG_HOME}/opencode/plugins/status-runtime"
+  TARGET_FILE="${XDG_CONFIG_HOME}/opencode/plugins/status-runtime.js"
 else
-  TARGET_DIR="${HOME}/.config/opencode/plugins/status-runtime"
+  TARGET_FILE="${HOME}/.config/opencode/plugins/status-runtime.js"
 fi
 
 DRY_RUN=0
@@ -43,7 +49,7 @@ while [[ $# -gt 0 ]]; do
         echo "Missing value for --target" >&2
         exit 2
       fi
-      TARGET_DIR="$2"
+      TARGET_FILE="$2"
       shift 2
       ;;
     --dry-run)
@@ -66,33 +72,60 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-PLUGIN_NAME="$(basename "${SOURCE_DIR}")"
-TARGET_PARENT="$(dirname "${TARGET_DIR}")"
+if [[ "${TARGET_FILE}" == -* ]]; then
+  echo "Target path '${TARGET_FILE}' looks like a switch, not a filesystem path. Pass --target explicitly if needed." >&2
+  exit 2
+fi
 
-echo "Source plugin: ${SOURCE_DIR}"
-echo "Target: ${TARGET_DIR}"
+if [[ -d "${TARGET_FILE}" ]]; then
+  echo "Target path '${TARGET_FILE}' is a directory. OpenCode plugin targets must be a JS/TS entry file path." >&2
+  exit 2
+fi
+
+PLUGIN_NAME="$(basename "${SOURCE_SUPPORT_DIR}")"
+ENTRY_NAME="$(basename "${SOURCE_ENTRY_FILE}")"
+TARGET_PARENT="$(dirname "${TARGET_FILE}")"
+TARGET_SUPPORT_DIR="${TARGET_PARENT}/${PLUGIN_NAME}"
+
+echo "Source plugin entry: ${SOURCE_ENTRY_FILE}"
+echo "Source plugin support dir: ${SOURCE_SUPPORT_DIR}"
+echo "Target entry: ${TARGET_FILE}"
+echo "Target support dir: ${TARGET_SUPPORT_DIR}"
 echo "DryRun: ${DRY_RUN}"
 echo "Plugin scope: OpenCode only"
 
-if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
+if [[ ${NO_BACKUP} -eq 0 && ( -e "${TARGET_FILE}" || -e "${TARGET_SUPPORT_DIR}" ) ]]; then
   backup_dir="${TARGET_PARENT}/.backup-agents-pipeline-${PLUGIN_NAME}-$(date +%Y%m%d-%H%M%S)"
   if [[ ${DRY_RUN} -eq 1 ]]; then
     echo "Would create backup: ${backup_dir}"
   else
     mkdir -p "${backup_dir}"
-    cp -a "${TARGET_DIR}" "${backup_dir}/"
+    if [[ -e "${TARGET_FILE}" ]]; then
+      cp -a "${TARGET_FILE}" "${backup_dir}/${ENTRY_NAME}"
+    fi
+    if [[ -e "${TARGET_SUPPORT_DIR}" ]]; then
+      cp -a "${TARGET_SUPPORT_DIR}" "${backup_dir}/"
+    fi
     echo "Backup created: ${backup_dir}"
   fi
 fi
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
-  echo "Would ensure target directory exists: ${TARGET_DIR}"
-  echo "Would sync: ${SOURCE_DIR} -> ${TARGET_DIR}"
+  echo "Would ensure plugin directory exists: ${TARGET_PARENT}"
+  if [[ -e "${TARGET_SUPPORT_DIR}" ]]; then
+    echo "Would replace existing support directory: ${TARGET_SUPPORT_DIR}"
+  fi
+  echo "Would copy entry file: ${SOURCE_ENTRY_FILE} -> ${TARGET_FILE}"
+  echo "Would sync support dir: ${SOURCE_SUPPORT_DIR} -> ${TARGET_SUPPORT_DIR}"
   echo "Dry run complete. No files were written."
   exit 0
 fi
 
-mkdir -p "${TARGET_DIR}"
-cp -a "${SOURCE_DIR}/." "${TARGET_DIR}/"
-echo "Synced: ${SOURCE_DIR} -> ${TARGET_DIR}"
-echo "Install complete. OpenCode plugin is ready at: ${TARGET_DIR}"
+mkdir -p "${TARGET_PARENT}"
+cp -f "${SOURCE_ENTRY_FILE}" "${TARGET_FILE}"
+rm -rf "${TARGET_SUPPORT_DIR}"
+mkdir -p "${TARGET_SUPPORT_DIR}"
+cp -a "${SOURCE_SUPPORT_DIR}/." "${TARGET_SUPPORT_DIR}/"
+echo "Copied entry file: ${SOURCE_ENTRY_FILE} -> ${TARGET_FILE}"
+echo "Synced support dir: ${SOURCE_SUPPORT_DIR} -> ${TARGET_SUPPORT_DIR}"
+echo "Install complete. OpenCode plugin is ready at: ${TARGET_FILE}"

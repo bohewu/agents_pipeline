@@ -179,11 +179,15 @@ If an invalid `--scout` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, emit the canonical stage completion/checkpoint event so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, call the `status_runtime_event` plugin tool so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
 
 ## STATUS ARTIFACT PROTOCOL
 
 Runtime/plugin owns canonical status/checkpoint writes under `<run_output_dir>/status/` using the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+
+- Follow the shared `status_runtime_event` tool contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+- Fresh runs MUST start with `run.started`; resume runs MUST start with `run.resumed`.
+- Flow MUST emit the shared event vocabulary at these call sites: run start/resume, each successful `stage.completed`, Stage 2 `tasks.registered`, every task state change via `task.updated`, every delegated agent lifecycle via `agent.started` / `agent.heartbeat` / `agent.finished`, and terminal `run.finished`.
 
 - `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every flow run.
 - Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and `<run_output_dir>/checkpoint.json` remains the authoritative stage-resume record.
