@@ -139,30 +139,28 @@ bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$
 
 Install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together from one release bundle.
 
-Ubuntu/macOS/Linux notes:
+Copy-paste commands (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"; curl -fsSL "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" | bash -s -- --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
+```
+
+Ubuntu/macOS/Linux notes if you prefer downloading the script first:
 
 - The easiest copy-paste path is to pipe the pinned bootstrap script into `bash`; this avoids the downloaded-file executable-bit problem entirely.
 - If you download the bootstrap script first, run it as `bash ./bootstrap-install-all-local.sh ...`.
 - A script fetched with `curl -o ./bootstrap-install-all-local.sh ...` usually does **not** have the executable bit on Ubuntu, so `./bootstrap-install-all-local.sh ...` can fail with `permission denied`.
 - If you specifically want `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
 
-Copy-paste one-liner (recommended for Ubuntu/macOS/Linux):
-
-```bash
-tag="v0.12.1"; curl -fsSL "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" | bash -s -- --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
-```
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
-```
-
-macOS/Linux:
+Download-then-run version:
 
 ```bash
 tag="v0.12.1"
