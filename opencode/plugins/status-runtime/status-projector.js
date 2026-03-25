@@ -245,11 +245,13 @@ class StatusProjector {
 
   onAgentStarted(state, payload, timestamp) {
     assert(state.runStatus, "run.started must be emitted before agent.started");
-    const existing = state.agents.get(payload.agent_id);
+    const existingEntry = this.findMatchingAgentEntry(state, payload, { allowAmbiguousActive: false });
+    const agentId = existingEntry?.agent.agent_id || this.allocateAgentId(state, payload);
+    const existing = existingEntry?.agent;
     const agent = {
       protocol_version: PROTOCOL_VERSION,
       run_id: state.runStatus.run_id,
-      agent_id: payload.agent_id,
+      agent_id: agentId,
       agent: payload.agent,
       status: payload.status || "starting",
       created_at: existing?.created_at || timestamp,
@@ -264,13 +266,13 @@ class StatusProjector {
       resource_handles: cloneJson(payload.resource_handles),
       cleanup_status: payload.cleanup_status || defaultCleanupStatus(payload.resource_class)
     };
-    state.agents.set(payload.agent_id, { ...existing, ...agent });
+    state.agents.set(agentId, { ...existing, ...agent });
     state.runStatus.layout = "expanded";
 
     if (payload.task_id && state.tasks.has(payload.task_id)) {
       const task = state.tasks.get(payload.task_id);
-      task.assigned_agent_id = payload.agent_id;
-      task.agent_ref = { agent_id: payload.agent_id, path: toRelativeStatusPath("agents", payload.agent_id) };
+      task.assigned_agent_id = agentId;
+      task.agent_ref = { agent_id: agentId, path: toRelativeStatusPath("agents", agentId) };
       if (payload.resource_class && !task.resource_class) {
         task.resource_class = payload.resource_class;
       }
@@ -284,8 +286,8 @@ class StatusProjector {
   }
 
   onAgentHeartbeat(state, payload, timestamp) {
-    const agent = state.agents.get(payload.agent_id);
-    assert(agent, `Unknown agent_id: ${payload.agent_id}`);
+    const entry = this.resolveAgentEntry(state, payload);
+    const agent = entry.agent;
 
     const patch = { ...payload };
     delete patch.run_id;
@@ -308,8 +310,8 @@ class StatusProjector {
   }
 
   onAgentFinished(state, payload, timestamp) {
-    const agent = state.agents.get(payload.agent_id);
-    assert(agent, `Unknown agent_id: ${payload.agent_id}`);
+    const entry = this.resolveAgentEntry(state, payload);
+    const agent = entry.agent;
 
     const patch = { ...payload };
     delete patch.run_id;
@@ -351,6 +353,105 @@ class StatusProjector {
     }
 
     return this.recompute(state, timestamp);
+  }
+
+  allocateAgentId(state, payload) {
+    const requestedId = payload.agent_id;
+    assert(requestedId, "agent.started requires agent_id");
+    if (!state.agents.has(requestedId)) {
+      return requestedId;
+    }
+
+    const attemptSuffix = payload.attempt !== undefined ? `attempt-${payload.attempt}` : undefined;
+    const taskSuffix = payload.task_id ? `task-${this.sanitizeAgentIdPart(payload.task_id)}` : undefined;
+    const batchSuffix = payload.batch_id ? `batch-${this.sanitizeAgentIdPart(payload.batch_id)}` : undefined;
+    const candidateParts = [
+      [attemptSuffix, taskSuffix, batchSuffix],
+      [attemptSuffix, taskSuffix],
+      [attemptSuffix, batchSuffix],
+      [attemptSuffix],
+      [taskSuffix, batchSuffix],
+      [taskSuffix],
+      [batchSuffix]
+    ];
+
+    for (const parts of candidateParts) {
+      const suffix = parts.filter(Boolean).join("--");
+      if (!suffix) {
+        continue;
+      }
+      const candidate = `${requestedId}--${suffix}`;
+      if (!state.agents.has(candidate)) {
+        return candidate;
+      }
+    }
+
+    let sequence = 2;
+    while (state.agents.has(`${requestedId}--instance-${sequence}`)) {
+      sequence += 1;
+    }
+    return `${requestedId}--instance-${sequence}`;
+  }
+
+  sanitizeAgentIdPart(value) {
+    return String(value).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "item";
+  }
+
+  findMatchingAgentEntry(state, payload, options = {}) {
+    const requestedId = payload.agent_id;
+    const exact = [];
+    const derived = [];
+    for (const [key, agent] of state.agents.entries()) {
+      if (agent.agent_id === requestedId) {
+        exact.push({ key, agent });
+      } else if (typeof requestedId === "string" && agent.agent_id.startsWith(`${requestedId}--`)) {
+        derived.push({ key, agent });
+      }
+    }
+
+    let candidates = exact.concat(derived);
+    if (payload.attempt !== undefined) {
+      candidates = candidates.filter(({ agent }) => agent.attempt === payload.attempt);
+    }
+    if (payload.task_id !== undefined) {
+      candidates = candidates.filter(({ agent }) => agent.task_id === payload.task_id);
+    }
+    if (payload.batch_id !== undefined) {
+      candidates = candidates.filter(({ agent }) => agent.batch_id === payload.batch_id);
+    }
+
+    if (candidates.length <= 1) {
+      return candidates[0];
+    }
+
+    const activeCandidates = candidates.filter(({ agent }) => isAgentActive(agent.status));
+    if (options.allowAmbiguousActive !== false && activeCandidates.length === 1) {
+      return activeCandidates[0];
+    }
+
+    return undefined;
+  }
+
+  resolveAgentEntry(state, payload) {
+    const entry = this.findMatchingAgentEntry(state, payload, { allowAmbiguousActive: true });
+    if (entry) {
+      return entry;
+    }
+
+    const candidates = [];
+    for (const [key, agent] of state.agents.entries()) {
+      if (agent.agent_id === payload.agent_id || agent.agent_id.startsWith(`${payload.agent_id}--`)) {
+        candidates.push({ key, agent });
+      }
+    }
+
+    if (!candidates.length) {
+      throw new Error(`Unknown agent_id: ${payload.agent_id}`);
+    }
+
+    throw new Error(
+      `Ambiguous agent_id: ${payload.agent_id}. Include attempt, task_id, batch_id, or the disambiguated runtime agent_id when reusing base agent ids.`
+    );
   }
 
   recompute(state, timestamp) {

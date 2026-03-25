@@ -203,6 +203,7 @@ Because Flow decomposes and dispatches tasks, request the expanded status layout
 - Initialize each task semantically as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
 - When tasks are grouped for Stage 3, emit dispatch metadata such as `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
 - Register every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
+- Prefer a unique `agent_id` per visible subagent attempt. If the runtime or caller reuses a base id such as `executor-core`, include disambiguating metadata (`attempt`, `task_id`, and/or `batch_id`) on `agent.started`, `agent.heartbeat`, and `agent.finished` so runtime/plugin can keep multiple agent nodes visible instead of treating later updates as ambiguous.
 - Keep `run-status.json` as the lightweight run index with task counts, active ids, and references to task/agent files rather than duplicating all live task detail there.
 
 ## CONFIRM / VERBOSE PROTOCOL

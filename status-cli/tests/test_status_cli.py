@@ -605,6 +605,58 @@ class StatusCliTests(unittest.TestCase):
             result.stdout,
         )
 
+    def test_agent_list_shows_multiple_disambiguated_agent_attempts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture_copy = Path(temp_dir) / "status-layout.expanded.valid"
+            shutil.copytree(EXPANDED_FIXTURE_DIR, fixture_copy)
+
+            run_status_path = fixture_copy / "run-status.json"
+            run_status = json.loads(run_status_path.read_text(encoding="utf-8"))
+            run_status["agent_refs"].append(
+                {
+                    "agent_id": "agent-server-01--attempt-2--task-task-local-server-smoke",
+                    "path": "status/agents/agent-server-01--attempt-2--task-task-local-server-smoke.json",
+                }
+            )
+            run_status_path.write_text(
+                json.dumps(run_status, indent=2) + "\n", encoding="utf-8"
+            )
+
+            derived_agent_path = (
+                fixture_copy
+                / "agents"
+                / "agent-server-01--attempt-2--task-task-local-server-smoke.json"
+            )
+            derived_agent = json.loads(
+                (fixture_copy / "agents" / "agent-server-01.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            derived_agent["agent_id"] = (
+                "agent-server-01--attempt-2--task-task-local-server-smoke"
+            )
+            derived_agent["attempt"] = 2
+            derived_agent["status"] = "failed"
+            derived_agent["updated_at"] = "2026-03-17T15:10:00Z"
+            derived_agent["completed_at"] = "2026-03-17T15:10:00Z"
+            derived_agent["error"] = "Second attempt failed after teardown retry."
+            derived_agent_path.write_text(
+                json.dumps(derived_agent, indent=2) + "\n", encoding="utf-8"
+            )
+
+            result = run_cli("agent", "list", "--project-dir", str(fixture_copy))
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Agents (6):", result.stdout)
+        self.assertIn(
+            "agent-server-01 [blocked] task=task-local-server-smoke agent=executor-core attempt=1 cleanup=failed",
+            result.stdout,
+        )
+        self.assertIn(
+            "agent-server-01--attempt-2--task-task-local-server-smoke [failed] task=task-local-server-smoke agent=executor-core attempt=2 cleanup=failed",
+            result.stdout,
+        )
+
     def test_agent_list_supports_status_and_task_filters(self) -> None:
         result = run_cli(
             "agent",

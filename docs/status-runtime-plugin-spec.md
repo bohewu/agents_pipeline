@@ -21,6 +21,8 @@ The runtime/plugin observes orchestrator and subagent lifecycle events, then wri
 
 The plugin owns file creation, canonical field shape, timestamps, and index reconciliation. Orchestrator prompts only need to surface semantic transitions such as stage completion, task planning, dispatch metadata, and final summaries.
 
+When runtimes reuse a base `agent_id` across multiple visible attempts or subagents, the plugin must preserve each distinct agent record instead of overwriting the prior file/ref. The first instance may keep the requested `agent_id`; later colliding instances should receive a stable derived runtime `agent_id` (for example by suffixing attempt/task metadata) so `agent_refs` and `active_agent_ids` can represent all visible nodes.
+
 ## Ownership split
 
 ### Runtime/plugin owns
@@ -61,10 +63,13 @@ The plugin can stay small if the runtime emits a bounded set of events:
    - payload: `task_id` plus canonical task patch fields
 6. `agent.started`
    - payload: `agent_id`, `agent`, optional `task_id`, optional `batch_id`, attempt
+   - if the same base `agent_id` is reused for another visible attempt, runtime may emit a disambiguated canonical `agent_id` in persisted artifacts while continuing to accept the original event payload fields for matching when they remain unambiguous
 7. `agent.heartbeat`
    - payload: `agent_id`, status, optional resource metadata
+   - when base ids are reused concurrently, callers should also include `attempt`, `task_id`, or `batch_id` so runtime can target the intended persisted agent record
 8. `agent.finished`
    - payload: `agent_id`, terminal status, result/error/evidence fields
+   - same disambiguation rule as heartbeat events
 9. `run.finished`
    - payload: terminal run status, notes, artifact refs
 

@@ -6,14 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-03-25
+
 ### Changed
 
+- `README.md` now leads with release / no-clone installation, adds a copy-paste Ubuntu/macOS/Linux all-in-one one-liner, and keeps clone-based install as a secondary path.
 - Release-bundle install sections in `README.md` now use collapsible blocks, and pinned bootstrap examples are synchronized from `VERSION` via `scripts/sync-readme-version.py` so future version bumps are easier to keep in sync.
 - `README.md` now folds more maintainer/reference sections into collapsible blocks and clarifies the Bash-first Ubuntu/macOS/Linux all-in-one bootstrap flow.
+- Flow and pipeline orchestrator guidance now explicitly asks visible subagent attempts to use unique `agent_id` values or include disambiguating metadata when a base id is reused.
 
 ### Fixed
 
+- Status runtime agent tracking now preserves multiple visible agent records when the same base `agent_id` is reused, instead of silently overwriting prior nodes in `status-cli`.
 - Release bundle packaging now normalizes shipped shell/Python script permissions, and the all-in-one Bash bootstrap installer reapplies readable/executable bits after extraction to avoid Linux permission-denied install failures.
+- `scripts/sync-readme-version.py` now covers the added all-in-one shell snippet so README release examples stay aligned with `VERSION`.
 
 ## [0.12.0] - 2026-03-24
 

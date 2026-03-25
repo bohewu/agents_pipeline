@@ -267,6 +267,7 @@ Use the expanded status layout for this orchestrator once task decomposition beg
 - Initialize task records from the TaskList with `status = pending`, then move tasks to `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` as orchestration logic decides.
 - After Stage 4 routing, emit dispatch metadata when available, including `assigned_executor`, `resource_class`, `max_parallelism`, `teardown_required`, dependencies, and any task/agent relationships that should appear in `run-status.json`.
 - Register every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
+- Prefer a unique `agent_id` per visible subagent attempt. If a base id such as `executor-core` is reused, include disambiguating metadata (`attempt`, `task_id`, and/or `batch_id`) on `agent.started`, `agent.heartbeat`, and `agent.finished` so runtime/plugin can preserve multiple agent nodes and route follow-up updates to the intended record.
 - Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
 - During reconciliation, merge executor outcomes back into task/run semantics, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
 

@@ -6,8 +6,14 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 ## Contents
 
 - [Usage Prerequisites](#usage-prerequisites)
-- [Local Install Options](#install-recommended)
-- [Release Bundle Install Options](#install-without-clone-release-bundle)
+- [Install Without Clone (Release Bundle)](#install-without-clone-release-bundle)
+  - [OpenCode core](#opencode-core)
+  - [Status plugin only](#status-plugin-only)
+  - [All local assets](#all-local-assets)
+  - [Copilot agents](#copilot-agents)
+  - [Claude Code subagents](#claude-code-subagents)
+  - [Codex roles](#codex-roles)
+- [Install From Clone (Local Scripts)](#install-from-clone-local-scripts)
 - [How To Use](#how-to-use)
 - [Quick Start](#quick-start)
 - [Protocol Validation](#protocol-validation)
@@ -18,8 +24,9 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 
 ## TL;DR
 
-- Local install: `bash scripts/install.sh` or `pwsh -NoProfile -File scripts/install.ps1`
-- Release bundle install: expand `Install Without Clone (Release Bundle)` and use the pinned bootstrap command you need
+- Most users should start with `Install Without Clone (Release Bundle)` and pick the target that matches OpenCode core, plugin-only, all-in-one, Copilot, Claude, or Codex.
+- Ubuntu/macOS/Linux all-in-one install: prefer `bash ./bootstrap-install-all-local.sh ...`; a freshly downloaded `./bootstrap-install-all-local.sh` can hit `permission denied` until you `chmod +x` it.
+- Already cloned the repo? Use local scripts such as `bash scripts/install.sh` or `pwsh -NoProfile -File scripts/install.ps1`.
 - Most common run: `/run-pipeline Implement OAuth2 login --effort=balanced`
 
 ## Usage Prerequisites
@@ -37,7 +44,247 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
 - `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
 
-## Install (Recommended)
+## Install Without Clone (Release Bundle)
+
+Use this when you do not want to clone the repo and prefer installing from a published release.
+
+Bootstrap installers download a release bundle, verify the archive checksum against the release `SHA256SUMS` asset, and then install only the target you choose.
+
+Choose the install target that matches what you want:
+
+- [OpenCode core](#opencode-core): install the main OpenCode config only.
+- [Status plugin only](#status-plugin-only): install just the OpenCode status runtime plugin.
+- [All local assets](#all-local-assets): install OpenCode core + plugin + Copilot + Claude + Codex in one step.
+- [Copilot agents](#copilot-agents): install only VS Code Copilot custom agents.
+- [Claude Code subagents](#claude-code-subagents): install only Claude Code agent markdown files.
+- [Codex roles](#codex-roles): install only Codex role config.
+
+PowerShell tips:
+
+- Prefer pinned tags over `main`.
+- Pass `-Target` explicitly when you know the install location.
+- When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
+- Bootstrap installers create backups by default when they detect existing installed files.
+
+<details>
+<summary>Release bundle install commands</summary>
+
+### OpenCode core
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
+pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"
+curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
+bash ./bootstrap-install.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
+```
+
+### Status plugin only
+
+Use this when you want only the OpenCode status runtime plugin from a release bundle.
+As with the local installer, the target must be the plugin entry file path, not a directory.
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1
+pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"
+curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"
+bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
+```
+
+Dry-run preview (resolves release metadata only):
+
+```powershell
+pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js" -DryRun
+```
+
+```bash
+bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
+```
+
+### All local assets
+
+Use this when you want OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together from one release bundle.
+
+Ubuntu/macOS/Linux safety note:
+
+- The easiest copy-paste path is to pipe the pinned bootstrap script into `bash`; this avoids the downloaded-file executable-bit problem entirely.
+- Prefer `bash ./bootstrap-install-all-local.sh ...` after downloading the bootstrap script.
+- A script fetched with `curl -o ./bootstrap-install-all-local.sh ...` usually does **not** have the executable bit on Ubuntu, so `./bootstrap-install-all-local.sh ...` can fail with `permission denied`.
+- If you specifically want `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
+- The bundle installer already invokes its extracted inner installer with `bash`, so the common permission problem is the downloaded bootstrap script itself, not the release contents.
+
+Copy-paste one-liner (recommended for Ubuntu/macOS/Linux):
+
+```bash
+tag="v0.12.1"; curl -fsSL "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" | bash -s -- --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
+```
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1
+pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"
+curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
+bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
+```
+
+Dry-run preview (resolves release metadata only):
+
+```powershell
+pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex" -DryRun
+```
+
+```bash
+bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
+```
+
+### Copilot agents
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
+pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"
+curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
+bash ./bootstrap-install-copilot.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
+```
+
+### Claude Code subagents
+
+Use a tagged release bundle to install Claude Code subagents without cloning this repo.
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$release = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
+pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
+```
+
+macOS/Linux:
+
+```bash
+release="v0.12.1"
+curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
+bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
+```
+
+Optional project-local override:
+
+```powershell
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
+pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "C:\path\to\your-project\.claude\agents"
+```
+
+```bash
+curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
+bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
+```
+
+See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, and the current orchestrator limitations.
+
+### Codex roles
+
+Pinned version (recommended):
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
+pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+```
+
+If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
+
+```powershell
+$tag = "v0.12.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
+pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.12.1"
+curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
+bash ./bootstrap-install-codex.sh --version "${tag}"
+```
+
+Quick one-liners (less auditable):
+
+```powershell
+irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
+```
+
+</details>
+
+## Install From Clone (Local Scripts)
 
 Use this when you already cloned the repo and want the standard OpenCode local install.
 
@@ -359,266 +606,17 @@ Important Codex usage note:
 
 </details>
 
-## Install Without Clone (Release Bundle)
-
-Use this when you do not want to clone the repo and prefer installing from a published release.
-
-Use bootstrap installers to download a release bundle and install without cloning this repo.
-Bootstrap scripts verify the downloaded archive checksum against the release `SHA256SUMS` asset before install.
-
-PowerShell tips:
-
-- Prefer pinned tags over `main`.
-- Pass `-Target` explicitly when you know the install location.
-- When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
-- Bootstrap installers create backups by default when they detect existing installed files.
-
-<details>
-<summary>Release bundle install commands</summary>
-
-<details>
-<summary>OpenCode core bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
-pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.12.0"
-curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
-bash ./bootstrap-install.sh --version "${tag}"
-```
-
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
-```
-
-</details>
-
-## Install OpenCode Status Plugin Without Clone (Release Bundle)
-
-Use the bootstrap plugin installers when you want only the OpenCode status runtime plugin from a release bundle.
-As with the local installer, the target must be the plugin entry file path, not a directory.
-
-<details>
-<summary>Plugin-only bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.12.0"
-curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
-```
-
-Dry-run preview (resolves release metadata only):
-
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js" -DryRun
-```
-
-```bash
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
-```
-
-</details>
-
-## Install All Local Assets Without Clone (Release Bundle)
-
-Use the bootstrap all-in-one installers to download a release bundle and install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together.
-
-- Ubuntu/macOS/Linux tip: run the downloaded bootstrap script as `bash ./bootstrap-install-all-local.sh ...`.
-- If you prefer `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
-
-<details>
-<summary>All-in-one bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.12.0"
-curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
-```
-
-Dry-run preview (resolves release metadata only):
-
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex" -DryRun
-```
-
-```bash
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
-```
-
-</details>
-
-## Install Copilot Without Clone (Release Bundle)
-
-<details>
-<summary>Copilot bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
-pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.12.0"
-curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
-bash ./bootstrap-install-copilot.sh --version "${tag}"
-```
-
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
-```
-
-</details>
-
-## Install Claude Code Without Clone (Release Bundle)
-
-Use a tagged release bundle to install Claude Code subagents without cloning this repo.
-
-<details>
-<summary>Claude Code bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$release = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
-pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
-```
-
-macOS/Linux:
-
-```bash
-release="v0.12.0"
-curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
-bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
-```
-
-Optional project-local override:
-
-```powershell
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
-pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "C:\path\to\your-project\.claude\agents"
-```
-
-```bash
-curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
-bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
-```
-
-</details>
-
-See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, and the current orchestrator limitations.
-
-## Install Codex Without Clone (Release Bundle)
-
-<details>
-<summary>Codex bundle</summary>
-
-Pinned version (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
-pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
-```
-
-If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
-
-```powershell
-$tag = "v0.12.0"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
-pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.12.0"
-curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
-bash ./bootstrap-install-codex.sh --version "${tag}"
-```
-
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
-```
-
-</details>
-
-</details>
-
 ## Versioning
 
 <details>
 <summary>Maintainer release notes</summary>
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.12.0`).
-- Use SemVer tags with `v` prefix (for example: `v0.12.0`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.12.1`).
+- Use SemVer tags with `v` prefix (for example: `v0.12.1`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.12.0` must release as `v0.12.0`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.12.1` must release as `v0.12.1`).
 - After bumping `VERSION`, run `python scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
@@ -626,7 +624,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.12.0`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.12.1`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -650,8 +648,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Example release:
 
 ```bash
-git tag v0.12.0
-git push origin v0.12.0
+git tag v0.12.1
+git push origin v0.12.1
 ```
 
 ## Public Release Checklist

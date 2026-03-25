@@ -16,7 +16,7 @@ MANAGED_REPLACEMENTS = (
     (
         r'tag="v\d+\.\d+\.\d+"',
         lambda version, tag: f'tag="{tag}"',
-        5,
+        6,
         "tag shell snippets",
     ),
     (
