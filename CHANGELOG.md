@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-03-25
+
+### Changed
+
+- `README.md` install guidance now uses a more consistent copy-paste-first structure across release targets, keeps clone-based install guidance scoped to developers, and clarifies the all-in-one Bash flow.
+- Codex install docs now explain that the standard install path already backs up and overwrites existing `.codex` files, instead of making users reach for a separate overwrite flag.
+
+### Fixed
+
+- Codex install and bootstrap scripts now enable overwrite mode by default, matching the behavior users already expect from the other installers while preserving backups and backward-compatible force flags.
+- Bash release install one-liners now use safer command chaining, and the README version-sync helper now matches the updated install snippet layout.
+
 ## [0.12.1] - 2026-03-25
 
 ### Changed
