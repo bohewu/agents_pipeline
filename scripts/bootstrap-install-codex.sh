@@ -13,7 +13,7 @@ Options:
   --version <value>     Release tag (for example: v0.5.1) or latest (default: latest)
   --target <path>       Install destination (forwarded to install-codex.sh)
   --no-backup           Do not back up existing installed files
-  --force               Allow overwrite when target contains non-generated Codex files
+  --force               Accepted for backward compatibility; overwrite is already enabled by default
   --dry-run             Resolve release and print actions only
   --keep-temp           Keep downloaded temporary files
   -h, --help            Show this help

@@ -142,7 +142,7 @@ $tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/ag
 macOS/Linux:
 
 ```bash
-tag="v0.12.1" && curl -fsSL "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" | bash -s -- --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
+tag="v0.12.1" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
 ```
 
 Ubuntu/macOS/Linux notes if you prefer downloading the script first:
@@ -232,18 +232,12 @@ See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, an
 
 Copy-paste commands (recommended):
 
+Existing `.codex` files are backed up and overwritten by default, so the standard install command is usually enough.
+
 Windows (PowerShell):
 
 ```powershell
 $tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
-```
-
-If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
-
-```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
-pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex" -Force:$true
 ```
 
 macOS/Linux:
@@ -416,7 +410,7 @@ Common options:
 
 - Preview only: `pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun` or `bash scripts/install-codex.sh --dry-run`
 - Custom target: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex` or `bash scripts/install-codex.sh --target /path/to/.codex`
-- Force overwrite: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target "$HOME\.codex" -Force:$true` or `bash scripts/install-codex.sh --force`
+- Existing Codex files are backed up and overwritten by default; `-Force` / `--force` is accepted only for backward compatibility.
 
 Important Codex usage note:
 

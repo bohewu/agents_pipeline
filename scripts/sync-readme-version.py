@@ -10,7 +10,7 @@ MANAGED_REPLACEMENTS = (
     (
         r'\$tag = "v\d+\.\d+\.\d+"',
         lambda version, tag: f'$tag = "{tag}"',
-        6,
+        5,
         "$tag PowerShell snippets",
     ),
     (

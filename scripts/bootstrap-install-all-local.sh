@@ -17,7 +17,7 @@ Options:
   --claude-target <path>       Override Claude agents install target
   --codex-target <path>        Override Codex config install target
   --no-backup                  Do not back up existing installed files
-  --force-codex                Allow overwrite when target contains non-generated Codex files
+  --force-codex                Accepted for backward compatibility; Codex overwrite is already enabled by default
   --dry-run                    Resolve release and print actions only
   --keep-temp                  Keep downloaded temporary files
   -h, --help                   Show this help

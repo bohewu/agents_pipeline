@@ -16,7 +16,7 @@ Options:
   --codex-target <path>     Override Codex config install target
   --dry-run                 Print actions without writing files
   --no-backup               Skip backups in underlying installers
-  --force-codex             Pass --force to Codex installer
+  --force-codex             Accepted for backward compatibility; Codex overwrite is already enabled by default
   -h, --help                Show this help
 
 Includes:

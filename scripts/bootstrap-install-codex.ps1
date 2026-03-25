@@ -60,7 +60,7 @@ Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
 if ($Target) {
     if ($Target -match '^-{1,2}[A-Za-z]') {
-        throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly and use -Force:`$true for overwrite mode."
+        throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly with a filesystem path value."
     }
     Write-Host "Install target override: $Target"
 }

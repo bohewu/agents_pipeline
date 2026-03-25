@@ -38,7 +38,7 @@ if (-not $Target) {
 }
 
 if ($Target -match '^-{1,2}[A-Za-z]') {
-    throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly and use -Force:`$true for overwrite mode."
+    throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly with a filesystem path value."
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
@@ -47,7 +47,7 @@ $pythonCmd = Get-PythonCommand
 Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
 Write-Host "DryRun: $DryRun"
-Write-Host "Force: $Force"
+Write-Host "Overwrite existing Codex files: enabled"
 Write-Host "Cleanup: stale generated Codex outputs only"
 
 $existingConfig = $null
@@ -97,9 +97,7 @@ $exportArgs = @(
     "--target-dir", $targetPath,
     "--strict"
 )
-if ($Force) {
-    $exportArgs += "--force"
-}
+$exportArgs += "--force"
 if ($DryRun) {
     $exportArgs += "--dry-run"
 }
