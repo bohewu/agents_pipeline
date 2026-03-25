@@ -6,14 +6,14 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 ## Contents
 
 - [Usage Prerequisites](#usage-prerequisites)
-- [Install Without Clone (Release Bundle)](#install-without-clone-release-bundle)
+- [Install (Recommended)](#install-recommended)
   - [OpenCode core](#opencode-core)
   - [Status plugin only](#status-plugin-only)
   - [All local assets](#all-local-assets)
   - [Copilot agents](#copilot-agents)
   - [Claude Code subagents](#claude-code-subagents)
   - [Codex roles](#codex-roles)
-- [Install From Clone (Local Scripts)](#install-from-clone-local-scripts)
+- [Developer Install (Clone Repo)](#developer-install-clone-repo)
 - [How To Use](#how-to-use)
 - [Quick Start](#quick-start)
 - [Protocol Validation](#protocol-validation)
@@ -24,9 +24,9 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 
 ## TL;DR
 
-- Most users should start with `Install Without Clone (Release Bundle)` and pick the target that matches OpenCode core, plugin-only, all-in-one, Copilot, Claude, or Codex.
-- Ubuntu/macOS/Linux all-in-one install: prefer `bash ./bootstrap-install-all-local.sh ...`; a freshly downloaded `./bootstrap-install-all-local.sh` can hit `permission denied` until you `chmod +x` it.
-- Already cloned the repo? Use local scripts such as `bash scripts/install.sh` or `pwsh -NoProfile -File scripts/install.ps1`.
+- Most users should use the published release bundle install commands in `Install (Recommended)`.
+- Fastest Ubuntu/macOS/Linux all-in-one path: paste the one-liner in `All local assets`; no extra `chmod` step is needed for that path.
+- If you are editing this repo or testing local changes from your working tree, use `Developer Install (Clone Repo)`.
 - Most common run: `/run-pipeline Implement OAuth2 login --effort=balanced`
 
 ## Usage Prerequisites
@@ -42,15 +42,21 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 - Codex CLI (optional; for Codex multi-agent usage)
 - Python 3.9+ (required for `opencode/tools/validate-schema.py`, `scripts/export-copilot-agents.py`, and `scripts/export-codex-agents.py`)
 - PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
-- `curl` + `tar` + `sha256sum` (or `shasum`) for no-clone bootstrap install on macOS/Linux
+- `curl` + `tar` + `sha256sum` (or `shasum`) for release-bundle bootstrap install on macOS/Linux
 
-## Install Without Clone (Release Bundle)
+## Install (Recommended)
 
-Use this when you do not want to clone the repo and prefer installing from a published release.
+These commands install from the published release bundle and are the default path for most users.
 
 Bootstrap installers download a release bundle, verify the archive checksum against the release `SHA256SUMS` asset, and then install only the target you choose.
 
-Choose the install target that matches what you want:
+Most common choices:
+
+- Want everything in one step: start with `All local assets`.
+- Already have OpenCode and only need runtime status files for `status-cli`: use `Status plugin only`.
+- Only need one editor/CLI integration: jump to `Copilot agents`, `Claude Code subagents`, or `Codex roles`.
+
+Pick the install target that matches what you want:
 
 - [OpenCode core](#opencode-core): install the main OpenCode config only.
 - [Status plugin only](#status-plugin-only): install just the OpenCode status runtime plugin.
@@ -65,9 +71,6 @@ PowerShell tips:
 - Pass `-Target` explicitly when you know the install location.
 - When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
 - Bootstrap installers create backups by default when they detect existing installed files.
-
-<details>
-<summary>Release bundle install commands</summary>
 
 ### OpenCode core
 
@@ -101,8 +104,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ### Status plugin only
 
-Use this when you want only the OpenCode status runtime plugin from a release bundle.
-As with the local installer, the target must be the plugin entry file path, not a directory.
+Install only the OpenCode status runtime plugin from the release bundle.
+The target must be the plugin entry file path, not a directory.
 
 Pinned version (recommended):
 
@@ -134,15 +137,14 @@ bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$
 
 ### All local assets
 
-Use this when you want OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together from one release bundle.
+Install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together from one release bundle.
 
-Ubuntu/macOS/Linux safety note:
+Ubuntu/macOS/Linux notes:
 
 - The easiest copy-paste path is to pipe the pinned bootstrap script into `bash`; this avoids the downloaded-file executable-bit problem entirely.
-- Prefer `bash ./bootstrap-install-all-local.sh ...` after downloading the bootstrap script.
+- If you download the bootstrap script first, run it as `bash ./bootstrap-install-all-local.sh ...`.
 - A script fetched with `curl -o ./bootstrap-install-all-local.sh ...` usually does **not** have the executable bit on Ubuntu, so `./bootstrap-install-all-local.sh ...` can fail with `permission denied`.
 - If you specifically want `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
-- The bundle installer already invokes its extracted inner installer with `bash`, so the common permission problem is the downloaded bootstrap script itself, not the release contents.
 
 Copy-paste one-liner (recommended for Ubuntu/macOS/Linux):
 
@@ -210,7 +212,7 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ### Claude Code subagents
 
-Use a tagged release bundle to install Claude Code subagents without cloning this repo.
+Use a tagged release bundle to install Claude Code subagents.
 
 Pinned version (recommended):
 
@@ -282,16 +284,13 @@ irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootst
 curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
 ```
 
-</details>
+## Developer Install (Clone Repo)
 
-## Install From Clone (Local Scripts)
+Use this when you are modifying this repo, validating local changes, or you specifically want installers from your working tree instead of the latest release bundle.
 
-Use this when you already cloned the repo and want the standard OpenCode local install.
+### OpenCode core from clone
 
-Install into your local OpenCode config directory with local scripts (default target: `~/.config/opencode`):
-
-<details>
-<summary>OpenCode local install commands</summary>
+Default target: `~/.config/opencode`
 
 Windows (PowerShell):
 
@@ -305,46 +304,17 @@ macOS/Linux:
 bash scripts/install.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install.ps1 -DryRun
-```
+- Preview only: `pwsh -NoProfile -File scripts/install.ps1 -DryRun` or `bash scripts/install.sh --dry-run`
+- Custom target: `pwsh -NoProfile -File scripts/install.ps1 -Target C:\path\to\opencode-config` or `bash scripts/install.sh --target /path/to/opencode-config`
+- Skip backup: `pwsh -NoProfile -File scripts/install.ps1 -NoBackup` or `bash scripts/install.sh --no-backup`
 
-```bash
-bash scripts/install.sh --dry-run
-```
-
-Custom target path:
-
-```powershell
-pwsh -NoProfile -File scripts/install.ps1 -Target C:\path\to\opencode-config
-```
-
-```bash
-bash scripts/install.sh --target /path/to/opencode-config
-```
-
-Skip backup of existing installed files:
-
-```powershell
-pwsh -NoProfile -File scripts/install.ps1 -NoBackup
-```
-
-```bash
-bash scripts/install.sh --no-backup
-```
-
-</details>
-
-## Install OpenCode Status Plugin Only (Local)
+### Status plugin only from clone
 
 Use this when OpenCode is already set up and you only want the status runtime plugin.
-OpenCode local plugins are loaded from a JS/TS entry file in the plugins directory, so this installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
+The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
-
-<details>
-<summary>Status plugin local install commands</summary>
 
 Installed file layout:
 
@@ -371,36 +341,14 @@ macOS/Linux:
 bash scripts/install-plugin-status-runtime.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -DryRun
-```
+- Preview only: `pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -DryRun` or `bash scripts/install-plugin-status-runtime.sh --dry-run`
+- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\to\opencode-config\plugins\status-runtime.js` or `bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime.js`
 
-```bash
-bash scripts/install-plugin-status-runtime.sh --dry-run
-```
+### All local assets from clone
 
-Custom target entry-file path:
-
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\to\opencode-config\plugins\status-runtime.js
-```
-
-```bash
-bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime.js
-```
-
-</details>
-
-## Install All Local Assets (OpenCode + Plugin + Copilot + Claude + Codex)
-
-Use this when you want one command to install every supported local asset together.
-
-Use the all-in-one local installers when you want the OpenCode core config, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together with one command.
-
-<details>
-<summary>All local assets install commands</summary>
+Use this when you want the OpenCode core config, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together from your working tree.
 
 Windows (PowerShell):
 
@@ -414,39 +362,15 @@ macOS/Linux:
 bash scripts/install-all-local.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install-all-local.ps1 -DryRun
-```
+- Preview only: `pwsh -NoProfile -File scripts/install-all-local.ps1 -DryRun` or `bash scripts/install-all-local.sh --dry-run`
+- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
+- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
 
-```bash
-bash scripts/install-all-local.sh --dry-run
-```
+### Copilot agents from clone
 
-Per-target overrides:
-
-```powershell
-pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex
-```
-
-```bash
-bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex
-```
-
-</details>
-
-## Install Copilot Agents (Recommended)
-
-Use this when you only need the generated VS Code Copilot agents.
-
-Generate and install VS Code Copilot custom agents to your global Copilot location.
-
-<details>
-<summary>Copilot install commands</summary>
-
-Default target:
-- All platforms: `~/.copilot/agents`
+Default target: `~/.copilot/agents`
 
 Windows (PowerShell):
 
@@ -460,49 +384,17 @@ macOS/Linux:
 bash scripts/install-copilot.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install-copilot.ps1 -DryRun
-```
+- Preview only: `pwsh -NoProfile -File scripts/install-copilot.ps1 -DryRun` or `bash scripts/install-copilot.sh --dry-run`
+- Custom target: `pwsh -NoProfile -File scripts/install-copilot.ps1 -Target C:\path\to\copilot\agents` or `bash scripts/install-copilot.sh --target /path/to/copilot/agents`
+- Skip backup: `pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup` or `bash scripts/install-copilot.sh --no-backup`
 
-```bash
-bash scripts/install-copilot.sh --dry-run
-```
+### Claude Code subagents from clone
 
-Custom target path:
-
-```powershell
-pwsh -NoProfile -File scripts/install-copilot.ps1 -Target C:\path\to\copilot\agents
-```
-
-```bash
-bash scripts/install-copilot.sh --target /path/to/copilot/agents
-```
-
-Skip backup:
-
-```powershell
-pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup
-```
-
-```bash
-bash scripts/install-copilot.sh --no-backup
-```
-
-</details>
-
-## Install Claude Code Subagents (Recommended)
-
-Use this when you only need the generated Claude Code subagents.
+Default target: `~/.claude/agents`
 
 Claude Code support is file-based today. Treat `opencode/agents/*.md` as the source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
-
-<details>
-<summary>Claude install commands</summary>
-
-Default target:
-- All platforms: `~/.claude/agents`
 
 Windows (PowerShell):
 
@@ -516,44 +408,19 @@ macOS/Linux:
 bash scripts/install-claude.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install-claude.ps1 -DryRun
-```
-
-```bash
-bash scripts/install-claude.sh --dry-run
-```
-
-Custom target path (optional project-local override):
-
-```powershell
-pwsh -NoProfile -File scripts/install-claude.ps1 -Target C:\path\to\your-project\.claude\agents
-```
-
-```bash
-bash scripts/install-claude.sh --target /path/to/your-project/.claude/agents
-```
+- Preview only: `pwsh -NoProfile -File scripts/install-claude.ps1 -DryRun` or `bash scripts/install-claude.sh --dry-run`
+- Custom target: `pwsh -NoProfile -File scripts/install-claude.ps1 -Target C:\path\to\your-project\.claude\agents` or `bash scripts/install-claude.sh --target /path/to/your-project/.claude/agents`
 
 Claude Code limitation note:
 
 - Keep orchestrator guidance conservative: do not assume nested orchestrator -> subagent -> subagent routing in Claude Code.
 - Prefer inline execution for orchestrator-owned stages, or invoke leaf subagents directly when needed.
 
-</details>
+### Codex roles from clone
 
-## Install Codex Roles (Recommended)
-
-Use this when you only need the generated Codex role config.
-
-Generate and install Codex multi-agent role config to a Codex config directory.
-
-<details>
-<summary>Codex install commands</summary>
-
-Default target:
-- All platforms: `~/.codex`
+Default target: `~/.codex`
 
 Windows (PowerShell):
 
@@ -567,35 +434,11 @@ macOS/Linux:
 bash scripts/install-codex.sh
 ```
 
-Preview only (no file writes):
+Common options:
 
-```powershell
-pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun
-```
-
-```bash
-bash scripts/install-codex.sh --dry-run
-```
-
-Custom target path:
-
-```powershell
-pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex
-```
-
-```bash
-bash scripts/install-codex.sh --target /path/to/.codex
-```
-
-Force overwrite when the target already contains non-generated Codex config:
-
-```powershell
-pwsh -NoProfile -File scripts/install-codex.ps1 -Target "$HOME\.codex" -Force:$true
-```
-
-```bash
-bash scripts/install-codex.sh --force
-```
+- Preview only: `pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun` or `bash scripts/install-codex.sh --dry-run`
+- Custom target: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex` or `bash scripts/install-codex.sh --target /path/to/.codex`
+- Force overwrite: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target "$HOME\.codex" -Force:$true` or `bash scripts/install-codex.sh --force`
 
 Important Codex usage note:
 
@@ -603,8 +446,6 @@ Important Codex usage note:
 - Use them by role name in prompts.
 - Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
 - Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`
-
-</details>
 
 ## Versioning
 
