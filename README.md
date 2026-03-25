@@ -74,22 +74,18 @@ PowerShell tips:
 
 ### OpenCode core
 
-Pinned version (recommended):
+Copy-paste commands (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1
-pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
+$tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.12.1"
-curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"
-bash ./bootstrap-install.sh --version "${tag}"
+tag="v0.12.1"; curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh"; bash ./bootstrap-install.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -107,22 +103,18 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 Install only the OpenCode status runtime plugin from the release bundle.
 The target must be the plugin entry file path, not a directory.
 
-Pinned version (recommended):
+Copy-paste commands (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
+$tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.12.1"
-curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
+tag="v0.12.1"; curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh"; bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -180,22 +172,18 @@ bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOM
 
 ### Copilot agents
 
-Pinned version (recommended):
+Copy-paste commands (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1
-pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.12.1"
-curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"
-bash ./bootstrap-install-copilot.sh --version "${tag}"
+tag="v0.12.1"; curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh"; bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -212,22 +200,18 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 Use a tagged release bundle to install Claude Code subagents.
 
-Pinned version (recommended):
+Copy-paste commands (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
-pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
+$release = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-release="v0.12.1"
-curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
-bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
+release="v0.12.1"; curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"; bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
 Optional project-local override:
@@ -246,14 +230,12 @@ See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, an
 
 ### Codex roles
 
-Pinned version (recommended):
+Copy-paste commands (recommended):
 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.12.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1
-pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.12.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 If `~/.codex` already contains an existing custom Codex config and you intend to overwrite it, use:
@@ -267,9 +249,7 @@ pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME
 macOS/Linux:
 
 ```bash
-tag="v0.12.1"
-curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"
-bash ./bootstrap-install-codex.sh --version "${tag}"
+tag="v0.12.1"; curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh"; bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
