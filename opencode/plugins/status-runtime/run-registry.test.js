@@ -4,7 +4,7 @@ const path = require("path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { StatusProjector } = require("./status-projector");
+const { StatusProjector, StatusRuntime } = require("./index");
 const { RunRegistry } = require("./run-registry");
 
 async function writeJson(filePath, value) {
@@ -250,4 +250,47 @@ test("status projector rejects ambiguous heartbeat updates when reused agent ids
       }),
     /Ambiguous agent_id: executor-core/
   );
+});
+
+test("status runtime rejects agent.started without agent_id and agent before registry work", async () => {
+  let registryTouched = false;
+  const runtime = new StatusRuntime({
+    registry: {
+      async resolveFreshRun() {
+        registryTouched = true;
+        throw new Error("registry should not be called");
+      }
+    }
+  });
+
+  await assert.rejects(
+    runtime.applyEvent("agent.started", {
+      output_root: "/tmp/status-runtime-validation",
+      run_id: "run-validation"
+    }),
+    /agent\.started requires non-empty string field\(s\): agent_id, agent/
+  );
+  assert.equal(registryTouched, false);
+});
+
+test("status runtime rejects agent.started without agent using a clear message", async () => {
+  let registryTouched = false;
+  const runtime = new StatusRuntime({
+    registry: {
+      async resolveFreshRun() {
+        registryTouched = true;
+        throw new Error("registry should not be called");
+      }
+    }
+  });
+
+  await assert.rejects(
+    runtime.applyEvent("agent.started", {
+      output_root: "/tmp/status-runtime-validation",
+      run_id: "run-validation",
+      agent_id: "repo-scout-stage0"
+    }),
+    /agent\.started requires non-empty string field\(s\): agent/
+  );
+  assert.equal(registryTouched, false);
 });

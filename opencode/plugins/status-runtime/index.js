@@ -16,6 +16,28 @@ const STATUS_RUNTIME_EVENTS = [
   "run.finished"
 ];
 
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
+function validateEventPayload(eventName, payload) {
+  if (eventName !== "agent.started") {
+    return;
+  }
+
+  const missingFields = [];
+  if (!isNonEmptyString(payload.agent_id)) {
+    missingFields.push("agent_id");
+  }
+  if (!isNonEmptyString(payload.agent)) {
+    missingFields.push("agent");
+  }
+
+  if (missingFields.length) {
+    throw new Error(`agent.started requires non-empty string field(s): ${missingFields.join(", ")}`);
+  }
+}
+
 class StatusRuntime {
   constructor(options = {}) {
     this.writer = options.writer || new StatusWriter();
@@ -24,6 +46,8 @@ class StatusRuntime {
   }
 
   async applyEvent(eventName, payload) {
+    validateEventPayload(eventName, payload);
+
     let run;
     if (eventName === "run.started") {
       run = await this.registry.resolveFreshRun({ output_root: payload.output_root, run_id: payload.run_id });

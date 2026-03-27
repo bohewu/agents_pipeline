@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-03-27
+
+### Fixed
+
+- Status runtime now validates `agent.started` payloads at the entry point and reports missing `agent_id` and/or `agent` fields with a single clearer error before deeper runtime processing begins.
+
 ## [0.12.2] - 2026-03-25
 
 ### Changed
