@@ -35,6 +35,13 @@ Optional: Playwright on `main` or nightly
 - Build logs
 - Test reports (if configured)
 
+**Supply Chain Controls**
+- Pin third-party GitHub Actions by full commit SHA
+- Use `persist-credentials: false` on checkout unless a later step truly needs git write access
+- Verify downloaded CLI/install assets with checksums when fetched outside package managers
+- Keep job `permissions` minimal and disable write scopes by default
+- Prefer OIDC for cloud or registry auth over long-lived shared secrets when supported
+
 **Failure Policy**
 - Lint or test failures block merge
 
@@ -58,7 +65,14 @@ Re-deploy previous image tag
 GitHub Actions secrets for registry and SSH
 
 **Approvals**
-Manual approval before production deploy
+Manual approval before production deploy via protected GitHub `production` environment
+
+**Release Integrity Verification**
+- Require tag/version match before release
+- Publish image digest and checksum manifest with each release artifact set
+- Verify artifact/image digest before promotion from `staging` to `production`
+- Generate GitHub Artifact Attestations or equivalent signed provenance when supported
+- If attestation is unavailable, document fallback evidence in the runbook
 
 **Risk Notes**
 Deployment depends on self-host availability
@@ -89,6 +103,12 @@ HTTP GET `/health`
 **Registry**
 GitHub Container Registry
 
+**Image Integrity**
+- Pin base images by digest where feasible
+- Promote immutable image digests instead of mutable tags alone
+- Verify pushed image digest matches the built image before deploy
+- Keep deploy inputs tied to the approved digest captured in the release job outputs
+
 ---
 
 ## ci/runbook.md
@@ -104,6 +124,12 @@ GitHub Container Registry
 **Rollback Steps**
 1. Pin previous image tag
 2. `docker compose up -d`
+
+**Pre-Release Verification**
+- Confirm release tag matches application version metadata
+- Confirm checksum manifest or attestation exists for release artifacts
+- Confirm deployment input references the approved image digest, not only a floating tag
+- Confirm protected environment approval is recorded before production deploy
 
 **Monitoring**
 Container logs + uptime monitor

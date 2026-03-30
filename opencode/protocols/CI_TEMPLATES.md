@@ -25,6 +25,8 @@ If a section is not applicable, write `N/A` with a short reason.
 
 **Artifacts**
 
+**Supply Chain Controls**
+
 **Failure Policy**
 
 ---
@@ -42,6 +44,8 @@ If a section is not applicable, write `N/A` with a short reason.
 **Secrets Management**
 
 **Approvals**
+
+**Release Integrity Verification**
 
 **Risk Notes**
 
@@ -63,6 +67,8 @@ If a section is not applicable, write `N/A` with a short reason.
 
 **Registry**
 
+**Image Integrity**
+
 ---
 
 ## ci/runbook.md
@@ -72,6 +78,8 @@ If a section is not applicable, write `N/A` with a short reason.
 **Smoke Checks**
 
 **Rollback Steps**
+
+**Pre-Release Verification**
 
 **Monitoring**
 

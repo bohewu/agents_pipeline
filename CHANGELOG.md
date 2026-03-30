@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.4] - 2026-03-30
+
+### Changed
+
+- `/run-ci` and the paired CI/CD protocol docs now treat software supply chain integrity as a first-class design requirement, including pinned GitHub Actions, least-privilege workflow permissions, immutable release inputs, and explicit release verification gates.
+
+### Fixed
+
+- Release publishing workflows now pin artifact transfer actions by full commit SHA, disable persisted checkout credentials, re-verify bundle checksums after artifact download, and require GitHub Artifact Attestation verification before publishing release assets.
+
 ## [0.12.3] - 2026-03-27
 
 ### Fixed

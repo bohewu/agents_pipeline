@@ -16,6 +16,8 @@ jobs:
     uses: ./.github/workflows/release-bundle.yml
     permissions:
       contents: read
+      attestations: write
+      id-token: write
     with:
       tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
       checkout_tag: true
@@ -26,16 +28,59 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      attestations: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          persist-credentials: false
 
       - name: Download release bundle artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ needs.bundle.outputs.artifact_name }}
           path: dist
+
+      - name: Verify downloaded release bundle checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum -c "agents-pipeline-opencode-bundle-${{ needs.bundle.outputs.tag }}.SHA256SUMS.txt"
+
+      - name: Verify release bundle attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG_NAME: ${{ needs.bundle.outputs.tag }}
+        shell: bash
+        run: |
+          signer_workflow="${REPO}/.github/workflows/release-bundle.yml"
+
+          verify_attestation() {
+            local artifact="$1"
+            local attempts=5
+
+            for ((attempt=1; attempt<=attempts; attempt++)); do
+              if gh attestation verify "${artifact}" \
+                --repo "${REPO}" \
+                --signer-workflow "${signer_workflow}" \
+                --source-ref "refs/tags/${TAG_NAME}" \
+                --deny-self-hosted-runners; then
+                return 0
+              fi
+
+              if [[ "${attempt}" -eq "${attempts}" ]]; then
+                echo "Attestation verification failed for ${artifact}." >&2
+                return 1
+              fi
+
+              sleep 5
+            done
+          }
+
+          verify_attestation "dist/agents-pipeline-opencode-bundle-${TAG_NAME}.tar.gz"
+          verify_attestation "dist/agents-pipeline-opencode-bundle-${TAG_NAME}.zip"
 
       - name: Publish release assets
         env:

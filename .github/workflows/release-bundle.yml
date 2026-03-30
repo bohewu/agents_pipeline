@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      attestations: write
+      id-token: write
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       artifact_name: ${{ steps.vars.outputs.artifact_name }}
@@ -39,6 +41,7 @@ jobs:
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve tag
         id: vars
@@ -163,9 +166,15 @@ jobs:
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.zip"
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
 
+      - name: Generate release bundle artifact attestation
+        if: inputs.upload_artifact
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        with:
+          subject-checksums: dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt
+
       - name: Upload release bundle artifacts
         if: inputs.upload_artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: ${{ steps.vars.outputs.artifact_name }}
           path: dist/*
