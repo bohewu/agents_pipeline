@@ -20,6 +20,7 @@ Options:
   --force-codex                Accepted for backward compatibility; Codex overwrite is already enabled by default
   --dry-run                    Resolve release and print actions only
   --keep-temp                  Keep downloaded temporary files
+  --verbose                    Show attestation verification details
   -h, --help                   Show this help
 
 Includes supported repo deliverables installable from the release bundle, including the OpenCode-only status plugin.
@@ -77,6 +78,12 @@ normalize_bundle_permissions() {
   shopt -u nullglob
 }
 
+log_verbose() {
+  if [[ ${VERBOSE:-0} -eq 1 ]]; then
+    printf '%s\n' "$1"
+  fi
+}
+
 verify_release_attestation() {
   local archive_path="$1"
   local repo_name="$2"
@@ -84,21 +91,21 @@ verify_release_attestation() {
   local asset_name="$4"
 
   if ! command -v gh >/dev/null 2>&1; then
-    echo "Skipping attestation verification for ${asset_name}: gh CLI not found."
+    log_verbose "Skipping attestation verification for ${asset_name}: gh CLI not found."
     return 0
   fi
   if ! gh attestation verify --help >/dev/null 2>&1; then
-    echo "Skipping attestation verification for ${asset_name}: installed gh CLI does not support 'gh attestation verify'."
+    log_verbose "Skipping attestation verification for ${asset_name}: installed gh CLI does not support 'gh attestation verify'."
     return 0
   fi
 
-  echo "Verifying attestation: ${asset_name}"
+  log_verbose "Verifying attestation: ${asset_name}"
   gh attestation verify "${archive_path}" \
     --repo "${repo_name}" \
     --signer-workflow "${repo_name}/.github/workflows/release-bundle.yml" \
     --source-ref "refs/tags/${release_tag}" \
     --deny-self-hosted-runners
-  echo "Attestation verified: ${asset_name}"
+  log_verbose "Attestation verified: ${asset_name}"
 }
 
 REPO="bohewu/agents_pipeline"
@@ -112,6 +119,7 @@ NO_BACKUP=0
 FORCE_CODEX=0
 DRY_RUN=0
 KEEP_TEMP=0
+VERBOSE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -185,6 +193,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --keep-temp)
       KEEP_TEMP=1
+      shift
+      ;;
+    --verbose)
+      VERBOSE=1
       shift
       ;;
     -h|--help)
@@ -275,7 +287,7 @@ if [[ -z "${RELEASE_TAG}" ]]; then
   exit 1
 fi
 
-echo "Resolved release tag: ${RELEASE_TAG}"
+log_verbose "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
 echo "Install scope: all supported bundle deliverables"

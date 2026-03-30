@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-03-30
+
+### Changed
+
+- Bootstrap release installers now keep GitHub Artifact Attestation logs quiet by default and only print attestation details when users opt in with `--verbose` on Bash or `-Verbose` on PowerShell.
+
 ## [0.12.5] - 2026-03-30
 
 ### Changed

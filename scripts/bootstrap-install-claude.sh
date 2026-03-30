@@ -6,7 +6,7 @@ usage() {
 Download a release bundle and run install-claude.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install-claude.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--no-backup] [--dry-run] [--keep-temp]
+  scripts/bootstrap-install-claude.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--no-backup] [--dry-run] [--keep-temp] [--verbose]
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
@@ -15,6 +15,7 @@ Options:
   --no-backup           Do not back up existing installed files
   --dry-run             Resolve release and print actions only
   --keep-temp           Keep downloaded temporary files
+  --verbose             Show attestation verification details
   -h, --help            Show this help
 EOF
 }
@@ -51,6 +52,12 @@ resolve_bundle_dir() {
   return 1
 }
 
+log_verbose() {
+  if [[ ${VERBOSE:-0} -eq 1 ]]; then
+    printf '%s\n' "$1"
+  fi
+}
+
 verify_release_attestation() {
   local archive_path="$1"
   local repo_name="$2"
@@ -58,21 +65,21 @@ verify_release_attestation() {
   local asset_name="$4"
 
   if ! command -v gh >/dev/null 2>&1; then
-    echo "Skipping attestation verification for ${asset_name}: gh CLI not found."
+    log_verbose "Skipping attestation verification for ${asset_name}: gh CLI not found."
     return 0
   fi
   if ! gh attestation verify --help >/dev/null 2>&1; then
-    echo "Skipping attestation verification for ${asset_name}: installed gh CLI does not support 'gh attestation verify'."
+    log_verbose "Skipping attestation verification for ${asset_name}: installed gh CLI does not support 'gh attestation verify'."
     return 0
   fi
 
-  echo "Verifying attestation: ${asset_name}"
+  log_verbose "Verifying attestation: ${asset_name}"
   gh attestation verify "${archive_path}" \
     --repo "${repo_name}" \
     --signer-workflow "${repo_name}/.github/workflows/release-bundle.yml" \
     --source-ref "refs/tags/${release_tag}" \
     --deny-self-hosted-runners
-  echo "Attestation verified: ${asset_name}"
+  log_verbose "Attestation verified: ${asset_name}"
 }
 
 REPO="bohewu/agents_pipeline"
@@ -81,6 +88,7 @@ TARGET=""
 NO_BACKUP=0
 DRY_RUN=0
 KEEP_TEMP=0
+VERBOSE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -118,6 +126,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --keep-temp)
       KEEP_TEMP=1
+      shift
+      ;;
+    --verbose)
+      VERBOSE=1
       shift
       ;;
     -h|--help)
@@ -206,7 +218,7 @@ if [[ -z "${RELEASE_TAG}" ]]; then
   exit 1
 fi
 
-echo "Resolved release tag: ${RELEASE_TAG}"
+log_verbose "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
 if [[ -n "${TARGET}" ]]; then

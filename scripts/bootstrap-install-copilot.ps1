@@ -31,13 +31,13 @@ function Test-GhAttestationSupport {
     )
 
     if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        Write-Host "Skipping attestation verification for $AssetName`: gh CLI not found."
+        Write-Verbose "Skipping attestation verification for $AssetName`: gh CLI not found."
         return $false
     }
 
     & gh attestation verify --help *> $null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Skipping attestation verification for $AssetName`: installed gh CLI does not support 'gh attestation verify'."
+        Write-Verbose "Skipping attestation verification for $AssetName`: installed gh CLI does not support 'gh attestation verify'."
         return $false
     }
 
@@ -56,12 +56,12 @@ function Verify-ReleaseAttestation {
         return
     }
 
-    Write-Host "Verifying attestation: $AssetName"
+    Write-Verbose "Verifying attestation: $AssetName"
     & gh attestation verify $ArchivePath --repo $RepoName --signer-workflow "$RepoName/.github/workflows/release-bundle.yml" --source-ref "refs/tags/$ReleaseTag" --deny-self-hosted-runners
     if ($LASTEXITCODE -ne 0) {
         throw "Attestation verification failed for '$AssetName'."
     }
-    Write-Host "Attestation verified: $AssetName"
+    Write-Verbose "Attestation verified: $AssetName"
 }
 
 $apiUrl = Get-ReleaseApiUrl -RepoName $Repo -VersionValue $Version
@@ -98,7 +98,7 @@ if (-not $checksumAsset) {
     throw "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt"
 }
 
-Write-Host "Resolved release tag: $releaseTag"
+Write-Verbose "Resolved release tag: $releaseTag"
 Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
