@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.12.5] - 2026-03-30
+
+### Changed
+
+- Bootstrap release installers now verify GitHub Artifact Attestations automatically when `gh` is available, while preserving the existing checksum-only path on machines that do not have GitHub CLI installed.
+
 ## [0.12.4] - 2026-03-30
 
 ### Changed

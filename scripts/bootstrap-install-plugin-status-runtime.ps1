@@ -61,6 +61,45 @@ function Test-ReleaseBundle {
     }
 }
 
+function Test-GhAttestationSupport {
+    param(
+        [string]$AssetName
+    )
+
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Host "Skipping attestation verification for $AssetName`: gh CLI not found."
+        return $false
+    }
+
+    & gh attestation verify --help *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Skipping attestation verification for $AssetName`: installed gh CLI does not support 'gh attestation verify'."
+        return $false
+    }
+
+    return $true
+}
+
+function Verify-ReleaseAttestation {
+    param(
+        [string]$ArchivePath,
+        [string]$RepoName,
+        [string]$ReleaseTag,
+        [string]$AssetName
+    )
+
+    if (-not (Test-GhAttestationSupport -AssetName $AssetName)) {
+        return
+    }
+
+    Write-Host "Verifying attestation: $AssetName"
+    & gh attestation verify $ArchivePath --repo $RepoName --signer-workflow "$RepoName/.github/workflows/release-bundle.yml" --source-ref "refs/tags/$ReleaseTag" --deny-self-hosted-runners
+    if ($LASTEXITCODE -ne 0) {
+        throw "Attestation verification failed for '$AssetName'."
+    }
+    Write-Host "Attestation verified: $AssetName"
+}
+
 $apiUrl = Get-ReleaseApiUrl -RepoName $Repo -VersionValue $Version
 $headers = @{
     "Accept" = "application/vnd.github+json"
@@ -72,6 +111,11 @@ Write-Host "Release API: $apiUrl"
 $release = Invoke-RestMethod -Headers $headers -Uri $apiUrl -Method Get
 if (-not $release) {
     throw "Failed to resolve release metadata."
+}
+
+$releaseTag = [string]$release.tag_name
+if ([string]::IsNullOrWhiteSpace($releaseTag)) {
+    throw "Release metadata missing tag_name."
 }
 
 $asset = $release.assets |
@@ -90,6 +134,7 @@ if (-not $checksumAsset) {
     throw "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt"
 }
 
+Write-Host "Resolved release tag: $releaseTag"
 Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
@@ -139,6 +184,7 @@ try {
     }
 
     Write-Host "Checksum verified: $($asset.name)"
+    Verify-ReleaseAttestation -ArchivePath $archivePath -RepoName $Repo -ReleaseTag $releaseTag -AssetName $asset.name
 
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
 

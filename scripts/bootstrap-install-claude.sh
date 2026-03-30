@@ -51,6 +51,30 @@ resolve_bundle_dir() {
   return 1
 }
 
+verify_release_attestation() {
+  local archive_path="$1"
+  local repo_name="$2"
+  local release_tag="$3"
+  local asset_name="$4"
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Skipping attestation verification for ${asset_name}: gh CLI not found."
+    return 0
+  fi
+  if ! gh attestation verify --help >/dev/null 2>&1; then
+    echo "Skipping attestation verification for ${asset_name}: installed gh CLI does not support 'gh attestation verify'."
+    return 0
+  fi
+
+  echo "Verifying attestation: ${asset_name}"
+  gh attestation verify "${archive_path}" \
+    --repo "${repo_name}" \
+    --signer-workflow "${repo_name}/.github/workflows/release-bundle.yml" \
+    --source-ref "refs/tags/${release_tag}" \
+    --deny-self-hosted-runners
+  echo "Attestation verified: ${asset_name}"
+}
+
 REPO="bohewu/agents_pipeline"
 VERSION="latest"
 TARGET=""
@@ -149,6 +173,7 @@ sums_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$
 
 asset_url = ""
 sums_url = ""
+tag_name = data.get("tag_name") if isinstance(data.get("tag_name"), str) else ""
 
 for asset in data.get("assets", []):
     if not isinstance(asset, dict):
@@ -163,10 +188,10 @@ for asset in data.get("assets", []):
     if asset_url and sums_url:
         break
 
-sys.stdout.write(f"{asset_url}\t{sums_url}")
+sys.stdout.write(f"{asset_url}\t{sums_url}\t{tag_name}")
 PY
 )"
-IFS=$'\t' read -r ASSET_URL SUMS_URL <<<"${PARSED_URLS}"
+IFS=$'\t' read -r ASSET_URL SUMS_URL RELEASE_TAG <<<"${PARSED_URLS}"
 
 if [[ -z "${ASSET_URL}" ]]; then
   echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
@@ -176,7 +201,12 @@ if [[ -z "${SUMS_URL}" ]]; then
   echo "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt" >&2
   exit 1
 fi
+if [[ -z "${RELEASE_TAG}" ]]; then
+  echo "Release metadata missing tag_name." >&2
+  exit 1
+fi
 
+echo "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
 if [[ -n "${TARGET}" ]]; then
@@ -229,6 +259,8 @@ if [[ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]]; then
 fi
 
 echo "Checksum verified: ${ASSET_NAME}"
+
+verify_release_attestation "${ARCHIVE_PATH}" "${REPO}" "${RELEASE_TAG}" "${ASSET_NAME}"
 
 tar -xzf "${ARCHIVE_PATH}" -C "${EXTRACT_DIR}"
 
