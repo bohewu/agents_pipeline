@@ -42,7 +42,7 @@ If a source tool has no bounded Claude mapping, generation fails in `--strict` m
 
 - The exporter validates body `@agent-name` references against the source agent set and `AGENTS.md` in `--strict` mode.
 - `@executor-*` is expanded to `executor-core` and `executor-advanced` for validation purposes.
-- Claude output does not emit nested subagent dependency metadata from those references.
+- Resolved `@agent-name` references are listed in the generated delegation adapter so orchestrators know which subagents are available.
 
 ## Input Adaptation
 
@@ -56,15 +56,20 @@ For orchestrator agents, the exporter prepends a Claude-specific adapter block:
 
 The exporter also replaces `$ARGUMENTS` with `raw_input` in the generated body.
 
-## Orchestrator Limitation
+## Orchestrator Delegation
 
-Keep Claude Code orchestration expectations conservative.
+Orchestrator agents receive the `Agent` tool in their generated `tools:` list so they can delegate to subagents natively.
 
-- Support single-subagent execution with inline orchestration guidance
-- Do not promise nested orchestrator -> subagent -> subagent execution trees
-- Treat source `@agent-name` references in orchestrators as role guidance and inline responsibilities rather than nested delegation instructions
+The exporter prepends a delegation protocol adapter that maps `@agent-name` references to Claude Code Agent tool calls:
 
-This keeps Claude Code support accurate without overstating nested subagent behavior.
+```
+Agent(subagent_type="<agent-name>", description="<short task>", prompt="<full handoff>")
+```
+
+- Orchestrators can issue multiple Agent calls in one response for parallel stages.
+- Each subagent runs in its own context window; orchestrators should pass all required inputs in the prompt.
+- Subagent results return as text; orchestrators parse structured outputs (JSON) from the response.
+- The adapter lists all resolved `@agent-name` references as available subagents.
 
 ## Install Targets
 

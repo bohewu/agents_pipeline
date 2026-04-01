@@ -280,21 +280,37 @@ def make_input_adapter(agent_name: str) -> str:
     )
 
 
-def make_inline_role_adapter() -> str:
-    return (
-        "## Claude Code Orchestrator Compatibility Note\n\n"
-        "Claude Code custom subagents should remain compatible without nested delegation.\n"
-        "Treat source `@agent-name` references as role guidance and inline responsibilities, not as instructions to spawn nested subagents.\n"
-        "Preserve the documented stage order, contracts, and quality gates while executing the referenced responsibilities inline within this single subagent.\n"
-    )
+def make_delegation_adapter(resolved_refs: List[str]) -> str:
+    lines = [
+        "## Claude Code Delegation Protocol\n",
+        "`@agent-name` references map to Agent tool delegation in Claude Code.\n",
+        "To delegate a stage or step to `@agent-name`, call:",
+        "```",
+        'Agent(subagent_type="<agent-name>", description="<3-5 words>", prompt="<full task handoff>")',
+        "```\n",
+        "- Include all required inputs, constraints, and expected output format in the prompt.",
+        "- Subagent results return as text. Parse structured outputs (JSON) from the response.",
+        "- For parallel stages, issue multiple Agent calls in one response.",
+        "- Each subagent runs in its own context. Do not assume shared state between calls.",
+    ]
+    if resolved_refs:
+        lines.append(
+            "\nAvailable subagents referenced by this orchestrator: "
+            + ", ".join(resolved_refs)
+        )
+    return "\n".join(lines) + "\n"
 
 
-def adapt_body(agent_name: str, original_body: str) -> str:
+def adapt_body(
+    agent_name: str,
+    original_body: str,
+    resolved_refs: Optional[List[str]] = None,
+) -> str:
     body = original_body.replace("$ARGUMENTS", "raw_input")
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):
         blocks.append(make_input_adapter(agent_name))
-        blocks.append(make_inline_role_adapter())
+        blocks.append(make_delegation_adapter(resolved_refs or []))
     blocks.append(body.lstrip("\n"))
     return "\n\n".join(blocks).rstrip() + "\n"
 
@@ -478,16 +494,18 @@ def main() -> int:
                     f"{agent.path.as_posix()}: agent description must not be empty"
                 )
 
-        _, unresolved = extract_agent_refs(agent.body, known_reference_agents)
+        resolved_refs, unresolved = extract_agent_refs(agent.body, known_reference_agents)
         if args.strict and unresolved:
             errors.append(
                 f"{agent.path.as_posix()}: unresolved @agent reference(s): {', '.join(unresolved)}"
             )
 
-        body = adapt_body(agent.name, agent.body)
+        body = adapt_body(agent.name, agent.body, resolved_refs)
         tools = map_claude_tools(
             agent.tools, strict=args.strict, errors=errors, path=agent.path
         )
+        if agent.name.startswith(ORCHESTRATOR_PREFIX):
+            tools.append("Agent")
         content = build_agent_markdown(
             name=agent.name,
             description=agent.description,

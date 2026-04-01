@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-04-01
+
+### Changed
+
+- Claude Code orchestrator export now uses native Agent tool delegation instead of inlining all stages into a single agent context. Orchestrators receive the `Agent` tool and a delegation protocol adapter that maps `@agent-name` references to `Agent(subagent_type=...)` calls.
+- Resolved `@agent-name` references are listed in each orchestrator's generated adapter so the agent knows which subagents are available.
+- Updated `docs/claude-mapping.md` to document the new delegation approach, replacing the previous inline-only orchestrator limitation.
+
 ## [0.13.0] - 2026-04-01
 
 ### Changed

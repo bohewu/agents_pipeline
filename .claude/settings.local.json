@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(find opencode/protocols/schemas -name \"*.json\" -exec wc -c {} \\\\;)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(python:*)"
+    ]
+  }
+}
