@@ -46,7 +46,7 @@ $ARGUMENTS
 
 ## Notes
 
-- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`.
 - In `--generate` mode, if `<run_output_dir>/ci/ci-plan.md`, `<run_output_dir>/ci/cd-plan.md`, `<run_output_dir>/ci/docker-plan.md`, and `<run_output_dir>/ci/runbook.md` already exist, the orchestrator will reuse them and skip re-planning.
 - To refresh docs, run `/run-ci` without `--generate`, review/update, then run with `--generate`.
 

@@ -120,7 +120,7 @@ jobs:
               "scripts/bootstrap-install-plugin-status-runtime.sh",
               "scripts/bootstrap-install-all-local.ps1",
               "scripts/bootstrap-install-all-local.sh",
-              "The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`",
+              "The plugin owns the canonical status layout under `<run_output_dir>/status/`",
               "Dry-run preview (resolves release metadata only):",
           ]
 

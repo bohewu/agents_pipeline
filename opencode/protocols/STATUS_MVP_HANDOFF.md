@@ -5,7 +5,6 @@
 This document explains how the status-layer MVP artifacts in this repository fit together, what this repository owns today, what is explicitly deferred to a future runtime repository, and how the work should progress from the current Phase 0-1 MVP to a later hardened system.
 
 The MVP in this repository is a contract-plus-local-runtime deliverable. It defines the status entities, file layout, schemas, examples, and CI checks that runtime/plugin is expected to emit under `<run_output_dir>/status/` for local inspection.
-This repository also includes an optional in-repo, read-only `status-cli` for local inspection of status artifacts that follow that contract, and future read-only CLI continuation may stay in this same repo under `status-cli/`, including terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or HTML export that stays file-backed and non-controlling during the current viewing session, and a narrow same-process local polling/self-refresh mode for that same-repo viewer when it only rereads existing status files from local disk.
 It does **not** expand into an external control runtime, hosted service, or write-back surface.
 
 ## Repository Ownership Boundary
@@ -19,8 +18,6 @@ This repository owns the repo-bound status contract, local status production exp
 - positive and negative example fixtures for the supported layouts
 - validation guidance and default CI enforcement
 - the expectation that runtime/plugin writes canonical status artifacts under `<run_output_dir>/status/` while orchestrators provide only semantic transitions
-- the optional in-repo, read-only `status-cli` for local inspection of status artifacts
-- future same-repo read-only `status-cli` continuation under `status-cli/`
 - this handoff document
 - run-local planning artifacts in `.pipeline-output/pipeline/` for review traceability
 
@@ -32,7 +29,7 @@ The future runtime repository owns execution-time implementation work, including
 - any database/API/service projection of the status entities
 - any operational storage, retention, auth, or multi-writer controls
 - any operator-facing or customer-facing runtime surfaces
-- any runtime-integrated or service-backed tooling beyond the current same-repo read-only `status-cli`, including anything beyond its ephemeral loopback-only localhost viewer or local export boundary and narrow same-process local file-reread self-refresh boundary
+- any runtime-integrated or service-backed tooling beyond the current repo contract
 - any write-back or control actions triggered from repo-local status inspection views
 
 ## Explicit MVP Exclusions
@@ -132,9 +129,9 @@ That runtime repo may later project the same entities into richer systems, but a
 
 Deliver only repo-owned documentation, schemas, fixtures, validation, and handoff material.
 
-### Phase 2: Next same-repo read-only CLI phase
+### Phase 2: Reserved
 
-Continue optional read-only `status-cli` work in this repository under `status-cli/` as a local contract consumer only. Keep it file-backed and read-only. Same-repo terminal-local rendering plus an ephemeral loopback-only localhost read-only viewer mode or self-contained HTML export are allowed only when they do not become hosted service or server platform behavior, browser/server-hosted beyond loopback-only localhost use, or remote surfaces and do not add write-back or control behavior. A narrow same-process local polling/self-refresh mode is also allowed only when that viewer simply rereads existing local status files during the current viewing session and does not become watch/daemon, server platform, remote, or control functionality.
+Reserved for future read-only inspection tooling if needed.
 
 ### Phase 3: Later planning for separate runtime adoption
 
@@ -161,8 +158,6 @@ Only after runtime writing is stable should a later system consider optional pre
 - polling frontends beyond the bounded same-repo local file-reread self-refresh mode for an ephemeral loopback-only localhost viewer
 - websocket or event-bus integrations
 - external reporting or API consumers
-
-The current in-repo `status-cli` remains a local, read-only contract consumer, including any later same-repo read-only CLI continuation, terminal-local rendering, an ephemeral loopback-only localhost read-only viewer mode or HTML export behavior, and a bounded same-repo local polling/self-refresh mode that only rereads existing files during the current viewing session; richer runtime-facing or service-backed surfaces stay deferred.
 
 These are later consumers of the contract, not part of the MVP contract work in this repository.
 

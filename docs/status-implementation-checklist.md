@@ -64,7 +64,7 @@ Use this checklist when implementing runtime-owned status emission for `run-*` o
 
 - Validate against the canonical schemas during development or in strict runtime mode.
 - Treat schema failures as implementation bugs, not viewer problems.
-- `status-cli` is intentionally strict and should reject non-canonical artifacts.
+- Status consumers should be strict and should reject non-canonical artifacts.
 
 ## Smoke test expectations
 

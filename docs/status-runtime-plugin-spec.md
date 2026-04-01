@@ -2,12 +2,12 @@
 
 ## Goal
 
-Move status emission out of `run-*` prompt compliance and into a small runtime-owned plugin so orchestrators can focus on planning/execution while `status-cli` reads one canonical artifact shape.
+Move status emission out of `run-*` prompt compliance and into a small runtime-owned plugin so orchestrators can focus on planning/execution while consumers read one canonical artifact shape.
 
 ## Non-goals
 
 - No hosted dashboard or control plane
-- No write-back from `status-cli`
+- No write-back from status consumers
 - No attempt to preserve legacy ad hoc status formats
 
 ## Core idea
@@ -125,4 +125,4 @@ Small module/service with three pieces:
 
 ## Why this is enough
 
-This plugin is intentionally small because the viewer is a convenience feature. Its job is only to make runtime truth visible and consistent. Once runtime owns the lifecycle writes, `run-*` prompts stop carrying fragile bookkeeping responsibilities and `status-cli` can stay strict and simple.
+This plugin is intentionally small because the viewer is a convenience feature. Its job is only to make runtime truth visible and consistent. Once runtime owns the lifecycle writes, `run-*` prompts stop carrying fragile bookkeeping responsibilities and status consumers can stay strict and simple.

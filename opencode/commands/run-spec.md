@@ -35,6 +35,6 @@ $ARGUMENTS
 
 - No direct code implementation in this pipeline.
 - Structured staged execution with artifact traceability under `.pipeline-output/<run_id>/spec/` by default.
-- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`.
 - The human-readable spec is written to `<run_output_dir>/spec/dev-spec.md`.
 - Outputs are designed so humans can review them and `/run-pipeline` can later implement them.

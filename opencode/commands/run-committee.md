@@ -29,7 +29,7 @@ $ARGUMENTS
 
 ## Notes
 
-- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/` for `status-cli`.
+- Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`.
 
 ## Examples
 

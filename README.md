@@ -56,7 +56,7 @@ Attestation details stay quiet by default. Use `--verbose` on Bash bootstrap scr
 Most common choices:
 
 - Want everything in one step: start with `All local assets`.
-- Already have OpenCode and only need runtime status files for `status-cli`: use `Status plugin only`.
+- Already have OpenCode and only need the runtime status plugin: use `Status plugin only`.
 - Only need one editor/CLI integration: jump to `Copilot agents`, `Claude Code subagents`, or `Codex roles`.
 
 Pick the install target that matches what you want:
@@ -289,7 +289,7 @@ Common options:
 
 Use this when OpenCode is already set up and you only want the status runtime plugin.
 The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
-The plugin owns the canonical status layout that `status-cli` expects under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
+The plugin owns the canonical status layout under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
 
 Installed file layout:
 
@@ -750,10 +750,7 @@ python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/age
 
 See `opencode/protocols/SCHEMAS.md` and `opencode/protocols/VALIDATION.md` for the status layout fixture set and the negative-fixture expectations enforced in CI.
 For ownership boundaries and the follow-on roadmap, see `opencode/protocols/STATUS_MVP_HANDOFF.md`.
-This repository also includes an optional in-repo `status-cli` as a read-only local status inspection companion.
-Future read-only CLI continuation may stay in this same repo under `status-cli/`; Phase 2 wording for this repo refers to that next same-repo read-only CLI phase, including terminal-local rendering, a self-contained ephemeral loopback-only localhost read-only viewer mode or HTML export, and a narrow same-process local polling/self-refresh mode for that loopback-only viewer when it only rereads existing status files from local disk during the current local viewing session.
-It is not required for using this repository today and does not imply hosted service or server platform behavior, remote exposure, runtime-writer, daemon/watch process, browser/server-hosted runtime surface beyond that bounded localhost viewer mode, agent/opencode control function, write-back/control plane, or service/platform support.
-See `docs/status-cli-plan.md` for the current scope and boundaries.
+
 
 If you enable custom tools, you can call the `validate-schema` tool from OpenCode
 instead of running the script manually (see `opencode/tools/validate-schema.ts`).
