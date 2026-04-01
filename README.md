@@ -576,7 +576,50 @@ This repo also supports Claude Code with the same `opencode/agents/*.md` source 
 - Optional override target: `<project>/.claude/agents` when you explicitly want repo-scoped Claude agents.
 - Source of truth stays in `opencode/agents/*.md`; do not fork a separate long-lived Claude-only source set.
 - See `docs/claude-mapping.md` for the frontmatter/tool mapping and `$ARGUMENTS` input adaptation notes.
-- Keep orchestrator expectations conservative: Claude Code support here is for inline orchestration or direct leaf-subagent use, not guaranteed nested orchestrator-managed subagent trees.
+
+### Two-Phase Dispatch Model
+
+Claude Code subagents cannot nest `Agent` calls, so orchestrators use a **two-phase dispatch model**: the orchestrator plans, and the top-level Claude Code instance executes.
+
+**Phase 1 — Plan:** Ask an orchestrator to produce a dispatch plan (it will NOT execute tasks itself):
+
+```text
+@orchestrator-flow Create a REST endpoint for /api/health that returns {"status":"ok"}
+```
+
+The orchestrator returns a JSON dispatch plan:
+
+```json
+{ "dispatch": [
+    { "id": "T1", "agent": "executor-core", "prompt": "Create ...", "deps": [] },
+    { "id": "T2", "agent": "reviewer",      "prompt": "Review ...", "deps": ["T1"] }
+  ]}
+```
+
+**Phase 2 — Execute:** The top-level Claude Code instance runs the plan automatically:
+
+1. Tasks with empty `deps` are spawned in parallel.
+2. Tasks with `deps` wait for their dependencies to complete; results are forwarded in the prompt.
+3. After all tasks finish, if the orchestrator needs post-dispatch work (e.g., synthesis), results are sent back via `SendMessage`.
+
+**Which orchestrator to use:**
+
+| Scenario | Orchestrator | Notes |
+|----------|-------------|-------|
+| Daily engineering tasks | `@orchestrator-flow` | Max 5 atomic tasks, no reviewer |
+| CI / PR / high-risk work | `@orchestrator-pipeline` | Full pipeline with review gates |
+| Simple single-file change | `@executor-core` (directly) | Skip the orchestrator entirely |
+
+**Example session:**
+
+```text
+You:   @orchestrator-flow Add input validation to src/api/users.ts
+Claude: (orchestrator returns dispatch plan JSON)
+Claude: (top-level spawns executor-core for T1, then reviewer for T2)
+Claude: Done — here is the summary.
+```
+
+The dispatch protocol is also documented in `CLAUDE.md` under "Claude Code Pipeline Runner Protocol".
 
 ## Codex Agent Roles
 
