@@ -49,15 +49,24 @@ class StatusWriter {
 
     await fs.writeFile(tempPath, stableJson(value), "utf8");
 
-    try {
-      await fs.rename(tempPath, filePath);
-    } catch (error) {
-      if (error && (error.code === "EEXIST" || error.code === "EPERM")) {
-        await fs.rm(filePath, { force: true });
+    const maxRetries = 3;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
         await fs.rename(tempPath, filePath);
-      } else {
-        await fs.rm(tempPath, { force: true }).catch(() => undefined);
-        throw error;
+        return;
+      } catch (error) {
+        if (error && (error.code === "EEXIST" || error.code === "EPERM")) {
+          if (attempt < maxRetries) {
+            await new Promise(r => setTimeout(r, 50 * (attempt + 1)));
+            await fs.rm(filePath, { force: true }).catch(() => undefined);
+          } else {
+            await fs.rm(tempPath, { force: true }).catch(() => undefined);
+            throw error;
+          }
+        } else {
+          await fs.rm(tempPath, { force: true }).catch(() => undefined);
+          throw error;
+        }
       }
     }
   }

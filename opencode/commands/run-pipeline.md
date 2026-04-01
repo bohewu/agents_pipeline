@@ -31,6 +31,7 @@ $ARGUMENTS
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
+- `--compress` — compress context between stages
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 - `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults to `--effort=high` and `--max-retry=5`, and explicit flags still override those defaults
 
