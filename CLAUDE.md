@@ -82,6 +82,32 @@ JavaScript plugin that manages `<run_output_dir>/status/` artifacts (run-status.
 
 Two tiers: standard install (from local clone) and bootstrap install (from GitHub release bundle with SHA256 + attestation verification). Each target (OpenCode, plugin, Claude, Copilot, Codex) has its own install script pair (bash + PowerShell), plus `install-all-local` for one-step setup.
 
+## Claude Code Pipeline Runner Protocol
+
+In Claude Code, the top-level Claude Code instance acts as the pipeline runtime. Orchestrator agents (spawned via `@orchestrator-*`) cannot nest `Agent` calls, so they return **dispatch plans** instead of delegating directly.
+
+### Two-Phase Execution
+
+1. **Phase 1 — Planning**: Spawn the orchestrator (e.g., `@orchestrator-flow`). It analyzes the task and returns a JSON dispatch plan:
+   ```json
+   { "dispatch": [
+       { "id": "T1", "agent": "executor-core", "prompt": "...", "deps": [] },
+       { "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] }
+     ]}
+   ```
+
+2. **Phase 2 — Execution**: The top-level Claude Code instance executes the plan:
+   - Parse the `dispatch` JSON from the orchestrator response.
+   - Tasks with no `deps` may be spawned in parallel via `Agent(subagent_type=..., prompt=...)`.
+   - Tasks with `deps` wait for their dependencies to complete; include dependency results in the prompt.
+   - After all tasks complete, if the orchestrator has post-dispatch stages (e.g., synthesis), send the collected results back to the orchestrator via `SendMessage`.
+
+### When to Use
+
+- Use `@orchestrator-flow` for daily engineering tasks (max 5 atomic tasks, no reviewer).
+- Use `@orchestrator-pipeline` for CI/PR/high-risk work (full pipeline with review gates).
+- For simple single-file tasks, skip the orchestrator and spawn `@executor-core` directly.
+
 ## Key Conventions
 
 - `AGENTS.md` is the catalog of all agents; keep it in sync when adding/removing agents

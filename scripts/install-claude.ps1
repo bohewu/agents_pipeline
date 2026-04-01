@@ -2,6 +2,8 @@
 [CmdletBinding()]
 param(
     [string]$Target,
+    [string]$ClaudeMd,
+    [switch]$NoRunner,
     [switch]$DryRun,
     [switch]$NoBackup
 )
@@ -77,12 +79,21 @@ if ($DryRun) {
     New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
 }
 
+# Auto-detect CLAUDE.md path from target agents dir parent
+if (-not $NoRunner -and -not $ClaudeMd) {
+    $agentsParent = Split-Path -Parent $targetPath
+    $ClaudeMd = Join-Path $agentsParent "CLAUDE.md"
+}
+
 $exportArgs = @(
     $exportScript,
     "--source-agents", $sourceAgents,
     "--target-dir", $targetPath,
     "--strict"
 )
+if (-not $NoRunner -and $ClaudeMd) {
+    $exportArgs += @("--claude-md", $ClaudeMd)
+}
 if ($DryRun) {
     $exportArgs += "--dry-run"
 }
