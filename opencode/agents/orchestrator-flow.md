@@ -99,7 +99,7 @@ Supported flags (Flow-only, minimal):
 
 If no scout flag is provided:
 
-- scout_mode = auto.
+- scout_mode = skip (Flow targets small tasks; orchestrator has direct tool access for discovery).
 
 If conflicting flags exist (e.g. --skip-scout + --force-scout):
 
@@ -124,7 +124,7 @@ If `--full-auto` is provided:
 If an invalid `--scout` value is provided:
 
 - Warn the user.
-- Fall back to scout_mode = auto.
+- Fall back to scout_mode = skip.
 
 ## FLOW FLAGS (QUICK REFERENCE)
 
@@ -183,11 +183,11 @@ Use the expanded status layout once Stage 2 creates the task list. Emit: `run.st
 All outputs are written to `<run_output_dir>/flow/` for traceability.
 
 Stage 0 — Repo Scout (optional)
-- Determine scout_mode from flags (default: auto).
+- Determine scout_mode from flags (default: skip).
 - Run @repo-scout when:
   - scout_mode = force, OR
   - scout_mode = auto AND (repo exists OR user asks for implementation).
-- Skip @repo-scout when scout_mode = skip.
+- Skip @repo-scout when scout_mode = skip (default for Flow).
 - Output: RepoFindings JSON.
 - Use RepoFindings as input to Stage 1 and Stage 2.
 

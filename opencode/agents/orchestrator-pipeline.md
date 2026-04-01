@@ -87,7 +87,6 @@ These rules apply to **all agents**.
 | test-runner | Tests & builds | Code modification |
 | reviewer | Quality gate | Implementation |
 | compressor | Context reduction | New decisions |
-| summarizer | User summary | Technical decisions |
 
 ---
 
@@ -295,7 +294,7 @@ If unsure and the task is implementation-oriented, prefer generating `DevSpec` b
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression, opt-in): @compressor (only if `compress_mode = true`)
-- Stage 9 (Summary): @summarizer
+- Stage 9 (Summary): Orchestrator-owned (no subagent)
 
 All intermediate JSON outputs (ProblemSpec, optional DevSpec, PlanOutline, TaskList, etc.) are written to `<run_output_dir>/pipeline/` for traceability.
 
@@ -320,14 +319,28 @@ Stage 5: Execute batches + optional validation:
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec
 Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
 Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes) — only if `compress_mode = true`; skip otherwise
-Stage 9: @summarizer -> user-facing final summary
+Stage 9: Orchestrator-owned summary (no subagent). Use this template:
+
+## Outcome
+- Done / Not done + one-line result
+
+## Changes
+- Up to 2 bullets: primary deliverables
+
+## Evidence
+- Up to 2 bullets: concrete evidence (paths, commands, checks)
+
+## Next Steps
+- Up to 2 actionable items
+
+Rules: max 2 bullets per section, no JSON dumps, no stage narration.
 
 # DECISION-ONLY MODE
 
 If `decision_only = true`:
 - Stop after Stage 2 (repo-scout). Do NOT run atomizer/router/executors/tests.
 - Do NOT run reviewer or retry stages.
-- Summarizer produces the final recommendation from ProblemSpec, optional DevSpec, and RepoFindings.
+- Produce the final recommendation directly from ProblemSpec, optional DevSpec, and RepoFindings using the Stage 9 summary template.
 
 # TEST FLAG RULES
 
