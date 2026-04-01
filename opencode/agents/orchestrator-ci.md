@@ -53,21 +53,6 @@ These rules apply to **all agents**.
 
 ---
 
-## EXECUTOR -> REVIEWER HANDOFF
-
-> The reviewer does NOT trust claims without evidence.
-> Only provided evidence and DoD satisfaction will be considered.
-> If evidence is missing or weak, the task must be considered incomplete.
-
----
-
-## REVIEWER -> ORCHESTRATOR HANDOFF
-
-> Reviewer stage is not used in this docs-first pipeline.
-> If delegated task outputs are incomplete or blocked, stop and report blockers/next actions to the user.
-
----
-
 ## AGENT RESPONSIBILITY MATRIX
 
 | Agent | Primary Responsibility | Forbidden Actions |
@@ -75,17 +60,10 @@ These rules apply to **all agents**.
 | orchestrator-ci | Flow control, routing, synthesis | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
-| repo-scout | Repo discovery | Design decisions |
-| atomizer | Atomic task DAG | Implementation |
-| router | Cost-aware assignment | Changing tasks |
 | executor-* | Task execution | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
-| test-runner | Tests & builds | Code modification |
-| reviewer | Quality gate | Implementation |
-| compressor | Context reduction | New decisions |
-| summarizer | User summary | Technical decisions |
 
 ---
 
@@ -97,19 +75,7 @@ These rules apply to **all agents**.
 
 You are given positional parameters via the slash command.
 
-Algorithm:
-
-1. Read the raw input from `$ARGUMENTS`.
-2. Split into tokens by whitespace.
-3. Iterate tokens in order:
-   - If token starts with `--`, classify as a flag.
-   - Otherwise, append to `main_task_prompt`.
-4. Stop appending to main_task_prompt after the first flag token.
-
-Parsed result:
-
-- main_task_prompt: string
-- flags: string[]
+Parse `$ARGUMENTS`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
 Flag semantics:
 
@@ -137,25 +103,12 @@ After each stage completes successfully, emit the canonical stage completion/che
 
 ## RUN STATUS PROTOCOL
 
-Runtime/plugin maintains the canonical run status file at `<run_output_dir>/status/run-status.json` using the existing status contract from `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/protocols/schemas/run-status.schema.json`.
-
-- Use `layout = run-only` for this orchestrator unless a future change explicitly needs expanded task/agent files.
-- Emit semantic run-stage transitions for `orchestrator-ci`; runtime/plugin persists the `RunStatus` record.
-- Keep `checkpoint_path` pointing at `<run_output_dir>/checkpoint.json`.
-- Prefer including: `run_id`, `orchestrator`, `status`, `created_at`, `updated_at`, `output_dir`, `checkpoint_path`, `user_prompt`, `current_stage`, `completed_stages`, `next_stage`, `waiting_on`, `resume_from_checkpoint`, and `notes` when useful.
-- Set `status = running` during active execution, `waiting_for_user` during confirm/verbose pauses, `completed` on success, `partial` when bounded outputs finish with surfaced leftovers, `failed` on unrecoverable blockers, and `aborted` when the user stops the run.
-- Keep status/checkpoint semantics aligned by emitting semantic updates alongside normal checkpoint events.
+Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json` (`layout = run-only`). Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
-If `confirm_mode = true`:
-- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
-- Before waiting, update `run-status.json` to `status = waiting_for_user` and `waiting_on = user`.
-- On `abort`: write checkpoint and stop.
-
-If `verbose_mode = true` (implies `confirm_mode`):
-- Additionally, during Stage 2 (Document Tasks), pause after each individual task.
-- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
+- `confirm_mode`: pause after each stage with `Proceed? [yes / feedback / abort]`. Update status to `waiting_for_user`. On abort: checkpoint and stop.
+- `verbose_mode` (implies confirm): also pause after each task in Stage 2.
 
 ## Stage Agents
 

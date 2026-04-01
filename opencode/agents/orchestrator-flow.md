@@ -51,10 +51,6 @@ These rules apply to **all agents**.
 
 ---
 
-## EXECUTOR -> REVIEWER HANDOFF (NOT USED IN FLOW)
-
-> Flow has no reviewer agent. This handoff is not used in this pipeline.
-
 # Flow vs Flow-Full
 
 Flow:
@@ -73,19 +69,11 @@ Flow-Full:
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
 | orchestrator-flow | Flow control, routing, synthesis | Implementing code |
-| specifier | Requirement extraction | Proposing solutions |
-| planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |
-| atomizer | Atomic task DAG | Implementation |
-| router | Cost-aware assignment | Changing tasks |
 | executor-* | Task execution | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
-| test-runner | Tests & builds | Code modification |
-| reviewer | Quality gate | Implementation |
-| compressor | Context reduction | New decisions |
-| summarizer | User summary | Technical decisions |
 
 ---
 
@@ -95,23 +83,7 @@ Flow-Full:
 
 You are given positional parameters via the slash command.
 
-Algorithm:
-
-1. Read the raw input from `$ARGUMENTS`.
-2. Split into tokens by whitespace.
-3. Iterate tokens in order:
-   - If token starts with `--`, classify as a flag.
-   - Otherwise, append to `main_task_prompt`.
-4. Stop appending to main_task_prompt after the first flag token.
-
-Parsed result:
-
-- main_task_prompt: string
-- flags: string[]
-
-Resume-only invocation rule:
-
-- If `main_task_prompt` is empty and `resume_mode = true`, treat this as a valid resume-only invocation.
+Parse `$ARGUMENTS`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags. If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation.
 
 Supported flags (Flow-only, minimal):
 
@@ -183,53 +155,19 @@ After each stage completes successfully, call the `status_runtime_event` plugin 
 
 ## STATUS ARTIFACT PROTOCOL
 
-Runtime/plugin owns canonical status/checkpoint writes under `<run_output_dir>/status/` using the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json`. Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- Follow the shared `status_runtime_event` tool contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
-- Fresh runs MUST start with `run.started`; resume runs MUST start with `run.resumed`.
-- Flow MUST emit the shared event vocabulary at these call sites: run start/resume, each successful `stage.completed`, Stage 2 `tasks.registered`, every task state change via `task.updated`, every delegated agent lifecycle via `agent.started` / `agent.heartbeat` / `agent.finished`, and terminal `run.finished`.
-
-- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every flow run.
-- Status files are visibility and recovery metadata only. They do NOT replace checkpointing, and `<run_output_dir>/checkpoint.json` remains the authoritative stage-resume record.
-- Runtime/plugin owns file creation, timestamps, refs, counts, active ids, and reconciliation.
-- The orchestrator owns semantic transitions only: stage completion, task registration, dispatch metadata, waiting states, and final outcomes.
-- Emit enough semantic data for runtime/plugin to keep `current_stage`, `completed_stages`, `next_stage`, `updated_at`, run `status`, artifact paths, and expanded-layout refs aligned.
-- Use `waiting_for_user` semantics when confirm/verbose pauses the flow. End in `completed`, `partial`, `failed`, or `aborted` as appropriate.
-- On resume, treat status files as hints for unfinished work, not proof of stage completion. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
-
-Because Flow decomposes and dispatches tasks, request the expanded status layout once Stage 2 creates the task list:
-
-- Emit that `RunStatus.layout = expanded` should be used and register each canonical task so runtime/plugin can create `<run_output_dir>/status/tasks/<task_id>.json` records.
-- Initialize each task semantically as `pending`, then move it through `ready`, `in_progress`, `waiting_for_user`, `done`, `blocked`, `failed`, `skipped`, or `stale` based on orchestration and executor outcomes.
-- When tasks are grouped for Stage 3, emit dispatch metadata such as `assigned_executor`, dependencies if any are explicit in the flow plan, `resource_class`, `max_parallelism`, and `teardown_required` when known.
-- Register every delegated subagent attempt that should be visible in the run, including stage-scoped agents such as `repo-scout` before a canonical task exists. Use `task_id` when there is one, and omit it for run-scoped/stage-scoped agent records.
-- Prefer a unique `agent_id` per visible subagent attempt. If the runtime or caller reuses a base id such as `executor-core`, include disambiguating metadata (`attempt`, `task_id`, and/or `batch_id`) on `agent.started`, `agent.heartbeat`, and `agent.finished` so runtime/plugin can keep multiple agent nodes visible instead of treating later updates as ambiguous.
-- Keep `run-status.json` as the lightweight run index with task counts, active ids, and references to task/agent files rather than duplicating all live task detail there.
+Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
-If `confirm_mode = true` and `autopilot_mode != true`:
-- After each stage, display summary and ask: `Proceed? [yes / feedback / abort]`
-- On `abort`: write checkpoint and stop.
-
-If `verbose_mode = true` and `autopilot_mode != true` (implies `confirm_mode`):
-- Additionally, during Stage 3 (Execution), pause after each individual task.
-- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
+- `confirm_mode` (when not autopilot): pause after each stage with `Proceed? [yes / feedback / abort]`. On abort: checkpoint and stop.
+- `verbose_mode` (implies confirm): also pause after each task in Stage 3.
 
 ## AUTOPILOT MODE
 
-If `autopilot_mode = true`:
-- Prefer autonomous completion and suppress interactive pauses.
-- For low-risk ambiguity, choose safe defaults, continue, and note assumptions in output.
-- Stop only for hard blockers:
-  - destructive or irreversible actions
-  - security or billing impact changes
-  - missing credentials or required secrets
-
-If `full_auto_mode = true`:
-- Prefer `scout_mode = force` unless the user explicitly selected a different scout mode.
-- Prefer the strongest safe bounded in-scope unblock attempt before surfacing a non-hard blocker.
-- Do not treat full-auto as permission to add retries, expand scope, or leave resources running.
+- `autopilot_mode`: suppress interactive pauses; prefer safe defaults; stop only on hard blockers.
+- `full_auto_mode`: prefer `scout_mode = force` unless user chose otherwise; prefer strongest safe bounded unblock attempt.
 
 ## Flow Pipeline (Fixed)
 

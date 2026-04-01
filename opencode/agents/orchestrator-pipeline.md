@@ -95,23 +95,7 @@ These rules apply to **all agents**.
 
 You are given positional parameters via the slash command.
 
-Algorithm:
-
-1. Read the raw input from `$ARGUMENTS`.
-2. Split into tokens by whitespace.
-3. Iterate tokens in order:
-   - If token starts with `--`, classify as a flag.
-   - Otherwise, append to `main_task_prompt`.
-4. Stop appending to main_task_prompt after the first flag token.
-
-Parsed result:
-
-- main_task_prompt: string
-- flags: string[]
-
-Resume-only invocation rule:
-
-- If `main_task_prompt` is empty and `resume_mode = true`, treat this as a valid resume-only invocation.
+Parse `$ARGUMENTS`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags. If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation.
 
 Flag semantics:
 
@@ -125,6 +109,7 @@ Flag semantics:
 - `--force-scout` -> scout_mode = force
 - `--effort=low|balanced|high` -> effort_mode
 - `--max-retry=<int>` -> max_retry_rounds
+- `--compress` -> compress_mode = true
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
@@ -249,37 +234,11 @@ After each stage completes successfully:
 
 # STATUS ARTIFACT PROTOCOL
 
-Runtime/plugin owns canonical checkpoint/status writes under `<run_output_dir>/status/` using the plugin tool `status_runtime_event` and the status contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json`. Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 
-- Follow the shared `status_runtime_event` tool contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Use the expanded status layout (`tasks/<task_id>.json`, `agents/<agent_id>.json`) once task decomposition begins at Stage 3.
 
-- `run-status.json` at `<run_output_dir>/status/run-status.json` is REQUIRED for every run.
-- Status files are operational visibility and recovery metadata. They do NOT replace checkpointing, and `<run_output_dir>/checkpoint.json` remains the authoritative stage-resume record.
-- Runtime/plugin owns file creation, timestamps, refs, counts, active ids, and reconciliation.
-- The orchestrator owns semantic transitions only: stage completion, task registration, dispatch metadata, waiting states, retry/review outcomes, and final run outcomes.
-- Emit enough semantic data for runtime/plugin to keep `current_stage`, `completed_stages`, `next_stage`, `updated_at`, run `status`, and artifact paths such as `task_list_path` and `dispatch_plan_path` aligned.
-- Use `waiting_for_user` semantics when `--confirm` / `--verbose` pauses the run; use `completed`, `partial`, `failed`, or `aborted` for the final terminal state.
-- On resume, inspect prior status files as hints for incomplete work, but trust checkpoint state for completed stages. Mark abandoned in-flight work as `stale` before redispatch unless liveness is positively confirmed.
-
-Use the expanded status layout for this orchestrator once task decomposition begins:
-
-- After Stage 3 creates `task-list.json`, request `RunStatus.layout = expanded` and register each canonical task id so runtime/plugin can create `<run_output_dir>/status/tasks/<task_id>.json`.
-- Initialize task records from the TaskList with `status = pending`, then move tasks to `ready`, `waiting_for_user`, `skipped`, `blocked`, `done`, `failed`, or `stale` as orchestration logic decides.
-- After Stage 4 routing, emit dispatch metadata when available, including `assigned_executor`, `resource_class`, `max_parallelism`, `teardown_required`, dependencies, and any task/agent relationships that should appear in `run-status.json`.
-- Register every delegated subagent attempt that should be visible in the run, including pre-task stage agents such as `specifier`, `planner`, or `repo-scout`. Use `task_id` when the agent is attached to a canonical task and omit it for stage-scoped/run-scoped agent records.
-- Prefer a unique `agent_id` per visible subagent attempt. If a base id such as `executor-core` is reused, include disambiguating metadata (`attempt`, `task_id`, and/or `batch_id`) on `agent.started`, `agent.heartbeat`, and `agent.finished` so runtime/plugin can preserve multiple agent nodes and route follow-up updates to the intended record.
-- Preserve `run-status.json` as the lightweight top-level index: keep counts, active ids, summary state, and references to task/agent files instead of copying every live detail into the run file.
-- During reconciliation, merge executor outcomes back into task/run semantics, including `resource_status`, teardown results, errors, evidence references, and any cleanup risk that should keep the run `partial` or `failed`.
-
-Minimum required `status_runtime_event` call sites for `orchestrator-pipeline`:
-
-- **Fresh run initialization**: emit `run.started` once after resolving `output_root` and `run_id`.
-- **Resume initialization**: emit `run.resumed` once after selecting the resumable run.
-- **After every successful stage**: emit `stage.completed`.
-- **After Stage 3 task materialization**: emit `tasks.registered`.
-- **Whenever a canonical task changes semantic state**: emit `task.updated`.
-- **For every visible subagent attempt**: emit `agent.started`, `agent.heartbeat` when practical, and `agent.finished`.
-- **On terminal outcome**: emit `run.finished` exactly once.
+Minimum required events: `run.started` (or `run.resumed`), `stage.completed` after every stage, `tasks.registered` after Stage 3, `task.updated` on task state changes, `agent.started`/`agent.heartbeat`/`agent.finished` for visible subagents, `run.finished` on terminal outcome.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -317,36 +276,9 @@ If unsure and the task is implementation-oriented, prefer generating `DevSpec` b
 
 # CONFIRM / VERBOSE PROTOCOL
 
-Autopilot interaction policy:
-
-- In `autopilot_mode`, prefer safe defaults for low-risk ambiguity and continue execution.
-- In `autopilot_mode`, if a task reports a non-hard blocker, continue remaining runnable tasks first, then attempt one bounded blocker-recovery pass before surfacing the blocker.
-- In `autopilot_mode`, stop only on hard blockers: destructive/irreversible actions, security or billing impact, or missing required credentials/access.
-- In `autopilot_mode`, do not request interactive confirmations for stage/task progression.
-- In `full_auto_mode`, prefer the strongest safe bounded in-scope recovery path before asking the user.
-
-If `confirm_mode = true` and `autopilot_mode = false`:
-- After each stage completes, display a stage summary and ask:
-  ```
-  [Stage N: <name>] Complete.
-  Key output: <1-2 line summary>
-
-  Proceed to Stage N+1 (<name>)? [yes / feedback / abort]
-  ```
-  - `yes` -> continue to next stage
-  - `feedback` -> user provides text; re-run the current stage with amended instructions
-  - `abort` -> write checkpoint and stop; tell user they can resume with `--resume`
-
-If `verbose_mode = true` and `autopilot_mode = false` (implies `confirm_mode = true`):
-- Additionally, during execution stages (Stage 5), pause after each individual task:
-  ```
-  [Task <task_id>: <summary>] Complete.
-  Status: <pass/fail>
-
-  Continue to next task? [yes / skip-remaining / abort]
-  ```
-  - `skip-remaining` -> mark remaining tasks as SKIPPED, proceed to next stage
-- Use this mode only for close supervision/debugging; it intentionally increases interaction length.
+- `autopilot_mode`: suppress interactive pauses; prefer safe defaults; stop only on hard blockers. `full_auto_mode` adds strongest bounded recovery before surfacing blockers.
+- `confirm_mode` (when not autopilot): pause after each stage with `[Stage N: <name>] Complete. Proceed? [yes / feedback / abort]`. On abort: checkpoint and stop.
+- `verbose_mode` (implies confirm): also pause after each task in Stage 5.
 
 # PIPELINE (STRICT)
 
@@ -362,7 +294,7 @@ If `verbose_mode = true` and `autopilot_mode = false` (implies `confirm_mode = t
 - Stage 5 (Execution + optional validation): @executor-core / @executor-advanced / @peon / @generalist / @doc-writer / @test-runner
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
-- Stage 8 (Compression): @compressor
+- Stage 8 (Compression, opt-in): @compressor (only if `compress_mode = true`)
 - Stage 9 (Summary): @summarizer
 
 All intermediate JSON outputs (ProblemSpec, optional DevSpec, PlanOutline, TaskList, etc.) are written to `<run_output_dir>/pipeline/` for traceability.
@@ -387,7 +319,7 @@ Stage 5: Execute batches + optional validation:
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec
 Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
-Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes)
+Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes) — only if `compress_mode = true`; skip otherwise
 Stage 9: @summarizer -> user-facing final summary
 
 # DECISION-ONLY MODE
