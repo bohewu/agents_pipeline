@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-01
+
+### Changed
+
+- Slim `PROTOCOL_SUMMARY.md` from ~974 to ~200 tokens; orchestrator-only content (status layer, schema paths, todo ledger) removed from global instructions, saving ~9,300 tokens/run across subagent calls.
+- Make Compressor (Stage 8) opt-in via `--compress` flag; most runs do not reference prior context packs.
+- Trim boilerplate across all 8 orchestrators: condensed flag parsing, status protocol, confirm/verbose protocol, and agent responsibility matrix sections (-435 lines).
+- Inline Stage 9 summary in `orchestrator-pipeline` (eliminates one subagent call).
+- Default `orchestrator-flow` scout mode to `skip` instead of `auto`; Flow targets small tasks where the orchestrator's direct tool access is sufficient.
+
+### Removed
+
+- `status-cli/` component and related planning docs (`docs/status-cli-plan.md`, `docs/status-cli-roadmap.md`). The status contract (schemas, examples, validation) is preserved; only the unused CLI consumer is removed.
+
 ## [0.12.6] - 2026-03-30
 
 ### Changed
