@@ -692,6 +692,8 @@ jobs:
     uses: ./.github/workflows/release-bundle.yml
     permissions:
       contents: read
+      attestations: write
+      id-token: write
     with:
       tag: ${{ needs.release-bundle-vars.outputs.tag }}
       checkout_tag: false
