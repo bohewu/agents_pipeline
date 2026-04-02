@@ -82,13 +82,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
+$tag = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.16.0" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
+tag="v0.17.0" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -111,13 +111,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
+$tag = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.16.0" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
+tag="v0.17.0" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -139,13 +139,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+$tag = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.16.0" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
+tag="v0.17.0" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
 ```
 
 Ubuntu/macOS/Linux notes if you prefer downloading the script first:
@@ -158,7 +158,7 @@ Ubuntu/macOS/Linux notes if you prefer downloading the script first:
 Download-then-run version:
 
 ```bash
-tag="v0.16.0"
+tag="v0.17.0"
 curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
 bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
 ```
@@ -180,13 +180,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.16.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
+tag="v0.17.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -208,13 +208,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
+$release = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-release="v0.16.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
+release="v0.17.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
 Optional project-local override:
@@ -240,13 +240,13 @@ Existing `.codex` files are backed up and overwritten by default, so the standar
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.16.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.17.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.16.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
+tag="v0.17.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -427,12 +427,12 @@ Important Codex usage note:
 <details>
 <summary>Maintainer release notes</summary>
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.16.0`).
-- Use SemVer tags with `v` prefix (for example: `v0.16.0`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.17.0`).
+- Use SemVer tags with `v` prefix (for example: `v0.17.0`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.16.0` must release as `v0.16.0`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.17.0` must release as `v0.17.0`).
 - After bumping `VERSION`, run `python scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
@@ -440,7 +440,7 @@ Important Codex usage note:
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.16.0`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.17.0`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -466,8 +466,8 @@ Important Codex usage note:
 Example release:
 
 ```bash
-git tag v0.16.0
-git push origin v0.16.0
+git tag v0.17.0
+git push origin v0.17.0
 ```
 
 ## Public Release Checklist
@@ -511,13 +511,9 @@ Use whichever tool your team prefers.
 - Codex role mapping details live in `docs/codex-mapping.md`.
 - Protocol and JSON schemas live in `opencode/protocols/`.
   Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
-- Init handoff SOP lives in `opencode/protocols/INIT_TO_PIPELINE.md`.
 - Spec handoff SOP lives in `opencode/protocols/SPEC_TO_PIPELINE.md`.
 - Spec end-to-end example lives in `opencode/protocols/SPEC_E2E_EXAMPLE.md`.
 - Modernize handoff SOP lives in `opencode/protocols/MODERNIZE_TO_PIPELINE.md`.
-- Modernize target bootstrap example lives in `opencode/protocols/MODERNIZE_TARGET_BOOTSTRAP_EXAMPLE.md`.
-- Init artifact templates live in `opencode/protocols/INIT_TEMPLATES.md`.
-- Init example lives in `opencode/protocols/INIT_EXAMPLE.md`.
 - CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
 - CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
 - CI generated output example lives in `opencode/protocols/CI_GENERATE_EXAMPLE.md`.
@@ -527,7 +523,6 @@ Use whichever tool your team prefers.
 - Public checklist lives in `opencode/protocols/PUBLIC_CHECKLIST.md`.
 - Optional carryover ledger lives at `todo-ledger.json` in the project root (schema in `opencode/protocols/schemas/todo-ledger.schema.json`).
   A template is provided in `todo-ledger.example.json`.
-- Use `/run-init` in `opencode/commands/run-init.md` for greenfield projects (produces init docs).
 - Use `/run-ci` in `opencode/commands/run-ci.md` for CI/CD planning (docs-first; optional generation).
 - Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
@@ -666,23 +661,6 @@ python scripts/export-codex-agents.py --source-agents opencode/agents --target-d
 <details>
 <summary>More command references</summary>
 
-## Init Pipeline
-
-Use `/run-init` for new projects. It produces:
-
-- `init/init-brief-product-brief.md`
-- `init/init-architecture.md`
-- `init/init-constraints.md`
-- `init/init-structure.md`
-- `init/init-roadmap.md`
-
-These docs should be used as reference inputs when running `/run-pipeline`.
-
-Modes:
-
-- `/run-init --decision-only` (brief + architecture + constraints only)
-- `/run-init --iterate` (one revision round after initial docs)
-
 ## CI Pipeline
 
 Use `/run-ci` to create CI/CD plans and (optionally) generate workflows.
@@ -709,16 +687,13 @@ Modes:
 
 - `/run-modernize --decision-only` (current-state + target-vision + strategy only)
 - `/run-modernize --iterate` (one revision round after initial docs)
-- `/run-modernize --init-target` (bootstrap the target project path and init docs before later implementation handoff)
-
 Recommended execution split:
 
 - Start `/run-modernize` in the source project.
 - Keep modernization docs and handoff files under the source project's `.pipeline-output/modernize/`.
 - Once implementation starts, switch to the target project for `/run-pipeline` runs.
 - Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
-- If the target project does not exist yet, rerun with `--init-target` to prepare it in the same modernization flow.
-- Expect `modernize-index.md` to include copyable next-step commands for bootstrap and/or target-side `/run-pipeline` continuation.
+- If the target project does not exist yet, create it manually before running execution modes.
 
 ## General-Purpose Pipeline
 
@@ -746,10 +721,9 @@ General pipeline outputs are human-friendly by default:
 
 New projects:
 
-1. `/run-init` → architecture and constraints
-2. `/run-ci` → CI/CD plans (docs)
-3. `/run-pipeline` (or `/run-flow` for small, low-risk changes)
-4. `/run-ci --generate --github --docker --deploy` when ready to publish
+1. `/run-ci` → CI/CD plans (docs)
+2. `/run-pipeline` (or `/run-flow` for small, low-risk changes)
+3. `/run-ci --generate --github --docker --deploy` when ready to publish
 
 Iterative development:
 
@@ -760,7 +734,7 @@ Iterative development:
 Modernization work:
 
 1. `/run-modernize` from the source project
-2. If the target project does not exist, either create it manually or rerun with `--init-target`
+2. If the target project does not exist, create it manually
 3. Review roadmap + handoff
 4. `/run-pipeline` from the target project for actual implementation
 
@@ -909,7 +883,6 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
 - General: `/run-general` (non-coding execution pipeline for planning/writing/analysis)
-- Init: `/run-init` (greenfield project initialization docs)
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 - Modernize: `/run-modernize` (experimental modernization planning docs)
 
@@ -936,7 +909,6 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
 - General-purpose pipeline uses `*-general` naming (e.g. `orchestrator-general.md`, `run-general.md`).
 - Spec pipeline uses `*-spec` naming (e.g. `orchestrator-spec.md`, `run-spec.md`).
-- Init pipeline uses `*-init` naming (e.g. `orchestrator-init.md`, `run-init.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
 
@@ -946,7 +918,6 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
-| orchestrator-init | Init pipeline for greenfield projects | Implementing code |
 | orchestrator-ci | CI/CD planning pipeline | Implementing code |
 | orchestrator-modernize | Modernization planning pipeline | Implementing code |
 | orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |

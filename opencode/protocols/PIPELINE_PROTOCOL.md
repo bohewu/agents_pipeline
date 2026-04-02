@@ -142,7 +142,6 @@ All pipeline artifacts MUST live under a single configurable base output root so
 - **Canonical run-local sub-directories by orchestrator:**
   - `<run_output_dir>/pipeline/` — orchestrator-pipeline intermediates
   - `<run_output_dir>/spec/` — orchestrator-spec outputs
-  - `<run_output_dir>/init/` — orchestrator-init docs
   - `<run_output_dir>/ci/` — orchestrator-ci docs
   - `<run_output_dir>/modernize/` — orchestrator-modernize docs
   - `<run_output_dir>/flow/` — orchestrator-flow outputs

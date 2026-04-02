@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-04-02
+
+### Removed
+
+- **Init pipeline**: Removed `orchestrator-init`, `/run-init` command, and all supporting artifacts (`INIT_TEMPLATES.md`, `INIT_EXAMPLE.md`, `INIT_TO_PIPELINE.md`). The init pipeline's outputs were only consumed by `orchestrator-pipeline` and had no auto-update mechanism, making them a stale-docs liability. Greenfield planning is covered by `/run-spec` and `/run-pipeline`.
+- **Target bootstrap in modernize**: Removed `--init-target` flag and Stage 4.5 (Target Bootstrap) from `orchestrator-modernize`. Users should create target directories manually before running execution modes.
+- Removed `MODERNIZE_TARGET_BOOTSTRAP_EXAMPLE.md` (documented the removed `--init-target` workflow).
+- Removed `orchestrator-init` from `AGENTS.md`, schema enums (`checkpoint.schema.json`, `run-status.schema.json`), and status runtime constants.
+
 ## [0.14.0] - 2026-04-01
 
 ### Changed

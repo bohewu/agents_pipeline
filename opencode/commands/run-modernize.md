@@ -28,8 +28,7 @@ $ARGUMENTS
 - `--output-dir=<path>` — override artifact output path
 - `--resume`, `--confirm`, `--verbose`, `--autopilot`
 - `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults modernize depth to `deep`, forwards pipeline `--full-auto` in execution-enabled modes where applicable, and explicit forwarded flags still override preset defaults
-- `--target=<path>` — target project path reference (auto-created only when paired with `--init-target`)
-- `--init-target` — create/bootstrap the target project path and init docs before implementation handoff when needed
+- `--target=<path>` — target project path reference
 - `--depth=lite|standard|deep` — control doc verbosity (default: standard)
 - `--execute-phase=<phase-id>` — required in `phase-exec`; roadmap phase identifier to implement in target project
 - `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
@@ -42,9 +41,8 @@ $ARGUMENTS
 /run-modernize Assess legacy .NET monolith --decision-only
 /run-modernize Assess legacy .NET monolith --iterate
 /run-modernize Assess legacy .NET monolith --target=../my-app-v2
-/run-modernize Assess legacy .NET monolith --mode=plan+handoff --target=../my-app-v2 --init-target
+/run-modernize Assess legacy .NET monolith --mode=plan+handoff --target=../my-app-v2
 /run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--effort=balanced --pipeline-flag=--confirm
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --init-target --pipeline-flag=--effort=balanced
 /run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
 /run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --full-auto
 /run-modernize Continue previous assessment --resume
@@ -57,7 +55,7 @@ $ARGUMENTS
 - The modernize pipeline follows a **Source-to-Target model**: project A (source) is analyzed, and docs plan for building project B (target) as a separate project.
 - In execution-enabled modes, `orchestrator-modernize` delegates implementation to `orchestrator-pipeline` via agent handoff. `/run-pipeline` is the human-facing equivalent command.
 - Practical default: start `/run-modernize` from the source project, then start later `/run-pipeline` continuation runs from the target project.
-- If the target project path does not exist yet, rerun with `--init-target` for a one-shot target bootstrap before execution handoff.
+- If the target project path does not exist yet, create it manually before running execution modes.
 - `--pipeline-flag` is repeatable (instead of a quoted flag string) because `run-modernize` parsing is whitespace-based.
 - `--pipeline-flag` is only for `run-pipeline`-compatible flags. `run-modernize` flags such as `--mode`, `--target`, `--depth`, `--iterate`, and `--execute-phase` should not be forwarded.
 - `--autopilot` makes the modernize orchestrator non-interactive, and in execution modes it also forwards non-interactive behavior to delegated pipeline runs.

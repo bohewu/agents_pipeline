@@ -6,7 +6,6 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|
-| orchestrator-init | Init pipeline for greenfield projects | primary | Documentation-only outputs |
 | orchestrator-ci | CI/CD planning pipeline (docs-first, optional generation) | primary | Docs-first |
 | orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |

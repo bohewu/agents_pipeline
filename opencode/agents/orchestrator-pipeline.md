@@ -205,13 +205,12 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
-5. **Init docs**: If `init/` docs or `<run_output_dir>/init/` docs exist, treat them as constraints and reference inputs for ProblemSpec and PlanOutline.
-6. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
+5. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
    - treat `<run_output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
    - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
    - treat `<run_output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
    - treat `<run_output_dir>/spec/dev-spec.md` as human-readable context only when needed
-7. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
+6. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
    - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
    - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
    - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)

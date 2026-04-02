@@ -66,7 +66,6 @@ These rules apply to **all agents**.
 | Agent | Primary Responsibility | Forbidden Actions |
 |------|------------------------|-------------------|
 | orchestrator-modernize | Flow control, routing, synthesis | Implementing code |
-| orchestrator-init | Target bootstrap docs | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | executor-* | Task execution | Scope expansion |
@@ -98,7 +97,6 @@ Flag semantics:
 - `--autopilot` -> autopilot_mode = true
 - `--full-auto` -> full_auto_mode = true
 - `--target=<path>` -> target_project_dir (default: `../<source-project-dirname>-modernize/`)
-- `--init-target` -> init_target_mode = true
 - `--depth=lite|standard|deep` -> depth_mode (default: `standard`)
 - `--execute-phase=<phase-id>` -> execute_phase_id
 - `--pipeline-flag=<flag>` -> append to `forwarded_pipeline_flags[]` (repeatable; pass-through to `@orchestrator-pipeline`)
@@ -106,12 +104,10 @@ Flag semantics:
 If conflicting flags exist:
 
 - decision_only disables iterate_mode.
-- decision_only disables init_target_mode.
 - If `modernize_mode` is invalid, warn and default to `plan`.
 - If `modernize_mode = phase-exec` and `execute_phase_id` is missing, stop and ask for `--execute-phase=<phase-id>`.
 - If `execute_phase_id` is provided and `modernize_mode != phase-exec`, warn and ignore `execute_phase_id`.
 - If `modernize_mode` is `phase-exec` or `full-exec`, `decision_only = true` is invalid; stop and ask the user to remove `--decision-only` or switch to `plan` / `plan+handoff`.
-- If `init_target_mode = true` and `decision_only = true`, stop and ask the user to remove `--decision-only` because target bootstrap needs the full modernization doc set.
 - If `--depth` is invalid, warn and default to `standard`.
 
 If `--autopilot` is combined with `--confirm` or `--verbose`:
@@ -133,9 +129,7 @@ If `--full-auto` is provided:
 
 1. **Resolve output_dir**: If `--output-dir` was provided, use that path. Otherwise default to `.pipeline-output/`.
 2. **Resolve target_project_dir**: If `--target` was provided, use that path. Otherwise default to `../<source-project-dirname>-modernize/`.
-   - If `modernize_mode` is `phase-exec` or `full-exec` and `target_project_dir` is missing:
-     - If `init_target_mode = true`, create the target project directory and continue to target bootstrap.
-     - If `init_target_mode != true`, stop and report that execution modes require an existing target project directory. Provide two exact next-step options: create the target directory manually, or rerun `run-modernize` with `--init-target`.
+   - If `modernize_mode` is `phase-exec` or `full-exec` and `target_project_dir` is missing, stop and report that execution modes require an existing target project directory. Provide an exact next-step option: create the target directory manually.
 3. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
 4. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`. If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-modernize`; on mismatch, warn and start fresh. If valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation. If valid and `autopilot_mode != true`, display completed stages, ask user to confirm resuming, and skip completed stages. If not found, warn and start fresh.
 
@@ -145,7 +139,6 @@ Execution root policy:
 - The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/<run_id>/modernize/` artifacts.
 - Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`).
 - After a handoff exists, later manual `/run-pipeline` sessions SHOULD start from the target project, not the source project.
-- `--init-target` is the supported one-shot bridge when the target project directory does not exist yet.
 
 ## CHECKPOINT PROTOCOL
 
@@ -169,7 +162,6 @@ Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run
 - Stage 2 (Document Tasks): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent) -> produces `modernize-index.md`
 - Stage 4 (Revision Loop): Orchestrator-owned + @executor-* (if enabled)
-- Optional Stage 4.5 (Target Bootstrap): @orchestrator-init
 - Stage 5 (Optional Execution Handoff): @orchestrator-pipeline (only in `phase-exec` / `full-exec`)
 
 ## Migration Model
@@ -179,7 +171,7 @@ This pipeline follows a **Source-to-Target migration model**:
 - **Source Project (A):** The existing legacy project being analyzed. This project is treated as read-only during modernization planning.
 - **Target Project (B):** A new project at `target_project_dir` (default: `../<source-dirname>-modernize/`) where the modernized system will be built.
 - All docs explicitly plan for building project B while project A continues running.
-- By default, the pipeline references the target path in documentation only. If `init_target_mode = true`, it may create the target project directory and bootstrap target init docs before implementation.
+- By default, the pipeline references the target path in documentation only.
 
 Practical workflow split:
 
@@ -187,7 +179,6 @@ Practical workflow split:
 - Execution starts in target project B.
 - Source project A owns modernization docs and handoff artifacts.
 - Target project B owns implementation changes, tests, pipeline checkpoints, review artifacts, and later follow-up execution.
-- If `init_target_mode = true`, target project B may also receive init docs before implementation begins.
 
 Stage 0: @specifier -> ProblemSpec JSON
 
@@ -291,7 +282,7 @@ Stage 3: Synthesis
 - List open questions and explicit risks.
 - If `modernize_mode = plan` or `modernize_mode = plan+handoff`, provide a short handoff note for `/run-pipeline` usage in the target project (for human operators).
 - The `Next Steps` section MUST include exact, copyable command snippets in fenced text blocks whenever the next operator action is known.
-- If the target project is missing and `init_target_mode != true`, the `Next Steps` section MUST include both: one manual target-creation path and one rerun path using `--init-target`.
+- If the target project is missing, the `Next Steps` section MUST include a manual target-creation path.
 - If the next action should happen from the target project, say so explicitly before the command block.
 - Clarify that internal orchestration (when enabled) delegates to `@orchestrator-pipeline`, not a slash command string.
 - Do NOT produce any additional user-facing document files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
@@ -304,26 +295,6 @@ If `iterate_mode = true`:
 - Ask the user for feedback on the produced docs.
 - Generate at most 2 revision tasks to update specific docs.
 - Re-run synthesis and stop (single revision round).
-
-Optional Stage 4.5: Target Bootstrap
-
-Trigger conditions:
-- `init_target_mode = true`
-
-Bootstrap rules:
-- Ensure `target_project_dir` exists; create it if missing.
-- If target init docs already exist under `init/` or `<target output_dir>/init/`, do NOT overwrite them automatically. Reuse them and warn the user that existing target bootstrap docs were kept.
-- Otherwise, delegate one docs-only `@orchestrator-init` run against `target_project_dir`.
-- The target-init handoff MUST use modernization docs as source-of-truth constraints, especially:
-  - `modernize-target-design.md`
-  - `modernize-migration-strategy.md`
-  - `modernize-migration-roadmap.md`
-  - `modernize-migration-risks.md` when present
-- The purpose of target bootstrap is to prepare target-project init docs and execution context, not to implement code.
-- Recommended target bootstrap output root is the target project's default output root (typically `.pipeline-output/init/`).
-- After successful target bootstrap:
-  - If `modernize_mode = plan` or `plan+handoff`, stop and report the prepared target path plus next `/run-pipeline` guidance.
-  - If `modernize_mode = phase-exec` or `full-exec`, continue into Stage 5.
 
 Stage 5: Optional Execution Handoff (agent-to-agent)
 
@@ -355,11 +326,9 @@ Execution rules:
   - a concise reason
   - an exact human-facing `/run-pipeline ...` command to run in `target_project_dir`
 
-If `target_project_dir` was missing and `init_target_mode != true`:
+If `target_project_dir` was missing:
 - Stop before Stage 5.
-- Provide two exact next-step options:
-  1. Create `target_project_dir` manually, then run the suggested `/run-pipeline` command from that target project.
-  2. Rerun `/run-modernize` with `--init-target` so the orchestrator can prepare the target project before execution.
+- Provide an exact next-step option: create `target_project_dir` manually, then run the suggested `/run-pipeline` command from that target project.
 
 Persisted handoff artifacts (required for execution modes):
 
@@ -516,8 +485,6 @@ Fallback Human Command Rendering (when agent dispatch unavailable):
   - `/run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
 - Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
 - If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/<run_id>/modernize/phase-<phase_id>.handoff.json as the execution contract.`
-- If `init_target_mode = true` and target bootstrap could not be delegated, render an exact `/run-init ...` command for `target_project_dir` before the `/run-pipeline ...` command.
-
 Recommended delegated prompt templates:
 - `phase-exec`: "Implement modernization roadmap phase <execute_phase_id> in target project B using the modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria."
 - `full-exec`: "Implement modernization roadmap phases sequentially in target project B, one phase per pipeline run, using the modernize artifacts as source of truth and preserving phase boundaries."
