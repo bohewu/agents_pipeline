@@ -798,6 +798,7 @@ jobs:
             }
 
             return [pscustomobject]@{
+              tag_name = 'v1.2.3'
               assets = @(
                 [pscustomobject]@{
                   name = 'agents-pipeline-opencode-bundle-v1.2.3.zip'
