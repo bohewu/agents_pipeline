@@ -200,9 +200,9 @@ jobs:
           assert claude_tools == {}
           assert claude_body == "Body line.\n"
 
-           invalid_cases = [
-               (
-                   "unbounded",
+          invalid_cases = [
+              (
+                  "unbounded",
                   textwrap.dedent(
                       """\
                       ---
@@ -243,42 +243,42 @@ jobs:
                       ---
                       Body line.
                       """
-                   ),
-                   "uses unsupported structured value",
-               ),
-                (
-                    "model-key",
-                    textwrap.dedent(
-                        """\
-                        ---
-                        name: invalid
-                        description: Runtime config should own model selection
-                        model: gpt-test
-                        mode: subagent
-                        temperature: 0
-                        ---
-                        Body line.
-                        """
-                    ),
-                    "configure model/provider in runtime config instead",
-                ),
-                (
-                    "provider-key",
-                    textwrap.dedent(
-                        """\
-                        ---
-                        name: invalid
-                        description: Runtime config should own provider selection
-                        provider: local-test
-                        mode: subagent
-                        temperature: 0
-                        ---
-                        Body line.
-                        """
-                    ),
-                    "configure model/provider in runtime config instead",
-                ),
-           ]
+                  ),
+                  "uses unsupported structured value",
+              ),
+              (
+                  "model-key",
+                  textwrap.dedent(
+                      """\
+                      ---
+                      name: invalid
+                      description: Runtime config should own model selection
+                      model: gpt-test
+                      mode: subagent
+                      temperature: 0
+                      ---
+                      Body line.
+                      """
+                  ),
+                  "configure model/provider in runtime config instead",
+              ),
+              (
+                  "provider-key",
+                  textwrap.dedent(
+                      """\
+                      ---
+                      name: invalid
+                      description: Runtime config should own provider selection
+                      provider: local-test
+                      mode: subagent
+                      temperature: 0
+                      ---
+                      Body line.
+                      """
+                  ),
+                  "configure model/provider in runtime config instead",
+              ),
+          ]
 
           for module, label in ((copilot, "copilot"), (codex, "codex"), (claude, "claude")):
               for case_name, fixture, expected_error in invalid_cases:
