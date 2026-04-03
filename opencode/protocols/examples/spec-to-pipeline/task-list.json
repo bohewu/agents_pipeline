@@ -6,7 +6,7 @@
       "summary": "Implement invite creation and duplicate-pending guard",
       "description": "Add backend behavior for creating a pending invite and rejecting duplicate pending invites so the core flow matches the approved spec.",
       "primary_output": "code",
-      "owner_hint": "executor-core",
+      "owner_hint": "executor",
       "risk": "medium",
       "complexity": "M",
       "definition_of_done": [
@@ -29,7 +29,7 @@
       "summary": "Show pending invites on the members page",
       "description": "Update the members page so a successful invite appears immediately with pending status and duplicate invite feedback is visible in the UI.",
       "primary_output": "code",
-      "owner_hint": "executor-core",
+      "owner_hint": "executor",
       "risk": "medium",
       "complexity": "M",
       "definition_of_done": [
@@ -53,7 +53,7 @@
       "summary": "Add regression coverage for invite flow",
       "description": "Add test coverage for invite creation, duplicate invite blocking, and pending invite visibility so reviewer checks can map directly to approved scenarios and acceptance criteria.",
       "primary_output": "tests",
-      "owner_hint": "executor-core",
+      "owner_hint": "executor",
       "risk": "low",
       "complexity": "M",
       "definition_of_done": [

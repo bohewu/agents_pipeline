@@ -2,7 +2,7 @@
   "protocol_version": "1.0",
   "run_id": "run_status_examples_expanded_01",
   "agent_id": "agent-server-01",
-  "agent": "executor-core",
+  "agent": "executor",
   "status": "blocked",
   "created_at": "2026-03-17T15:10:45Z",
   "updated_at": "2026-03-17T15:28:30Z",

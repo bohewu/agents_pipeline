@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HandoffPack",
+  "type": "object",
+  "required": [
+    "run_id",
+    "orchestrator",
+    "goal",
+    "completed_items",
+    "pending_items",
+    "decisions",
+    "risks",
+    "artifact_paths",
+    "kanban_sync_required",
+    "next_recommended_action",
+    "recommended_command"
+  ],
+  "properties": {
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "orchestrator": {
+      "type": "string",
+      "minLength": 1
+    },
+    "user_prompt": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope_boundary": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "completed_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pending_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocked_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifact_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "kanban_sync_required": {
+      "type": "boolean"
+    },
+    "kanban_updates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_recommended_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommended_command": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

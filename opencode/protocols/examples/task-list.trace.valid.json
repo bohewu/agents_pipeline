@@ -6,7 +6,7 @@
       "summary": "Implement invite creation flow",
       "description": "Create the pending invite flow for the members page and keep behavior traceable to the approved spec.",
       "primary_output": "code",
-      "owner_hint": "executor-core",
+      "owner_hint": "executor",
       "risk": "medium",
       "complexity": "M",
       "definition_of_done": [

@@ -20,8 +20,9 @@ Do not manually maintain a separate Claude-only source tree as the primary defin
 | `mode` | (removed) | not emitted |
 | `hidden` | (removed) | not emitted |
 | `temperature` | (removed) | not emitted |
-| `model` | (removed) | not emitted; model remains runtime-driven |
 | body | markdown body | preserved with minimal adaptation |
+
+Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
 
 ## Tool Mapping
 
@@ -41,7 +42,7 @@ If a source tool has no bounded Claude mapping, generation fails in `--strict` m
 ## `@agent` Reference Handling
 
 - The exporter validates body `@agent-name` references against the source agent set and `AGENTS.md` in `--strict` mode.
-- `@executor-*` is expanded to `executor-core` and `executor-advanced` for validation purposes.
+- `@executor` is validated as a normal direct subagent reference.
 - Resolved `@agent-name` references are listed in the generated delegation adapter so orchestrators know which subagents are available.
 
 ## Input Adaptation
@@ -51,7 +52,7 @@ OpenCode orchestrators assume `$ARGUMENTS` parsing from slash-command entrypoint
 For orchestrator agents, the exporter prepends a Claude-specific adapter block:
 
 - use the user's latest message as `raw_input`
-- if the message starts with the matching slash command (for example `/run-pipeline`), strip that first token before normal flag parsing
+- if the message starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), strip that first token before normal flag parsing
 - keep the existing flag semantics after that adaptation
 
 The exporter also replaces `$ARGUMENTS` with `raw_input` in the generated body.

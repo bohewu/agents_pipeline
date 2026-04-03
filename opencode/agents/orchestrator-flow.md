@@ -17,11 +17,11 @@ FOCUS: Explicit task dispatching with bounded flow, bounded parallelism, and no 
 # HARD CONSTRAINTS
 
 - Orchestrator must NOT modify application/business code directly. Delegate to executors.
-- Do NOT create new agents (use existing @executor-* / @doc-writer / @peon / @generalist only).
+- Do NOT create ad-hoc agents. Use the existing flow helpers and executors only.
 - Do NOT exceed 5 tasks under any circumstance.
 - Do NOT create task DAGs or dependency graphs.
 - No reviewer agent.
-- No delta tasks or retries.
+- No delta tasks or retry loops.
 
 # RESPONSE MODE (DEFAULT)
 
@@ -57,7 +57,7 @@ Flow:
 - Daily engineering
 - Max 5 atomic tasks
 - Parallel execution
-- No reviewer / no retries
+- No reviewer / no retry loops
 
 Flow-Full:
 - CI / PR / high-risk
@@ -70,7 +70,11 @@ Flow-Full:
 |------|------------------------|-------------------|
 | orchestrator-flow | Flow control, routing, synthesis | Implementing code |
 | repo-scout | Repo discovery | Design decisions |
-| executor-* | Task execution | Scope expansion |
+| specifier | Scope framing | Implementation |
+| flow-splitter | Max-5 task decomposition | Implementation |
+| executor | Task execution | Scope expansion |
+| handoff-writer | Handoff artifact generation | Scope expansion |
+| kanban-manager | Root-tracked kanban sync | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
@@ -90,6 +94,8 @@ Supported flags (Flow-only, minimal):
 - `--scout=auto|skip|force` -> scout_mode
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
+- `--handoff` -> handoff_mode = true
+- `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
@@ -100,6 +106,10 @@ Supported flags (Flow-only, minimal):
 If no scout flag is provided:
 
 - scout_mode = skip (Flow targets small tasks; orchestrator has direct tool access for discovery).
+
+If no kanban flag is provided:
+
+- kanban_mode = manual.
 
 If conflicting flags exist (e.g. --skip-scout + --force-scout):
 
@@ -126,11 +136,18 @@ If an invalid `--scout` value is provided:
 - Warn the user.
 - Fall back to scout_mode = skip.
 
+If an invalid `--kanban` value is provided:
+
+- Warn the user.
+- Fall back to kanban_mode = manual.
+
 ## FLOW FLAGS (QUICK REFERENCE)
 
 - `--scout=auto|skip|force`
 - `--skip-scout`
 - `--force-scout`
+- `--handoff`
+- `--kanban=off|manual|auto`
 - `--output-dir=<path>`
 - `--resume`
 - `--confirm`
@@ -175,10 +192,11 @@ Use the expanded status layout once Stage 2 creates the task list. Emit: `run.st
 
 - Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Repo Scout, optional): @repo-scout
-- Stage 1 (Problem Framing): Orchestrator-owned (no subagent)
-- Stage 2 (Atomic Task Decomposition): Orchestrator-owned (no subagent)
-- Stage 3 (Dispatch & Execution): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
+- Stage 1 (Problem Spec): @specifier
+- Stage 2 (Flow Task Split): @flow-splitter
+- Stage 3 (Dispatch & Execution): @executor / @doc-writer / @peon / @generalist
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
+- Optional terminal helpers: @handoff-writer / @kanban-manager
 
 All outputs are written to `<run_output_dir>/flow/` for traceability.
 
@@ -191,59 +209,41 @@ Stage 0 — Repo Scout (optional)
 - Output: RepoFindings JSON.
 - Use RepoFindings as input to Stage 1 and Stage 2.
 
-Stage 1 — Problem Framing
-- Output:
-```json
-{
-  "goal": "",
-  "context": [],
-  "constraints": [],
-  "hallucination_risks": []
-}
-```
-- Goal: 1 sentence
-- Context: max 3 bullets
-- Constraints: max 3 bullets
-- Identify key risk factors for hallucination
+Stage 1 — Problem Spec (@specifier)
+- Produce a compact `ProblemSpec` JSON for the requested work.
+- Keep the scope crisp enough that Stage 2 can produce a bounded max-5 task list without extra orchestrator reasoning.
 
-Stage 2 — Atomic Task Decomposition
+Stage 2 — Flow Task Split (@flow-splitter)
 - Produce AT MOST 5 tasks.
-- Each task MUST be atomic:
-  - single responsibility
-  - single expected output
-  - no hidden dependencies
-- If a task cannot be atomic, SPLIT it.
-- If more than 5 tasks are needed, MERGE low-risk tasks.
-- Prefer splitting tasks for executor-core to reduce context size.
-- Output:
-```json
-{
-  "tasks": [
-    {
-      "task_id": "",
-      "summary": "",
-      "assigned_executor": "executor-advanced | executor-core | doc-writer",
-      "expected_output": "design | plan | spec | checklist | analysis | implementation",
-      "atomic": true
-    }
-  ]
-}
-```
+- Persist the result to `<run_output_dir>/flow/task-list.json`.
+- The output must conform to `opencode/protocols/schemas/flow-task-list.schema.json`.
+- Each task MUST already include:
+  - `assigned_agent`
+  - `primary_output`
+  - `effort`
+  - `verification`
+  - `repair_budget`
+  - `resource_class`
+  - `definition_of_done`
+- No DAGs. No hidden dependencies. Keep tasks execution-ready.
 - After writing the flow task artifact, emit task-registration events for every task, request `RunStatus.layout = expanded`, and provide enough semantic data for runtime/plugin to refresh task refs, `task_counts`, and any ready/pending task ids.
 
 Stage 3 — Dispatch & Execution
 - Group tasks into:
   - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
   - sequential_tasks (if ordering is required or the task is resource-heavy)
-- Each task is executed EXACTLY ONCE. No retries.
-- Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED/FAILED.
-- Classify each task conservatively as `light`, `process`, `server`, or `browser`.
+- Default behavior is one execution attempt per task.
+- A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done.
+- If an executor returns `blocked` for a non-hard blocker and the task's `repair_budget > 0`, Flow may attempt ONE bounded recovery pass by clarifying the handoff or re-dispatching the SAME task once with stronger `effort` / `verification` settings.
+- Flow still MUST NOT generate new user-visible tasks, delta tasks, or reviewer loops.
+- Classify each task conservatively as `light`, `process`, `server`, or `browser` using the Stage 2 task metadata.
 - `browser` and `server` tasks MUST stay in `sequential_tasks` with effective `max_parallelism = 1`.
 - `process` tasks may run in parallel only when clearly independent, bounded, and unlikely to contend for RAM or ports.
 - Dispatch parallel_tasks concurrently if tooling allows; otherwise dispatch sequentially and note the limitation.
 - For each task handoff, include:
   - Task details
   - Expected output
+  - `effort`, `verification`, and `repair_budget`
   - Artifact output contract (below)
 - For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should heartbeat while active when practical, and must reflect cleanup state before reporting success.
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
@@ -253,7 +253,7 @@ Stage 3 — Dispatch & Execution
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
 
-If expected_output is design, plan, spec, checklist, or analysis:
+If primary_output is design, plan, spec, checklist, or analysis:
 
 Executor MUST emit a named artifact using EXACT format:
 
@@ -266,7 +266,7 @@ Rules:
 - Artifact MUST NOT assume other task outputs unless explicitly stated.
 - Missing artifact = task FAILED.
 
-If expected_output is implementation:
+If primary_output is implementation:
 
 - Executor must include evidence (paths/commands) and list changes.
 
@@ -276,8 +276,9 @@ If expected_output is implementation:
   - Mark it as FAILED.
   - Summarize the failure.
   - CONTINUE pipeline.
-- Do NOT retry.
+- Do NOT create new tasks or reviewer loops.
 - Do NOT generate delta tasks.
+- Only the single-task bounded recovery path in Stage 3 is allowed.
 
 # RESOURCE CONTROL POLICY
 
@@ -296,6 +297,14 @@ If expected_output is implementation:
   - Prefer the more concrete / scoped output.
 - No reviewer involvement.
 - Before returning, emit final task/run outcomes so runtime/plugin can persist terminal states, cleanup results, errors, and remaining blockers consistently.
+
+Optional terminal helper behavior:
+
+- If `handoff_mode = true`, call @handoff-writer to write:
+  - `<run_output_dir>/flow/handoff-pack.json`
+  - `<run_output_dir>/flow/handoff-prompt.md`
+- If `kanban_mode = auto`, call @kanban-manager to sync the root-tracked `todo-ledger.json` and `kanban.md` using final task outcomes and any `kanban_updates` from the handoff.
+- If `kanban_mode = manual`, mention `/kanban sync` in the final summary and in any handoff prompt.
 
 STOP after synthesis.
 

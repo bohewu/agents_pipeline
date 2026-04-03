@@ -47,9 +47,9 @@ Full CI runs all of the above plus frontmatter regression tests, installer dry-r
 ### Agent Definitions (`opencode/agents/*.md`)
 
 Each agent has YAML frontmatter + markdown body:
-- **Frontmatter keys**: `name`, `description`, `mode` (primary/subagent), `hidden`, `temperature`, `tools`, `model`, `agent`
-- **8 orchestrators** (`orchestrator-*`): Control flow, delegate to subagents via `@agent-name` references
-- **20 subagents**: Specialized workers (specifier, planner, atomizer, router, executor-core/advanced, reviewer, etc.)
+- **Frontmatter keys**: `name`, `description`, `mode` (primary/subagent), `hidden`, `temperature`, `tools`, `agent`
+- **Primary orchestrators** (`orchestrator-*`): Control flow, delegate to subagents via `@agent-name` references
+- **Subagents**: Specialized workers (specifier, planner, atomizer, router, executor, flow-splitter, reviewer, etc.)
 - Agent `name` must match the filename stem
 
 ### Commands (`opencode/commands/*.md`)
@@ -91,7 +91,7 @@ In Claude Code, the top-level Claude Code instance acts as the pipeline runtime.
 1. **Phase 1 — Planning**: Spawn the orchestrator (e.g., `@orchestrator-flow`). It analyzes the task and returns a JSON dispatch plan:
    ```json
    { "dispatch": [
-       { "id": "T1", "agent": "executor-core", "prompt": "...", "deps": [] },
+       { "id": "T1", "agent": "executor", "prompt": "...", "deps": [] },
        { "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] }
      ]}
    ```
@@ -106,7 +106,7 @@ In Claude Code, the top-level Claude Code instance acts as the pipeline runtime.
 
 - Use `@orchestrator-flow` for daily engineering tasks (max 5 atomic tasks, no reviewer).
 - Use `@orchestrator-pipeline` for CI/PR/high-risk work (full pipeline with review gates).
-- For simple single-file tasks, skip the orchestrator and spawn `@executor-core` directly.
+- For simple single-file tasks, skip the orchestrator and spawn `@executor` directly.
 
 ## Key Conventions
 

@@ -105,8 +105,8 @@ test("status projector preserves distinct agent records when base agent_id is re
 
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-a",
     attempt: 1,
     status: "running",
@@ -115,8 +115,8 @@ test("status projector preserves distinct agent records when base agent_id is re
 
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-b",
     attempt: 1,
     status: "running",
@@ -126,19 +126,19 @@ test("status projector preserves distinct agent records when base agent_id is re
   assert.equal(state.agents.size, 2);
   assert.deepEqual(
     Array.from(state.agents.keys()).sort(),
-    ["executor-core", "executor-core--attempt-1--task-task-b"]
+    ["executor", "executor--attempt-1--task-task-b"]
   );
   assert.deepEqual(
     state.runStatus.agent_refs,
     [
-      { agent_id: "executor-core", path: "status/agents/executor-core.json" },
+      { agent_id: "executor", path: "status/agents/executor.json" },
       {
-        agent_id: "executor-core--attempt-1--task-task-b",
-        path: "status/agents/executor-core--attempt-1--task-task-b.json"
+        agent_id: "executor--attempt-1--task-task-b",
+        path: "status/agents/executor--attempt-1--task-task-b.json"
       }
     ]
   );
-  assert.deepEqual(state.runStatus.active_agent_ids, ["executor-core", "executor-core--attempt-1--task-task-b"]);
+  assert.deepEqual(state.runStatus.active_agent_ids, ["executor", "executor--attempt-1--task-task-b"]);
 });
 
 test("status projector updates the matching reused agent record when attempt metadata is provided", () => {
@@ -160,8 +160,8 @@ test("status projector updates the matching reused agent record when attempt met
 
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents-finish",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-a",
     attempt: 1,
     status: "running",
@@ -169,7 +169,7 @@ test("status projector updates the matching reused agent record when attempt met
   });
   projector.applyEvent(state, "agent.finished", {
     run_id: "run-duplicate-agents-finish",
-    agent_id: "executor-core",
+    agent_id: "executor",
     task_id: "task-a",
     attempt: 1,
     status: "done",
@@ -178,8 +178,8 @@ test("status projector updates the matching reused agent record when attempt met
 
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents-finish",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-b",
     attempt: 1,
     status: "running",
@@ -187,7 +187,7 @@ test("status projector updates the matching reused agent record when attempt met
   });
   projector.applyEvent(state, "agent.finished", {
     run_id: "run-duplicate-agents-finish",
-    agent_id: "executor-core",
+    agent_id: "executor",
     task_id: "task-b",
     attempt: 1,
     status: "blocked",
@@ -195,9 +195,9 @@ test("status projector updates the matching reused agent record when attempt met
     timestamp: "2026-03-25T11:04:00.000Z"
   });
 
-  assert.equal(state.agents.get("executor-core").status, "done");
-  assert.equal(state.agents.get("executor-core").task_id, "task-a");
-  const reusedAgent = state.agents.get("executor-core--attempt-1--task-task-b");
+  assert.equal(state.agents.get("executor").status, "done");
+  assert.equal(state.agents.get("executor").task_id, "task-a");
+  const reusedAgent = state.agents.get("executor--attempt-1--task-task-b");
   assert.ok(reusedAgent);
   assert.equal(reusedAgent.status, "blocked");
   assert.equal(reusedAgent.task_id, "task-b");
@@ -223,8 +223,8 @@ test("status projector rejects ambiguous heartbeat updates when reused agent ids
 
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents-ambiguous",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-a",
     attempt: 1,
     status: "running",
@@ -232,8 +232,8 @@ test("status projector rejects ambiguous heartbeat updates when reused agent ids
   });
   projector.applyEvent(state, "agent.started", {
     run_id: "run-duplicate-agents-ambiguous",
-    agent_id: "executor-core",
-    agent: "executor-core",
+    agent_id: "executor",
+    agent: "executor",
     task_id: "task-b",
     attempt: 1,
     status: "running",
@@ -244,11 +244,11 @@ test("status projector rejects ambiguous heartbeat updates when reused agent ids
     () =>
       projector.applyEvent(state, "agent.heartbeat", {
         run_id: "run-duplicate-agents-ambiguous",
-        agent_id: "executor-core",
+        agent_id: "executor",
         status: "running",
         timestamp: "2026-03-25T12:03:00.000Z"
       }),
-    /Ambiguous agent_id: executor-core/
+    /Ambiguous agent_id: executor/
   );
 });
 

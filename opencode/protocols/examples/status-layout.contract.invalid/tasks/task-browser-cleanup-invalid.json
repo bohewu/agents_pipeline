@@ -10,7 +10,7 @@
     "tc-manual-failure-guidance"
   ],
   "assigned_agent_id": "agent-browser-cleanup-invalid",
-  "assigned_executor": "executor-advanced",
+  "assigned_executor": "executor",
   "resource_class": "browser",
   "max_parallelism": 1,
   "teardown_required": true,

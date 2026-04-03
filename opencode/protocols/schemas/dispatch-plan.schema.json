@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "batches",
-    "advanced_reserve_tasks",
     "notes"
   ],
   "properties": {
@@ -121,12 +120,6 @@
           }
         ],
         "additionalProperties": false
-      }
-    },
-    "advanced_reserve_tasks": {
-      "type": "array",
-      "items": {
-        "type": "string"
       }
     },
     "notes": {

@@ -26,7 +26,7 @@ Produce atomic TaskList (DAG). Each task must be independently verifiable.
       "summary": "",
       "description": "",
       "primary_output": "",
-      "owner_hint": "executor-core | executor-advanced | peon | generalist | doc-writer",
+      "owner_hint": "executor | peon | generalist | doc-writer",
       "risk": "low | medium | high",
       "complexity": "S | M | L",
       "definition_of_done": [],

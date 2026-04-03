@@ -200,9 +200,9 @@ jobs:
           assert claude_tools == {}
           assert claude_body == "Body line.\n"
 
-          invalid_cases = [
-              (
-                  "unbounded",
+           invalid_cases = [
+               (
+                   "unbounded",
                   textwrap.dedent(
                       """\
                       ---
@@ -243,10 +243,42 @@ jobs:
                       ---
                       Body line.
                       """
-                  ),
-                  "uses unsupported structured value",
-              ),
-          ]
+                   ),
+                   "uses unsupported structured value",
+               ),
+                (
+                    "model-key",
+                    textwrap.dedent(
+                        """\
+                        ---
+                        name: invalid
+                        description: Runtime config should own model selection
+                        model: gpt-test
+                        mode: subagent
+                        temperature: 0
+                        ---
+                        Body line.
+                        """
+                    ),
+                    "configure model/provider in runtime config instead",
+                ),
+                (
+                    "provider-key",
+                    textwrap.dedent(
+                        """\
+                        ---
+                        name: invalid
+                        description: Runtime config should own provider selection
+                        provider: local-test
+                        mode: subagent
+                        temperature: 0
+                        ---
+                        Body line.
+                        """
+                    ),
+                    "configure model/provider in runtime config instead",
+                ),
+           ]
 
           for module, label in ((copilot, "copilot"), (codex, "codex"), (claude, "claude")):
               for case_name, fixture, expected_error in invalid_cases:
@@ -443,6 +475,21 @@ jobs:
             --input opencode/protocols/examples/modernize-exec-handoff.valid.json \
             --require-jsonschema
 
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/handoff-pack.schema.json \
+            --input opencode/protocols/examples/handoff-pack.valid.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/flow-task-list.schema.json \
+            --input opencode/protocols/examples/flow-task-list.valid.json \
+            --require-jsonschema
+
+          python3 opencode/tools/validate-schema.py \
+            --schema opencode/protocols/schemas/todo-ledger.schema.json \
+            --input todo-ledger.example.json \
+            --require-jsonschema
+
           if python3 opencode/tools/validate-schema.py \
             --schema opencode/protocols/schemas/modernize-exec-handoff.schema.json \
             --input opencode/protocols/examples/modernize-exec-handoff.invalid.json \
@@ -565,8 +612,7 @@ jobs:
                   "browser",
                   "server",
               ],
-              Path("opencode/agents/executor-core.md"): ["RESOURCE CLEANUP (MANDATORY)"],
-              Path("opencode/agents/executor-advanced.md"): ["RESOURCE CLEANUP (MANDATORY)"],
+              Path("opencode/agents/executor.md"): ["RESOURCE CLEANUP (MANDATORY)", "repair_budget"],
               Path("opencode/agents/generalist.md"): ["RESOURCE CLEANUP (MANDATORY)"],
               Path("opencode/agents/peon.md"): ["RESOURCE CLEANUP (MANDATORY)"],
               Path("opencode/agents/test-runner.md"): ["RESOURCE CLEANUP (MANDATORY)"],

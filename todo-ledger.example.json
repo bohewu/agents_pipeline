@@ -2,14 +2,21 @@
   "protocol_version": "1.0",
   "items": [
     {
-      "id": "todo-001",
+      "id": "kb-001",
       "summary": "Follow up on reviewer required items from the last run.",
-      "status": "open",
+      "status": "ready",
+      "priority": "medium",
       "related_task_ids": [],
       "source": "reviewer",
+      "source_run_id": "run-20260403-101500",
+      "artifact_paths": [
+        ".pipeline-output/run-20260403-101500/pipeline/review-report.json"
+      ],
       "notes": "",
-      "created_at": "2026-02-04",
-      "updated_at": "2026-02-04"
+      "created_at": "2026-04-03",
+      "updated_at": "2026-04-03",
+      "completed_at": "",
+      "archived_at": ""
     }
   ]
 }

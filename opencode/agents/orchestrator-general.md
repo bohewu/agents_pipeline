@@ -63,8 +63,7 @@ These rules apply to **all agents**.
 | doc-writer | Documentation outputs | Implementation |
 | generalist | Mixed-scope execution | Scope expansion |
 | peon | Low-cost execution | Scope expansion |
-| executor-core | Focused execution | Scope expansion |
-| executor-advanced | High-rigor reasoning tasks | Scope expansion |
+| executor | Atomic task execution with bounded effort | Scope expansion |
 | summarizer | User summary | Technical decisions |
 
 ---
@@ -110,7 +109,7 @@ Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Atomicization): @atomizer
 - Stage 3 (Routing): @router
-- Stage 4 (Execution): @doc-writer / @generalist / @peon / @executor-core / @executor-advanced
+- Stage 4 (Execution): @doc-writer / @generalist / @peon / @executor
 - Stage 5 (Summary): @summarizer
 
 All intermediate artifacts are written to `<output_dir>/general/`.
@@ -139,7 +138,7 @@ Generate DispatchPlan optimized for cost/time while preserving quality.
 Guidance:
 - Prefer `@doc-writer` / `@peon` for mechanical writing/formatting tasks.
 - Prefer `@generalist` for mixed-scope non-coding tasks.
-- Use `@executor-advanced` only for high-ambiguity reasoning and decision synthesis.
+- Use `@executor` when the work still needs bounded execution or stronger verification than `@doc-writer`, `@peon`, or `@generalist` can provide.
 
 # HUMAN-FRIENDLY ARTIFACT RULES (MANDATORY)
 

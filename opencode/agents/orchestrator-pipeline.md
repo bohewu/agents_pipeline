@@ -80,7 +80,7 @@ These rules apply to **all agents**.
 | repo-scout | Repo discovery | Design decisions |
 | atomizer | Atomic task DAG | Implementation |
 | router | Cost-aware assignment | Changing tasks |
-| executor-* | Task execution | Scope expansion |
+| executor | Task execution | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
@@ -109,6 +109,8 @@ Flag semantics:
 - `--effort=low|balanced|high` -> effort_mode
 - `--max-retry=<int>` -> max_retry_rounds
 - `--compress` -> compress_mode = true
+- `--handoff` -> handoff_mode = true
+- `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
 - `--resume` -> resume_mode = true
 - `--confirm` -> confirm_mode = true
@@ -119,6 +121,10 @@ Flag semantics:
 If no scout flag is provided:
 
 - scout_mode = auto.
+
+If no kanban flag is provided:
+
+- kanban_mode = manual.
 
 If conflicting flags exist (e.g. --dry + --test-only):
 
@@ -150,6 +156,11 @@ If `--full-auto` is provided:
 - Explicit flags still override these preset defaults.
 - Prefer the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker.
 - Still stop on hard blockers.
+
+If an invalid `--kanban` value is provided:
+
+- Warn the user.
+- Fall back to kanban_mode = manual.
 
 Proceed with pipeline execution according to parsed flags.
 
@@ -203,8 +214,8 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
    - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
-   - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
-   - If `autopilot_mode = false`, surface it and ask whether to include, defer, or mark items obsolete.
+    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
+    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or archive obsolete carryover items.
 5. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
    - treat `<run_output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
    - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
@@ -252,6 +263,8 @@ Write these fixed filenames under `<run_output_dir>/pipeline/` whenever the arti
 - `test-report.json`
 - `review-report.json`
 - `context-pack.json`
+- `handoff-pack.json` (optional)
+- `handoff-prompt.md` (optional)
 
 For the human-readable development spec, do NOT invent alternate filenames. Always use `<run_output_dir>/pipeline/dev-spec.md`.
 
@@ -289,7 +302,7 @@ If unsure and the task is implementation-oriented, prefer generating `DevSpec` b
 - Stage 2 (Repo Scout): @repo-scout
 - Stage 3 (Atomicization): @atomizer
 - Stage 4 (Routing): @router
-- Stage 5 (Execution + optional validation): @executor-core / @executor-advanced / @peon / @generalist / @doc-writer / @test-runner
+- Stage 5 (Execution + optional validation): @executor / @peon / @generalist / @doc-writer / @test-runner
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression, opt-in): @compressor (only if `compress_mode = true`)
@@ -305,7 +318,11 @@ Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional 
 Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then call `status_runtime_event` with `event = "task.updated"` to enrich task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`, and refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids
 Stage 5: Execute batches + optional validation:
 
-- If `test_only = false`, dispatch tasks to @executor-core / @executor-advanced / @peon / @generalist / @doc-writer as specified
+- If `test_only = false`, dispatch tasks to @executor / @peon / @generalist / @doc-writer as specified
+- For `@executor` tasks, include a bounded execution profile in the handoff. Use task `risk` / `complexity` as the default signal:
+  - low + S -> `effort = low`, `verification = basic`, `repair_budget = 0`
+  - medium + M -> `effort = medium`, `verification = basic`, `repair_budget = 1`
+  - high + L -> `effort = high`, `verification = strong`, `repair_budget = 1`
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
@@ -334,6 +351,14 @@ Stage 9: Orchestrator-owned summary (no subagent). Use this template:
 
 Rules: max 2 bullets per section, no JSON dumps, no stage narration.
 
+Before returning the Stage 9 final summary:
+
+- If `handoff_mode = true`, call @handoff-writer to write:
+  - `<run_output_dir>/pipeline/handoff-pack.json`
+  - `<run_output_dir>/pipeline/handoff-prompt.md`
+- If `kanban_mode = auto`, call @kanban-manager to sync the root-tracked `todo-ledger.json` and `kanban.md` using final task/review outcomes and any `kanban_updates` from the handoff.
+- If `kanban_mode = manual`, mention `/kanban sync` in the final summary and in any handoff prompt.
+
 # DECISION-ONLY MODE
 
 If `decision_only = true`:
@@ -355,7 +380,7 @@ If `decision_only = true`:
   3) attempt one bounded recovery pass per blocked task
 - Allowed recovery actions (must stay within the original ProblemSpec / optional DevSpec / phase execution contract):
   - clarify the handoff using existing repo evidence or prior pipeline artifacts
-  - reroute the same task to a stronger executor profile
+  - reroute the same task with higher `effort` or stronger `verification` settings when the task still fits the single-executor contract
   - generate narrow unblock delta tasks via @atomizer + @router when additional in-scope work is required to unblock the original task
   - re-dispatch the original blocked task once after the unblock step completes
 - Recovery MUST NOT:
@@ -414,7 +439,7 @@ If `decision_only = true`:
   - low: favor the smallest viable path with fewer retries and lighter validation
   - balanced: use the practical default depth with standard validation
   - high: allow deeper analysis, broader validation, and stricter quality checks
-- Route high-risk or complex reasoning tasks to stronger executor profiles.
+- Route high-risk or complex reasoning tasks to `@executor` with higher `effort` and stronger `verification` settings.
 - Route mechanical/documentation/formatting tasks to lower-cost executor profiles.
 
 # QUALITY GATES

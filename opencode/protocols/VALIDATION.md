@@ -27,6 +27,12 @@ These gates define minimal acceptance for each stage output.
 - `dependencies` must reference existing task ids or be empty.
 - If `DevSpec` is part of the run, each task must include non-empty `trace_ids` that point to valid `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
 
+## Flow Task Gate
+
+- Flow task lists must validate against `./protocols/schemas/flow-task-list.schema.json`.
+- Flow task lists must contain 1-5 tasks only.
+- Every Flow task must include `assigned_agent`, `effort`, `verification`, `repair_budget`, `resource_class`, and `atomic = true`.
+
 ## Evidence Gate
 
 - Executor outputs must include evidence paths or commands.
@@ -70,7 +76,13 @@ This repository enforces those checks in `.github/workflows/ci.yml` so contribut
 ## Todo Ledger Gate (Optional)
 
 - If `todo-ledger.json` exists in the project root, it must validate against the TodoLedger schema.
-- All item `status` values must be `open`, `blocked`, `done`, or `obsolete`.
+- Canonical item `status` values should be `backlog`, `ready`, `doing`, `blocked`, `done`, or `archived`.
+- Legacy values `open` and `obsolete` are tolerated for migration, but helper commands should rewrite them to canonical statuses when practical.
+
+## Handoff Gate (Optional)
+
+- If `handoff-pack.json` is emitted, it must validate against the HandoffPack schema.
+- Handoff output must include a recommended next action and whether kanban sync is required.
 
 ## Flags and Exceptions
 

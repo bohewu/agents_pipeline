@@ -31,10 +31,22 @@
           "status": {
             "type": "string",
             "enum": [
+              "backlog",
+              "ready",
+              "doing",
               "open",
               "blocked",
               "done",
+              "archived",
               "obsolete"
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
             ]
           },
           "related_task_ids": {
@@ -46,6 +58,15 @@
           "source": {
             "type": "string"
           },
+          "source_run_id": {
+            "type": "string"
+          },
+          "artifact_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "notes": {
             "type": "string"
           },
@@ -53,6 +74,12 @@
             "type": "string"
           },
           "updated_at": {
+            "type": "string"
+          },
+          "completed_at": {
+            "type": "string"
+          },
+          "archived_at": {
             "type": "string"
           }
         },

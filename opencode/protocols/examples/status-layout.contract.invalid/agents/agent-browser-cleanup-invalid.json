@@ -2,7 +2,7 @@
   "protocol_version": "1.0",
   "run_id": "run_status_examples_invalid_01",
   "agent_id": "agent-browser-cleanup-invalid",
-  "agent": "executor-advanced",
+  "agent": "executor",
   "status": "done",
   "created_at": "2026-03-17T16:00:45Z",
   "updated_at": "2026-03-17T16:07:30Z",

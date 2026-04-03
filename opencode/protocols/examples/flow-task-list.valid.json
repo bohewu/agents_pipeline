@@ -1,0 +1,37 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "f1",
+      "summary": "Implement the login validation fix",
+      "description": "Update the existing login validation path without broad auth redesign.",
+      "primary_output": "implementation",
+      "assigned_agent": "executor",
+      "effort": "medium",
+      "verification": "basic",
+      "repair_budget": 1,
+      "resource_class": "process",
+      "definition_of_done": [
+        "Validation handles the approved edge case.",
+        "Evidence includes the changed path and verification command."
+      ],
+      "atomic": true
+    },
+    {
+      "id": "f2",
+      "summary": "Write the follow-up handoff note",
+      "description": "Capture the remaining callback verification work in a human-readable artifact.",
+      "primary_output": "analysis",
+      "assigned_agent": "doc-writer",
+      "effort": "low",
+      "verification": "none",
+      "repair_budget": 0,
+      "resource_class": "light",
+      "definition_of_done": [
+        "Artifact references the canonical run-local output paths.",
+        "Next-step guidance is explicit and in scope."
+      ],
+      "atomic": true
+    }
+  ]
+}

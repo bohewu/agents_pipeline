@@ -44,17 +44,16 @@ Stage 8 (Compressor) produces `context-pack.json` on every pipeline run. This ar
 
 **Impact:** ~2,500 tokens/run wasted on most runs.
 
-### 4. executor-core and executor-advanced Are Identical
+### 4. Historical Executor Split Was Redundant
 
 ```diff
-< name: executor-core
-< description: Executes one atomic task using a cost-effective execution profile.
+< name: executor
+< description: Executes one atomic task with bounded effort and verification settings supplied in the handoff.
 ---
-> name: executor-advanced
-> description: Executes one atomic task using a high-rigor execution profile.
+> historical duplicate executor profile removed
 ```
 
-The remaining ~45 lines of prompt content are character-for-character identical. Differentiation should happen at the runtime/model layer, not the prompt layer.
+The earlier split duplicated prompt content with negligible behavior difference. The repo now uses a single `executor` and pushes effort/verification differences into the handoff instead of separate agent names.
 
 ## Optimization Tiers
 

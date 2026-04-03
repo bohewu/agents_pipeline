@@ -21,15 +21,14 @@ Do not manually maintain generated `.agent.md` files as a primary source.
 | `hidden` | (removed) | not emitted |
 | `temperature` | (removed) | not emitted |
 | `tools` | (removed) | not emitted |
-| `model` | (removed) | not emitted (runtime-driven) |
 | body `@agent` refs | `agents` | extracted and deduplicated |
+
+Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
 
 ## Subagent Extraction Rules
 
 - The generator scans body text for `@<agent-name>` tokens.
-- `@executor-*` is expanded into:
-  - `executor-core`
-  - `executor-advanced`
+- `@executor` is extracted like any other direct subagent reference.
 - In `--strict` mode, unresolved `@...` references fail generation.
 
 ## `/run-*` Input Adaptation
@@ -38,7 +37,7 @@ Copilot custom agents do not provide `$ARGUMENTS`.
 For orchestrator agents, the generator prepends an input adapter block:
 
 - Use the user's latest message as `raw_input`.
-- If it starts with the matching slash command (for example `/run-pipeline`), remove that first token.
+- If it starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), remove that first token.
 - Apply the existing flag parsing logic unchanged.
 
 `$ARGUMENTS` is replaced with `raw_input` in generated files.

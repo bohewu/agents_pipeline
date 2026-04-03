@@ -32,6 +32,8 @@ $ARGUMENTS
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
 - `--compress` — compress context between stages
+- `--handoff` — write run-local handoff artifacts at the end of the run
+- `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
 - `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults to `--effort=high` and `--max-retry=5`, and explicit flags still override those defaults
 
@@ -50,6 +52,7 @@ $ARGUMENTS
 /run-pipeline Implement feature with review --confirm
 /run-pipeline Execute migration end-to-end --autopilot
 /run-pipeline Execute migration end-to-end --full-auto
+/run-pipeline Finish the approved invite flow --handoff --kanban=auto
 ```
 
 ## Guarantees
@@ -60,6 +63,11 @@ $ARGUMENTS
 - Runtime/plugin writes canonical checkpoint and status artifacts under `<output_root>/<run_id>/` via the plugin tool `status_runtime_event`.
 - The orchestrator must follow the shared `status_runtime_event` contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
 - When generated, the human-readable development spec is written to `<run_output_dir>/pipeline/dev-spec.md`.
+- When `--handoff` is enabled, run-local handoff files are written under `<run_output_dir>/pipeline/`.
+- Root-tracked carryover artifacts live outside `.pipeline-output/`:
+  - `todo-ledger.json` is the canonical kanban source
+  - `kanban.md` is the rendered board view
+  - `session-guide.md` is stable repo guidance
 - Heavy resource tasks such as browser automation or temporary local servers are routed conservatively and require teardown evidence before the next heavy batch.
 - The global handoff protocol is embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need it externalized, extract that section into your runtime path (e.g. under `~/.config/opencode/agents/protocols`).
 

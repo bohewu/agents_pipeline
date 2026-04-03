@@ -21,7 +21,7 @@ FOCUS: Current-state assessment, target vision, modernization strategy, roadmap,
 - If execution is requested, delegate to `@orchestrator-pipeline`; do NOT duplicate pipeline execution/test/review logic here.
 - User-facing outputs from modernize stages are documents only (artifacts).
 - Do NOT exceed 5 Stage 2 document tasks. If `iterate_mode = true`, allow up to 2 additional targeted revision tasks.
-- Prefer @executor-core; use @executor-advanced only for complex or high-risk decisions.
+- Prefer @executor for any bounded execution or mixed implementation/validation work.
 - Enforce the embedded global handoff protocol below for every handoff.
 - Do NOT produce any user-facing document files outside the defined artifact list (see Stage 2).
   Specifically PROHIBITED outputs include:
@@ -68,7 +68,7 @@ These rules apply to **all agents**.
 | orchestrator-modernize | Flow control, routing, synthesis | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
-| executor-* | Task execution | Scope expansion |
+| executor | Task execution | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
@@ -159,9 +159,9 @@ Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run
 - Pre-flight: Gitignore check, checkpoint resume, resolve target project
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
-- Stage 2 (Document Tasks): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
+- Stage 2 (Document Tasks): @executor / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent) -> produces `modernize-index.md`
-- Stage 4 (Revision Loop): Orchestrator-owned + @executor-* (if enabled)
+- Stage 4 (Revision Loop): Orchestrator-owned + @executor (if enabled)
 - Stage 5 (Optional Execution Handoff): @orchestrator-pipeline (only in `phase-exec` / `full-exec`)
 
 ## Migration Model
@@ -188,7 +188,7 @@ Stage 1: @planner -> PlanOutline JSON
 
 Stage 2: Document Tasks (max 5)
 
-Dispatch the following tasks (prefer @executor-core):
+Dispatch the following tasks (prefer @executor for bounded execution work):
 
 1) **modernize-source-assessment** — Source Project Assessment
    - Output: artifact `<output_dir>/modernize/modernize-source-assessment.md`

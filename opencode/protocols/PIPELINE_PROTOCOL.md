@@ -14,8 +14,22 @@ All JSON outputs MUST conform to the schemas in `./protocols/schemas/` (relative
 ## Optional Input: Todo Ledger
 
 If `todo-ledger.json` exists in the project root, the orchestrator should surface it
-before planning so the user can decide to include, defer, or mark items obsolete.
+before planning so the user can decide to include, defer, or archive obsolete carryover items.
 The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
+
+Canonical ownership:
+
+- `todo-ledger.json` is the root-tracked source of truth for carryover / kanban state.
+- `kanban.md` is an optional human-readable render derived from `todo-ledger.json`.
+
+## Optional Input: Session Guide
+
+If `session-guide.md` exists in the project root, orchestrators MAY read it as stable repo guidance.
+
+Usage rules:
+
+- Treat it as advisory repo context, not as a scope override.
+- Keep it stable and repo-owned; it should not contain transient run progress.
 
 ## Optional Input: Approved Spec Artifacts
 
@@ -105,7 +119,7 @@ Output: `DispatchPlan` JSON
 Schema: `./protocols/schemas/dispatch-plan.schema.json`
 
 **Stage 5: Executors**
-Agent: `executor-*`
+Agent: `executor`
 Input: Atomic task
 Output: Task result JSON plus required artifact blocks when applicable
 
@@ -126,6 +140,12 @@ Agent: `compressor`
 Input: Repo findings and outcomes
 Output: `ContextPack` JSON
 Schema: `./protocols/schemas/context-pack.schema.json`
+
+**Optional Terminal Helper: Handoff Writer**
+Agent: `handoff-writer`
+Input: Final outcomes, key artifacts, next-step guidance, optional kanban updates
+Output: `HandoffPack` JSON plus human-readable handoff prompt
+Schema: `./protocols/schemas/handoff-pack.schema.json`
 
 **Stage 9: Summarizer**
 Agent: `summarizer`
@@ -149,6 +169,19 @@ All pipeline artifacts MUST live under a single configurable base output root so
 - **Canonical checkpoint file:** `<run_output_dir>/checkpoint.json` (see Checkpoint Protocol below)
 - **Gitignore requirement:** The target project's `.gitignore` MUST include the base output root (default `.pipeline-output/`). Orchestrators verify this in pre-flight and warn the user if it is missing.
 
+### Root-Tracked Repo-Owned Artifacts
+
+These files are intentionally stable enough to live in the project root and follow normal git workflows:
+
+- `<project-root>/session-guide.md` — stable repo guidance for fresh sessions
+- `<project-root>/todo-ledger.json` — canonical kanban / carryover data
+- `<project-root>/kanban.md` — human-readable render of the kanban state
+
+Rules:
+
+- Do NOT store run-local status, checkpoint state, or transient task counts in these files.
+- Prefer `.pipeline-output/` for run-specific or high-churn artifacts.
+
 ### Canonical Filenames For `orchestrator-pipeline`
 
 - `<run_output_dir>/pipeline/problem-spec.json`
@@ -161,6 +194,8 @@ All pipeline artifacts MUST live under a single configurable base output root so
 - `<run_output_dir>/pipeline/test-report.json`
 - `<run_output_dir>/pipeline/review-report.json`
 - `<run_output_dir>/pipeline/context-pack.json`
+- `<run_output_dir>/pipeline/handoff-pack.json` (optional)
+- `<run_output_dir>/pipeline/handoff-prompt.md` (optional)
 
 ### Canonical Filenames For `orchestrator-spec`
 
@@ -168,6 +203,14 @@ All pipeline artifacts MUST live under a single configurable base output root so
 - `<run_output_dir>/spec/dev-spec.json`
 - `<run_output_dir>/spec/dev-spec.md`
 - `<run_output_dir>/spec/plan-outline.json`
+
+### Canonical Filenames For `orchestrator-flow`
+
+- `<run_output_dir>/flow/repo-findings.json` (optional)
+- `<run_output_dir>/flow/problem-spec.json`
+- `<run_output_dir>/flow/task-list.json`
+- `<run_output_dir>/flow/handoff-pack.json` (optional)
+- `<run_output_dir>/flow/handoff-prompt.md` (optional)
 
 ## Artifact Rules
 
@@ -214,6 +257,12 @@ Pipeline runs support interrupt/resume via checkpoint files.
 - **No implicit resume:** If `--resume` is not provided, the orchestrator starts a fresh run even when prior artifacts remain on disk.
 - **Artifacts vs resume:** Persisted specs, handoff files, init docs, or other protocol-defined artifacts may still be read as explicit inputs or optional context, but that does not count as checkpoint resume.
 - **Completion:** On successful pipeline completion, the checkpoint file MAY be retained for audit or deleted. Default: retain.
+
+## Handoff Boundary
+
+- `handoff-pack.json` and `handoff-prompt.md` exist to start a fresh session with lower token cost.
+- They complement checkpoint/resume; they do NOT replace checkpoint as the canonical same-run resume mechanism.
+- Handoff artifacts SHOULD tell the next session whether `/kanban sync` is recommended before continuing.
 
 ## Status Layer Contract (MVP)
 

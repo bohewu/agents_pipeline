@@ -13,7 +13,7 @@
   ],
   "batch_id": "b-server",
   "assigned_agent_id": "agent-server-01",
-  "assigned_executor": "executor-core",
+  "assigned_executor": "executor",
   "resource_class": "server",
   "max_parallelism": 1,
   "teardown_required": true,

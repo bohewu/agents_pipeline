@@ -33,9 +33,9 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 - Use `notes` to call out expected cleanup steps or RAM-risk when a batch is not `light`.
 
 # OUTPUT (JSON ONLY)
-{
-  "batches": [
-    {
+  {
+    "batches": [
+      {
       "batch_id": "",
       "task_ids": [],
       "assigned_executor": "",
@@ -45,8 +45,7 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
       "teardown_required": false,
       "timeout_hint_minutes": 15,
       "notes": []
-    }
-  ],
-  "advanced_reserve_tasks": [],
-  "notes": []
-}
+      }
+    ],
+    "notes": []
+  }

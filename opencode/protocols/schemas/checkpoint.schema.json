@@ -64,6 +64,11 @@
           "enum": ["low", "balanced", "high"]
         },
         "max_retry_rounds": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "handoff_mode": { "type": "boolean", "default": false },
+        "kanban_mode": {
+          "type": "string",
+          "enum": ["off", "manual", "auto"]
+        },
         "output_dir": { "type": "string" },
         "resume_mode": { "type": "boolean", "default": false },
         "confirm_mode": { "type": "boolean", "default": false },

@@ -1,0 +1,38 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run-20260403-101500",
+  "orchestrator": "orchestrator-flow",
+  "user_prompt": "Implement the approved login cleanup follow-up.",
+  "goal": "Finish the in-scope login cleanup work and leave a clean continuation point.",
+  "scope_boundary": [
+    "Only touch the approved login follow-up work.",
+    "Do not expand into unrelated auth redesign."
+  ],
+  "completed_items": [
+    "Updated login validation and basic regression coverage.",
+    "Captured remaining auth edge-case follow-up in the kanban ledger."
+  ],
+  "pending_items": [
+    "Confirm behavior against production-like callback data.",
+    "Review the new handoff before starting the next session."
+  ],
+  "blocked_items": [],
+  "decisions": [
+    "Kept the fix scoped to the existing login flow instead of broad auth refactoring."
+  ],
+  "risks": [
+    "Real callback payloads may still surface edge cases not covered by current fixtures."
+  ],
+  "artifact_paths": [
+    ".pipeline-output/run-20260403-101500/flow/handoff-prompt.md",
+    ".pipeline-output/run-20260403-101500/flow/handoff-pack.json",
+    ".pipeline-output/run-20260403-101500/flow/task-list.json"
+  ],
+  "kanban_sync_required": true,
+  "kanban_updates": [
+    "Mark login cleanup as done.",
+    "Create a ready item for callback payload verification."
+  ],
+  "next_recommended_action": "Sync the kanban ledger, review the handoff prompt, then continue the remaining callback verification task.",
+  "recommended_command": "/kanban sync from .pipeline-output/run-20260403-101500 then continue the callback verification follow-up"
+}

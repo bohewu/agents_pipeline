@@ -6,7 +6,7 @@
       "task_ids": [
         "t1"
       ],
-      "assigned_executor": "executor-core",
+      "assigned_executor": "executor",
       "parallel": false,
       "resource_class": "server",
       "max_parallelism": 1,
@@ -22,7 +22,7 @@
       "task_ids": [
         "t2"
       ],
-      "assigned_executor": "executor-advanced",
+      "assigned_executor": "executor",
       "parallel": false,
       "resource_class": "browser",
       "max_parallelism": 1,
@@ -63,9 +63,6 @@
         "Independent documentation artifacts can run in parallel."
       ]
     }
-  ],
-  "advanced_reserve_tasks": [
-    "t2"
   ],
   "notes": [
     "Keep server and browser batches isolated to reduce RAM spikes.",

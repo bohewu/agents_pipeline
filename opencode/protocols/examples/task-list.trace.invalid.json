@@ -6,7 +6,7 @@
       "summary": "Broken trace example",
       "description": "This example intentionally violates the trace id pattern.",
       "primary_output": "code",
-      "owner_hint": "executor-core",
+      "owner_hint": "executor",
       "risk": "low",
       "complexity": "S",
       "definition_of_done": [

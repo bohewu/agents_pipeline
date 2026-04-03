@@ -6,6 +6,25 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-04-03
+
+### Added
+
+- Added `session-guide`, `kanban`, and `emit-handoff` helper commands plus supporting subagents for root-tracked repo guidance, kanban management, and run-local cross-session handoff output.
+- Added `flow-splitter` and a dedicated `FlowTaskList` schema so `orchestrator-flow` can delegate bounded task decomposition instead of keeping it inside the orchestrator.
+- Added `handoff-pack.schema.json`, `flow-task-list.schema.json`, and starter examples for session guide, kanban, flow task lists, and handoff artifacts.
+
+### Changed
+
+- Simplified execution routing by merging `executor-core` and `executor-advanced` into a single `executor` agent with handoff-controlled `effort`, `verification`, and `repair_budget` settings.
+- Reworked `orchestrator-flow` to delegate ProblemSpec extraction and task decomposition, support optional handoff/kanban terminal helpers, and allow a single bounded same-task recovery path without adding retry loops.
+- Clarified artifact ownership: root-tracked files such as `session-guide.md`, `todo-ledger.json`, and `kanban.md` now stay outside `.pipeline-output/`, while run-local handoff artifacts remain under the run directory.
+- Exporters and docs now enforce runtime-owned model/provider selection; source agent frontmatter must not define `model` or `provider`.
+
+### Removed
+
+- Removed the redundant dual-executor naming split (`executor-core` / `executor-advanced`) and related schema/export assumptions.
+
 ## [0.17.0] - 2026-04-02
 
 ### Removed

@@ -6,7 +6,7 @@
       "task_ids": [
         "t1"
       ],
-      "assigned_executor": "executor-core",
+      "assigned_executor": "executor",
       "parallel": false,
       "max_parallelism": 1,
       "teardown_required": true,
@@ -15,6 +15,5 @@
       ]
     }
   ],
-  "advanced_reserve_tasks": [],
   "notes": []
 }

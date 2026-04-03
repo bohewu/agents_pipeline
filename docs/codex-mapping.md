@@ -19,7 +19,6 @@ Do not manually maintain generated Codex role files as a primary source.
 |---|---|---|
 | `name` | `[agents.<name>]` table key | copied; must match source file stem in `--strict` mode |
 | `description` | `agents.<name>.description` | copied |
-| `model` | `<target-dir>/agents/<name>.toml` `model` | copied when present |
 | `mode` | (removed) | not emitted |
 | `hidden` | (removed) | not emitted |
 | `temperature` | (removed) | not emitted |
@@ -47,16 +46,17 @@ Use flags to adjust this output when needed:
 Each generated `agents/<name>.toml` file includes:
 
 - `developer_instructions`
-- optional `model` when present in source frontmatter
+
+Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
 
 Sandbox mode, MCP servers, and other Codex-specific config are intentionally left unset so they inherit from the parent Codex environment unless you customize them after generation.
 
 ## `@agent` Reference Handling
 
-- Source bodies may contain `@planner`, `@reviewer`, `@executor-*`, and similar tokens.
+- Source bodies may contain `@planner`, `@reviewer`, `@executor`, and similar tokens.
 - The generator keeps these references in `developer_instructions` and adds an adapter note telling Codex to map them to generated role names.
 - In `--strict` mode, unresolved `@...` references fail generation.
-- `@executor-*` is expanded to `executor-core` and `executor-advanced` for validation purposes.
+- `@executor` is validated as a normal direct subagent reference.
 
 ## Role Invocation In Codex
 
@@ -72,7 +72,7 @@ OpenCode orchestrator prompts rely on `$ARGUMENTS` parsing. Codex roles do not p
 For orchestrator agents, the generator prepends a Codex input adapter block:
 
 - Use the user's latest message as `raw_input`.
-- If it starts with the matching slash command (for example `/run-pipeline`), remove that first token.
+- If it starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), remove that first token.
 - Apply the existing flag parsing logic unchanged.
 
 `$ARGUMENTS` is replaced with `raw_input` in generated `developer_instructions`.

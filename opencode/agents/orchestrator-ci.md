@@ -20,7 +20,7 @@ FOCUS: Build/test/lint/e2e strategy, deploy plan, docker plan, runbook, and rele
 - Do NOT modify application/business code.
 - Only generate config files when `--generate` is set.
 - Do NOT exceed 5 tasks under any circumstance.
-- Prefer @executor-core; use @executor-advanced only for complex or high-risk decisions.
+- Prefer @executor for any bounded execution or mixed implementation/validation work.
 - Enforce the embedded global handoff protocol below for every handoff.
 - Treat software supply chain security and artifact integrity as mandatory design inputs, not optional enhancements.
 - For release/publish/deploy flows, require integrity verification gates for external actions, downloaded tools, build outputs, and promoted artifacts/images.
@@ -60,7 +60,7 @@ These rules apply to **all agents**.
 | orchestrator-ci | Flow control, routing, synthesis | Implementing code |
 | specifier | Requirement extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
-| executor-* | Task execution | Scope expansion |
+| executor | Task execution | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
@@ -115,7 +115,7 @@ Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run
 - Pre-flight: Gitignore check, checkpoint resume
 - Stage 0 (Problem Spec): @specifier
 - Stage 1 (Plan Outline): @planner
-- Stage 2 (Document Tasks): @executor-advanced / @executor-core / @doc-writer / @peon / @generalist
+- Stage 2 (Document Tasks): @executor / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent)
 
 Stage 0: @specifier -> ProblemSpec JSON
@@ -124,7 +124,7 @@ Stage 1: @planner -> PlanOutline JSON
 
 Stage 2: Document Tasks (max 5)
 
-Dispatch the following tasks (prefer @executor-core):
+Dispatch the following tasks (prefer @executor for bounded execution work):
 
 1) **ci-plan** — CI Plan
    - Output: artifact `<output_dir>/ci/ci-plan.md`

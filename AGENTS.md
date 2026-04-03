@@ -10,7 +10,7 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
-| orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retries |
+| orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retry loops |
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
 | orchestrator-general | General-purpose orchestration for non-coding tasks (planning/writing/analysis) | primary | Non-coding workflow |
 | orchestrator-analysis | Post-hoc analysis pipeline with conditional expert roster and severity-ranked findings | primary | Analytical review |
@@ -29,12 +29,15 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | analysis-complexity | Analysis expert (time/space complexity/efficiency) | subagent | hidden |
 | analysis-robustness | Analysis expert (edge cases/error paths/adversarial inputs) | subagent | hidden |
 | analysis-numerics | Analysis expert (numerical stability/precision) — conditionally dispatched | subagent | hidden |
-| executor-core | Execute one atomic task (cost-effective profile) | subagent | hidden |
-| executor-advanced | Execute one atomic task (high-risk/complex profile) | subagent | hidden |
+| flow-splitter | Convert a Flow ProblemSpec into a max-5 bounded task list | subagent | hidden |
+| executor | Execute one atomic task with bounded effort/verification settings | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |
 | peon | Low-cost executor for mechanical or repetitive tasks | subagent | hidden |
 | generalist | General-purpose executor for mixed-scope tasks | subagent | hidden |
 | test-runner | Run tests/builds/linters and collect evidence | subagent | hidden |
 | reviewer | Review outputs and enforce quality gates | subagent | hidden |
 | compressor | Compress repo decisions into ContextPack | subagent | hidden |
+| handoff-writer | Produce run-local handoff artifacts for a fresh session | subagent | hidden |
+| kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
+| session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |
