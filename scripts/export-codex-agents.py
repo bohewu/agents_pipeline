@@ -299,6 +299,8 @@ def build_role_config(agent: AgentSource, body: str) -> str:
         "# This file is safe to regenerate. Edit the source OpenCode agent instead.",
         "",
     ]
+    lines.append(f"name = {toml_quote(agent.name)}")
+    lines.append(f"description = {toml_quote(agent.description)}")
     lines.append(f"developer_instructions = {toml_multiline_string(body)}")
     lines.append("")
     return "\n".join(lines)
@@ -315,8 +317,8 @@ def build_root_config(
     lines: List[str] = [
         GENERATED_MARKER,
         "# Generated Codex multi-agent config from opencode/agents/*.md.",
-        "# If you already maintain your own .codex/config.toml, merge the generated",
-        "# [features] and [agents] sections instead of overwriting your custom settings.",
+        "# The install scripts merge the managed Codex agent sections into an existing",
+        "# config.toml. Direct exporter output remains a complete generated config.",
         "",
     ]
 

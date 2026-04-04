@@ -19,11 +19,30 @@ EOF
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_ROOT="${REPO_ROOT}/opencode"
+MANIFEST_NAME=".agents-pipeline-manifest.txt"
 
 if [[ ! -d "${SOURCE_ROOT}" ]]; then
   echo "Source directory not found: ${SOURCE_ROOT}" >&2
   exit 1
 fi
+
+remove_empty_parent_dirs() {
+  local path="$1"
+  local stop_path="$2"
+  local current
+
+  current="$(dirname "${path}")"
+  while [[ "${current}" != "${stop_path}" && "${current}" == "${stop_path}"/* ]]; do
+    if [[ ! -d "${current}" ]]; then
+      break
+    fi
+    if [[ -n "$(ls -A "${current}")" ]]; then
+      break
+    fi
+    rmdir "${current}"
+    current="$(dirname "${current}")"
+  done
+}
 
 if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
   TARGET_DIR="${XDG_CONFIG_HOME}/opencode"
@@ -66,6 +85,32 @@ done
 
 ITEMS=(agents commands protocols tools)
 EXAMPLE_CONFIG="${REPO_ROOT}/opencode.json.example"
+MANIFEST_PATH="${TARGET_DIR}/${MANIFEST_NAME}"
+CURRENT_MANAGED_FILE=""
+
+cleanup() {
+  if [[ -n "${CURRENT_MANAGED_FILE}" && -f "${CURRENT_MANAGED_FILE}" ]]; then
+    rm -f "${CURRENT_MANAGED_FILE}"
+  fi
+}
+
+trap cleanup EXIT
+
+CURRENT_MANAGED_FILE="$(mktemp)"
+for item in "${ITEMS[@]}"; do
+  src="${SOURCE_ROOT}/${item}"
+  if [[ ! -d "${src}" ]]; then
+    continue
+  fi
+  while IFS= read -r path; do
+    rel="${path#${SOURCE_ROOT}/}"
+    printf '%s\n' "${rel}" >> "${CURRENT_MANAGED_FILE}"
+  done < <(find "${src}" -type f | LC_ALL=C sort)
+done
+if [[ -f "${EXAMPLE_CONFIG}" ]]; then
+  printf '%s\n' "opencode.json.example" >> "${CURRENT_MANAGED_FILE}"
+fi
+LC_ALL=C sort -u "${CURRENT_MANAGED_FILE}" -o "${CURRENT_MANAGED_FILE}"
 
 echo "Source: ${SOURCE_ROOT}"
 echo "Target: ${TARGET_DIR}"
@@ -78,6 +123,12 @@ for item in "${ITEMS[@]}"; do
     break
   fi
 done
+if [[ ${needs_backup} -eq 0 && -f "${TARGET_DIR}/opencode.json.example" ]]; then
+  needs_backup=1
+fi
+if [[ ${needs_backup} -eq 0 && -f "${MANIFEST_PATH}" ]]; then
+  needs_backup=1
+fi
 
 if [[ ${NO_BACKUP} -eq 0 && ${needs_backup} -eq 1 ]]; then
   backup_dir="${TARGET_DIR}/.backup-agents-pipeline-$(date +%Y%m%d-%H%M%S)"
@@ -90,6 +141,12 @@ if [[ ${NO_BACKUP} -eq 0 && ${needs_backup} -eq 1 ]]; then
         cp -a "${TARGET_DIR}/${item}" "${backup_dir}/"
       fi
     done
+    if [[ -f "${TARGET_DIR}/opencode.json.example" ]]; then
+      cp -a "${TARGET_DIR}/opencode.json.example" "${backup_dir}/"
+    fi
+    if [[ -f "${MANIFEST_PATH}" ]]; then
+      cp -a "${MANIFEST_PATH}" "${backup_dir}/"
+    fi
     echo "Backup created: ${backup_dir}"
   fi
 fi
@@ -98,6 +155,28 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
   echo "Would ensure target directory exists: ${TARGET_DIR}"
 else
   mkdir -p "${TARGET_DIR}"
+fi
+
+if [[ -f "${MANIFEST_PATH}" ]]; then
+  while IFS= read -r rel; do
+    [[ -z "${rel}" ]] && continue
+    if grep -Fxq -- "${rel}" "${CURRENT_MANAGED_FILE}"; then
+      continue
+    fi
+    stale_path="${TARGET_DIR}/${rel}"
+    if [[ ! -f "${stale_path}" ]]; then
+      continue
+    fi
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+      echo "Would remove stale managed file: ${stale_path}"
+      continue
+    fi
+    rm -f "${stale_path}"
+    remove_empty_parent_dirs "${stale_path}" "${TARGET_DIR}"
+    echo "Removed stale managed file: ${stale_path}"
+  done < "${MANIFEST_PATH}"
+elif [[ ${DRY_RUN} -eq 0 ]]; then
+  echo "No previous installer manifest found; stale cleanup starts after this install."
 fi
 
 for item in "${ITEMS[@]}"; do
@@ -125,6 +204,13 @@ if [[ -f "${EXAMPLE_CONFIG}" ]]; then
     cp -a "${EXAMPLE_CONFIG}" "${dst}"
     echo "Copied: ${dst}"
   fi
+fi
+
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  echo "Would write installer manifest: ${MANIFEST_PATH}"
+else
+  cp "${CURRENT_MANAGED_FILE}" "${MANIFEST_PATH}"
+  echo "Updated manifest: ${MANIFEST_PATH}"
 fi
 
 if [[ ${DRY_RUN} -eq 1 ]]; then

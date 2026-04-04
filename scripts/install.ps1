@@ -18,9 +18,42 @@ function Get-DefaultTarget {
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $sourceRoot = Join-Path $repoRoot "opencode"
+$manifestName = ".agents-pipeline-manifest.txt"
 
 if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
     throw "Source directory not found: $sourceRoot"
+}
+
+function Get-RelativeInstallPath {
+    param(
+        [string]$BasePath,
+        [string]$ChildPath
+    )
+
+    return [System.IO.Path]::GetRelativePath($BasePath, $ChildPath).Replace('\', '/')
+}
+
+function Remove-EmptyParentDirectories {
+    param(
+        [string]$StartPath,
+        [string]$StopPath
+    )
+
+    $current = Split-Path -Parent $StartPath
+    while ($current -and $current.StartsWith($StopPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+        if ($current -eq $StopPath) {
+            break
+        }
+        if (-not (Test-Path -LiteralPath $current -PathType Container)) {
+            break
+        }
+        $children = Get-ChildItem -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($children.Count -gt 0) {
+            break
+        }
+        Remove-Item -LiteralPath $current -Force
+        $current = Split-Path -Parent $current
+    }
 }
 
 if (-not $Target) {
@@ -34,6 +67,22 @@ if ($Target -match '^-{1,2}[A-Za-z]') {
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
 $items = @("agents", "commands", "protocols", "tools")
 $exampleConfig = Join-Path $repoRoot "opencode.json.example"
+$manifestPath = Join-Path $targetPath $manifestName
+
+$managedRelativePaths = New-Object System.Collections.Generic.List[string]
+foreach ($item in $items) {
+    $src = Join-Path $sourceRoot $item
+    if (-not (Test-Path -LiteralPath $src -PathType Container)) {
+        continue
+    }
+    Get-ChildItem -LiteralPath $src -Recurse -File | ForEach-Object {
+        $managedRelativePaths.Add((Get-RelativeInstallPath -BasePath $sourceRoot -ChildPath $_.FullName))
+    }
+}
+if (Test-Path -LiteralPath $exampleConfig -PathType Leaf) {
+    $managedRelativePaths.Add("opencode.json.example")
+}
+$managedRelativePaths = $managedRelativePaths | Sort-Object -Unique
 
 Write-Host "Source: $sourceRoot"
 Write-Host "Target: $targetPath"
@@ -46,6 +95,12 @@ foreach ($item in $items) {
         $needsBackup = $true
         break
     }
+}
+if (-not $needsBackup -and (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    $needsBackup = $true
+}
+if (-not $needsBackup -and (Test-Path -LiteralPath (Join-Path $targetPath "opencode.json.example") -PathType Leaf)) {
+    $needsBackup = $true
 }
 
 if (-not $NoBackup -and $needsBackup) {
@@ -61,6 +116,13 @@ if (-not $NoBackup -and $needsBackup) {
                 Copy-Item -LiteralPath $dest -Destination $backupDir -Recurse -Force
             }
         }
+        $destExampleConfig = Join-Path $targetPath "opencode.json.example"
+        if (Test-Path -LiteralPath $destExampleConfig -PathType Leaf) {
+            Copy-Item -LiteralPath $destExampleConfig -Destination $backupDir -Force
+        }
+        if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+            Copy-Item -LiteralPath $manifestPath -Destination $backupDir -Force
+        }
         Write-Host "Backup created: $backupDir"
     }
 }
@@ -69,6 +131,33 @@ if ($DryRun) {
     Write-Host "Would ensure target directory exists: $targetPath"
 } else {
     New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+}
+
+if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+    $previousManagedPaths = Get-Content -LiteralPath $manifestPath | Where-Object { $_ }
+    $managedLookup = @{}
+    foreach ($relativePath in $managedRelativePaths) {
+        $managedLookup[$relativePath] = $true
+    }
+
+    foreach ($relativePath in $previousManagedPaths) {
+        if ($managedLookup.ContainsKey($relativePath)) {
+            continue
+        }
+        $stalePath = Join-Path $targetPath ($relativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
+        if (-not (Test-Path -LiteralPath $stalePath -PathType Leaf)) {
+            continue
+        }
+        if ($DryRun) {
+            Write-Host "Would remove stale managed file: $stalePath"
+            continue
+        }
+        Remove-Item -LiteralPath $stalePath -Force
+        Remove-EmptyParentDirectories -StartPath $stalePath -StopPath $targetPath
+        Write-Host "Removed stale managed file: $stalePath"
+    }
+} elseif (-not $DryRun) {
+    Write-Host "No previous installer manifest found; stale cleanup starts after this install."
 }
 
 foreach ($item in $items) {
@@ -96,6 +185,13 @@ if (Test-Path -LiteralPath $exampleConfig) {
         Copy-Item -LiteralPath $exampleConfig -Destination $destConfig -Force
         Write-Host "Copied: $destConfig"
     }
+}
+
+if ($DryRun) {
+    Write-Host "Would write installer manifest: $manifestPath"
+} else {
+    Set-Content -LiteralPath $manifestPath -Value $managedRelativePaths -Encoding utf8
+    Write-Host "Updated manifest: $manifestPath"
 }
 
 if ($DryRun) {

@@ -12,24 +12,24 @@ Options:
   --target <path>  Install destination (default: ~/.codex)
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing config.toml and agents/*.toml
-  --force          Accepted for backward compatibility; overwrite is already enabled by default
+  --force          Accepted for backward compatibility; merged install is already enabled by default
   -h, --help       Show this help
 
-Installs current generated Codex config and removes stale generated role files only.
+Backs up current Codex files, preserves non-agent settings, replaces managed agent definitions, and removes stale managed role files.
 EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_AGENTS="${REPO_ROOT}/opencode/agents"
-EXPORT_SCRIPT="${REPO_ROOT}/scripts/export-codex-agents.py"
+MERGE_SCRIPT="${REPO_ROOT}/scripts/install-codex-config.py"
 
 if [[ ! -d "${SOURCE_AGENTS}" ]]; then
   echo "Source agents directory not found: ${SOURCE_AGENTS}" >&2
   exit 1
 fi
-if [[ ! -f "${EXPORT_SCRIPT}" ]]; then
-  echo "Export script not found: ${EXPORT_SCRIPT}" >&2
+if [[ ! -f "${MERGE_SCRIPT}" ]]; then
+  echo "Codex install helper not found: ${MERGE_SCRIPT}" >&2
   exit 1
 fi
 
@@ -84,12 +84,15 @@ fi
 echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
 echo "DryRun: ${DRY_RUN}"
-echo "Overwrite existing Codex files: enabled"
-echo "Cleanup: stale generated Codex outputs only"
+echo "Managed merge: preserve non-agent Codex settings"
+echo "Cleanup: stale managed Codex agent outputs"
 
 if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
   backup_needed=0
   if [[ -f "${TARGET_DIR}/config.toml" ]]; then
+    backup_needed=1
+  fi
+  if [[ -f "${TARGET_DIR}/.agents-pipeline-codex-manifest.json" ]]; then
     backup_needed=1
   fi
   if [[ -d "${TARGET_DIR}/agents" ]]; then
@@ -108,6 +111,9 @@ if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
       mkdir -p "${backup_dir}"
       if [[ -f "${TARGET_DIR}/config.toml" ]]; then
         cp -a "${TARGET_DIR}/config.toml" "${backup_dir}/"
+      fi
+      if [[ -f "${TARGET_DIR}/.agents-pipeline-codex-manifest.json" ]]; then
+        cp -a "${TARGET_DIR}/.agents-pipeline-codex-manifest.json" "${backup_dir}/"
       fi
       if [[ -d "${TARGET_DIR}/agents" ]]; then
         mkdir -p "${backup_dir}/agents"
@@ -129,14 +135,11 @@ else
 fi
 
 EXPORT_CMD=(
-  "${PYTHON_BIN}" "${EXPORT_SCRIPT}"
+  "${PYTHON_BIN}" "${MERGE_SCRIPT}"
   --source-agents "${SOURCE_AGENTS}"
   --target-dir "${TARGET_DIR}"
   --strict
 )
-if [[ ${FORCE_OVERWRITE} -eq 1 ]]; then
-  EXPORT_CMD+=(--force)
-fi
 if [[ ${DRY_RUN} -eq 1 ]]; then
   EXPORT_CMD+=(--dry-run)
 fi

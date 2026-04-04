@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-04-04
+
+### Changed
+
+- Codex install now merges managed agent sections into existing `config.toml` instead of overwriting the whole file, while still forcing `features.multi_agent = true`, refreshing managed `[agents]` settings from this repo, backing up existing files, and removing stale managed Codex agent definitions.
+- Codex exporter now writes `name`, `description`, and `developer_instructions` into each generated standalone agent TOML so the output matches the current official Codex custom-agent file schema.
+- OpenCode core install now records a manifest of managed files so later installs can remove stale repo-managed `agents/commands/protocols/tools` files without deleting unrelated user-created files in the target directory.
+
 ## [0.18.0] - 2026-04-03
 
 ### Added

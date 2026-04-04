@@ -24,13 +24,13 @@ function Get-PythonCommand {
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $sourceAgents = Join-Path $repoRoot "opencode/agents"
-$exportScript = Join-Path $repoRoot "scripts/export-codex-agents.py"
+$mergeScript = Join-Path $repoRoot "scripts/install-codex-config.py"
 
 if (-not (Test-Path -LiteralPath $sourceAgents -PathType Container)) {
     throw "Source agents directory not found: $sourceAgents"
 }
-if (-not (Test-Path -LiteralPath $exportScript -PathType Leaf)) {
-    throw "Export script not found: $exportScript"
+if (-not (Test-Path -LiteralPath $mergeScript -PathType Leaf)) {
+    throw "Codex install helper not found: $mergeScript"
 }
 
 if (-not $Target) {
@@ -47,15 +47,21 @@ $pythonCmd = Get-PythonCommand
 Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
 Write-Host "DryRun: $DryRun"
-Write-Host "Overwrite existing Codex files: enabled"
-Write-Host "Cleanup: stale generated Codex outputs only"
+Write-Host "Managed merge: preserve non-agent Codex settings"
+Write-Host "Cleanup: stale managed Codex agent outputs"
 
 $existingConfig = $null
 $existingRoles = @()
+$existingManifest = $null
 if (Test-Path -LiteralPath $targetPath -PathType Container) {
     $configPath = Join-Path $targetPath "config.toml"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         $existingConfig = Get-Item -LiteralPath $configPath
+    }
+
+    $manifestPath = Join-Path $targetPath ".agents-pipeline-codex-manifest.json"
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $existingManifest = Get-Item -LiteralPath $manifestPath
     }
 
     $agentsDir = Join-Path $targetPath "agents"
@@ -64,7 +70,7 @@ if (Test-Path -LiteralPath $targetPath -PathType Container) {
     }
 }
 
-if (-not $NoBackup -and ($existingConfig -or $existingRoles.Count -gt 0)) {
+if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0)) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupDir = Join-Path $targetPath ".backup-agents-pipeline-codex-$stamp"
     if ($DryRun) {
@@ -73,6 +79,9 @@ if (-not $NoBackup -and ($existingConfig -or $existingRoles.Count -gt 0)) {
         New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
         if ($existingConfig) {
             Copy-Item -LiteralPath $existingConfig.FullName -Destination $backupDir -Force
+        }
+        if ($existingManifest) {
+            Copy-Item -LiteralPath $existingManifest.FullName -Destination $backupDir -Force
         }
         if ($existingRoles.Count -gt 0) {
             $backupAgentsDir = Join-Path $backupDir "agents"
@@ -92,12 +101,11 @@ if ($DryRun) {
 }
 
 $exportArgs = @(
-    $exportScript,
+    $mergeScript,
     "--source-agents", $sourceAgents,
     "--target-dir", $targetPath,
     "--strict"
 )
-$exportArgs += "--force"
 if ($DryRun) {
     $exportArgs += "--dry-run"
 }
