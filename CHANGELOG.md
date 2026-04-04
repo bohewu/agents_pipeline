@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-04-05
+
+### Changed
+
+- Refined the `usage-status` OpenCode TUI plugin with short/detail modes, provider filtering (`all`, `codex`, `copilot`), a more stable session sidebar card, and local-time reset timestamps in detail mode.
+- Added local cache fallback to `provider-usage` so stale-but-usable quota snapshots can still be surfaced when live Codex or Copilot lookups fail.
+- Expanded README guidance for the usage-only install path, usage-status FAQ, mode/filter commands, and cache behavior.
+
 ## [0.19.0] - 2026-04-05
 
 ### Added
