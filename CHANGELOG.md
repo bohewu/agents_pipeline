@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-04-04
+
+### Fixed
+
+- Release bundles now include `scripts/install-codex-config.py`, which `install-codex.*` needs for managed Codex config merges. This fixes the published `all-local` and Codex release-bundle install paths.
+
 ## [0.18.1] - 2026-04-04
 
 ### Changed
