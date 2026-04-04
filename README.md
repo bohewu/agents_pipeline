@@ -9,6 +9,7 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 - [Install (Recommended)](#install-recommended)
   - [OpenCode core](#opencode-core)
   - [Status plugin only](#status-plugin-only)
+  - [Usage only](#usage-only)
   - [All local assets](#all-local-assets)
   - [Copilot agents](#copilot-agents)
   - [Claude Code subagents](#claude-code-subagents)
@@ -57,12 +58,14 @@ Most common choices:
 
 - Want everything in one step: start with `All local assets`.
 - Already have OpenCode and only need the runtime status plugin: use `Status plugin only`.
+- Only want `/usage` plus the usage footer plugin: use `Usage only`.
 - Only need one editor/CLI integration: jump to `Copilot agents`, `Claude Code subagents`, or `Codex roles`.
 
 Pick the install target that matches what you want:
 
 - [OpenCode core](#opencode-core): install the main OpenCode config only.
 - [Status plugin only](#status-plugin-only): install just the OpenCode status runtime plugin.
+- [Usage only](#usage-only): install just the usage command/tool and the usage-status plugin.
 - [All local assets](#all-local-assets): install OpenCode core + plugin + Copilot + Claude + Codex in one step.
 - [Copilot agents](#copilot-agents): install only VS Code Copilot custom agents.
 - [Claude Code subagents](#claude-code-subagents): install only Claude Code agent markdown files.
@@ -132,9 +135,43 @@ pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $ta
 bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
 ```
 
+### Usage only
+
+Install only the `/usage` command/tool and the toggleable OpenCode usage-status plugin from the release bundle.
+The usage footer plugin defaults to `off`; enable it from OpenCode with `/usage-status` or `/usage-status-on` after install.
+The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in `opencode.json`.
+
+Windows (PowerShell):
+
+```powershell
+$tag = "v0.18.2"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
+```
+
+macOS/Linux:
+
+```bash
+tag="v0.18.2" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
+```
+
+Dry-run preview (resolves release metadata only):
+
+```powershell
+pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js" -DryRun
+```
+
+```bash
+bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js" --dry-run
+```
+
+Behavior notes:
+
+- When enabled, the footer refreshes immediately and then every `300` seconds.
+- If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
+- The footer is intentionally compact; `/usage --json` remains the detailed/debug view.
+
 ### All local assets
 
-Install OpenCode core assets, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config together from one release bundle.
+Install OpenCode core assets, the OpenCode-only status-runtime plugin, the OpenCode-only usage-status plugin, Copilot agents, Claude agents, and Codex config together from one release bundle.
 
 Copy-paste commands (recommended):
 
@@ -331,7 +368,7 @@ Common options:
 
 ### All local assets from clone
 
-Use this when you want the OpenCode core config, the OpenCode-only status plugin, Copilot agents, Claude agents, and Codex config installed together from your working tree.
+Use this when you want the OpenCode core config, the OpenCode-only status-runtime plugin, the OpenCode-only usage-status plugin, Copilot agents, Claude agents, and Codex config installed together from your working tree.
 
 Windows (PowerShell):
 
@@ -348,8 +385,65 @@ bash scripts/install-all-local.sh
 Common options:
 
 - Preview only: `pwsh -NoProfile -File scripts/install-all-local.ps1 -DryRun` or `bash scripts/install-all-local.sh --dry-run`
-- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
-- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
+- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
+- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
+
+### Usage status plugin only from clone
+
+Use this when OpenCode core assets are already installed and you want the toggleable TUI usage footer plugin.
+The installer writes `~/.config/opencode/plugins/usage-status.js` plus its sibling support directory at `~/.config/opencode/plugins/usage-status/`.
+The installer also ensures `~/.config/opencode/tui.json` contains `./plugins/usage-status/index.js`.
+The plugin defaults to `off`; after install, enable it inside OpenCode with `/usage-status` or `/usage-status-on`.
+
+Installed file layout:
+
+```text
+~/.config/opencode/
+├─ plugins/
+│  ├─ usage-status.js
+│  └─ usage-status/
+│     ├─ index.js
+│     └─ tui.jsx
+└─ tui.json
+```
+
+Windows (PowerShell):
+
+```powershell
+pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1
+```
+
+macOS/Linux:
+
+```bash
+bash scripts/install-plugin-usage-status.sh
+```
+
+Common options:
+
+- Preview only: `pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -DryRun` or `bash scripts/install-plugin-usage-status.sh --dry-run`
+- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target C:\path\to\opencode-config\plugins\usage-status.js` or `bash scripts/install-plugin-usage-status.sh --target /path/to/opencode-config/plugins/usage-status.js`
+
+Behavior notes:
+
+- When enabled, the footer refreshes immediately and then every `300` seconds.
+- If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
+
+Example `tui.json` with explicit plugin options:
+
+```json
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": [
+    ["./plugins/usage-status/index.js", {
+      "enabled": false,
+      "refreshSeconds": 300,
+      "showCodex": true,
+      "showCopilot": true
+    }]
+  ]
+}
+```
 
 ### Copilot agents from clone
 

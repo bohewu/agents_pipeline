@@ -3,45 +3,35 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Download a release bundle and run install-all-local.sh without cloning this repository.
+Download a release bundle and run install-usage-only.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install-all-local.sh [options]
+  scripts/bootstrap-install-usage-only.sh [options]
 
 Options:
-  --repo <owner/repo>          GitHub repository (default: bohewu/agents_pipeline)
-  --version <value>            Release tag (for example: v0.5.1) or latest (default: latest)
-  --opencode-target <path>     Override OpenCode core install target
-  --plugin-target <path>       Override OpenCode status plugin entry file target
-  --usage-plugin-target <path> Override OpenCode usage-status plugin entry file target
-  --copilot-target <path>      Override Copilot agents install target
-  --claude-target <path>       Override Claude agents install target
-  --codex-target <path>        Override Codex config install target
-  --no-backup                  Do not back up existing installed files
-  --force-codex                Accepted for backward compatibility; Codex overwrite is already enabled by default
-  --dry-run                    Resolve release and print actions only
-  --keep-temp                  Keep downloaded temporary files
-  --verbose                    Show attestation verification details
-  -h, --help                   Show this help
-
-Includes supported repo deliverables installable from the release bundle, including the OpenCode-only status-runtime and usage-status plugins.
+  --repo <owner/repo>           GitHub repository (default: bohewu/agents_pipeline)
+  --version <value>             Release tag (for example: v0.5.1) or latest (default: latest)
+  --opencode-target <path>      Override OpenCode target directory
+  --usage-plugin-target <path>  Override OpenCode usage-status plugin entry file target
+  --no-backup                   Do not back up existing installed files
+  --dry-run                     Resolve release and print actions only
+  --keep-temp                   Keep downloaded temporary files
+  --verbose                     Show attestation verification details
+  -h, --help                    Show this help
 EOF
 }
 
 verify_bundle() {
   local bundle_dir="$1"
   local required_paths=(
-    "${bundle_dir}/opencode/plugins/status-runtime.js"
-    "${bundle_dir}/opencode/plugins/status-runtime"
+    "${bundle_dir}/opencode/commands/usage.md"
+    "${bundle_dir}/opencode/agents/usage-inspector.md"
+    "${bundle_dir}/opencode/tools/provider-usage.py"
+    "${bundle_dir}/opencode/tools/provider-usage.ts"
     "${bundle_dir}/opencode/plugins/usage-status.js"
     "${bundle_dir}/opencode/plugins/usage-status"
-    "${bundle_dir}/scripts/install-all-local.sh"
-    "${bundle_dir}/scripts/install-plugin-status-runtime.sh"
+    "${bundle_dir}/scripts/install-usage-only.sh"
     "${bundle_dir}/scripts/install-plugin-usage-status.sh"
-    "${bundle_dir}/scripts/install.sh"
-    "${bundle_dir}/scripts/install-copilot.sh"
-    "${bundle_dir}/scripts/install-claude.sh"
-    "${bundle_dir}/scripts/install-codex.sh"
   )
   local required_path
   for required_path in "${required_paths[@]}"; do
@@ -115,13 +105,8 @@ verify_release_attestation() {
 REPO="bohewu/agents_pipeline"
 VERSION="latest"
 OPENCODE_TARGET=""
-PLUGIN_TARGET=""
 USAGE_PLUGIN_TARGET=""
-COPILOT_TARGET=""
-CLAUDE_TARGET=""
-CODEX_TARGET=""
 NO_BACKUP=0
-FORCE_CODEX=0
 DRY_RUN=0
 KEEP_TEMP=0
 VERBOSE=0
@@ -129,75 +114,23 @@ VERBOSE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --repo" >&2
-        exit 2
-      fi
       REPO="$2"
       shift 2
       ;;
     --version)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --version" >&2
-        exit 2
-      fi
       VERSION="$2"
       shift 2
       ;;
     --opencode-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --opencode-target" >&2
-        exit 2
-      fi
       OPENCODE_TARGET="$2"
       shift 2
       ;;
-    --plugin-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --plugin-target" >&2
-        exit 2
-      fi
-      PLUGIN_TARGET="$2"
-      shift 2
-      ;;
     --usage-plugin-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --usage-plugin-target" >&2
-        exit 2
-      fi
       USAGE_PLUGIN_TARGET="$2"
-      shift 2
-      ;;
-    --copilot-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --copilot-target" >&2
-        exit 2
-      fi
-      COPILOT_TARGET="$2"
-      shift 2
-      ;;
-    --claude-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --claude-target" >&2
-        exit 2
-      fi
-      CLAUDE_TARGET="$2"
-      shift 2
-      ;;
-    --codex-target)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --codex-target" >&2
-        exit 2
-      fi
-      CODEX_TARGET="$2"
       shift 2
       ;;
     --no-backup)
       NO_BACKUP=1
-      shift
-      ;;
-    --force-codex)
-      FORCE_CODEX=1
       shift
       ;;
     --dry-run)
@@ -224,7 +157,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for target_value in "${OPENCODE_TARGET}" "${PLUGIN_TARGET}" "${USAGE_PLUGIN_TARGET}" "${COPILOT_TARGET}" "${CLAUDE_TARGET}" "${CODEX_TARGET}"; do
+for target_value in "${OPENCODE_TARGET}" "${USAGE_PLUGIN_TARGET}"; do
   if [[ -n "${target_value}" && "${target_value}" == -* ]]; then
     echo "Target path '${target_value}' looks like a switch, not a filesystem path. Pass the explicit target flag with a path value." >&2
     exit 2
@@ -254,7 +187,7 @@ else
   exit 1
 fi
 
-PARSED_URLS="$(
+PARSED_URLS="$({
   JSON_PAYLOAD="${JSON}" "${PYTHON_BIN}" - <<'PY'
 import json
 import os
@@ -284,33 +217,25 @@ for asset in data.get("assets", []):
 
 sys.stdout.write(f"{asset_url}\t{sums_url}\t{tag_name}")
 PY
-)"
+})"
 IFS=$'\t' read -r ASSET_URL SUMS_URL RELEASE_TAG <<<"${PARSED_URLS}"
 
-if [[ -z "${ASSET_URL}" ]]; then
-  echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
-  exit 1
-fi
-if [[ -z "${SUMS_URL}" ]]; then
-  echo "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt" >&2
-  exit 1
-fi
-if [[ -z "${RELEASE_TAG}" ]]; then
-  echo "Release metadata missing tag_name." >&2
+if [[ -z "${ASSET_URL}" || -z "${SUMS_URL}" || -z "${RELEASE_TAG}" ]]; then
+  echo "Failed to resolve release bundle metadata." >&2
   exit 1
 fi
 
 log_verbose "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
-echo "Install scope: all supported bundle deliverables"
+echo "Install scope: usage command/tool/plugin only"
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
   echo "Dry run complete. No files were downloaded or installed."
   exit 0
 fi
 
-TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agents-pipeline-bootstrap-all-local.XXXXXX")"
+TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agents-pipeline-bootstrap-usage-only.XXXXXX")"
 ASSET_NAME="$(basename "${ASSET_URL}")"
 SUMS_NAME="$(basename "${SUMS_URL}")"
 ARCHIVE_PATH="${TMP_DIR}/${ASSET_NAME}"
@@ -345,13 +270,10 @@ fi
 
 if [[ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]]; then
   echo "Checksum verification failed for ${ASSET_NAME}" >&2
-  echo "Expected: ${EXPECTED_HASH}" >&2
-  echo "Actual:   ${ACTUAL_HASH}" >&2
   exit 1
 fi
 
 echo "Checksum verified: ${ASSET_NAME}"
-
 verify_release_attestation "${ARCHIVE_PATH}" "${REPO}" "${RELEASE_TAG}" "${ASSET_NAME}"
 
 tar -xzf "${ARCHIVE_PATH}" -C "${EXTRACT_DIR}"
@@ -362,34 +284,18 @@ if ! BUNDLE_DIR="$(resolve_bundle_dir "${EXTRACT_DIR}")"; then
 fi
 
 normalize_bundle_permissions "${BUNDLE_DIR}"
-
 verify_bundle "${BUNDLE_DIR}"
 
-INSTALL_SCRIPT="${BUNDLE_DIR}/scripts/install-all-local.sh"
+INSTALL_SCRIPT="${BUNDLE_DIR}/scripts/install-usage-only.sh"
 INSTALL_CMD=(bash "${INSTALL_SCRIPT}")
 if [[ -n "${OPENCODE_TARGET}" ]]; then
   INSTALL_CMD+=(--opencode-target "${OPENCODE_TARGET}")
 fi
-if [[ -n "${PLUGIN_TARGET}" ]]; then
-  INSTALL_CMD+=(--plugin-target "${PLUGIN_TARGET}")
-fi
 if [[ -n "${USAGE_PLUGIN_TARGET}" ]]; then
   INSTALL_CMD+=(--usage-plugin-target "${USAGE_PLUGIN_TARGET}")
 fi
-if [[ -n "${COPILOT_TARGET}" ]]; then
-  INSTALL_CMD+=(--copilot-target "${COPILOT_TARGET}")
-fi
-if [[ -n "${CLAUDE_TARGET}" ]]; then
-  INSTALL_CMD+=(--claude-target "${CLAUDE_TARGET}")
-fi
-if [[ -n "${CODEX_TARGET}" ]]; then
-  INSTALL_CMD+=(--codex-target "${CODEX_TARGET}")
-fi
 if [[ ${NO_BACKUP} -eq 1 ]]; then
   INSTALL_CMD+=(--no-backup)
-fi
-if [[ ${FORCE_CODEX} -eq 1 ]]; then
-  INSTALL_CMD+=(--force-codex)
 fi
 
 "${INSTALL_CMD[@]}"

@@ -3,6 +3,7 @@
 param(
     [string]$OpenCodeTarget,
     [string]$PluginTarget,
+    [string]$UsagePluginTarget,
     [string]$CopilotTarget,
     [string]$ClaudeTarget,
     [string]$CodexTarget,
@@ -33,11 +34,12 @@ function Invoke-InstallScript {
 
 $openCodeParams = @{}
 $pluginParams = @{}
+$usagePluginParams = @{}
 $copilotParams = @{}
 $claudeParams = @{}
 $codexParams = @{}
 
-foreach ($params in @($openCodeParams, $pluginParams, $copilotParams, $claudeParams, $codexParams)) {
+foreach ($params in @($openCodeParams, $pluginParams, $usagePluginParams, $copilotParams, $claudeParams, $codexParams)) {
     if ($DryRun) {
         $params.DryRun = $true
     }
@@ -51,6 +53,11 @@ if ($OpenCodeTarget) {
 }
 if ($PluginTarget) {
     $pluginParams.Target = $PluginTarget
+}
+if ($UsagePluginTarget) {
+    $usagePluginParams.Target = $UsagePluginTarget
+} elseif ($PluginTarget) {
+    $usagePluginParams.Target = Join-Path (Split-Path -Parent $PluginTarget) "usage-status.js"
 }
 if ($CopilotTarget) {
     $copilotParams.Target = $CopilotTarget
@@ -66,12 +73,14 @@ if ($ForceCodex) {
 }
 
 Write-Host "Running local installers with shared flags: dry-run=$DryRun, no-backup=$NoBackup"
-Write-Host "Note: status plugin installation applies to OpenCode only."
+Write-Host "Note: OpenCode plugin installation applies to OpenCode only."
 Write-Host ""
 
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install.ps1") -Params $openCodeParams
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-status-runtime.ps1") -Params $pluginParams
+Write-Host ""
+Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-usage-status.ps1") -Params $usagePluginParams
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-copilot.ps1") -Params $copilotParams
 Write-Host ""

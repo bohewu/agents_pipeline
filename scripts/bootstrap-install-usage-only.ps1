@@ -4,13 +4,8 @@ param(
     [string]$Repo = "bohewu/agents_pipeline",
     [string]$Version = "latest",
     [string]$OpenCodeTarget,
-    [string]$PluginTarget,
     [string]$UsagePluginTarget,
-    [string]$CopilotTarget,
-    [string]$ClaudeTarget,
-    [string]$CodexTarget,
     [switch]$NoBackup,
-    [switch]$ForceCodex,
     [switch]$DryRun,
     [switch]$KeepTemp
 )
@@ -55,17 +50,14 @@ function Test-ReleaseBundle {
     )
 
     $requiredPaths = @(
-        (Join-Path $BundleDir "opencode/plugins/status-runtime.js"),
-        (Join-Path $BundleDir "opencode/plugins/status-runtime"),
+        (Join-Path $BundleDir "opencode/commands/usage.md"),
+        (Join-Path $BundleDir "opencode/agents/usage-inspector.md"),
+        (Join-Path $BundleDir "opencode/tools/provider-usage.py"),
+        (Join-Path $BundleDir "opencode/tools/provider-usage.ts"),
         (Join-Path $BundleDir "opencode/plugins/usage-status.js"),
         (Join-Path $BundleDir "opencode/plugins/usage-status"),
-        (Join-Path $BundleDir "scripts/install-all-local.ps1"),
-        (Join-Path $BundleDir "scripts/install-plugin-status-runtime.ps1"),
-        (Join-Path $BundleDir "scripts/install-plugin-usage-status.ps1"),
-        (Join-Path $BundleDir "scripts/install.ps1"),
-        (Join-Path $BundleDir "scripts/install-copilot.ps1"),
-        (Join-Path $BundleDir "scripts/install-claude.ps1"),
-        (Join-Path $BundleDir "scripts/install-codex.ps1")
+        (Join-Path $BundleDir "scripts/install-usage-only.ps1"),
+        (Join-Path $BundleDir "scripts/install-plugin-usage-status.ps1")
     )
 
     foreach ($requiredPath in $requiredPaths) {
@@ -114,7 +106,7 @@ function Verify-ReleaseAttestation {
     Write-Verbose "Attestation verified: $AssetName"
 }
 
-foreach ($targetValue in @($OpenCodeTarget, $PluginTarget, $UsagePluginTarget, $CopilotTarget, $ClaudeTarget, $CodexTarget)) {
+foreach ($targetValue in @($OpenCodeTarget, $UsagePluginTarget)) {
     if ($targetValue -and $targetValue -match '^-{1,2}[A-Za-z]') {
         throw "Target path '$targetValue' looks like a switch, not a filesystem path. Pass the explicit target parameter with a path value."
     }
@@ -123,7 +115,7 @@ foreach ($targetValue in @($OpenCodeTarget, $PluginTarget, $UsagePluginTarget, $
 $apiUrl = Get-ReleaseApiUrl -RepoName $Repo -VersionValue $Version
 $headers = @{
     "Accept" = "application/vnd.github+json"
-    "User-Agent" = "agents-pipeline-bootstrap-all-local"
+    "User-Agent" = "agents-pipeline-bootstrap-usage-only"
 }
 
 Write-Host "Release API: $apiUrl"
@@ -158,14 +150,14 @@ Write-Verbose "Resolved release tag: $releaseTag"
 Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
-Write-Host "Install scope: all supported bundle deliverables"
+Write-Host "Install scope: usage command/tool/plugin only"
 
 if ($DryRun) {
     Write-Host "Dry run complete. No files were downloaded or installed."
     return
 }
 
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agents-pipeline-bootstrap-all-local-" + [Guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agents-pipeline-bootstrap-usage-only-" + [Guid]::NewGuid().ToString("N"))
 $archivePath = Join-Path $tempRoot $asset.name
 $checksumsPath = Join-Path $tempRoot $checksumAsset.name
 $extractRoot = Join-Path $tempRoot "extract"
@@ -205,7 +197,7 @@ try {
     $bundleDir = Resolve-BundleDirectory -ExtractRoot $extractRoot
     Test-ReleaseBundle -BundleDir $bundleDir
 
-    $installScript = Join-Path $bundleDir "scripts/install-all-local.ps1"
+    $installScript = Join-Path $bundleDir "scripts/install-usage-only.ps1"
     if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
         throw "Install script not found in bundle: $installScript"
     }
@@ -214,26 +206,11 @@ try {
     if ($OpenCodeTarget) {
         $installParams.OpenCodeTarget = $OpenCodeTarget
     }
-    if ($PluginTarget) {
-        $installParams.PluginTarget = $PluginTarget
-    }
     if ($UsagePluginTarget) {
         $installParams.UsagePluginTarget = $UsagePluginTarget
     }
-    if ($CopilotTarget) {
-        $installParams.CopilotTarget = $CopilotTarget
-    }
-    if ($ClaudeTarget) {
-        $installParams.ClaudeTarget = $ClaudeTarget
-    }
-    if ($CodexTarget) {
-        $installParams.CodexTarget = $CodexTarget
-    }
     if ($NoBackup) {
         $installParams.NoBackup = $true
-    }
-    if ($ForceCodex) {
-        $installParams.ForceCodex = $true
     }
 
     & $installScript @installParams
