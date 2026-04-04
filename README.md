@@ -167,6 +167,9 @@ Behavior notes:
 
 - When enabled, the footer refreshes immediately and then every `300` seconds.
 - If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
+- Use `/usage-status-short` for a compact one-line summary or `/usage-status-detail` for the richer sidebar card view.
+- Use `/usage-status-all`, `/usage-status-codex`, or `/usage-status-copilot` to control which provider cards are shown.
+- If a live lookup fails after a previous success, the footer reuses cached data and prefixes the summary with `~`.
 - The footer is intentionally compact; `/usage --json` remains the detailed/debug view.
 
 ### All local assets
@@ -450,6 +453,9 @@ Behavior notes:
 
 - When enabled, the footer refreshes immediately and then every `300` seconds.
 - If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
+- Use `/usage-status-short` for a compact one-line summary or `/usage-status-detail` for the richer sidebar card view.
+- Use `/usage-status-all`, `/usage-status-codex`, or `/usage-status-copilot` to control which provider cards are shown.
+- If a live lookup fails after a previous success, the footer reuses cached data and prefixes the summary with `~`.
 
 Example `tui.json` with explicit plugin options:
 
@@ -459,6 +465,7 @@ Example `tui.json` with explicit plugin options:
   "plugin": [
     ["./plugins/usage-status/index.js", {
       "enabled": false,
+      "mode": "short",
       "refreshSeconds": 300,
       "showCodex": true,
       "showCopilot": true
@@ -466,6 +473,19 @@ Example `tui.json` with explicit plugin options:
   ]
 }
 ```
+
+### Usage FAQ
+
+- Why does `/usage` work but the footer is missing?
+  The TUI footer plugin defaults to `off`. Turn it on with `/usage-status` or `/usage-status-on`.
+- Why does Copilot show unavailable or manual mode?
+  Live Copilot usage depends on `gh` plus a working GitHub login. Run `gh auth status` and make sure the active account can access GitHub Copilot usage.
+- Why does the footer start with `~`?
+  The plugin fell back to cached data after a live lookup failed. Run `/usage-status-refresh` or `/usage` when connectivity/auth is back.
+- Can I show only Codex or only Copilot?
+  Yes. Use `/usage-status-codex`, `/usage-status-copilot`, or `/usage-status-all`. You can also set `showCodex` / `showCopilot` in `tui.json` for the default view.
+- What is the difference between `tui.json` and `opencode.json`?
+  `opencode.json` is for OpenCode runtime config and server-side plugins. `tui.json` is where OpenCode loads TUI plugins like `usage-status`.
 
 ### Copilot agents from clone
 

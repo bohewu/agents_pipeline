@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import csv
 import json
 import math
@@ -26,6 +27,7 @@ COPILOT_MONITORING_URL = "https://github.com/settings/billing"
 COPILOT_DOCS_URL = "https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/monitor-premium-requests"
 JWT_CLAIM_PATH = "https://api.openai.com/auth"
 ACCESS_TOKEN_SKEW_MS = 30_000
+CACHE_FILE_NAME = "provider-usage-cache.json"
 
 
 @dataclass
@@ -252,6 +254,100 @@ def iter_config_roots() -> List[Path]:
         if resolved not in roots:
             roots.append(resolved)
     return roots
+
+
+def default_cache_root() -> Path:
+    roots = iter_config_roots()
+    if roots:
+        return roots[0]
+    return Path.home() / ".config" / "opencode"
+
+
+def default_cache_path() -> Path:
+    return default_cache_root() / "cache" / CACHE_FILE_NAME
+
+
+def load_cache(path: Path) -> Dict[str, Any]:
+    try:
+        data = load_json(path)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_cache(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def section_is_usable(section: Any) -> bool:
+    if not isinstance(section, dict):
+        return False
+    return ensure_text(section.get("status")) in {"ok", "partial"}
+
+
+def mark_section_stale(section: Dict[str, Any], cached_at: Optional[str], reason: str) -> Dict[str, Any]:
+    stale_section = copy.deepcopy(section)
+    meta = stale_section.get("_meta") if isinstance(stale_section.get("_meta"), dict) else {}
+    meta.update(
+        {
+            "stale": True,
+            "cachedAt": cached_at,
+            "reason": reason,
+        }
+    )
+    stale_section["_meta"] = meta
+    return stale_section
+
+
+def apply_cached_fallbacks(result: Dict[str, Any], cache_payload: Dict[str, Any], providers: Iterable[str]) -> Dict[str, Any]:
+    sections = cache_payload.get("sections") if isinstance(cache_payload.get("sections"), dict) else {}
+    cache_meta: Dict[str, Any] = {"usedProviders": []}
+
+    for provider in providers:
+        current = result.get(provider)
+        if section_is_usable(current):
+            continue
+        cached_entry = sections.get(provider)
+        if not isinstance(cached_entry, dict):
+            continue
+        cached_section = cached_entry.get("data")
+        if not section_is_usable(cached_section):
+            continue
+
+        reason = ensure_text((current or {}).get("message")) or ensure_text((current or {}).get("status")) or "live lookup unavailable"
+        result[provider] = mark_section_stale(cached_section, ensure_text(cached_entry.get("savedAt")), reason)
+        cache_meta["usedProviders"].append(provider)
+
+    if cache_meta["usedProviders"]:
+        meta = result.get("_meta") if isinstance(result.get("_meta"), dict) else {}
+        meta["cache"] = cache_meta
+        result["_meta"] = meta
+
+    return result
+
+
+def persist_cache(path: Path, result: Dict[str, Any], providers: Iterable[str]) -> None:
+    existing = load_cache(path)
+    sections = existing.get("sections") if isinstance(existing.get("sections"), dict) else {}
+    saved_at = utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    for provider in providers:
+        section = result.get(provider)
+        if not section_is_usable(section):
+            continue
+        sections[provider] = {
+            "savedAt": saved_at,
+            "data": section,
+        }
+
+    write_cache(
+        path,
+        {
+            "savedAt": saved_at,
+            "sections": sections,
+        },
+    )
 
 
 def discover_codex_files(project_root: Path) -> List[Tuple[str, Path]]:
@@ -822,12 +918,45 @@ def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
     return summary
 
 
+def collect_codex_section(args: argparse.Namespace, project_root: Path) -> Dict[str, Any]:
+    return summarize_codex(project_root, include_sensitive=args.include_sensitive)
+
+
+def collect_copilot_section(args: argparse.Namespace, project_root: Path) -> Dict[str, Any]:
+    del project_root
+    return summarize_copilot(args.copilot_report)
+
+
+SECTION_COLLECTORS = {
+    "codex": collect_codex_section,
+    "copilot": collect_copilot_section,
+}
+
+
+def requested_providers(provider: str) -> List[str]:
+    if provider == "auto":
+        return ["codex", "copilot"]
+    return [provider]
+
+
 def format_number(value: Optional[float]) -> str:
     if value is None:
         return "unknown"
     if abs(value - round(value)) < 1e-9:
         return str(int(round(value)))
     return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def stale_note(section: Any) -> Optional[str]:
+    if not isinstance(section, dict):
+        return None
+    meta = section.get("_meta") if isinstance(section.get("_meta"), dict) else {}
+    if not ensure_bool(meta.get("stale")):
+        return None
+    cached_at = ensure_text(meta.get("cachedAt"))
+    if cached_at:
+        return f"using cached data from {cached_at}"
+    return "using cached data"
 
 
 def format_text(result: Dict[str, Any]) -> str:
@@ -839,9 +968,12 @@ def format_text(result: Dict[str, Any]) -> str:
         status = codex.get("status")
         message = codex.get("message")
         accounts = codex.get("accounts") or []
+        codex_stale = stale_note(codex)
         if status == "unavailable":
             lines.append(f"- {message}")
         else:
+            if codex_stale:
+                lines.append(f"- {codex_stale}")
             for account in accounts:
                 if not isinstance(account, dict):
                     continue
@@ -869,7 +1001,10 @@ def format_text(result: Dict[str, Any]) -> str:
     if isinstance(copilot, dict):
         lines.append("Copilot")
         status = copilot.get("status")
+        copilot_stale = stale_note(copilot)
         if status == "ok":
+            if copilot_stale:
+                lines.append(f"- {copilot_stale}")
             if copilot.get("source") == "github-internal-user":
                 if copilot.get("login"):
                     lines.append(f"- User: {copilot.get('login')}")
@@ -938,15 +1073,24 @@ def format_text(result: Dict[str, Any]) -> str:
 
 
 def build_result(args: argparse.Namespace) -> Dict[str, Any]:
-    result: Dict[str, Any] = {
+    providers = requested_providers(args.provider)
+    live_result: Dict[str, Any] = {
         "generatedAt": utc_now().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "provider": args.provider,
     }
     project_root = Path(args.project_root).resolve()
-    if args.provider in {"auto", "codex"}:
-        result["codex"] = summarize_codex(project_root, include_sensitive=args.include_sensitive)
-    if args.provider in {"auto", "copilot"}:
-        result["copilot"] = summarize_copilot(args.copilot_report)
+    for provider in providers:
+        collector = SECTION_COLLECTORS[provider]
+        live_result[provider] = collector(args, project_root)
+
+    cache_path = default_cache_path()
+    cached = load_cache(cache_path)
+    result = apply_cached_fallbacks(copy.deepcopy(live_result), cached, providers)
+    try:
+        persist_cache(cache_path, live_result, providers)
+    except Exception:
+        pass
+
     return result
 
 
