@@ -551,6 +551,7 @@ Use whichever tool your team prefers.
 - Use `/session-guide` to create or refresh the root-tracked repo guide.
 - Use `/kanban` to manage the root-tracked kanban / carryover ledger.
 - Use `/emit-handoff` to create run-local handoff artifacts for a fresh session.
+- Use `/usage` to inspect live Codex quota windows and optionally summarize a Copilot premium-request usage report.
 
 </details>
 
@@ -794,6 +795,9 @@ For ownership boundaries and the follow-on roadmap, see `opencode/protocols/STAT
 
 If you enable custom tools, you can call the `validate-schema` tool from OpenCode
 instead of running the script manually (see `opencode/tools/validate-schema.ts`).
+
+The `/usage` command relies on the custom tool `provider-usage` for live Codex quota
+inspection and Copilot report parsing (see `opencode/tools/provider-usage.ts`).
 
 ## Config Example
 
