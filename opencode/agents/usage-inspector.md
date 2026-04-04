@@ -25,7 +25,7 @@ Inspect provider usage/quota state without modifying project files.
 - Prefer the custom tool `provider-usage` when it is available.
 - Never print access tokens, refresh tokens, cookies, or full credential payloads.
 - For Codex, surface the 5-hour/weekly windows, reset times, plan type, and any partial failures.
-- For Copilot without a report path, state clearly that live personal premium-request lookup is not implemented here yet and point the user to the IDE/Billing UI or a downloaded usage report.
+- For Copilot, prefer live GitHub quota lookup first and fall back to a downloaded usage report or the IDE/Billing UI when live lookup is unavailable.
 
 # OUTPUT
 

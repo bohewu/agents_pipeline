@@ -797,7 +797,8 @@ If you enable custom tools, you can call the `validate-schema` tool from OpenCod
 instead of running the script manually (see `opencode/tools/validate-schema.ts`).
 
 The `/usage` command relies on the custom tool `provider-usage` for live Codex quota
-inspection and Copilot report parsing (see `opencode/tools/provider-usage.ts`).
+inspection, live Copilot quota lookup, and Copilot report parsing (see
+`opencode/tools/provider-usage.ts`).
 
 ## Config Example
 

@@ -16,7 +16,7 @@ $ARGUMENTS
 - Default provider mode is `auto`
 - Supported providers: `codex`, `copilot`
 - `codex` uses local OAuth credentials and attempts a live usage query
-- `copilot` currently expects a downloaded premium-request usage report path for detailed totals
+- `copilot` uses live GitHub Copilot user/quota info via `gh auth` and also accepts a downloaded premium-request usage report
 - Supported flags:
   - `--json`
   - `--copilot-report=<path>`

@@ -7,6 +7,7 @@ import csv
 import json
 import math
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -20,6 +21,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
+COPILOT_USER_INFO_URL = "https://api.github.com/copilot_internal/user"
 COPILOT_MONITORING_URL = "https://github.com/settings/billing"
 COPILOT_DOCS_URL = "https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/monitor-premium-requests"
 JWT_CLAIM_PATH = "https://api.openai.com/auth"
@@ -475,6 +477,15 @@ def format_limit_summary(window: Dict[str, Any]) -> str:
     return "unavailable"
 
 
+def format_bar(percent: Optional[float], width: int = 16) -> str:
+    if percent is None:
+        return "[unknown]"
+    normalized = max(0.0, min(100.0, float(percent)))
+    filled = int(round((normalized / 100.0) * width))
+    filled = max(0, min(width, filled))
+    return f"[{('#' * filled) + ('-' * (width - filled))}]"
+
+
 def redact_identifier(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
@@ -662,6 +673,7 @@ def parse_copilot_report(path: Path) -> Dict[str, Any]:
 
     return {
         "status": "ok",
+        "source": "report",
         "reportPath": str(path),
         "month": month_start.strftime("%Y-%m"),
         "requestsUsed": total_used,
@@ -674,14 +686,117 @@ def parse_copilot_report(path: Path) -> Dict[str, Any]:
     }
 
 
+def get_github_auth_token() -> Tuple[Optional[str], Optional[str]]:
+    for env_name in ("GH_TOKEN", "GITHUB_TOKEN"):
+        value = ensure_text(os.environ.get(env_name))
+        if value:
+            return value, None
+
+    try:
+        completed = subprocess.run(
+            ["gh", "auth", "token"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception as error:
+        return None, f"failed to run gh auth token: {error}"
+
+    token = ensure_text(completed.stdout)
+    if completed.returncode != 0 or not token:
+        stderr = ensure_text(completed.stderr)
+        if stderr:
+            return None, f"gh auth token failed: {stderr}"
+        return None, "gh auth token failed"
+    return token, None
+
+
+def fetch_copilot_live_usage() -> Dict[str, Any]:
+    token, error = get_github_auth_token()
+    if error:
+        raise RuntimeError(error)
+    if not token:
+        raise RuntimeError("no GitHub auth token available")
+
+    request = urllib.request.Request(
+        COPILOT_USER_INFO_URL,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+            "User-Agent": "opencode-provider-usage",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as http_error:
+        body = http_error.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"GitHub Copilot user lookup failed: HTTP {http_error.code} {body[:200]}") from http_error
+    except Exception as request_error:
+        raise RuntimeError(f"GitHub Copilot user lookup failed: {request_error}") from request_error
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("unexpected GitHub Copilot user payload")
+
+    quotas: List[Dict[str, Any]] = []
+    quota_snapshots = payload.get("quota_snapshots")
+    if isinstance(quota_snapshots, dict):
+        for quota_id, raw in quota_snapshots.items():
+            if not isinstance(raw, dict):
+                continue
+            entitlement = raw.get("entitlement") if isinstance(raw.get("entitlement"), (int, float)) else None
+            remaining = raw.get("remaining") if isinstance(raw.get("remaining"), (int, float)) else None
+            percent_remaining = raw.get("percent_remaining") if isinstance(raw.get("percent_remaining"), (int, float)) else None
+            unlimited = ensure_bool(raw.get("unlimited"))
+            used = None
+            if entitlement is not None and remaining is not None and not unlimited:
+                used = max(0.0, float(entitlement) - float(remaining))
+            quotas.append(
+                {
+                    "quotaId": quota_id,
+                    "entitlement": float(entitlement) if entitlement is not None else None,
+                    "remaining": float(remaining) if remaining is not None else None,
+                    "used": used,
+                    "percentRemaining": float(percent_remaining) if percent_remaining is not None else None,
+                    "overageCount": float(raw.get("overage_count")) if isinstance(raw.get("overage_count"), (int, float)) else None,
+                    "overagePermitted": ensure_bool(raw.get("overage_permitted")),
+                    "unlimited": unlimited,
+                    "timestampUtc": ensure_text(raw.get("timestamp_utc")),
+                }
+            )
+
+    quotas.sort(key=lambda item: (item.get("unlimited") is True, item.get("quotaId") != "premium_interactions", item.get("quotaId") or ""))
+
+    return {
+        "status": "ok",
+        "source": "github-internal-user",
+        "login": ensure_text(payload.get("login")),
+        "accessTypeSku": ensure_text(payload.get("access_type_sku")),
+        "copilotPlan": ensure_text(payload.get("copilot_plan")),
+        "chatEnabled": ensure_bool(payload.get("chat_enabled")),
+        "resetAt": ensure_text(payload.get("quota_reset_date_utc")) or ensure_text(payload.get("quota_reset_date")),
+        "quotas": quotas,
+    }
+
+
 def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
     if not report_path:
-        return {
-            "status": "manual",
-            "message": "Live personal Copilot premium-request lookup is not implemented here yet.",
-            "docsUrl": COPILOT_DOCS_URL,
-            "billingUrl": COPILOT_MONITORING_URL,
-        }
+        try:
+            summary = fetch_copilot_live_usage()
+        except Exception as error:
+            return {
+                "status": "manual",
+                "message": f"Live Copilot usage lookup failed: {error}",
+                "docsUrl": COPILOT_DOCS_URL,
+                "billingUrl": COPILOT_MONITORING_URL,
+            }
+
+        summary["docsUrl"] = COPILOT_DOCS_URL
+        summary["billingUrl"] = COPILOT_MONITORING_URL
+        return summary
 
     path = Path(os.path.expanduser(report_path)).resolve()
     if not path.exists() or not path.is_file():
@@ -746,7 +861,8 @@ def format_text(result: Dict[str, Any]) -> str:
                 for limit in account.get("limits") or []:
                     if not isinstance(limit, dict):
                         continue
-                    lines.append(f"  {limit.get('name', 'limit')}: {limit.get('summary', 'unavailable')}")
+                    left_percent = limit.get("leftPercent") if isinstance(limit.get("leftPercent"), (int, float)) else None
+                    lines.append(f"  {limit.get('name', 'limit')}: {format_bar(left_percent)} {limit.get('summary', 'unavailable')}")
         lines.append("")
 
     copilot = result.get("copilot")
@@ -754,25 +870,65 @@ def format_text(result: Dict[str, Any]) -> str:
         lines.append("Copilot")
         status = copilot.get("status")
         if status == "ok":
-            lines.append(f"- Month: {copilot.get('month')}")
-            lines.append(
-                f"- Premium requests: {format_number(copilot.get('requestsUsed'))}"
-                + (
-                    f" / {format_number(copilot.get('monthlyQuota'))}" if copilot.get("monthlyQuota") is not None else ""
+            if copilot.get("source") == "github-internal-user":
+                if copilot.get("login"):
+                    lines.append(f"- User: {copilot.get('login')}")
+                if copilot.get("copilotPlan") or copilot.get("accessTypeSku"):
+                    plan_bits = []
+                    if copilot.get("copilotPlan"):
+                        plan_bits.append(str(copilot.get("copilotPlan")))
+                    if copilot.get("accessTypeSku"):
+                        plan_bits.append(str(copilot.get("accessTypeSku")))
+                    lines.append(f"- Plan: {' / '.join(plan_bits)}")
+                if copilot.get("resetAt"):
+                    lines.append(f"- Resets: {copilot.get('resetAt')}")
+                for quota in copilot.get("quotas") or []:
+                    if not isinstance(quota, dict):
+                        continue
+                    quota_id = quota.get("quotaId") or "quota"
+                    quota_name = {
+                        "premium_interactions": "Premium requests",
+                        "chat": "Chat quota",
+                        "completions": "Completions",
+                    }.get(quota_id, str(quota_id))
+                    if quota.get("unlimited"):
+                        lines.append(f"- {quota_name}: unlimited")
+                        continue
+                    percent_remaining = quota.get("percentRemaining") if isinstance(quota.get("percentRemaining"), (int, float)) else None
+                    remaining = quota.get("remaining")
+                    entitlement = quota.get("entitlement")
+                    detail = ""
+                    if remaining is not None and entitlement is not None:
+                        detail = f" ({format_number(remaining)} / {format_number(entitlement)} remaining)"
+                    overage_text = ""
+                    if quota.get("overagePermitted"):
+                        overage_text = ", overage allowed"
+                    lines.append(f"- {quota_name}: {format_bar(percent_remaining)} {format_number(percent_remaining)}% left{detail}{overage_text}")
+            else:
+                lines.append(f"- Month: {copilot.get('month')}")
+                remaining = copilot.get("remaining")
+                monthly_quota = copilot.get("monthlyQuota")
+                remaining_percent = None
+                if isinstance(remaining, (int, float)) and isinstance(monthly_quota, (int, float)) and monthly_quota > 0:
+                    remaining_percent = (float(remaining) / float(monthly_quota)) * 100.0
+                lines.append(
+                    f"- Premium requests: {format_number(copilot.get('requestsUsed'))}"
+                    + (
+                        f" / {format_number(monthly_quota)}" if monthly_quota is not None else ""
+                    )
                 )
-            )
-            if copilot.get("remaining") is not None:
-                lines.append(f"- Remaining: {format_number(copilot.get('remaining'))}")
-            if copilot.get("overQuota"):
-                lines.append(f"- Over quota: {format_number(copilot.get('overQuota'))}")
-            lines.append(f"- Resets: {copilot.get('resetAt')}")
-            by_model = copilot.get("byModel") or []
-            if by_model:
-                top = ", ".join(
-                    f"{entry.get('name')}={format_number(entry.get('quantity'))}" for entry in by_model[:5] if isinstance(entry, dict)
-                )
-                if top:
-                    lines.append(f"- By model: {top}")
+                if remaining is not None:
+                    lines.append(f"- Remaining: {format_bar(remaining_percent)} {format_number(remaining)}")
+                if copilot.get("overQuota"):
+                    lines.append(f"- Over quota: {format_number(copilot.get('overQuota'))}")
+                lines.append(f"- Resets: {copilot.get('resetAt')}")
+                by_model = copilot.get("byModel") or []
+                if by_model:
+                    top = ", ".join(
+                        f"{entry.get('name')}={format_number(entry.get('quantity'))}" for entry in by_model[:5] if isinstance(entry, dict)
+                    )
+                    if top:
+                        lines.append(f"- By model: {top}")
         else:
             lines.append(f"- {copilot.get('message')}")
             lines.append(f"- Docs: {copilot.get('docsUrl')}")
