@@ -388,6 +388,28 @@ Common options:
 - Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
 - Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
 
+### Usage only from clone
+
+Use this when you want just the `/usage` command/tool and the usage-status TUI plugin from your working tree, without installing the rest of the pipeline.
+The installer copies the usage command/tool files into `~/.config/opencode`, installs the plugin files under `plugins/usage-status/`, and ensures `tui.json` contains `./plugins/usage-status/index.js`.
+
+Windows (PowerShell):
+
+```powershell
+pwsh -NoProfile -File scripts/install-usage-only.ps1
+```
+
+macOS/Linux:
+
+```bash
+bash scripts/install-usage-only.sh
+```
+
+Common options:
+
+- Preview only: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -DryRun` or `bash scripts/install-usage-only.sh --dry-run`
+- Custom targets: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -OpenCodeTarget C:\path\to\opencode-config -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js` or `bash scripts/install-usage-only.sh --opencode-target /path/to/opencode-config --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js`
+
 ### Usage status plugin only from clone
 
 Use this when OpenCode core assets are already installed and you want the toggleable TUI usage footer plugin.
