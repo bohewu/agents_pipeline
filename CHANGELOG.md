@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-04-05
+
+### Added
+
+- Added `/usage` plus the hidden `usage-inspector` subagent so OpenCode can report live Codex quota windows and GitHub Copilot premium-request usage from local auth state.
+- Added the installable `usage-status` OpenCode TUI plugin, which can show a compact Codex/Copilot quota footer and exposes `/usage-status`, `/usage-status-on`, `/usage-status-off`, and `/usage-status-refresh` commands.
+- Added focused `usage-only` installers and release-bundle bootstraps so users can install just the usage command/tooling and TUI plugin without taking the full pipeline.
+
+### Changed
+
+- `provider-usage` now reads Codex CLI auth from `~/.codex/auth.json`, renders quota output with ASCII progress bars, and performs live GitHub Copilot quota lookup through `gh auth` when available.
+- OpenCode usage-status installation now follows the official TUI plugin contract by registering the plugin in `tui.json` and shipping a target-exclusive `default export { id, tui }` module entry.
+- README, CI coverage, and release-bundle assembly now include the usage-status plugin and usage-only installers so future releases validate and publish these assets automatically.
+
 ## [0.18.2] - 2026-04-04
 
 ### Fixed
