@@ -32,6 +32,7 @@ $ARGUMENTS
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
 - `--compress` — compress context between stages
+- `--commit=off|before|after` — optional git helper lane; runs outside the canonical TaskList and does not affect task/reviewer/retry quotas
 - `--handoff` — write run-local handoff artifacts at the end of the run
 - `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
@@ -52,6 +53,7 @@ $ARGUMENTS
 /run-pipeline Implement feature with review --confirm
 /run-pipeline Execute migration end-to-end --autopilot
 /run-pipeline Execute migration end-to-end --full-auto
+/run-pipeline Implement OAuth2 login --commit=before
 /run-pipeline Finish the approved invite flow --handoff --kanban=auto
 ```
 

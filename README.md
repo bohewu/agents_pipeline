@@ -966,6 +966,10 @@ For resume-only flows, `--resume` can be used without a new prompt.
 - `--resume`
   - Resume from the newest compatible `<run_output_dir>/checkpoint.json` under the selected output root
   - Can be used without a new prompt (reuses `checkpoint.user_prompt` when valid)
+- `--commit=off|before|after`
+  - Optional git helper lane for pre-run or post-run commits
+  - Does not consume Flow's max-5 task budget or the pipeline `TaskList` quota
+  - Explicit `--commit=*` wins over workflow-style commit wording in the prompt
 - `--confirm`
   - Pause after each stage for review
 - `--verbose`
@@ -988,6 +992,7 @@ Flag precedence:
 - `--dry` overrides `--test-only` when both are present.
 - `--full-auto` implies `--autopilot`.
 - `--autopilot` overrides interactive pauses from `--confirm` / `--verbose`.
+- `--commit=*` runs as a workflow helper, not a canonical task.
 
 Examples:
 ```
@@ -995,7 +1000,9 @@ Examples:
 /run-pipeline Improve search relevance --effort=balanced
 /run-flow --resume
 /run-pipeline --resume --autopilot
+/run-pipeline Implement OAuth2 login --commit=before
 /run-flow Ship login improvements --full-auto
+/run-flow Ship login improvements --commit=after
 /run-pipeline Ship migration end-to-end --full-auto
 ```
 

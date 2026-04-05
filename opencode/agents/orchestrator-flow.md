@@ -94,6 +94,7 @@ Supported flags (Flow-only, minimal):
 - `--scout=auto|skip|force` -> scout_mode
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
+- `--commit=off|before|after` -> commit_mode
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -110,6 +111,12 @@ If no scout flag is provided:
 If no kanban flag is provided:
 
 - kanban_mode = manual.
+
+If no commit flag is provided:
+
+- commit_mode = off.
+
+If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
 If conflicting flags exist (e.g. --skip-scout + --force-scout):
 
@@ -141,11 +148,17 @@ If an invalid `--kanban` value is provided:
 - Warn the user.
 - Fall back to kanban_mode = manual.
 
+If an invalid `--commit` value is provided:
+
+- Warn the user.
+- Fall back to commit_mode = off.
+
 ## FLOW FLAGS (QUICK REFERENCE)
 
 - `--scout=auto|skip|force`
 - `--skip-scout`
 - `--force-scout`
+- `--commit=off|before|after`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -165,6 +178,8 @@ If an invalid `--kanban` value is provided:
    - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
    - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
+4. **Commit helper normalization**: If the prompt clearly asks to commit before work starts or after work finishes, normalize that request into `commit_mode = before|after` when no explicit `--commit=*` flag was provided. Strip workflow-only commit wording from the scoped prompt passed to Stage 1 and Stage 2 so it does not consume one of Flow's 5 tasks.
+5. **Optional pre-run commit helper**: If `commit_mode = before`, dispatch one bounded `@peon` git helper before Stage 0 to inspect git state and create at most one commit when there are changes. This helper action is not part of the `FlowTaskList` and does not count toward the max-5 task cap.
 
 ## CHECKPOINT PROTOCOL
 
@@ -196,7 +211,7 @@ Use the expanded status layout once Stage 2 creates the task list. Emit: `run.st
 - Stage 2 (Flow Task Split): @flow-splitter
 - Stage 3 (Dispatch & Execution): @executor / @doc-writer / @peon / @generalist
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
-- Optional terminal helpers: @handoff-writer / @kanban-manager
+- Optional terminal helpers: @handoff-writer / @kanban-manager / @peon
 
 All outputs are written to `<run_output_dir>/flow/` for traceability.
 
@@ -217,6 +232,7 @@ Stage 2 — Flow Task Split (@flow-splitter)
 - Produce AT MOST 5 tasks.
 - Persist the result to `<run_output_dir>/flow/task-list.json`.
 - The output must conform to `opencode/protocols/schemas/flow-task-list.schema.json`.
+- Pure git helper actions such as `git status`, `git add`, `git commit`, or `git push` MUST NOT appear in the `FlowTaskList` unless version-control work is the user's primary requested deliverable.
 - Each task MUST already include:
   - `assigned_agent`
   - `primary_output`
@@ -305,6 +321,7 @@ Optional terminal helper behavior:
   - `<run_output_dir>/flow/handoff-prompt.md`
 - If `kanban_mode = auto`, call @kanban-manager to sync the root-tracked `todo-ledger.json` and `kanban.md` using final task outcomes and any `kanban_updates` from the handoff.
 - If `kanban_mode = manual`, mention `/kanban sync` in the final summary and in any handoff prompt.
+- If `commit_mode = after`, after any handoff/kanban helpers dispatch one bounded `@peon` git helper to create at most one final commit when there are relevant changes from this run. Treat it as a workflow helper, not a Flow task. If the helper cannot safely separate run-generated changes from unrelated pre-existing dirty state, skip the commit and report that manual review is required.
 
 STOP after synthesis.
 

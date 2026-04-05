@@ -28,6 +28,7 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Prefer `doc-writer` for pure documentation/spec/checklist outputs.
 - Prefer `peon` only for clearly mechanical work.
 - Prefer `generalist` only when the task is mixed-scope but non-coding.
+- Treat routine version-control actions (`git status`, `git add`, `git commit`, `git push`) as orchestrator helper work, not Flow tasks, unless version-control management is the user's primary requested outcome.
 - Set `repair_budget = 1` only when one bounded retry of the SAME task is likely to help.
 - `repair_budget` MUST be `0` or `1`; never higher.
 - `resource_class = browser` or `server` should be used only when the task clearly requires those heavy resources.

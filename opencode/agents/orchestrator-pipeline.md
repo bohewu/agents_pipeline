@@ -109,6 +109,7 @@ Flag semantics:
 - `--effort=low|balanced|high` -> effort_mode
 - `--max-retry=<int>` -> max_retry_rounds
 - `--compress` -> compress_mode = true
+- `--commit=off|before|after` -> commit_mode
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -125,6 +126,12 @@ If no scout flag is provided:
 If no kanban flag is provided:
 
 - kanban_mode = manual.
+
+If no commit flag is provided:
+
+- commit_mode = off.
+
+If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
 If conflicting flags exist (e.g. --dry + --test-only):
 
@@ -161,6 +168,11 @@ If an invalid `--kanban` value is provided:
 
 - Warn the user.
 - Fall back to kanban_mode = manual.
+
+If an invalid `--commit` value is provided:
+
+- Warn the user.
+- Fall back to commit_mode = off.
 
 Proceed with pipeline execution according to parsed flags.
 
@@ -214,17 +226,19 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
    - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
 4. **Todo Ledger**: If `todo-ledger.json` exists in the project root:
-    - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
-    - If `autopilot_mode = false`, surface it and ask whether to include, defer, or archive obsolete carryover items.
-5. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
-   - treat `<run_output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
-   - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
-   - treat `<run_output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
-   - treat `<run_output_dir>/spec/dev-spec.md` as human-readable context only when needed
-6. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
-   - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
-   - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
-   - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)
+     - If `autopilot_mode = true`, default to `defer`, continue execution, and record this as a warning/assumption in run outputs.
+     - If `autopilot_mode = false`, surface it and ask whether to include, defer, or archive obsolete carryover items.
+5. **Commit helper normalization**: If the prompt clearly asks to commit before work starts or after work finishes, normalize that request into `commit_mode = before|after` when no explicit `--commit=*` flag was provided. Strip workflow-only commit wording from the scoped prompt passed to Stage 0-6 so it does not become part of the canonical `TaskList`.
+6. **Optional pre-run commit helper**: If `commit_mode = before`, dispatch one bounded `@peon` git helper before Stage 0 to inspect git state and create at most one commit when there are changes. This helper action is not part of the canonical `TaskList`, does not affect reviewer scope, and does not consume retry budget.
+7. **Approved spec artifacts (optional)**: If `<run_output_dir>/spec/problem-spec.json` and/or `<run_output_dir>/spec/dev-spec.json` exist and the task prompt indicates implementation of an approved or reviewed spec:
+    - treat `<run_output_dir>/spec/problem-spec.json` as a scope boundary input for Stage 0/1/6
+    - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
+    - treat `<run_output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
+    - treat `<run_output_dir>/spec/dev-spec.md` as human-readable context only when needed
+8. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
+    - validate against `opencode/protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
+    - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
+    - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)
    - surface phase ID/title and exit criteria before Stage 0
 
 # CHECKPOINT PROTOCOL
@@ -295,7 +309,7 @@ If unsure and the task is implementation-oriented, prefer generating `DevSpec` b
 
 ## Stage Agents
 
-- Pre-flight: Gitignore check, checkpoint resume, todo-ledger, init-docs
+- Pre-flight: Gitignore check, checkpoint resume, todo-ledger, optional git helper, init-docs
 - Stage 0 (Problem Spec): @specifier
 - Optional Stage 0.5 (Dev Spec): @specifier + @doc-writer
 - Stage 1 (Plan Outline): @planner
@@ -315,6 +329,7 @@ Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce 
 Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
 Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`; then call `status_runtime_event` with `event = "tasks.registered"` for every canonical task so runtime/plugin can refresh `run-status.json` with `layout = expanded`, `task_list_path`, `task_counts`, and task refs
+  - Pure git helper actions such as `git status`, `git add`, `git commit`, or `git push` MUST NOT appear in `task-list.json` unless version-control work is the user's primary requested deliverable
 Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then call `status_runtime_event` with `event = "task.updated"` to enrich task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`, and refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids
 Stage 5: Execute batches + optional validation:
 
@@ -358,6 +373,7 @@ Before returning the Stage 9 final summary:
   - `<run_output_dir>/pipeline/handoff-prompt.md`
 - If `kanban_mode = auto`, call @kanban-manager to sync the root-tracked `todo-ledger.json` and `kanban.md` using final task/review outcomes and any `kanban_updates` from the handoff.
 - If `kanban_mode = manual`, mention `/kanban sync` in the final summary and in any handoff prompt.
+- If `commit_mode = after`, after any handoff/kanban helpers dispatch one bounded `@peon` git helper to create at most one final commit when there are relevant changes from this run. Treat it as a workflow helper, not a canonical task: it must not affect the `TaskList`, reviewer scope, retry accounting, or delta-task generation. If the run started dirty and the helper cannot safely separate run-generated changes from unrelated pre-existing changes, skip the commit and report that manual review is required.
 
 # DECISION-ONLY MODE
 

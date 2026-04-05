@@ -17,6 +17,7 @@ Produce atomic TaskList (DAG). Each task must be independently verifiable.
 - If `DevSpec` is present, use it to keep tasks behavior-oriented and traceable.
 - When `DevSpec` is present, each task MUST include a non-empty `trace_ids` array with relevant `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
 - Do NOT create tasks outside the provided `ProblemSpec`, `PlanOutline`, optional `RepoFindings`, and optional `DevSpec`.
+- Do NOT create routine version-control tasks (`git status`, `git add`, `git commit`, `git push`) unless git/history management is the user's primary requested deliverable; those are orchestrator helper actions, not canonical pipeline tasks.
 
 # OUTPUT (JSON ONLY)
 {

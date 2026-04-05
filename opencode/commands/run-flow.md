@@ -25,6 +25,7 @@ $ARGUMENTS
   - `--scout=auto|skip|force`
   - `--skip-scout`
   - `--force-scout`
+  - `--commit=off|before|after` — optional git helper lane; helper actions do not count toward Flow's max-5 task budget
   - `--handoff` — write run-local handoff artifacts at the end of the run
   - `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior
   - `--output-dir=<path>` — Override the base artifact output root (default: `.pipeline-output/`); fresh runs use a run-specific subdirectory under it, and resume searches that root for the newest compatible run unless a specific run dir is targeted
@@ -48,6 +49,7 @@ $ARGUMENTS
 /run-flow Implement with review --confirm
 /run-flow Ship login improvements --autopilot
 /run-flow Ship login improvements --full-auto
+/run-flow Ship login improvements --commit=after
 /run-flow Finish login cleanup --handoff --kanban=auto
 ```
 
