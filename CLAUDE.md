@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-A multi-agent orchestration framework where `opencode/agents/*.md` is the **single source of truth**. These 28 agent definitions are exported to multiple platforms: OpenCode (primary), Claude Code, VS Code Copilot, and Codex. The agents form a pipeline that decomposes tasks through stages (spec -> plan -> scout -> atomize -> route -> execute -> review -> summarize).
+A multi-agent orchestration framework where `opencode/agents/*.md` is the **single source of truth**. These agent definitions are exported to multiple platforms: OpenCode (primary), Claude Code, VS Code Copilot, and Codex. The agents form a pipeline that decomposes tasks through stages (spec -> plan -> scout -> atomize -> route -> execute -> review -> summarize).
 
 ## Validation & CI
 

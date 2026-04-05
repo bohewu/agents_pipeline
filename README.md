@@ -339,6 +339,8 @@ Use this when OpenCode is already set up and you only want the status runtime pl
 The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
 When status payloads include `working_project_dir`, the OpenCode plugin anchors relative `output_root` and `checkpoint_path` values to that target repo. This is what allows same-session delegated runs such as `run-modernize -> run-pipeline` to keep status/checkpoints under the target project.
+OpenCode core installs now also mirror repo-managed skills into the global cross-runtime skill locations `~/.agents/skills/` and `~/.claude/skills/` by default, while preserving the OpenCode config copy under `~/.config/opencode/skills/`.
+If a newly installed skill does not appear immediately, start a fresh OpenCode session so the runtime can re-scan the installed skill catalog.
 
 Installed file layout:
 
@@ -685,6 +687,9 @@ Use whichever tool your team prefers.
 - Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
 - Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
 - Use `/run-general` in `opencode/commands/run-general.md` for non-coding general-purpose workflows (planning/writing/analysis/checklists)
+- Use `/run-ux` in `opencode/commands/run-ux.md` for profile-aware UX audits and normal-user scorecards.
+- Use the repo-managed `devtools-ux-audit` skill for Chrome DevTools browser evidence collection. Installers mirror it into `~/.agents/skills` as the global baseline and `~/.claude/skills` as a compatibility mirror.
+- Use `opencode/protocols/UX_DEVTOOLS_WORKFLOW.md` as the browser-evidence workflow source behind that skill.
 - Use `/session-guide` to create or refresh the root-tracked repo guide.
 - Use `/kanban` to manage the root-tracked kanban / carryover ledger.
 - Use `/emit-handoff` to create run-local handoff artifacts for a fresh session.
@@ -1061,6 +1066,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; no reviewer or retries)
 - Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
 - General: `/run-general` (non-coding execution pipeline for planning/writing/analysis)
+- UX: `/run-ux` (normal-user experience audit with profile-aware viewport scoring)
 - CI: `/run-ci` (docs-first CI/CD planning; optional generation)
 - Modernize: `/run-modernize` (experimental modernization planning docs)
 
@@ -1077,6 +1083,10 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Use `/run-general` when:
   - the objective is not code implementation
   - you need structured planning, analysis, writing, or operational documentation
+- Use `/run-ux` when:
+  - you want a bounded UX audit from a normal-user perspective
+  - you need profile-aware scoring across desktop/mobile viewports without assuming mobile-first behavior
+  - you want prioritized UX findings and a practical scorecard before implementation changes
 - Use `/run-pipeline` when:
   - the change is high-risk, multi-file/systemic, or needs reviewer gates + bounded retries
 
@@ -1089,6 +1099,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Spec pipeline uses `*-spec` naming (e.g. `orchestrator-spec.md`, `run-spec.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
+- UX pipeline uses `*-ux` naming (e.g. `orchestrator-ux.md`, `run-ux.md`).
 
 </details>
 
@@ -1103,6 +1114,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
 | orchestrator-general | Non-coding workflow orchestration | Implementing code |
+| orchestrator-ux | UX audit orchestration with profile-aware scoring | Implementing code |
 | specifier | ProblemSpec / DevSpec extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
 | repo-scout | Repo discovery | Design decisions |

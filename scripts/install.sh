@@ -4,6 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Install OpenCode assets from this repository into your local OpenCode config directory.
+Repo-managed skills are also mirrored into ~/.agents/skills and ~/.claude/skills by default.
 
 Usage:
   scripts/install.sh [--target <path>] [--dry-run] [--no-backup]
@@ -11,7 +12,7 @@ Usage:
 Options:
   --target <path>  Install destination (default: $XDG_CONFIG_HOME/opencode or ~/.config/opencode)
   --dry-run        Print actions without writing files
-  --no-backup      Skip backup of existing agents/commands/protocols/tools
+  --no-backup      Skip backup of existing agents/commands/protocols/tools/skills
   -h, --help       Show this help
 EOF
 }
@@ -41,6 +42,79 @@ remove_empty_parent_dirs() {
     fi
     rmdir "${current}"
     current="$(dirname "${current}")"
+  done
+}
+
+sync_skill_mirrors() {
+  local skill_source_root="$1"
+  shift
+  local mirror_roots=("$@")
+  local skill_dirs=()
+  local skill_src=""
+  local skill_name=""
+  local mirror_root=""
+  local existing_skill=""
+  local backup_dir=""
+  local needs_backup=0
+
+  if [[ ! -d "${skill_source_root}" ]]; then
+    return
+  fi
+
+  while IFS= read -r skill_src; do
+    skill_dirs+=("${skill_src}")
+  done < <(find "${skill_source_root}" -mindepth 1 -maxdepth 1 -type d | LC_ALL=C sort)
+
+  if [[ ${#skill_dirs[@]} -eq 0 ]]; then
+    return
+  fi
+
+  for mirror_root in "${mirror_roots[@]}"; do
+    echo "Skill mirror target: ${mirror_root}"
+    needs_backup=0
+    for skill_src in "${skill_dirs[@]}"; do
+      skill_name="$(basename "${skill_src}")"
+      if [[ -e "${mirror_root}/${skill_name}" ]]; then
+        needs_backup=1
+        break
+      fi
+    done
+
+    if [[ ${NO_BACKUP} -eq 0 && ${needs_backup} -eq 1 ]]; then
+      backup_dir="${mirror_root}/.backup-agents-pipeline-skills-$(date +%Y%m%d-%H%M%S)"
+      if [[ ${DRY_RUN} -eq 1 ]]; then
+        echo "Would create skill mirror backup: ${backup_dir}"
+      else
+        mkdir -p "${backup_dir}"
+        for skill_src in "${skill_dirs[@]}"; do
+          skill_name="$(basename "${skill_src}")"
+          existing_skill="${mirror_root}/${skill_name}"
+          if [[ -e "${existing_skill}" ]]; then
+            cp -a "${existing_skill}" "${backup_dir}/${skill_name}"
+          fi
+        done
+        echo "Skill mirror backup created: ${backup_dir}"
+      fi
+    fi
+
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+      echo "Would ensure skill mirror root exists: ${mirror_root}"
+    else
+      mkdir -p "${mirror_root}"
+    fi
+
+    for skill_src in "${skill_dirs[@]}"; do
+      skill_name="$(basename "${skill_src}")"
+      existing_skill="${mirror_root}/${skill_name}"
+      if [[ ${DRY_RUN} -eq 1 ]]; then
+        echo "Would mirror skill: ${skill_src} -> ${existing_skill}"
+        continue
+      fi
+
+      rm -rf "${existing_skill}"
+      cp -a "${skill_src}" "${existing_skill}"
+      echo "Mirrored skill: ${skill_name} -> ${existing_skill}"
+    done
   done
 }
 
@@ -83,7 +157,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ITEMS=(agents commands protocols tools)
+ITEMS=(agents commands protocols tools skills)
 EXAMPLE_CONFIG="${REPO_ROOT}/opencode.json.example"
 MANIFEST_PATH="${TARGET_DIR}/${MANIFEST_NAME}"
 CURRENT_MANAGED_FILE=""
@@ -212,6 +286,8 @@ else
   cp "${CURRENT_MANAGED_FILE}" "${MANIFEST_PATH}"
   echo "Updated manifest: ${MANIFEST_PATH}"
 fi
+
+sync_skill_mirrors "${SOURCE_ROOT}/skills" "${HOME}/.agents/skills" "${HOME}/.claude/skills"
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
   echo "Dry run complete. No files were written."

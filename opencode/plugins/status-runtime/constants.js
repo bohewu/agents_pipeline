@@ -56,7 +56,8 @@ const ORCHESTRATORS = [
   "orchestrator-modernize",
   "orchestrator-spec",
   "orchestrator-committee",
-  "orchestrator-general"
+  "orchestrator-general",
+  "orchestrator-ux"
 ];
 
 const TASK_COUNT_ORDER = [

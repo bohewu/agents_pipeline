@@ -29,7 +29,8 @@
         "orchestrator-modernize",
         "orchestrator-spec",
         "orchestrator-committee",
-        "orchestrator-general"
+        "orchestrator-general",
+        "orchestrator-ux"
       ]
     },
     "status": {

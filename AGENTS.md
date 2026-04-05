@@ -14,6 +14,7 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
 | orchestrator-general | General-purpose orchestration for non-coding tasks (planning/writing/analysis) | primary | Non-coding workflow |
 | orchestrator-analysis | Post-hoc analysis pipeline with conditional expert roster and severity-ranked findings | primary | Analytical review |
+| orchestrator-ux | UX audit orchestration with profile-aware scoring and normal-user findings | primary | Analysis-only |
 | specifier | Convert user input into ProblemSpec JSON and optional DevSpec JSON | subagent | hidden |
 | planner | Produce PlanOutline JSON | subagent | hidden |
 | repo-scout | Repo discovery and risk scanning | subagent | hidden |
@@ -29,6 +30,11 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | analysis-complexity | Analysis expert (time/space complexity/efficiency) | subagent | hidden |
 | analysis-robustness | Analysis expert (edge cases/error paths/adversarial inputs) | subagent | hidden |
 | analysis-numerics | Analysis expert (numerical stability/precision) — conditionally dispatched | subagent | hidden |
+| ux-novice | UX expert (first-time user discoverability/orientation) | subagent | hidden |
+| ux-task-flow | UX expert (task flow/friction/completion) | subagent | hidden |
+| ux-copy-trust | UX expert (copy/labels/trust/recovery wording) | subagent | hidden |
+| ux-visual-hierarchy | UX expert (scanability/layout hierarchy across viewports) | subagent | hidden |
+| ux-judge | Final UX judge (scorecard/findings/priority actions) | subagent | hidden |
 | flow-splitter | Convert a Flow ProblemSpec into a max-5 bounded task list | subagent | hidden |
 | executor | Execute one atomic task with bounded effort/verification settings | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |

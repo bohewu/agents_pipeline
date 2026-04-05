@@ -8,6 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+Write-Verbose "Repo-managed skills are mirrored into ~/.agents/skills and ~/.claude/skills by default."
+
 function Get-DefaultTarget {
     if ($env:XDG_CONFIG_HOME) {
         return Join-Path $env:XDG_CONFIG_HOME "opencode"
@@ -56,6 +58,73 @@ function Remove-EmptyParentDirectories {
     }
 }
 
+function Sync-SkillMirrors {
+    param(
+        [string]$SkillSourceRoot,
+        [string[]]$MirrorRoots,
+        [switch]$DryRun,
+        [switch]$NoBackup
+    )
+
+    if (-not (Test-Path -LiteralPath $SkillSourceRoot -PathType Container)) {
+        return
+    }
+
+    $skillDirs = @(Get-ChildItem -LiteralPath $SkillSourceRoot -Directory | Sort-Object Name)
+    if ($skillDirs.Count -eq 0) {
+        return
+    }
+
+    foreach ($mirrorRoot in $MirrorRoots) {
+        Write-Host "Skill mirror target: $mirrorRoot"
+
+        $needsBackup = $false
+        foreach ($skillDir in $skillDirs) {
+            if (Test-Path -LiteralPath (Join-Path $mirrorRoot $skillDir.Name)) {
+                $needsBackup = $true
+                break
+            }
+        }
+
+        if (-not $NoBackup -and $needsBackup) {
+            $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+            $backupDir = Join-Path $mirrorRoot ".backup-agents-pipeline-skills-$stamp"
+            if ($DryRun) {
+                Write-Host "Would create skill mirror backup: $backupDir"
+            } else {
+                New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+                foreach ($skillDir in $skillDirs) {
+                    $existingSkill = Join-Path $mirrorRoot $skillDir.Name
+                    if (Test-Path -LiteralPath $existingSkill) {
+                        Copy-Item -LiteralPath $existingSkill -Destination (Join-Path $backupDir $skillDir.Name) -Recurse -Force
+                    }
+                }
+                Write-Host "Skill mirror backup created: $backupDir"
+            }
+        }
+
+        if ($DryRun) {
+            Write-Host "Would ensure skill mirror root exists: $mirrorRoot"
+        } else {
+            New-Item -ItemType Directory -Path $mirrorRoot -Force | Out-Null
+        }
+
+        foreach ($skillDir in $skillDirs) {
+            $destSkill = Join-Path $mirrorRoot $skillDir.Name
+            if ($DryRun) {
+                Write-Host "Would mirror skill: $($skillDir.FullName) -> $destSkill"
+                continue
+            }
+
+            if (Test-Path -LiteralPath $destSkill) {
+                Remove-Item -LiteralPath $destSkill -Recurse -Force
+            }
+            Copy-Item -LiteralPath $skillDir.FullName -Destination $destSkill -Recurse -Force
+            Write-Host "Mirrored skill: $($skillDir.Name) -> $destSkill"
+        }
+    }
+}
+
 if (-not $Target) {
     $Target = Get-DefaultTarget
 }
@@ -65,9 +134,13 @@ if ($Target -match '^-{1,2}[A-Za-z]') {
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
-$items = @("agents", "commands", "protocols", "tools")
+$items = @("agents", "commands", "protocols", "tools", "skills")
 $exampleConfig = Join-Path $repoRoot "opencode.json.example"
 $manifestPath = Join-Path $targetPath $manifestName
+$skillMirrorRoots = @(
+    (Join-Path $HOME ".agents/skills"),
+    (Join-Path $HOME ".claude/skills")
+)
 
 $managedRelativePaths = New-Object System.Collections.Generic.List[string]
 foreach ($item in $items) {
@@ -193,6 +266,8 @@ if ($DryRun) {
     Set-Content -LiteralPath $manifestPath -Value $managedRelativePaths -Encoding utf8
     Write-Host "Updated manifest: $manifestPath"
 }
+
+Sync-SkillMirrors -SkillSourceRoot (Join-Path $sourceRoot "skills") -MirrorRoots $skillMirrorRoots -DryRun:$DryRun -NoBackup:$NoBackup
 
 if ($DryRun) {
     Write-Host "Dry run complete. No files were written."
