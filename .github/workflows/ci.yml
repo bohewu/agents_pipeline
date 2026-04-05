@@ -774,19 +774,24 @@ jobs:
         shell: bash
         run: |
           PLUGIN_TARGET="./.tmp-plugin-install/status-runtime.js"
+          USAGE_PLUGIN_TARGET="./.tmp-plugin-install/usage-status.js"
           BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
+          BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
 
           bash -n scripts/install.sh
           bash -n scripts/install-copilot.sh
           bash -n scripts/install-claude.sh
           bash -n scripts/install-codex.sh
           bash -n scripts/install-plugin-status-runtime.sh
+          bash -n scripts/install-plugin-usage-status.sh
+          bash -n scripts/install-usage-only.sh
           bash -n scripts/install-all-local.sh
           bash -n scripts/bootstrap-install.sh
           bash -n scripts/bootstrap-install-copilot.sh
           bash -n scripts/bootstrap-install-claude.sh
           bash -n scripts/bootstrap-install-codex.sh
           bash -n scripts/bootstrap-install-plugin-status-runtime.sh
+          bash -n scripts/bootstrap-install-usage-only.sh
           bash -n scripts/bootstrap-install-all-local.sh
           bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
           bash scripts/install-copilot.sh --target ./.tmp-copilot-install --dry-run
@@ -797,6 +802,13 @@ jobs:
           [[ "${plugin_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
           [[ "${plugin_output}" == *"Would copy entry file:"* ]]
           [[ "${plugin_output}" == *"Would sync support dir:"* ]]
+          usage_plugin_output="$(bash scripts/install-plugin-usage-status.sh --target "${USAGE_PLUGIN_TARGET}" --dry-run)"
+          [[ "${usage_plugin_output}" == *"Target entry: ${USAGE_PLUGIN_TARGET}"* ]]
+          [[ "${usage_plugin_output}" == *"Target support dir: ./.tmp-plugin-install/usage-status"* ]]
+          usage_only_output="$(bash scripts/install-usage-only.sh --opencode-target ./.tmp-opencode-install --usage-plugin-target "${USAGE_PLUGIN_TARGET}" --dry-run)"
+          [[ "${usage_only_output}" == *"Usage plugin target: ${USAGE_PLUGIN_TARGET}"* ]]
+          [[ "${usage_only_output}" == *"Target support dir: ./.tmp-plugin-install/usage-status"* ]]
+          [[ "${usage_only_output}" == *"Usage-only install completed in dry-run mode."* ]]
           all_local_output="$(bash scripts/install-all-local.sh --opencode-target ./.tmp-opencode-install --plugin-target "${PLUGIN_TARGET}" --copilot-target ./.tmp-copilot-install --claude-target ./.tmp-claude-install --codex-target ./.tmp-codex-install --dry-run)"
           [[ "${all_local_output}" == *"Target entry: ${PLUGIN_TARGET}"* ]]
           [[ "${all_local_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
@@ -805,6 +817,7 @@ jobs:
         shell: bash
         run: |
           BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
+          BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
 
           mkdir -p ./.tmp-bootstrap-mocks
           cat > ./.tmp-bootstrap-mocks/curl <<'EOF'
@@ -838,6 +851,8 @@ jobs:
           bash scripts/bootstrap-install-codex.sh --repo example/agents --version v1.2.3 --target ./.tmp-bootstrap-codex --no-backup --force --dry-run
           bootstrap_plugin_output="$(bash scripts/bootstrap-install-plugin-status-runtime.sh --repo example/agents --version 1.2.3 --target "${BOOTSTRAP_PLUGIN_TARGET}" --no-backup --dry-run)"
           [[ "${bootstrap_plugin_output}" == *"Install target override: ${BOOTSTRAP_PLUGIN_TARGET}"* ]]
+          bootstrap_usage_output="$(bash scripts/bootstrap-install-usage-only.sh --repo example/agents --version 1.2.3 --opencode-target ./.tmp-bootstrap-install --usage-plugin-target "${BOOTSTRAP_USAGE_PLUGIN_TARGET}" --no-backup --dry-run)"
+          [[ "${bootstrap_usage_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
           bootstrap_all_output="$(bash scripts/bootstrap-install-all-local.sh --repo example/agents --version v1.2.3 --opencode-target ./.tmp-bootstrap-install --plugin-target "${BOOTSTRAP_PLUGIN_TARGET}" --copilot-target ./.tmp-bootstrap-copilot --claude-target ./.tmp-bootstrap-claude --codex-target ./.tmp-bootstrap-codex --no-backup --force-codex --dry-run)"
           [[ "${bootstrap_all_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
 
@@ -867,18 +882,24 @@ jobs:
           $pluginTarget = '.\.tmp-plugin-install\status-runtime.js'
           $resolvedPluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($pluginTarget)
           $resolvedPluginSupportDir = Join-Path (Split-Path -Parent $resolvedPluginTarget) 'status-runtime'
+          $usagePluginTarget = '.\.tmp-plugin-install\usage-status.js'
+          $resolvedUsagePluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($usagePluginTarget)
+          $resolvedUsagePluginSupportDir = Join-Path (Split-Path -Parent $resolvedUsagePluginTarget) 'usage-status'
 
           [void](Get-Command -Name ./scripts/install.ps1)
           [void](Get-Command -Name ./scripts/install-copilot.ps1)
           [void](Get-Command -Name ./scripts/install-claude.ps1)
           [void](Get-Command -Name ./scripts/install-codex.ps1)
           [void](Get-Command -Name ./scripts/install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/install-plugin-usage-status.ps1)
+          [void](Get-Command -Name ./scripts/install-usage-only.ps1)
           [void](Get-Command -Name ./scripts/install-all-local.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-copilot.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-claude.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-codex.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install-usage-only.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-all-local.ps1)
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
@@ -890,6 +911,23 @@ jobs:
           }
           if ($pluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedPluginSupportDir")) {
             throw 'install-plugin-status-runtime.ps1 did not report the plugin support directory.'
+          }
+          $usagePluginOutput = & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target $usagePluginTarget -DryRun | Out-String
+          if ($usagePluginOutput -notmatch [regex]::Escape("Target entry: $resolvedUsagePluginTarget")) {
+            throw 'install-plugin-usage-status.ps1 did not report the plugin entry-file target.'
+          }
+          if ($usagePluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedUsagePluginSupportDir")) {
+            throw 'install-plugin-usage-status.ps1 did not report the plugin support directory.'
+          }
+          $usageOnlyOutput = & pwsh -NoProfile -File scripts/install-usage-only.ps1 -OpenCodeTarget .\.tmp-opencode-install -UsagePluginTarget $usagePluginTarget -DryRun | Out-String
+          if ($usageOnlyOutput -notmatch [regex]::Escape("Usage plugin target: $usagePluginTarget")) {
+            throw 'install-usage-only.ps1 did not report the usage plugin target.'
+          }
+          if ($usageOnlyOutput -notmatch [regex]::Escape("Target support dir: $resolvedUsagePluginSupportDir")) {
+            throw 'install-usage-only.ps1 did not forward the usage plugin support directory semantics.'
+          }
+          if ($usageOnlyOutput -notmatch 'Usage-only install completed in dry-run mode\.') {
+            throw 'install-usage-only.ps1 dry-run did not complete successfully.'
           }
           $allLocalOutput = & pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget .\.tmp-opencode-install -PluginTarget $pluginTarget -CopilotTarget .\.tmp-copilot-install -ClaudeTarget .\.tmp-claude-install -CodexTarget .\.tmp-codex-install -DryRun | Out-String
           if ($allLocalOutput -notmatch [regex]::Escape("Target entry: $resolvedPluginTarget")) {
@@ -927,6 +965,11 @@ jobs:
             throw 'install-plugin-status-runtime.ps1 should reject switch-like target values.'
           }
 
+          & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target '-NoBackup' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'install-plugin-usage-status.ps1 should reject switch-like target values.'
+          }
+
           $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
           $global:LASTEXITCODE = 0
 
@@ -934,6 +977,7 @@ jobs:
         shell: pwsh
         run: |
           $bootstrapPluginTarget = '.\.tmp-bootstrap-plugin\status-runtime.js'
+          $bootstrapUsagePluginTarget = '.\.tmp-bootstrap-plugin\usage-status.js'
 
           function Invoke-RestMethod {
             param(
@@ -973,6 +1017,10 @@ jobs:
           $bootstrapPluginOutput = & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapPluginTarget -NoBackup -DryRun 6>&1 | Out-String
           if ($bootstrapPluginOutput -notmatch [regex]::Escape("Install target override: $bootstrapPluginTarget")) {
             throw 'bootstrap-install-plugin-status-runtime.ps1 did not report the plugin entry-file target.'
+          }
+          $bootstrapUsageOutput = & ./scripts/bootstrap-install-usage-only.ps1 -Repo example/agents -Version 1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -UsagePluginTarget $bootstrapUsagePluginTarget -NoBackup -DryRun 6>&1 | Out-String
+          if ($bootstrapUsageOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
+            throw 'bootstrap-install-usage-only.ps1 dry-run did not complete successfully.'
           }
           $bootstrapAllOutput = & ./scripts/bootstrap-install-all-local.ps1 -Repo example/agents -Version v1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -PluginTarget $bootstrapPluginTarget -CopilotTarget .\.tmp-bootstrap-copilot -ClaudeTarget .\.tmp-bootstrap-claude -CodexTarget .\.tmp-bootstrap-codex -NoBackup -ForceCodex -DryRun 6>&1 | Out-String
           if ($bootstrapAllOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
