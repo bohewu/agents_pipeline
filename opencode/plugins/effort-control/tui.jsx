@@ -76,7 +76,7 @@ export async function createEffortControlTuiPlugin(api) {
         toast(
           api,
           "Effort updated",
-          `Session effort is now ${nextEffort}. Child sessions inherit it. GPT-5.4 also floors non-mechanical agents to medium by default.`,
+          `Session effort is now ${nextEffort}. Child sessions inherit it. OpenAI GPT-5 models also floor non-mechanical agents to medium by default.`,
           "success"
         );
       } else {
@@ -100,7 +100,7 @@ export async function createEffortControlTuiPlugin(api) {
         "Session effort cleared",
         next?.scope === "project"
           ? `Removed the explicit session override. Project default ${next.effort} is now active for this session.`
-          : "Removed the explicit session override. GPT-5.4 still floors non-mechanical agents to medium.",
+          : "Removed the explicit session override. OpenAI GPT-5 models still floor non-mechanical agents to medium.",
         "success"
       );
       return;
@@ -111,7 +111,7 @@ export async function createEffortControlTuiPlugin(api) {
     toast(
       api,
       "Project default cleared",
-      "Removed the project default override. GPT-5.4 still floors non-mechanical agents to medium.",
+      "Removed the project default override. OpenAI GPT-5 models still floor non-mechanical agents to medium.",
       "success"
     );
   }
@@ -128,7 +128,7 @@ export async function createEffortControlTuiPlugin(api) {
           ? sessionId
             ? `No explicit session override. Project default effort: ${selection.effort}.`
             : `Project default effort: ${selection.effort}. New sessions inherit it.`
-          : "No explicit override. GPT-5.4 still floors non-mechanical agents to medium.",
+          : "No explicit override. OpenAI GPT-5 models still floor non-mechanical agents to medium.",
       "info"
     );
   }

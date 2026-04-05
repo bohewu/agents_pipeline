@@ -76,7 +76,7 @@ export const EffortControlPlugin = async ({ client, worktree, directory }) => {
         ? "session_override"
         : projectEffort
           ? "project_default"
-          : "gpt54_medium_floor";
+          : "gpt5_medium_floor";
 
       await appendTraceEvent(projectRoot, {
         session_id: input.sessionID,

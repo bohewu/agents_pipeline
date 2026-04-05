@@ -16,6 +16,7 @@ const EXCLUDED_BASELINE_AGENTS = new Set([
   "test-runner",
   "usage-inspector"
 ]);
+const SUPPORTED_PROVIDERS = new Set(["openai", "github-copilot"]);
 
 function stateDirPath(projectRoot) {
   return path.join(projectRoot || process.cwd(), ".opencode");
@@ -67,12 +68,12 @@ function maxDefinedEffort(...values) {
   return best;
 }
 
-function isGpt54Model(modelId) {
-  return typeof modelId === "string" && /^gpt-5\.4(?:$|-)/.test(modelId);
+function isOpenAiGpt5Model(modelId) {
+  return typeof modelId === "string" && /^gpt-5(?:$|[.-])/.test(modelId);
 }
 
 function defaultEffortForAgent(agent, modelId) {
-  if (!isGpt54Model(modelId)) {
+  if (!isOpenAiGpt5Model(modelId)) {
     return undefined;
   }
 
@@ -229,7 +230,7 @@ async function findInheritedSessionEffort({ sessionId, store, getParentSessionId
 }
 
 function resolveDesiredEffort({ providerId, modelId, agent, sessionEffort, projectEffort, existingEffort }) {
-  if (providerId !== "openai") {
+  if (!SUPPORTED_PROVIDERS.has(providerId) || !isOpenAiGpt5Model(modelId)) {
     return undefined;
   }
 

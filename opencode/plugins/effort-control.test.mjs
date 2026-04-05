@@ -13,11 +13,11 @@ import {
   setSessionEffort
 } from "./effort-control/state.js";
 
-test("gpt-5.4 defaults non-mechanical agents to at least medium", () => {
+test("OpenAI and Copilot GPT-5 models default non-mechanical agents to at least medium", () => {
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5",
       agent: "executor",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -37,13 +37,25 @@ test("gpt-5.4 defaults non-mechanical agents to at least medium", () => {
     }),
     undefined
   );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "github-copilot",
+      modelId: "gpt-5.2",
+      agent: "executor",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    "medium"
+  );
 });
 
 test("project defaults raise delegated effort without downgrading stronger existing effort", () => {
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5-mini",
       agent: "specifier",
       sessionEffort: undefined,
       projectEffort: "high",
@@ -62,6 +74,42 @@ test("project defaults raise delegated effort without downgrading stronger exist
       existingEffort: "xhigh"
     }),
     "xhigh"
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-4.1",
+      agent: "specifier",
+      sessionEffort: "high",
+      projectEffort: "high",
+      existingEffort: "medium"
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "github-copilot",
+      modelId: "gpt-5.2",
+      agent: "build",
+      sessionEffort: "xhigh",
+      projectEffort: "high",
+      existingEffort: "medium"
+    }),
+    "xhigh"
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "github-copilot",
+      modelId: "claude-sonnet-4.5",
+      agent: "executor",
+      sessionEffort: "high",
+      projectEffort: "high",
+      existingEffort: "medium"
+    }),
+    undefined
   );
 });
 

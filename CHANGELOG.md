@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-04-05
+
+### Changed
+
+- `effort-control` now applies its automatic medium floor to OpenAI and GitHub Copilot `gpt-5*` models instead of only OpenAI `gpt-5.4*`, while still leaving Copilot Claude/Gemini and other non-GPT-5 providers untouched.
+
 ## [0.21.0] - 2026-04-05
 
 ### Added
