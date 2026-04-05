@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-04-05
+
+### Added
+
+- Added the installable OpenCode-only `effort-control` plugin, which floors GPT-5.4 reasoning to at least `medium` for most non-mechanical agents and exposes `/effort`, `/effort-medium`, `/effort-high`, `/effort-max`, and `/effort-clear` for project-default and session-scoped overrides.
+- Added clone and release-bundle installers for `effort-control`, including dedicated `install-plugin-effort-control.*` and `bootstrap-install-plugin-effort-control.*` entry points.
+
+### Changed
+
+- `install-all-local` and `bootstrap-install-all-local` now include the `effort-control` plugin as part of the all-in OpenCode bundle, with explicit per-target override support for its plugin entry path.
+- CI and release-bundle validation now cover `effort-control` installer dry-runs, README release snippets, and bundle assembly so tagged releases publish the plugin consistently.
+
 ## [0.20.0] - 2026-04-05
 
 ### Added

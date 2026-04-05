@@ -4,6 +4,7 @@ param(
     [string]$OpenCodeTarget,
     [string]$PluginTarget,
     [string]$UsagePluginTarget,
+    [string]$EffortPluginTarget,
     [string]$CopilotTarget,
     [string]$ClaudeTarget,
     [string]$CodexTarget,
@@ -35,11 +36,12 @@ function Invoke-InstallScript {
 $openCodeParams = @{}
 $pluginParams = @{}
 $usagePluginParams = @{}
+$effortPluginParams = @{}
 $copilotParams = @{}
 $claudeParams = @{}
 $codexParams = @{}
 
-foreach ($params in @($openCodeParams, $pluginParams, $usagePluginParams, $copilotParams, $claudeParams, $codexParams)) {
+foreach ($params in @($openCodeParams, $pluginParams, $usagePluginParams, $effortPluginParams, $copilotParams, $claudeParams, $codexParams)) {
     if ($DryRun) {
         $params.DryRun = $true
     }
@@ -53,11 +55,22 @@ if ($OpenCodeTarget) {
 }
 if ($PluginTarget) {
     $pluginParams.Target = $PluginTarget
+} elseif ($OpenCodeTarget) {
+    $pluginParams.Target = Join-Path $OpenCodeTarget "plugins/status-runtime.js"
 }
 if ($UsagePluginTarget) {
     $usagePluginParams.Target = $UsagePluginTarget
 } elseif ($PluginTarget) {
     $usagePluginParams.Target = Join-Path (Split-Path -Parent $PluginTarget) "usage-status.js"
+} elseif ($OpenCodeTarget) {
+    $usagePluginParams.Target = Join-Path $OpenCodeTarget "plugins/usage-status.js"
+}
+if ($EffortPluginTarget) {
+    $effortPluginParams.Target = $EffortPluginTarget
+} elseif ($PluginTarget) {
+    $effortPluginParams.Target = Join-Path (Split-Path -Parent $PluginTarget) "effort-control.js"
+} elseif ($OpenCodeTarget) {
+    $effortPluginParams.Target = Join-Path $OpenCodeTarget "plugins/effort-control.js"
 }
 if ($CopilotTarget) {
     $copilotParams.Target = $CopilotTarget
@@ -81,6 +94,8 @@ Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-status-runtime.ps1") -Params $pluginParams
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-usage-status.ps1") -Params $usagePluginParams
+Write-Host ""
+Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-effort-control.ps1") -Params $effortPluginParams
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-copilot.ps1") -Params $copilotParams
 Write-Host ""

@@ -114,6 +114,8 @@ jobs:
           required_snippets = [
               "scripts/install-plugin-status-runtime.ps1",
               "scripts/install-plugin-status-runtime.sh",
+              "scripts/install-plugin-effort-control.ps1",
+              "scripts/install-plugin-effort-control.sh",
               "scripts/install-plugin-usage-status.ps1",
               "scripts/install-plugin-usage-status.sh",
               "scripts/install-usage-only.ps1",
@@ -122,6 +124,8 @@ jobs:
               "scripts/install-all-local.sh",
               "scripts/bootstrap-install-plugin-status-runtime.ps1",
               "scripts/bootstrap-install-plugin-status-runtime.sh",
+              "scripts/bootstrap-install-plugin-effort-control.ps1",
+              "scripts/bootstrap-install-plugin-effort-control.sh",
               "scripts/bootstrap-install-usage-only.ps1",
               "scripts/bootstrap-install-usage-only.sh",
               "scripts/bootstrap-install-all-local.ps1",
@@ -774,8 +778,10 @@ jobs:
         shell: bash
         run: |
           PLUGIN_TARGET="./.tmp-plugin-install/status-runtime.js"
+          EFFORT_PLUGIN_TARGET="./.tmp-plugin-install/effort-control.js"
           USAGE_PLUGIN_TARGET="./.tmp-plugin-install/usage-status.js"
           BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
+          BOOTSTRAP_EFFORT_PLUGIN_TARGET="./.tmp-bootstrap-plugin/effort-control.js"
           BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
 
           bash -n scripts/install.sh
@@ -783,6 +789,7 @@ jobs:
           bash -n scripts/install-claude.sh
           bash -n scripts/install-codex.sh
           bash -n scripts/install-plugin-status-runtime.sh
+          bash -n scripts/install-plugin-effort-control.sh
           bash -n scripts/install-plugin-usage-status.sh
           bash -n scripts/install-usage-only.sh
           bash -n scripts/install-all-local.sh
@@ -791,6 +798,7 @@ jobs:
           bash -n scripts/bootstrap-install-claude.sh
           bash -n scripts/bootstrap-install-codex.sh
           bash -n scripts/bootstrap-install-plugin-status-runtime.sh
+          bash -n scripts/bootstrap-install-plugin-effort-control.sh
           bash -n scripts/bootstrap-install-usage-only.sh
           bash -n scripts/bootstrap-install-all-local.sh
           bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
@@ -802,6 +810,9 @@ jobs:
           [[ "${plugin_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
           [[ "${plugin_output}" == *"Would copy entry file:"* ]]
           [[ "${plugin_output}" == *"Would sync support dir:"* ]]
+          effort_plugin_output="$(bash scripts/install-plugin-effort-control.sh --target "${EFFORT_PLUGIN_TARGET}" --dry-run)"
+          [[ "${effort_plugin_output}" == *"Target entry: ${EFFORT_PLUGIN_TARGET}"* ]]
+          [[ "${effort_plugin_output}" == *"Target support dir: ./.tmp-plugin-install/effort-control"* ]]
           usage_plugin_output="$(bash scripts/install-plugin-usage-status.sh --target "${USAGE_PLUGIN_TARGET}" --dry-run)"
           [[ "${usage_plugin_output}" == *"Target entry: ${USAGE_PLUGIN_TARGET}"* ]]
           [[ "${usage_plugin_output}" == *"Target support dir: ./.tmp-plugin-install/usage-status"* ]]
@@ -812,11 +823,14 @@ jobs:
           all_local_output="$(bash scripts/install-all-local.sh --opencode-target ./.tmp-opencode-install --plugin-target "${PLUGIN_TARGET}" --copilot-target ./.tmp-copilot-install --claude-target ./.tmp-claude-install --codex-target ./.tmp-codex-install --dry-run)"
           [[ "${all_local_output}" == *"Target entry: ${PLUGIN_TARGET}"* ]]
           [[ "${all_local_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
+          [[ "${all_local_output}" == *"Target entry: ${EFFORT_PLUGIN_TARGET}"* ]]
+          [[ "${all_local_output}" == *"Target support dir: ./.tmp-plugin-install/effort-control"* ]]
 
       - name: Validate shell bootstrap installers
         shell: bash
         run: |
           BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
+          BOOTSTRAP_EFFORT_PLUGIN_TARGET="./.tmp-bootstrap-plugin/effort-control.js"
           BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
 
           mkdir -p ./.tmp-bootstrap-mocks
@@ -851,6 +865,8 @@ jobs:
           bash scripts/bootstrap-install-codex.sh --repo example/agents --version v1.2.3 --target ./.tmp-bootstrap-codex --no-backup --force --dry-run
           bootstrap_plugin_output="$(bash scripts/bootstrap-install-plugin-status-runtime.sh --repo example/agents --version 1.2.3 --target "${BOOTSTRAP_PLUGIN_TARGET}" --no-backup --dry-run)"
           [[ "${bootstrap_plugin_output}" == *"Install target override: ${BOOTSTRAP_PLUGIN_TARGET}"* ]]
+          bootstrap_effort_output="$(bash scripts/bootstrap-install-plugin-effort-control.sh --repo example/agents --version 1.2.3 --target "${BOOTSTRAP_EFFORT_PLUGIN_TARGET}" --no-backup --dry-run)"
+          [[ "${bootstrap_effort_output}" == *"Install target override: ${BOOTSTRAP_EFFORT_PLUGIN_TARGET}"* ]]
           bootstrap_usage_output="$(bash scripts/bootstrap-install-usage-only.sh --repo example/agents --version 1.2.3 --opencode-target ./.tmp-bootstrap-install --usage-plugin-target "${BOOTSTRAP_USAGE_PLUGIN_TARGET}" --no-backup --dry-run)"
           [[ "${bootstrap_usage_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
           bootstrap_all_output="$(bash scripts/bootstrap-install-all-local.sh --repo example/agents --version v1.2.3 --opencode-target ./.tmp-bootstrap-install --plugin-target "${BOOTSTRAP_PLUGIN_TARGET}" --copilot-target ./.tmp-bootstrap-copilot --claude-target ./.tmp-bootstrap-claude --codex-target ./.tmp-bootstrap-codex --no-backup --force-codex --dry-run)"
@@ -882,6 +898,9 @@ jobs:
           $pluginTarget = '.\.tmp-plugin-install\status-runtime.js'
           $resolvedPluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($pluginTarget)
           $resolvedPluginSupportDir = Join-Path (Split-Path -Parent $resolvedPluginTarget) 'status-runtime'
+          $effortPluginTarget = '.\.tmp-plugin-install\effort-control.js'
+          $resolvedEffortPluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($effortPluginTarget)
+          $resolvedEffortPluginSupportDir = Join-Path (Split-Path -Parent $resolvedEffortPluginTarget) 'effort-control'
           $usagePluginTarget = '.\.tmp-plugin-install\usage-status.js'
           $resolvedUsagePluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($usagePluginTarget)
           $resolvedUsagePluginSupportDir = Join-Path (Split-Path -Parent $resolvedUsagePluginTarget) 'usage-status'
@@ -891,6 +910,7 @@ jobs:
           [void](Get-Command -Name ./scripts/install-claude.ps1)
           [void](Get-Command -Name ./scripts/install-codex.ps1)
           [void](Get-Command -Name ./scripts/install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/install-plugin-effort-control.ps1)
           [void](Get-Command -Name ./scripts/install-plugin-usage-status.ps1)
           [void](Get-Command -Name ./scripts/install-usage-only.ps1)
           [void](Get-Command -Name ./scripts/install-all-local.ps1)
@@ -899,6 +919,7 @@ jobs:
           [void](Get-Command -Name ./scripts/bootstrap-install-claude.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-codex.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-plugin-status-runtime.ps1)
+          [void](Get-Command -Name ./scripts/bootstrap-install-plugin-effort-control.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-usage-only.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-all-local.ps1)
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
@@ -911,6 +932,13 @@ jobs:
           }
           if ($pluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedPluginSupportDir")) {
             throw 'install-plugin-status-runtime.ps1 did not report the plugin support directory.'
+          }
+          $effortPluginOutput = & pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -Target $effortPluginTarget -DryRun | Out-String
+          if ($effortPluginOutput -notmatch [regex]::Escape("Target entry: $resolvedEffortPluginTarget")) {
+            throw 'install-plugin-effort-control.ps1 did not report the plugin entry-file target.'
+          }
+          if ($effortPluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedEffortPluginSupportDir")) {
+            throw 'install-plugin-effort-control.ps1 did not report the plugin support directory.'
           }
           $usagePluginOutput = & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target $usagePluginTarget -DryRun | Out-String
           if ($usagePluginOutput -notmatch [regex]::Escape("Target entry: $resolvedUsagePluginTarget")) {
@@ -935,6 +963,12 @@ jobs:
           }
           if ($allLocalOutput -notmatch [regex]::Escape("Target support dir: $resolvedPluginSupportDir")) {
             throw 'install-all-local.ps1 did not forward the plugin support directory semantics.'
+          }
+          if ($allLocalOutput -notmatch [regex]::Escape("Target entry: $resolvedEffortPluginTarget")) {
+            throw 'install-all-local.ps1 did not forward the effort plugin entry-file target.'
+          }
+          if ($allLocalOutput -notmatch [regex]::Escape("Target support dir: $resolvedEffortPluginSupportDir")) {
+            throw 'install-all-local.ps1 did not forward the effort plugin support directory semantics.'
           }
 
           $previousNativeSetting = $PSNativeCommandUseErrorActionPreference
@@ -965,6 +999,11 @@ jobs:
             throw 'install-plugin-status-runtime.ps1 should reject switch-like target values.'
           }
 
+          & pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -Target '-NoBackup' -DryRun 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'install-plugin-effort-control.ps1 should reject switch-like target values.'
+          }
+
           & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target '-NoBackup' -DryRun 2>$null
           if ($LASTEXITCODE -eq 0) {
             throw 'install-plugin-usage-status.ps1 should reject switch-like target values.'
@@ -977,6 +1016,7 @@ jobs:
         shell: pwsh
         run: |
           $bootstrapPluginTarget = '.\.tmp-bootstrap-plugin\status-runtime.js'
+          $bootstrapEffortPluginTarget = '.\.tmp-bootstrap-plugin\effort-control.js'
           $bootstrapUsagePluginTarget = '.\.tmp-bootstrap-plugin\usage-status.js'
 
           function Invoke-RestMethod {
@@ -1017,6 +1057,10 @@ jobs:
           $bootstrapPluginOutput = & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapPluginTarget -NoBackup -DryRun 6>&1 | Out-String
           if ($bootstrapPluginOutput -notmatch [regex]::Escape("Install target override: $bootstrapPluginTarget")) {
             throw 'bootstrap-install-plugin-status-runtime.ps1 did not report the plugin entry-file target.'
+          }
+          $bootstrapEffortOutput = & ./scripts/bootstrap-install-plugin-effort-control.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapEffortPluginTarget -NoBackup -DryRun 6>&1 | Out-String
+          if ($bootstrapEffortOutput -notmatch [regex]::Escape("Install target override: $bootstrapEffortPluginTarget")) {
+            throw 'bootstrap-install-plugin-effort-control.ps1 did not report the plugin entry-file target.'
           }
           $bootstrapUsageOutput = & ./scripts/bootstrap-install-usage-only.ps1 -Repo example/agents -Version 1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -UsagePluginTarget $bootstrapUsagePluginTarget -NoBackup -DryRun 6>&1 | Out-String
           if ($bootstrapUsageOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
