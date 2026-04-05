@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.2] - 2026-04-05
+
+### Changed
+
+- `/run-ci` GitHub Actions generation guidance now prefers `actions/checkout@v5` and `actions/setup-node@v5` pinned by full commit SHA, and documents runtime compatibility env flags as a temporary fallback instead of the primary fix for Node 20 deprecation warnings.
+
 ## [0.21.1] - 2026-04-05
 
 ### Changed

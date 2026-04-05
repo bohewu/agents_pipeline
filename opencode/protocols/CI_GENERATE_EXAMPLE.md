@@ -21,11 +21,16 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@<full-commit-sha>
+      - uses: actions/checkout@<actions-checkout-v5-full-commit-sha>
         with:
           persist-credentials: false
-      - name: Set up runtime
-        run: echo "setup dotnet/node"
+      - name: Set up Node.js
+        uses: actions/setup-node@<actions-setup-node-v5-full-commit-sha>
+        with:
+          node-version: <project-node-version>
+          cache: <package-manager>
+      - name: Set up backend/runtime
+        run: echo "setup dotnet/other runtime"
       - name: Build
         run: echo "build backend + frontend"
       - name: Test
@@ -53,7 +58,7 @@ jobs:
     outputs:
       image_digest: ${{ steps.publish.outputs.digest }}
     steps:
-      - uses: actions/checkout@<full-commit-sha>
+      - uses: actions/checkout@<actions-checkout-v5-full-commit-sha>
         with:
           persist-credentials: false
       - name: Verify tag/version alignment
@@ -81,4 +86,4 @@ jobs:
         run: echo "deploy by digest, not floating tag"
 ```
 
-Generated workflows should also pin third-party actions by full commit SHA, keep `permissions` minimal, prefer OIDC over long-lived deploy secrets when supported, and add release-time integrity checks such as tag/version validation, checksum or digest verification, protected environment approvals, and provenance/attestation steps when the target stack supports them.
+Generated workflows should also pin third-party actions by full commit SHA, prefer current Node 24-compatible action majors such as `actions/checkout@v5` and `actions/setup-node@v5` when applicable, keep `permissions` minimal, prefer OIDC over long-lived deploy secrets when supported, and add release-time integrity checks such as tag/version validation, checksum or digest verification, protected environment approvals, and provenance/attestation steps when the target stack supports them.

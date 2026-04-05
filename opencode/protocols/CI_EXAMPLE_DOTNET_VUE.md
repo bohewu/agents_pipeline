@@ -36,7 +36,8 @@ Optional: Playwright on `main` or nightly
 - Test reports (if configured)
 
 **Supply Chain Controls**
-- Pin third-party GitHub Actions by full commit SHA
+- Pin `actions/checkout@v5` and `actions/setup-node@v5` by full commit SHA
+- Set an explicit `node-version` in `actions/setup-node` for the frontend build job
 - Use `persist-credentials: false` on checkout unless a later step truly needs git write access
 - Verify downloaded CLI/install assets with checksums when fetched outside package managers
 - Keep job `permissions` minimal and disable write scopes by default
