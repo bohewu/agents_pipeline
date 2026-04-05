@@ -168,8 +168,8 @@ Generation hardening rules (when `generate_mode = true`):
 
 GitHub Actions generation defaults (when `github_mode = true`):
 - Default workflow/job `permissions` to read-only such as `contents: read`; elevate per job only for the specific scopes required.
-- Use `actions/checkout@v5` pinned by full commit SHA and set `persist-credentials: false` unless a later step explicitly requires authenticated git writes.
-- When a workflow needs Node.js, use `actions/setup-node@v5` pinned by full commit SHA with an explicit `node-version`; do not treat GitHub Actions runtime compatibility env flags as the primary fix for deprecated action majors.
+- Use `actions/checkout` pinned by full commit SHA from the v5 major line and set `persist-credentials: false` unless a later step explicitly requires authenticated git writes.
+- When a workflow needs Node.js, use `actions/setup-node` pinned by full commit SHA from the v5 major line with an explicit `node-version`; do not treat GitHub Actions runtime compatibility env flags as the primary fix for deprecated action majors.
 - Prefer OIDC/workload identity over long-lived static cloud credentials when the deploy target supports it.
 - Build or release jobs MUST emit immutable outputs that downstream jobs can verify, such as artifact checksum manifests, image digests, SBOMs, and provenance/attestation identifiers when supported.
 - Deploy or promotion jobs MUST consume approved immutable outputs from prior jobs; do not promote floating tags or recomputed artifacts as the source of truth.

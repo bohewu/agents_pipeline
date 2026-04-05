@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.3] - 2026-04-05
+
+### Changed
+
+- Adjusted the `/run-ci` GitHub Actions guidance wording in `orchestrator-ci` to keep the v5 action-major requirement without tripping the agent-export validator on inline `@v5` text, and rolled the release metadata forward to `v0.21.3`.
+
 ## [0.21.2] - 2026-04-05
 
 ### Changed
