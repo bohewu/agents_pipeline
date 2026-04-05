@@ -286,6 +286,7 @@ Use the plugin tool name literally: `status_runtime_event`.
   - `payload_json`: JSON string that decodes to exactly one object
 - Base path rule: every call MUST include `payload_json.output_root` and `payload_json.run_id`.
 - `output_root` is the base artifact root (for example `.pipeline-output`), not `<run_output_dir>`.
+- Optional cross-repo anchor: when a run is executing against another repo, include `payload_json.working_project_dir`. OpenCode's `status-runtime` plugin resolves relative `output_root` and `checkpoint_path` against that target project directory instead of the current session worktree.
 - Runtime/plugin derives `<run_output_dir>` as `<output_root>/<run_id>/` and owns resolved paths, timestamps, refs, counts, active ids, and reconciliation.
 
 Required event vocabulary for Flow and Pipeline status/checkpoint writes:
@@ -303,6 +304,7 @@ Required event vocabulary for Flow and Pipeline status/checkpoint writes:
 Minimal payload skeleton guidance:
 
 - Common envelope for every event: `{ "output_root": "...", "run_id": "..." }`
+- Cross-repo OpenCode envelope extension: add `"working_project_dir": "..."` when status/checkpoint files must be anchored to a delegated target repo.
 - `run.started` / `run.resumed`: add `orchestrator`; include `user_prompt` when known and `flags` when available.
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed.
 - `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.

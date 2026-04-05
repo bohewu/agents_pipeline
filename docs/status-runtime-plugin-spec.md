@@ -21,6 +21,8 @@ The runtime/plugin observes orchestrator and subagent lifecycle events, then wri
 
 The plugin owns file creation, canonical field shape, timestamps, and index reconciliation. Orchestrator prompts only need to surface semantic transitions such as stage completion, task planning, dispatch metadata, and final summaries.
 
+When a runtime emits `working_project_dir` for cross-repo delegated execution, the OpenCode plugin should resolve relative `output_root` and `checkpoint_path` values against that target project directory instead of the current session worktree.
+
 When runtimes reuse a base `agent_id` across multiple visible attempts or subagents, the plugin must preserve each distinct agent record instead of overwriting the prior file/ref. The first instance may keep the requested `agent_id`; later colliding instances should receive a stable derived runtime `agent_id` (for example by suffixing attempt/task metadata) so `agent_refs` and `active_agent_ids` can represent all visible nodes.
 
 ## Ownership split
@@ -52,7 +54,7 @@ When runtimes reuse a base `agent_id` across multiple visible attempts or subage
 The plugin can stay small if the runtime emits a bounded set of events:
 
 1. `run.started`
-   - payload: `run_id`, `orchestrator`, `output_root`, `user_prompt`, `flags`
+   - payload: `run_id`, `orchestrator`, `output_root`, optional `working_project_dir`, `user_prompt`, `flags`
 2. `run.resumed`
    - payload: `run_id`, `resume_from_checkpoint`, `checkpoint_path`
 3. `stage.completed`
@@ -79,7 +81,7 @@ Base output root remains configurable, for example `.pipeline-output/`.
 
 Fresh runs:
 
-- runtime allocates `<output_root>/<run_id>/`
+- runtime allocates `<output_root>/<run_id>/` after resolving relative `output_root` against `working_project_dir` when provided, otherwise against the current worktree
 - all checkpoint/status/artifacts stay inside that run dir
 
 Resume-only runs:

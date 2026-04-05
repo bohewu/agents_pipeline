@@ -69,6 +69,7 @@ Agent(subagent_type="<agent-name>", description="<short task>", prompt="<full ha
 
 - Orchestrators can issue multiple Agent calls in one response for parallel stages.
 - Each subagent runs in its own context window; orchestrators should pass all required inputs in the prompt.
+- When a dispatch entry carries `worktree`, the top-level runner should execute that Agent call in the specified repo/worktree when supported.
 - Subagent results return as text; orchestrators parse structured outputs (JSON) from the response.
 - The adapter lists all resolved `@agent-name` references as available subagents.
 

@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 
 const { StatusProjector, StatusRuntime } = require("./index");
 const { RunRegistry } = require("./run-registry");
+const { resolvePayloadPath, resolvePayloadPathAnchor } = require("./utils");
 
 async function writeJson(filePath, value) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -293,4 +294,23 @@ test("status runtime rejects agent.started without agent using a clear message",
     /agent\.started requires non-empty string field\(s\): agent/
   );
   assert.equal(registryTouched, false);
+});
+
+test("status runtime path helpers anchor relative output roots to working_project_dir", () => {
+  const currentWorktree = path.join(os.tmpdir(), "status-runtime-source");
+  const payload = { working_project_dir: path.join("..", "status-runtime-target") };
+
+  assert.equal(resolvePayloadPathAnchor(currentWorktree, payload), path.resolve(currentWorktree, "..", "status-runtime-target"));
+  assert.equal(
+    resolvePayloadPath(currentWorktree, payload, ".pipeline-output"),
+    path.resolve(currentWorktree, "..", "status-runtime-target", ".pipeline-output")
+  );
+});
+
+test("status runtime path helpers preserve explicit absolute output roots", () => {
+  const currentWorktree = path.join(os.tmpdir(), "status-runtime-source");
+  const absoluteOutputRoot = path.join(os.tmpdir(), "explicit-output-root");
+  const payload = { working_project_dir: path.join("..", "status-runtime-target") };
+
+  assert.equal(resolvePayloadPath(currentWorktree, payload, absoluteOutputRoot), absoluteOutputRoot);
 });

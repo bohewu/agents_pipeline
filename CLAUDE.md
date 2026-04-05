@@ -92,7 +92,8 @@ In Claude Code, the top-level Claude Code instance acts as the pipeline runtime.
    ```json
    { "dispatch": [
        { "id": "T1", "agent": "executor", "prompt": "...", "deps": [] },
-       { "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] }
+       { "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] },
+       { "id": "T3", "agent": "orchestrator-pipeline", "prompt": "...", "deps": ["T2"], "worktree": "../target-project" }
      ]}
    ```
 
@@ -100,6 +101,7 @@ In Claude Code, the top-level Claude Code instance acts as the pipeline runtime.
    - Parse the `dispatch` JSON from the orchestrator response.
    - Tasks with no `deps` may be spawned in parallel via `Agent(subagent_type=..., prompt=...)`.
    - Tasks with `deps` wait for their dependencies to complete; include dependency results in the prompt.
+   - If a task includes `worktree`, execute it in that repo/worktree when runtime support exists. If not, stop and surface the blocker instead of silently using the current repo.
    - After all tasks complete, if the orchestrator has post-dispatch stages (e.g., synthesis), send the collected results back to the orchestrator via `SendMessage`.
 
 ### When to Use

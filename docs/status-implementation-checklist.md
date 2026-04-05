@@ -5,6 +5,7 @@ Use this checklist when implementing runtime-owned status emission for `run-*` o
 ## Output layout
 
 - Treat the configured output path as a base output root.
+- If a run is delegated into another repo, include `working_project_dir` in runtime events so relative `output_root` and `checkpoint_path` resolve against that repo.
 - For every fresh run, create a dedicated run directory: `<output_root>/<run_id>/`.
 - Write all run artifacts inside that run directory.
 - Canonical paths:

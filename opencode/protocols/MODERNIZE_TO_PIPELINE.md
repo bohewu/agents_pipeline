@@ -15,6 +15,8 @@ If you also pass `--autopilot`, the orchestrator should run non-interactively an
 
 If you pass `--full-auto`, it should also imply `--autopilot`, disable interactive pauses, prefer deep planning output, forward stronger delegated pipeline execution defaults where applicable, and attempt the strongest safe bounded in-scope non-hard-blocker recovery before surfacing a stop condition.
 
+Immediate delegated execution works best when the runtime can honor the target repo as the delegated worktree/cwd. If it cannot, fall back to Path B instead of letting implementation continue from the source-project worktree.
+
 If the target project directory does not exist yet, create it manually before running execution modes.
 
 ### Path B: Later manual execution in a new session
@@ -22,6 +24,8 @@ If the target project directory does not exist yet, create it manually before ru
 You can close the session after `/run-modernize`, then later run `/run-pipeline` manually.
 
 This works because modernize execution modes should persist machine-readable handoff files under the same output root.
+
+This remains the recommended human handoff path even when same-session delegated execution is available.
 
 ## Expected Modernize Artifacts
 
@@ -47,6 +51,8 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - The source project owns `.pipeline-output/modernize/`.
 - Real implementation should start from the target project.
 - The target project should own `.pipeline-output/pipeline/` once `/run-pipeline` is executing code, tests, and reviews.
+- In same-session delegated execution, target-local `.pipeline-output/` should be created immediately; do not wait for a later manual session before switching artifact ownership.
+- Execution-enabled modernize runs should mirror `latest-handoff.json` and `phase-<phase_id>.handoff.json` into the target project's `.pipeline-output/modernize/` when the target directory exists.
 - After the first execution handoff exists, treat the target project as the default starting point for later implementation sessions.
 
 ## If The Target Project Does Not Exist Yet
@@ -58,6 +64,7 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 
 - `latest-handoff.json` -> the most recently prepared execution contract
 - `phase-<phase_id>.handoff.json` -> a stable, phase-specific execution contract you can reuse later
+- Source-side copies preserve the planning trail; target-local mirrored copies optimize continuation from the implementation repo.
 
 These files should conform to `opencode/protocols/schemas/modernize-exec-handoff.schema.json`.
 
@@ -131,6 +138,10 @@ If the handoff file lives in the source repository instead of the target reposit
 - Use the referenced modernize docs in `context_paths` as constraints.
 - Do not expand beyond the selected phase.
 - Treat the target project as the working repo for edits, tests, checkpoints, and review artifacts.
+- Default delegated `output_root` to the target project's `.pipeline-output/` when no explicit pipeline `--output-dir=*` override is provided.
+- If a delegated pipeline `--output-dir=*` override is relative, resolve it from the target project, not the source project.
+- Preserve `working_project_dir` in every OpenCode `status_runtime_event` payload so the status-runtime plugin resolves relative status/checkpoint paths under the target project as well.
+- Worktree-aware runtimes should also honor `working_project_dir` as the actual delegated run worktree/cwd. If they cannot, they should stop and surface the target-project handoff command instead of attempting implementation in the source repo.
 
 ## Completion Rules
 

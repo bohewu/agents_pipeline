@@ -138,6 +138,7 @@ Execution root policy:
 - `orchestrator-modernize` starts from the source project because planning docs describe migration from system A to system B.
 - The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/<run_id>/modernize/` artifacts.
 - Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`).
+- When delegated execution starts in the same session, the target project MUST immediately own delegated pipeline checkpoints, status files, and `.pipeline-output/<delegated-run_id>/pipeline/` artifacts. Do not keep delegated implementation artifacts under the source project's output root.
 - After a handoff exists, later manual `/run-pipeline` sessions SHOULD start from the target project, not the source project.
 
 ## CHECKPOINT PROTOCOL
@@ -147,6 +148,8 @@ After each stage completes successfully, emit the canonical stage completion/che
 ## RUN STATUS PROTOCOL
 
 Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json` (`layout = run-only`). Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+
+Keep `orchestrator-modernize` status/checkpoint writes anchored to the source-project run root. Do NOT pass `target_project_dir` as `working_project_dir` for modernization-planning status events. Delegated `@orchestrator-pipeline` runs MUST preserve `working_project_dir` in every `status_runtime_event` payload so OpenCode can write target-local status/checkpoint files.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -162,7 +165,7 @@ Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run
 - Stage 2 (Document Tasks): @executor / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent) -> produces `modernize-index.md`
 - Stage 4 (Revision Loop): Orchestrator-owned + @executor (if enabled)
-- Stage 5 (Optional Execution Handoff): @orchestrator-pipeline (only in `phase-exec` / `full-exec`)
+- Stage 5 (Optional Execution Handoff): @peon + @orchestrator-pipeline (only in `phase-exec` / `full-exec`)
 
 ## Migration Model
 
@@ -178,7 +181,8 @@ Practical workflow split:
 - Planning starts in source project A.
 - Execution starts in target project B.
 - Source project A owns modernization docs and handoff artifacts.
-- Target project B owns implementation changes, tests, pipeline checkpoints, review artifacts, and later follow-up execution.
+- Target project B owns implementation changes, tests, delegated pipeline checkpoints, review artifacts, and later follow-up execution.
+- In execution-enabled runs, target project B should also get a local `.pipeline-output/modernize/` handoff mirror so later target-side continuation does not need to reach back through the source repo path by default.
 
 Stage 0: @specifier -> ProblemSpec JSON
 
@@ -314,6 +318,12 @@ Execution rules:
 - Do NOT invoke `/run-pipeline` as a slash command internally.
 - Delegate to `@orchestrator-pipeline` using the global handoff protocol and equivalent prompt/flags/context.
 - The delegated execution target is project B (`target_project_dir`), not source project A.
+- If the runtime supports worktree-aware subagent dispatch, set the delegated `@orchestrator-pipeline` worktree/cwd to `target_project_dir`.
+- Treat `working_project_dir` as the source-of-truth delegated execution root even when explicit worktree metadata is unavailable; it remains the fallback contract for status anchoring and manual continuation.
+- If no delegated pipeline `--output-dir=*` flag is present, inject `--output-dir=.pipeline-output` so delegated pipeline artifacts, checkpoints, and status files land under the target project by default.
+- If a delegated pipeline `--output-dir=*` flag is present and it is relative, resolve it against `working_project_dir` (`target_project_dir`), not the source project.
+- Do not silently reuse the source project's `--output-dir` for delegated pipeline execution unless the user explicitly forwarded a pipeline `--output-dir=*` override.
+- If runtime agent-to-agent dispatch exists but cannot honor `target_project_dir` as the actual delegated worktree, stop Stage 5 and fall back to the human-facing target-project handoff instead of attempting implementation from the source-project worktree.
 - `orchestrator-modernize` remains responsible for modernization planning docs and execution scope selection only.
 - `@orchestrator-pipeline` is responsible for atomization, routing, execution, testing, review, retries, and synthesis of implementation results.
 - Include in the handoff:
@@ -335,10 +345,14 @@ Persisted handoff artifacts (required for execution modes):
 - Before each delegated phase run, persist the resolved handoff payload to:
   - `<output_dir>/modernize/latest-handoff.json`
   - `<output_dir>/modernize/phase-<phase_id>.handoff.json`
+- If `target_project_dir` exists, also mirror the same control files into the target project at:
+  - `<target_project_dir>/.pipeline-output/modernize/latest-handoff.json`
+  - `<target_project_dir>/.pipeline-output/modernize/phase-<phase_id>.handoff.json`
 - These are internal control files, not user-facing planning docs.
 - Their purpose is to support later manual `/run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
 - These handoff files SHOULD conform to `opencode/protocols/schemas/modernize-exec-handoff.schema.json`.
-- They are produced from the source-project side, but are intended to be consumed by later pipeline runs started from the target-project side.
+- The source-side copies preserve planning provenance; the target-local mirrors optimize continuation DX for later pipeline runs started from the target-project side.
+- If target-local mirroring or target-local delegated output ownership cannot be established, stop and report BLOCKED instead of silently writing delegated pipeline artifacts only under the source project.
 
 Phase Resolution Protocol (required for `phase-exec` / `full-exec`):
 - Source of truth is `modernize-migration-roadmap.md`.
@@ -371,6 +385,7 @@ Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - If a forbidden forwarded flag is present, warn and drop it before dispatch.
 - Deduplicate exact duplicate forwarded flags while preserving order.
 - Do NOT synthesize or rewrite pipeline flags except:
+  - inject delegated `--output-dir=.pipeline-output` when no explicit pipeline `--output-dir=*` was forwarded, so target-side execution owns its own artifact root by default
   - In `full-exec`, if neither modernize `confirm_mode` nor a forwarded `--confirm` is present, strongly warn that multi-phase execution is running without phase checkpoints.
 - If `autopilot_mode = true` or `full_auto_mode = true`, do NOT emit the full-exec warning above; non-interactive sequential execution is intentional.
 - `orchestrator-pipeline` remains the final authority for handling conflicts among forwarded pipeline flags.
@@ -380,6 +395,7 @@ Delegated Handoff Payload Contract (to `@orchestrator-pipeline`):
 - Each delegated run MUST specify:
   - `recipient_agent`: `@orchestrator-pipeline`
   - `working_project_dir`: `<target_project_dir>`
+  - `runtime_metadata.dispatch_worktree`: `<target_project_dir>` when the runtime supports explicit worktree-aware dispatch metadata
   - `main_task_prompt`: a phase-scoped execution prompt (see templates below)
   - `pipeline_flags`: normalized `forwarded_pipeline_flags[]`
   - `context_paths`:
@@ -406,6 +422,8 @@ Reference Handoff Template (recommended payload shape):
 
 recipient_agent: @orchestrator-pipeline
 working_project_dir: <target_project_dir>
+runtime_metadata:
+  dispatch_worktree: <target_project_dir>
 pipeline_flags:
   - --effort=balanced
   - --confirm
@@ -485,6 +503,7 @@ Fallback Human Command Rendering (when agent dispatch unavailable):
   - `/run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
 - Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
 - If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/<run_id>/modernize/phase-<phase_id>.handoff.json as the execution contract.`
+- Use the same fallback when runtime dispatch exists but cannot honor `target_project_dir` as the delegated worktree.
 Recommended delegated prompt templates:
 - `phase-exec`: "Implement modernization roadmap phase <execute_phase_id> in target project B using the modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria."
 - `full-exec`: "Implement modernization roadmap phases sequentially in target project B, one phase per pipeline run, using the modernize artifacts as source of truth and preserving phase boundaries."
@@ -501,4 +520,5 @@ If neither flag is enabled, skip stage-by-stage narration and provide one final 
 - Primary deliverables
 - If execution was requested: delegated pipeline phase status (completed / blocked / deferred)
 - If `modernize_mode = full-exec`: completed phases, remaining phases, and whether execution stopped early
+- Recommended continuation path: open the next follow-up session from `target_project_dir`, even when same-session delegated execution was possible
 - Blockers/risks and next action

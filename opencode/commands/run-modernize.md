@@ -55,11 +55,15 @@ $ARGUMENTS
 - The modernize pipeline follows a **Source-to-Target model**: project A (source) is analyzed, and docs plan for building project B (target) as a separate project.
 - In execution-enabled modes, `orchestrator-modernize` delegates implementation to `orchestrator-pipeline` via agent handoff. `/run-pipeline` is the human-facing equivalent command.
 - Practical default: start `/run-modernize` from the source project, then start later `/run-pipeline` continuation runs from the target project.
+- Even when same-session delegated execution is available, the preferred follow-up UX is still a fresh session started from the target project.
 - If the target project path does not exist yet, create it manually before running execution modes.
 - `--pipeline-flag` is repeatable (instead of a quoted flag string) because `run-modernize` parsing is whitespace-based.
 - `--pipeline-flag` is only for `run-pipeline`-compatible flags. `run-modernize` flags such as `--mode`, `--target`, `--depth`, `--iterate`, and `--execute-phase` should not be forwarded.
 - `--autopilot` makes the modernize orchestrator non-interactive, and in execution modes it also forwards non-interactive behavior to delegated pipeline runs.
 - `--full-auto` is the strongest non-interactive preset for modernization runs and execution-enabled handoffs; it still stops on hard blockers and does not permit scope expansion or leaving resources running.
 - Output documents are written under `.pipeline-output/<run_id>/modernize/` by default.
+- In execution-enabled modes, delegated pipeline artifacts should be created under the target project's own `.pipeline-output/` even when execution starts in the same session.
+- Same-session delegated execution should only proceed when the runtime can honor the target project as the delegated worktree/cwd; otherwise fall back to the saved handoff and target-project `/run-pipeline` command.
+- When the target project exists, execution-enabled runs should also mirror the latest modernize handoff into `<target>/.pipeline-output/modernize/` for easier target-side continuation.
 - Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`.
 - A navigation index (`modernize-index.md`) is generated during synthesis and links the documents produced in that run (5 by default; 3 in `--decision-only`).

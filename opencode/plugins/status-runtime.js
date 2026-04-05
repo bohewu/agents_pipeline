@@ -1,19 +1,9 @@
-import path from "path";
 import { createRequire } from "module";
 import { tool } from "@opencode-ai/plugin";
 
 const require = createRequire(import.meta.url);
 const { createStatusRuntime, STATUS_RUNTIME_EVENTS } = require("./status-runtime/index.js");
-
-function resolvePath(worktree, value) {
-  if (typeof value !== "string" || value.length === 0) {
-    return value;
-  }
-  if (path.isAbsolute(value)) {
-    return value;
-  }
-  return path.join(worktree || process.cwd(), value);
-}
+const { resolvePathFromBase, resolvePayloadPath } = require("./status-runtime/utils.js");
 
 function parsePayload(payloadJson) {
   let payload;
@@ -32,11 +22,15 @@ function parsePayload(payloadJson) {
 
 function normalizePayload(payload, worktree) {
   const normalized = { ...payload };
+  const basePath = worktree || process.cwd();
+  if (normalized.working_project_dir !== undefined) {
+    normalized.working_project_dir = resolvePathFromBase(basePath, normalized.working_project_dir);
+  }
   if (normalized.output_root !== undefined) {
-    normalized.output_root = resolvePath(worktree, normalized.output_root);
+    normalized.output_root = resolvePayloadPath(basePath, normalized, normalized.output_root);
   }
   if (normalized.checkpoint_path !== undefined) {
-    normalized.checkpoint_path = resolvePath(worktree, normalized.checkpoint_path);
+    normalized.checkpoint_path = resolvePayloadPath(basePath, normalized, normalized.checkpoint_path);
   }
   return normalized;
 }

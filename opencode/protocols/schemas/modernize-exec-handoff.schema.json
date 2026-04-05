@@ -33,7 +33,7 @@
     "working_project_dir": {
       "type": "string",
       "minLength": 1,
-      "description": "Target project directory (project B) where implementation should run."
+      "description": "Target project directory (project B) where implementation should run. Worktree-aware runtimes should also treat this as the preferred delegated execution root/cwd."
     },
     "source_project_dir": {
       "type": "string",

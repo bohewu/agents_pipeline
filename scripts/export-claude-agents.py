@@ -287,12 +287,13 @@ def make_delegation_adapter(resolved_refs: List[str]) -> str:
         "```json",
         '{ "dispatch": [',
         '    { "id": "T1", "agent": "<agent-name>", "prompt": "<full task handoff>", "deps": [] },',
-        '    { "id": "T2", "agent": "<agent-name>", "prompt": "<full task handoff>", "deps": ["T1"] }',
+        '    { "id": "T2", "agent": "<agent-name>", "prompt": "<full task handoff>", "deps": ["T1"], "worktree": "<optional repo path>" }',
         "  ]}",
         "```\n",
         "Rules:",
         "- Include all required inputs, constraints, and expected output format in each task `prompt`.",
         "- Use `deps` to express ordering: tasks with no deps may run in parallel.",
+        "- Include `worktree` only when the delegated task must run in another repo/worktree; if the runtime cannot honor it, it should stop rather than silently use the current repo.",
         "- The top-level runner will execute tasks, collect results, and — if you still have",
         "  post-dispatch stages (e.g. synthesis) — send the results back to you for completion.",
         "- You may interleave orchestrator-owned stages (no dispatch needed) with dispatch blocks.",
@@ -423,14 +424,17 @@ and it returns a JSON block with a `"dispatch"` key, execute it as follows:
 2. Tasks with empty `deps` may be spawned in parallel via `Agent(subagent_type=..., prompt=...)`.
 3. Tasks whose `deps` reference earlier task IDs wait for those to complete;
    include dependency results in the prompt.
-4. After all tasks complete, if the orchestrator has post-dispatch stages
+4. If a task includes `worktree`, execute it in that repo/worktree when runtime support exists.
+   If the runtime cannot honor the requested worktree, stop and report the blocker.
+5. After all tasks complete, if the orchestrator has post-dispatch stages
    (e.g., synthesis), send collected results back via `SendMessage`.
 
 Dispatch plan format:
 ```json
 {{ "dispatch": [
     {{ "id": "T1", "agent": "executor", "prompt": "...", "deps": [] }},
-    {{ "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] }}
+    {{ "id": "T2", "agent": "reviewer", "prompt": "...", "deps": ["T1"] }},
+    {{ "id": "T3", "agent": "orchestrator-pipeline", "prompt": "...", "deps": ["T2"], "worktree": "../target-project" }}
   ]}}
 ```
 

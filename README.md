@@ -338,6 +338,7 @@ Common options:
 Use this when OpenCode is already set up and you only want the status runtime plugin.
 The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
 The plugin owns the canonical status layout under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
+When status payloads include `working_project_dir`, the OpenCode plugin anchors relative `output_root` and `checkpoint_path` values to that target repo. This is what allows same-session delegated runs such as `run-modernize -> run-pipeline` to keep status/checkpoints under the target project.
 
 Installed file layout:
 
@@ -747,7 +748,8 @@ The orchestrator returns a JSON dispatch plan:
 ```json
 { "dispatch": [
     { "id": "T1", "agent": "executor", "prompt": "Create ...", "deps": [] },
-    { "id": "T2", "agent": "reviewer",      "prompt": "Review ...", "deps": ["T1"] }
+    { "id": "T2", "agent": "orchestrator-pipeline", "prompt": "Implement phase P1 ...", "deps": ["T1"], "worktree": "../target-project" },
+    { "id": "T3", "agent": "reviewer",      "prompt": "Review ...", "deps": ["T2"] }
   ]}
 ```
 
@@ -755,7 +757,8 @@ The orchestrator returns a JSON dispatch plan:
 
 1. Tasks with empty `deps` are spawned in parallel.
 2. Tasks with `deps` wait for their dependencies to complete; results are forwarded in the prompt.
-3. After all tasks finish, if the orchestrator needs post-dispatch work (e.g., synthesis), results are sent back via `SendMessage`.
+3. If a task includes `worktree`, the runner should execute that subagent in the specified repo/worktree. If the runtime cannot honor it, stop and surface the blocker instead of silently using the current repo.
+4. After all tasks finish, if the orchestrator needs post-dispatch work (e.g., synthesis), results are sent back via `SendMessage`.
 
 **Which orchestrator to use:**
 
@@ -851,8 +854,10 @@ Recommended execution split:
 
 - Start `/run-modernize` in the source project.
 - Keep modernization docs and handoff files under the source project's `.pipeline-output/modernize/`.
+- In same-session execution-enabled runs, target-local `.pipeline-output/` should be created as soon as delegated implementation starts.
 - Once implementation starts, switch to the target project for `/run-pipeline` runs.
 - Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
+- Mirror the latest modernization handoff into the target project's `.pipeline-output/modernize/` when the target directory exists.
 - If the target project does not exist yet, create it manually before running execution modes.
 
 ## General-Purpose Pipeline
@@ -897,6 +902,8 @@ Modernization work:
 2. If the target project does not exist, create it manually
 3. Review roadmap + handoff
 4. `/run-pipeline` from the target project for actual implementation
+
+Even if a runtime can do same-session cross-repo delegation, a fresh target-project session remains the recommended continuation path for modernization follow-up work.
 
 </details>
 

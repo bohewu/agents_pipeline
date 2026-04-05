@@ -92,6 +92,27 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function resolvePathFromBase(basePath, value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return value;
+  }
+  if (path.isAbsolute(value)) {
+    return value;
+  }
+  return path.resolve(basePath || process.cwd(), value);
+}
+
+function resolvePayloadPathAnchor(basePath, payload) {
+  if (payload && typeof payload.working_project_dir === "string" && payload.working_project_dir.length > 0) {
+    return resolvePathFromBase(basePath, payload.working_project_dir);
+  }
+  return basePath || process.cwd();
+}
+
+function resolvePayloadPath(basePath, payload, value) {
+  return resolvePathFromBase(resolvePayloadPathAnchor(basePath, payload), value);
+}
+
 function toRelativeStatusPath(kind, id) {
   return path.posix.join("status", kind, `${id}.json`);
 }
@@ -107,6 +128,9 @@ module.exports = {
   nowIso,
   orderedObject,
   pickDefined,
+  resolvePathFromBase,
+  resolvePayloadPath,
+  resolvePayloadPathAnchor,
   sortObjectKeys,
   stableJson,
   toRelativeStatusPath,
