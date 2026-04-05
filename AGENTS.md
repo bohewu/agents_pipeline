@@ -47,4 +47,5 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
 | usage-inspector | Inspect local Codex quota windows and Copilot premium request sources | subagent | hidden |
+| skill-curator | List/search/install skills from local locations and curated catalogs | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |

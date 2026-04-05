@@ -689,6 +689,9 @@ Use whichever tool your team prefers.
 - Use `/run-general` in `opencode/commands/run-general.md` for non-coding general-purpose workflows (planning/writing/analysis/checklists)
 - Use `/run-ux` in `opencode/commands/run-ux.md` for profile-aware UX audits and normal-user scorecards.
 - Use the repo-managed `devtools-ux-audit` skill for Chrome DevTools browser evidence collection. Installers mirror it into `~/.agents/skills` as the global baseline and `~/.claude/skills` as a compatibility mirror.
+- Use `/skill-list` to inspect installed skills or browse curated catalogs.
+- Use `/skill-search` to search installed skills plus curated catalogs.
+- Use `/skill-install` to install skills from `anthropic` or `awesome-copilot`, or from a local skill folder.
 - Use `opencode/protocols/UX_DEVTOOLS_WORKFLOW.md` as the browser-evidence workflow source behind that skill.
 - Use `/session-guide` to create or refresh the root-tracked repo guide.
 - Use `/kanban` to manage the root-tracked kanban / carryover ledger.
@@ -947,6 +950,11 @@ instead of running the script manually (see `opencode/tools/validate-schema.ts`)
 The `/usage` command relies on the custom tool `provider-usage` for live Codex quota
 inspection, live Copilot quota lookup, and Copilot report parsing (see
 `opencode/tools/provider-usage.ts`).
+
+The `/skill-list`, `/skill-search`, and `/skill-install` commands rely on the custom
+tool `skill-manager` for local skill discovery plus curated catalog installs from
+`anthropics/skills` and `github/awesome-copilot` (see `opencode/tools/skill-manager.py`
+and `opencode/tools/skill-manager.ts`).
 
 ## Config Example
 
