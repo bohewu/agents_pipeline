@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-04-05
+
+### Added
+
+- Added `/run-ux` plus the `orchestrator-ux` expert roster (`ux-novice`, `ux-task-flow`, `ux-copy-trust`, `ux-visual-hierarchy`, `ux-judge`) for profile-aware normal-user UX audits with scorecards and report artifacts.
+- Added the repo-managed `devtools-ux-audit` skill with a tested cross-platform helper script for deterministic viewport planning during browser-backed UX audits.
+- Added `/skill-list`, `/skill-search`, and `/skill-install`, backed by the local `skill-manager` custom tool and the hidden `skill-curator` agent, so OpenCode can browse installed skills and install curated skills from `anthropics/skills` or `github/awesome-copilot`.
+
+### Changed
+
+- `run-flow` and `run-pipeline` now treat git commit helpers as orchestrator workflow actions instead of canonical tasks, so they no longer consume Flow task budget or pipeline task/retry/reviewer quota.
+- Modernize-to-pipeline execution now carries explicit delegated worktree/target-project expectations, target-anchored status/checkpoint writes, and stronger handoff guidance for follow-up sessions started from the target repo.
+- OpenCode installs now mirror repo-managed skills into `~/.agents/skills` as the global baseline and `~/.claude/skills` as a compatibility mirror while preserving the OpenCode config copy.
+
 ## [0.19.1] - 2026-04-05
 
 ### Changed
