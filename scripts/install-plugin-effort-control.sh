@@ -128,13 +128,22 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
   exit 0
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="python"
+else
+  echo "Missing Python interpreter: install python3 or python." >&2
+  exit 1
+fi
+
 mkdir -p "${TARGET_PARENT}"
 cp -f "${SOURCE_ENTRY_FILE}" "${TARGET_FILE}"
 rm -rf "${TARGET_SUPPORT_DIR}"
 mkdir -p "${TARGET_SUPPORT_DIR}"
 cp -a "${SOURCE_SUPPORT_DIR}/." "${TARGET_SUPPORT_DIR}/"
 
-CONFIG_PATH_ENV="${CONFIG_PATH}" OLD_PLUGIN_URI_ENV="${OLD_PLUGIN_URI}" TUI_PLUGIN_URI_ENV="${TUI_PLUGIN_URI}" RELATIVE_SPEC_ENV="${RELATIVE_SPEC}" python - <<'PY'
+CONFIG_PATH_ENV="${CONFIG_PATH}" OLD_PLUGIN_URI_ENV="${OLD_PLUGIN_URI}" TUI_PLUGIN_URI_ENV="${TUI_PLUGIN_URI}" RELATIVE_SPEC_ENV="${RELATIVE_SPEC}" "${PYTHON_BIN}" - <<'PY'
 import json
 import os
 from pathlib import Path

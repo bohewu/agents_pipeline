@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.4] - 2026-04-07
+
+### Fixed
+
+- `install-plugin-usage-status.sh` and `install-plugin-effort-control.sh` now resolve `python3` before falling back to `python`, so Ubuntu installs can register the TUI plugins in `tui.json` without failing on systems that do not ship a `python` alias.
+
 ## [0.21.3] - 2026-04-05
 
 ### Changed
