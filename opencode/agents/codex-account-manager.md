@@ -37,10 +37,6 @@ Manage local OpenCode Codex account selection without exposing credential secret
   - always invoke `codex-account` with `action=switch`
   - requires `--email=<address-or-label>` or `--index=<n>`
   - supports `--path=<file>` and `--json`
-- `/next-codex-account`
-  - always invoke `codex-account` with `action=next`
-  - rotates to the next stored account in the selected file
-  - supports `--path=<file>` and `--json`
 
 # OUTPUT
 

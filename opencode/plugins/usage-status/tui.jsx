@@ -12,6 +12,7 @@ const SUMMARY_KEY = "agents-pipeline.usage-status.last-summary";
 
 const pluginDir = path.dirname(fileURLToPath(import.meta.url));
 const helperPath = path.join(pluginDir, "..", "..", "tools", "provider-usage.py");
+const accountHelperPath = path.join(pluginDir, "..", "..", "tools", "codex-account.py");
 
 function resolvePythonCommand() {
   const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
@@ -475,6 +476,36 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     }
   }
 
+  async function rotateCodexAccount() {
+    try {
+      const result = await runJsonHelper(projectRoot, accountHelperPath, [
+        "--action",
+        "next",
+        "--format",
+        "json",
+        "--project-root",
+        projectRoot,
+      ]);
+      if (enabled()) {
+        await refresh(false);
+      }
+      const accountLabel = result?.selected?.email || result?.selected?.label || "updated";
+      const note = typeof result?.note === "string" && result.note ? ` ${result.note}` : "";
+      api.ui.toast({
+        title: result?.changed ? "Codex account rotated" : "Codex account unchanged",
+        message: `Active Codex account: ${accountLabel}.${note}`,
+        variant: result?.changed ? "success" : "info",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      api.ui.toast({
+        title: "Codex account rotation failed",
+        message,
+        variant: "error",
+      });
+    }
+  }
+
   function stopPolling() {
     if (intervalId !== undefined) {
       clearInterval(intervalId);
@@ -609,6 +640,18 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       },
       onSelect: () => {
         void refresh(true);
+      },
+    },
+    {
+      title: "Rotate To Next Codex Account",
+      value: "usage-status:codex-next",
+      description: "Rotate to the next local Codex account without using a model.",
+      category: "Usage",
+      slash: {
+        name: "next-codex-account",
+      },
+      onSelect: () => {
+        void rotateCodexAccount();
       },
     },
     {
