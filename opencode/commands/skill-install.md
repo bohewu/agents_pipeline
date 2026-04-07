@@ -20,15 +20,17 @@ $ARGUMENTS
   - `awesome-copilot`
 - Supported flags:
   - `--scope=repo|global`
+  - `--ref=<tag|sha>` for reproducible remote installs
   - `--force`
   - `--dry-run`
   - `--json`
   - `--local-path=<path>` with `local` source
+ - Prefer pinned `--ref=<tag|sha>` for remote installs instead of mutable default-branch HEAD.
 
 ## Examples
 
 ```text
-/skill-install anthropic webapp-testing
-/skill-install awesome-copilot playwright-debugger --scope=repo --dry-run
+/skill-install anthropic webapp-testing --ref=v1.0.0
+/skill-install awesome-copilot playwright-debugger --scope=repo --ref=4f3c2b1 --dry-run
 /skill-install local --local-path=./.agents/skills/my-skill --scope=global
 ```

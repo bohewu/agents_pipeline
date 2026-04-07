@@ -6,6 +6,8 @@ const assert = require("node:assert/strict");
 
 const { StatusProjector, StatusRuntime } = require("./index");
 const { RunRegistry } = require("./run-registry");
+const { ORCHESTRATORS } = require("./constants");
+const { canonicalizeCheckpoint, canonicalizeRunStatus } = require("./schema-lite");
 const { resolvePayloadPath, resolvePayloadPathAnchor } = require("./utils");
 
 async function writeJson(filePath, value) {
@@ -294,6 +296,34 @@ test("status runtime rejects agent.started without agent using a clear message",
     /agent\.started requires non-empty string field\(s\): agent/
   );
   assert.equal(registryTouched, false);
+});
+
+test("status schema-lite accepts every supported orchestrator", () => {
+  for (const orchestrator of ORCHESTRATORS) {
+    const runStatus = canonicalizeRunStatus({
+      run_id: `run-${orchestrator}`,
+      orchestrator,
+      status: "running",
+      created_at: "2026-03-25T12:00:00.000Z",
+      updated_at: "2026-03-25T12:00:00.000Z",
+      output_dir: `/tmp/${orchestrator}`,
+      checkpoint_path: `/tmp/${orchestrator}/checkpoint.json`
+    });
+    assert.equal(runStatus.orchestrator, orchestrator);
+
+    const checkpoint = canonicalizeCheckpoint({
+      pipeline_id: `pipeline-${orchestrator}`,
+      orchestrator,
+      user_prompt: `Validate ${orchestrator}`,
+      flags: {},
+      current_stage: -1,
+      completed_stages: [],
+      stage_artifacts: {},
+      created_at: "2026-03-25T12:00:00.000Z",
+      updated_at: "2026-03-25T12:00:00.000Z"
+    });
+    assert.equal(checkpoint.orchestrator, orchestrator);
+  }
 });
 
 test("status runtime path helpers anchor relative output roots to working_project_dir", () => {

@@ -1,0 +1,34 @@
+name: Feature Request
+description: Suggest an improvement to repo workflows, tooling, docs, or safety checks
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What gap or pain point are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Change
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+  - type: textarea
+    id: safety
+    attributes:
+      label: Runtime Or Supply-Chain Considerations
+      description: Note any auth, remote fetch, privacy, or maintenance implications.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Ideas
+      description: What CI/test/doc checks should prevent regressions?

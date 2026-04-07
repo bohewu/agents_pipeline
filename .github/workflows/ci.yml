@@ -322,6 +322,61 @@ jobs:
           python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir ./.tmp-codex --strict --dry-run
           python3 scripts/export-claude-agents.py --source-agents opencode/agents --target-dir ./.tmp-claude --strict --dry-run
 
+      - name: Validate provider and skill helper tools
+        shell: bash
+        run: |
+          python3 opencode/tools/provider-usage.py --help
+          python3 opencode/tools/skill-manager.py --help
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+
+          repo_root = Path('.').resolve()
+          skill_manager_path = repo_root / 'opencode' / 'tools' / 'skill-manager.py'
+          spec = importlib.util.spec_from_file_location('skill_manager', skill_manager_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec.loader is not None
+          spec.loader.exec_module(module)
+
+          ref_url = module.build_github_contents_url('foo/bar', 'skills/demo', 'v1.2.3')
+          if not ref_url.endswith('skills/demo?ref=v1.2.3'):
+              raise SystemExit(f'Expected ref-aware contents URL, got: {ref_url}')
+
+          mutable_text = module.render_text(
+              {
+                  'action': 'install',
+                  'result': {
+                      'name': 'demo-skill',
+                      'source': 'anthropic',
+                      'repo': 'anthropics/skills',
+                      'ref': None,
+                      'destinations': ['/tmp/demo-skill'],
+                      'dry_run': True,
+                  },
+              }
+          )
+          if 'mutable' not in mutable_text:
+              raise SystemExit('Expected mutable default-branch warning in skill-manager install output.')
+
+          pinned_text = module.render_text(
+              {
+                  'action': 'install',
+                  'result': {
+                      'name': 'demo-skill',
+                      'source': 'anthropic',
+                      'repo': 'anthropics/skills',
+                      'ref': 'v1.2.3',
+                      'destinations': ['/tmp/demo-skill'],
+                      'dry_run': True,
+                  },
+              }
+          )
+          if 'v1.2.3' not in pinned_text:
+              raise SystemExit('Expected pinned ref to appear in skill-manager install output.')
+
+          print('Provider/skill helper tools expose help text and skill-manager ref handling stays explicit.')
+          PY
+
       - name: Validate Codex managed-merge install behavior
         shell: bash
         run: |
@@ -621,6 +676,12 @@ jobs:
           python3 -m py_compile scripts/validate-flag-contracts.py
           python3 scripts/validate-flag-contracts.py
 
+      - name: Validate orchestrator contract projections
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/validate-orchestrator-contracts.py
+          python3 scripts/validate-orchestrator-contracts.py
+
       - name: Validate status schemas and fixtures
         shell: bash
         run: |
@@ -701,6 +762,7 @@ jobs:
       - name: Validate status-runtime smoke harness
         shell: bash
         run: |
+          node --test opencode/plugins/status-runtime/run-registry.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate resource-control prompt coverage

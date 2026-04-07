@@ -53,6 +53,7 @@ const ORCHESTRATORS = [
   "orchestrator-pipeline",
   "orchestrator-flow",
   "orchestrator-ci",
+  "orchestrator-analysis",
   "orchestrator-modernize",
   "orchestrator-spec",
   "orchestrator-committee",

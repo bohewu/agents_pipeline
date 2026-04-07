@@ -6,6 +6,7 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 ## Contents
 
 - [TL;DR](#tldr)
+- [Project Docs](#project-docs)
 - [Usage Prerequisites](#usage-prerequisites)
 - [Install (Recommended)](#install-recommended)
 - [Developer Install (Clone Repo)](#developer-install-clone-repo)
@@ -27,10 +28,18 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 - If you are editing this repo or testing local changes from your working tree, use `Developer Install (Clone Repo)`.
 - Most common run: `/run-pipeline Implement OAuth2 login --effort=balanced`
 
+## Project Docs
+
+- `CONTRIBUTING.md` for repo layout, single-source-of-truth rules, local validation, and release expectations.
+- `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
+- `COMPATIBILITY.md` for runtime and host-environment assumptions.
+- `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
+
 ## Usage Prerequisites
 
 This repo assumes you have configured the required model providers in OpenCode.
 If no model/provider is available in your OpenCode runtime config, update `opencode.json` (or your global OpenCode config) before running any commands.
+Compatibility assumptions and optional dependencies are documented in `COMPATIBILITY.md`.
 
 ### Required Tools
 
@@ -48,6 +57,7 @@ If no model/provider is available in your OpenCode runtime config, update `openc
 These commands install from the published release bundle and are the default path for most users.
 
 Bootstrap installers download a release bundle, verify the archive checksum against the release `SHA256SUMS` asset, and, when `gh` is available, verify the GitHub Artifact Attestation before installing only the target you choose.
+See `docs/external-dependencies.md` for external fetch, auth, and supply-chain notes for bootstrap/release installs.
 
 Attestation details stay quiet by default. Use `--verbose` on Bash bootstrap scripts or `-Verbose` on PowerShell bootstrap scripts if you want to see the attestation verification steps.
 
@@ -86,13 +96,13 @@ Existing OpenCode files are backed up by default. The installer refreshes the ma
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -115,13 +125,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -143,13 +153,13 @@ The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -180,13 +190,13 @@ The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-effort-control.ps1" -OutFile .\bootstrap-install-plugin-effort-control.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-effort-control.ps1" -OutFile .\bootstrap-install-plugin-effort-control.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install-plugin-effort-control.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-effort-control.sh" && bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install-plugin-effort-control.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-effort-control.sh" && bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -215,13 +225,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
+tag="v0.22.0" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
 ```
 
 Ubuntu/macOS/Linux notes if you prefer downloading the script first:
@@ -234,7 +244,7 @@ Ubuntu/macOS/Linux notes if you prefer downloading the script first:
 Download-then-run version:
 
 ```bash
-tag="v0.21.14"
+tag="v0.22.0"
 curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
 bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
 ```
@@ -256,13 +266,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -284,13 +294,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
+$release = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-release="v0.21.14" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
+release="v0.22.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
 Optional project-local override:
@@ -316,13 +326,13 @@ Existing `.codex` files are backed up by default. The installer preserves non-ag
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.14"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.22.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.14" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
+tag="v0.22.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -526,6 +536,8 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
 
 - `/run-pipeline ...`
   Default end-to-end implementation flow.
+- `/run-analysis ...`
+  Runs a bounded post-hoc analysis pipeline for correctness, complexity, robustness, and conditional numerics review.
 - `/usage`
   Shows live Codex quota windows and optional Copilot premium-request usage.
 - `/usage-status-on`
@@ -536,8 +548,6 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
   Sets a reasoning-effort floor for supported GPT-5 sessions.
 - `/run-monetize ...`
   Runs a monetization analysis flow with a dedicated market-research lane and monthly USD scenarios.
-- `/session-tokens`
-  Experimental POC command that reads the current worktree's latest local Codex rollout token totals, including cached-input separation and explicit no-subagent-attribution caveats.
 
 ### Local Codex account commands
 
@@ -695,6 +705,9 @@ The `/skill-list`, `/skill-search`, and `/skill-install` commands rely on the cu
 tool `skill-manager` for local skill discovery plus curated catalog installs from
 `anthropics/skills` and `github/awesome-copilot` (see `opencode/tools/skill-manager.py`
 and `opencode/tools/skill-manager.ts`).
+Use `--ref=<tag|sha>` for reproducible remote skill installs instead of mutable default-branch HEAD.
+
+See `docs/external-dependencies.md` for auth requirements, rate limits, privacy boundaries, fallback behavior, and remote-install auditability notes.
 
 ## Config Example
 
@@ -823,6 +836,9 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Use `/run-committee` when:
   - you need a recommendation/decision (architecture, tradeoffs, approach selection)
   - you want multiple perspectives + a final judge, with budget as an explicit criterion
+- Use `/run-analysis` when:
+  - you want a post-hoc findings report instead of code changes
+  - you need severity-ranked correctness / complexity / robustness review grounded in code references
 - Use `/run-flow` when:
   - the change is small, low-risk, and you mainly want a fast execution plan (max 5 atomic tasks)
 - Use `/run-spec` when:
@@ -847,6 +863,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 - Spec pipeline uses `*-spec` naming (e.g. `orchestrator-spec.md`, `run-spec.md`).
 - CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
 - Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
+- Analysis pipeline uses `*-analysis` naming (e.g. `orchestrator-analysis.md`, `run-analysis.md`).
 - UX pipeline uses `*-ux` naming (e.g. `orchestrator-ux.md`, `run-ux.md`).
 
 </details>
@@ -862,6 +879,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 | orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
 | orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
 | orchestrator-general | Non-coding workflow orchestration | Implementing code |
+| orchestrator-analysis | Post-hoc analysis orchestration | Implementing code |
 | orchestrator-ux | UX audit orchestration with profile-aware scoring | Implementing code |
 | specifier | ProblemSpec / DevSpec extraction | Proposing solutions |
 | planner | High-level planning | Atomic task creation |
@@ -885,12 +903,12 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 <details>
 <summary>Maintainer release notes</summary>
 
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.21.14`).
-- Use SemVer tags with `v` prefix (for example: `v0.21.14`).
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.22.0`).
+- Use SemVer tags with `v` prefix (for example: `v0.22.0`).
 - Stay in `0.x` while the pipeline and prompts evolve quickly.
 - In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
 - Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.21.14` must release as `v0.21.14`).
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.22.0` must release as `v0.22.0`).
 - After bumping `VERSION`, run `python3 scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
 - README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
 - Track release notes in `CHANGELOG.md`.
@@ -898,7 +916,7 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 ## Release CI
 
 - Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.21.14`) or manual `workflow_dispatch`
+- Trigger: push tag `v*` (for example `v0.22.0`) or manual `workflow_dispatch`
 - Output assets:
   - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
   - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
@@ -924,8 +942,8 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 Example release:
 
 ```bash
-git tag v0.21.14
-git push origin v0.21.14
+git tag v0.22.0
+git push origin v0.22.0
 ```
 
 ## Public Release Checklist

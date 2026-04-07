@@ -44,8 +44,8 @@ export default tool({
   args: {
     provider: tool.schema.string().optional().describe("Provider to inspect: auto, codex, or copilot."),
     format: tool.schema.string().optional().describe("Output format: text or json."),
-    copilot_report: tool.schema.string().optional().describe("Optional Copilot premium-request CSV report path."),
-    include_sensitive: tool.schema.boolean().optional().describe("Include less-redacted account metadata in output.")
+    copilot_report: tool.schema.string().optional().describe("Optional Copilot premium-request CSV report path to use when live GitHub lookup is unavailable."),
+    include_sensitive: tool.schema.boolean().optional().describe("Include less-redacted account metadata in output. Never use this in shared logs unless required.")
   },
   async execute(args, context) {
     const scriptPath = path.join(toolDir, "provider-usage.py");

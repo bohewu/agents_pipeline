@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a reproducible bug or regression
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please include exact commands, runtime context, and whether the issue depends on auth, external APIs, or a specific release/ref.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps To Reproduce
+      description: Include commands, flags, and file paths when possible.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OpenCode/runtime version, OS, shell, Python/Node availability, and whether `gh` or provider auth was configured.
+      placeholder: |
+        OS:
+        OpenCode:
+        Python:
+        Node:
+        Shell:
+        gh auth status:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs Or Output
+      description: Paste relevant output. Please redact secrets/tokens.
+  - type: dropdown
+    id: external
+    attributes:
+      label: Did this depend on an external service or remote content?
+      options:
+        - Unknown
+        - No
+        - Yes - GitHub API/content
+        - Yes - OpenAI/Codex usage endpoint
+        - Yes - GitHub Copilot usage endpoint
+        - Yes - Release/bootstrap installer
+    validations:
+      required: true

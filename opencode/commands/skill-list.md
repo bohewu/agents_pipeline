@@ -19,12 +19,13 @@ $ARGUMENTS
   - `anthropic`
   - `awesome-copilot`
 - Supported flags:
+  - `--ref=<tag|sha>` for remote catalog snapshots
   - `--json`
 
 ## Examples
 
 ```text
 /skill-list
-/skill-list anthropic
+/skill-list anthropic --ref=v1.0.0
 /skill-list awesome-copilot --json
 ```

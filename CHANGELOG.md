@@ -6,6 +6,27 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-04-07
+
+### Added
+
+- Added `scripts/validate-orchestrator-contracts.py` and wired it into CI so primary orchestrator definitions in `opencode/agents/orchestrator-*.md` remain aligned with command routing, `AGENTS.md`, status-runtime constants, and protocol schema enums.
+- Added contributor-facing governance and onboarding docs with `CONTRIBUTING.md`, `SECURITY.md`, `COMPATIBILITY.md`, GitHub PR/issue templates, `CODEOWNERS`, and a dedicated external-dependency risk guide in `docs/external-dependencies.md`.
+
+### Changed
+
+- `skill-manager` now supports `--ref=<tag|sha>` for remote GitHub catalog lookups/installations, and its text output/help now makes mutable default-branch installs explicit.
+- `provider-usage` now exposes clearer help text, auth guidance, and fallback-oriented error messages for Codex and Copilot usage lookups.
+- CI now runs orchestrator projection checks, status-runtime unit tests, the smoke harness, and helper-tool contract checks locally and in pull requests.
+
+### Fixed
+
+- Added the missing `orchestrator-analysis` allowlist entry to the status-runtime constants and the `run-status` / `checkpoint` schemas so analysis runs no longer fail validation/runtime writes due to stale hard-coded enums.
+
+### Removed
+
+- Removed the experimental `/session-tokens` POC because it reported the latest worktree-matched Codex rollout history rather than a trustworthy current single-session usage signal, and it frequently failed on machines without rollout session data.
+
 ## [0.21.14] - 2026-04-07
 
 ### Changed

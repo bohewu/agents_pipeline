@@ -47,6 +47,7 @@ export default tool({
     query: tool.schema.string().optional().describe("Search text for skill names."),
     skill_name: tool.schema.string().optional().describe("Skill name to install from a remote source."),
     local_path: tool.schema.string().optional().describe("Local skill folder path when source=local."),
+    ref: tool.schema.string().optional().describe("Optional Git ref (tag or commit SHA) for remote GitHub catalog lookups/install."),
     scope: tool.schema.string().optional().describe("Install scope: repo or global."),
     format: tool.schema.string().optional().describe("Output format: text or json."),
     force: tool.schema.boolean().optional().describe("Replace an existing installed skill."),
@@ -76,6 +77,9 @@ export default tool({
     }
     if (args.skill_name) {
       command.push("--skill-name", args.skill_name);
+    }
+    if (args.ref) {
+      command.push("--ref", args.ref);
     }
     const localPath = resolveUserPath(worktree, args.local_path);
     if (localPath) {

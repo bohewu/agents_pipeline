@@ -10,6 +10,7 @@ import math
 import os
 import subprocess
 import sys
+import textwrap
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -54,8 +55,26 @@ def to_unix_ms(dt: datetime) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Inspect Codex quota windows and Copilot premium request usage.")
-    parser.add_argument("--provider", default="auto", choices=["auto", "codex", "copilot"])
+    parser = argparse.ArgumentParser(
+        description="Inspect Codex quota windows and Copilot premium request usage.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent(
+            """\
+            Examples:
+              python3 opencode/tools/provider-usage.py --provider auto
+              python3 opencode/tools/provider-usage.py --provider copilot --copilot-report ~/Downloads/copilot-premium-requests.csv
+              python3 opencode/tools/provider-usage.py --provider codex --format json
+
+            Notes:
+              - Codex lookup reads local OpenCode/Codex auth files and performs live quota requests to OpenAI endpoints.
+              - Copilot lookup prefers GH_TOKEN/GITHUB_TOKEN or `gh auth token`, then falls back to a local CSV report when provided.
+              - Cached data may be reused when a later live lookup fails.
+            """
+        ),
+    )
+    parser.add_argument(
+        "--provider", default="auto", choices=["auto", "codex", "copilot"]
+    )
     parser.add_argument("--format", default="text", choices=["text", "json"])
     parser.add_argument("--copilot-report")
     parser.add_argument("--project-root", default=os.getcwd())
@@ -146,7 +165,14 @@ def extract_organization_id_from_payload(payload: Dict[str, Any]) -> Optional[st
     if isinstance(organizations, list):
         for entry in organizations:
             if isinstance(entry, dict):
-                for key in ("id", "organization_id", "organizationId", "org_id", "workspace_id", "team_id"):
+                for key in (
+                    "id",
+                    "organization_id",
+                    "organizationId",
+                    "org_id",
+                    "workspace_id",
+                    "team_id",
+                ):
                     value = ensure_text(entry.get(key))
                     if value:
                         return value
@@ -161,7 +187,9 @@ def extract_organization_id_from_payload(payload: Dict[str, Any]) -> Optional[st
     return None
 
 
-def extract_email(access_token: Optional[str], id_token: Optional[str]) -> Optional[str]:
+def extract_email(
+    access_token: Optional[str], id_token: Optional[str]
+) -> Optional[str]:
     for payload in (decode_jwt(id_token), decode_jwt(access_token)):
         if not payload:
             continue
@@ -186,7 +214,13 @@ def coalesce_text(record: Dict[str, Any], *keys: str) -> Optional[str]:
     return None
 
 
-def derive_label(record: Dict[str, Any], email: Optional[str], account_id: Optional[str], source: str, index: int) -> str:
+def derive_label(
+    record: Dict[str, Any],
+    email: Optional[str],
+    account_id: Optional[str],
+    source: str,
+    index: int,
+) -> str:
     explicit = coalesce_text(record, "accountLabel", "label", "workspaceLabel")
     if email and explicit:
         return f"{email} ({explicit})"
@@ -199,7 +233,13 @@ def derive_label(record: Dict[str, Any], email: Optional[str], account_id: Optio
     return f"{source} account {index + 1}"
 
 
-def normalize_credential(record: Dict[str, Any], source: str, source_path: Path, index: int, is_active: bool = False) -> Optional[CodexCredential]:
+def normalize_credential(
+    record: Dict[str, Any],
+    source: str,
+    source_path: Path,
+    index: int,
+    is_active: bool = False,
+) -> Optional[CodexCredential]:
     access_token = coalesce_text(record, "accessToken", "access_token", "access")
     refresh_token = coalesce_text(record, "refreshToken", "refresh_token", "refresh")
     id_token = coalesce_text(record, "idToken", "id_token")
@@ -210,10 +250,16 @@ def normalize_credential(record: Dict[str, Any], source: str, source_path: Path,
     id_payload = decode_jwt(id_token)
     account_id = coalesce_text(record, "accountId", "account_id", "chatgpt_account_id")
     if not account_id:
-        account_id = extract_account_id_from_payload(access_payload) or extract_account_id_from_payload(id_payload)
-    organization_id = coalesce_text(record, "organizationId", "organization_id", "org_id")
+        account_id = extract_account_id_from_payload(
+            access_payload
+        ) or extract_account_id_from_payload(id_payload)
+    organization_id = coalesce_text(
+        record, "organizationId", "organization_id", "org_id"
+    )
     if not organization_id:
-        organization_id = extract_organization_id_from_payload(id_payload) or extract_organization_id_from_payload(access_payload)
+        organization_id = extract_organization_id_from_payload(
+            id_payload
+        ) or extract_organization_id_from_payload(access_payload)
     email = coalesce_text(record, "email") or extract_email(access_token, id_token)
     if not any((access_token, refresh_token, account_id)):
         return None
@@ -286,9 +332,15 @@ def section_is_usable(section: Any) -> bool:
     return ensure_text(section.get("status")) in {"ok", "partial"}
 
 
-def mark_section_stale(section: Dict[str, Any], cached_at: Optional[str], reason: str) -> Dict[str, Any]:
+def mark_section_stale(
+    section: Dict[str, Any], cached_at: Optional[str], reason: str
+) -> Dict[str, Any]:
     stale_section = copy.deepcopy(section)
-    meta = stale_section.get("_meta") if isinstance(stale_section.get("_meta"), dict) else {}
+    meta = (
+        stale_section.get("_meta")
+        if isinstance(stale_section.get("_meta"), dict)
+        else {}
+    )
     meta.update(
         {
             "stale": True,
@@ -300,8 +352,14 @@ def mark_section_stale(section: Dict[str, Any], cached_at: Optional[str], reason
     return stale_section
 
 
-def apply_cached_fallbacks(result: Dict[str, Any], cache_payload: Dict[str, Any], providers: Iterable[str]) -> Dict[str, Any]:
-    sections = cache_payload.get("sections") if isinstance(cache_payload.get("sections"), dict) else {}
+def apply_cached_fallbacks(
+    result: Dict[str, Any], cache_payload: Dict[str, Any], providers: Iterable[str]
+) -> Dict[str, Any]:
+    sections = (
+        cache_payload.get("sections")
+        if isinstance(cache_payload.get("sections"), dict)
+        else {}
+    )
     cache_meta: Dict[str, Any] = {"usedProviders": []}
 
     for provider in providers:
@@ -315,8 +373,14 @@ def apply_cached_fallbacks(result: Dict[str, Any], cache_payload: Dict[str, Any]
         if not section_is_usable(cached_section):
             continue
 
-        reason = ensure_text((current or {}).get("message")) or ensure_text((current or {}).get("status")) or "live lookup unavailable"
-        result[provider] = mark_section_stale(cached_section, ensure_text(cached_entry.get("savedAt")), reason)
+        reason = (
+            ensure_text((current or {}).get("message"))
+            or ensure_text((current or {}).get("status"))
+            or "live lookup unavailable"
+        )
+        result[provider] = mark_section_stale(
+            cached_section, ensure_text(cached_entry.get("savedAt")), reason
+        )
         cache_meta["usedProviders"].append(provider)
 
     if cache_meta["usedProviders"]:
@@ -329,7 +393,9 @@ def apply_cached_fallbacks(result: Dict[str, Any], cache_payload: Dict[str, Any]
 
 def persist_cache(path: Path, result: Dict[str, Any], providers: Iterable[str]) -> None:
     existing = load_cache(path)
-    sections = existing.get("sections") if isinstance(existing.get("sections"), dict) else {}
+    sections = (
+        existing.get("sections") if isinstance(existing.get("sections"), dict) else {}
+    )
     saved_at = utc_now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
     for provider in providers:
@@ -399,10 +465,16 @@ def load_codex_credentials(project_root: Path) -> List[CodexCredential]:
             for index, raw in enumerate(accounts):
                 if not isinstance(raw, dict):
                     continue
-                credential = normalize_credential(raw, kind, path, index, is_active=(index == active_index))
+                credential = normalize_credential(
+                    raw, kind, path, index, is_active=(index == active_index)
+                )
                 if credential is None:
                     continue
-                dedupe_key = credential.refresh_token or credential.account_id or f"{credential.source_path}:{index}"
+                dedupe_key = (
+                    credential.refresh_token
+                    or credential.account_id
+                    or f"{credential.source_path}:{index}"
+                )
                 if dedupe_key in seen_keys:
                     continue
                 seen_keys.add(dedupe_key)
@@ -410,7 +482,11 @@ def load_codex_credentials(project_root: Path) -> List[CodexCredential]:
             continue
 
         if isinstance(data, dict):
-            record = data.get("credentials") if isinstance(data.get("credentials"), dict) else data
+            record = (
+                data.get("credentials")
+                if isinstance(data.get("credentials"), dict)
+                else data
+            )
             if isinstance(data.get("tokens"), dict):
                 record = dict(data.get("tokens") or {})
                 if isinstance(data.get("last_refresh"), str):
@@ -418,7 +494,11 @@ def load_codex_credentials(project_root: Path) -> List[CodexCredential]:
             credential = normalize_credential(record, kind, path, 0)
             if credential is None:
                 continue
-            dedupe_key = credential.refresh_token or credential.account_id or credential.source_path
+            dedupe_key = (
+                credential.refresh_token
+                or credential.account_id
+                or credential.source_path
+            )
             if dedupe_key in seen_keys:
                 continue
             seen_keys.add(dedupe_key)
@@ -427,9 +507,16 @@ def load_codex_credentials(project_root: Path) -> List[CodexCredential]:
     return credentials
 
 
-def refresh_access_token(credential: CodexCredential) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
+def refresh_access_token(
+    credential: CodexCredential,
+) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
     if not credential.refresh_token:
-        return credential.access_token, credential.expires_at_ms, credential.id_token, None
+        return (
+            credential.access_token,
+            credential.expires_at_ms,
+            credential.id_token,
+            None,
+        )
     payload = urllib.parse.urlencode(
         {
             "grant_type": "refresh_token",
@@ -448,7 +535,12 @@ def refresh_access_token(credential: CodexCredential) -> Tuple[Optional[str], Op
             data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace").strip()
-        return None, None, None, f"refresh failed: HTTP {error.code} {body[:160]}".strip()
+        return (
+            None,
+            None,
+            None,
+            f"refresh failed: HTTP {error.code} {body[:160]}".strip(),
+        )
     except Exception as error:
         return None, None, None, f"refresh failed: {error}"
 
@@ -463,12 +555,28 @@ def refresh_access_token(credential: CodexCredential) -> Tuple[Optional[str], Op
     return access_token, expires_at_ms, id_token, None
 
 
-def ensure_live_token(credential: CodexCredential) -> Tuple[Optional[str], Optional[str], Optional[int], Optional[str]]:
+def ensure_live_token(
+    credential: CodexCredential,
+) -> Tuple[Optional[str], Optional[str], Optional[int], Optional[str]]:
     now_ms = to_unix_ms(utc_now())
-    if credential.access_token and credential.expires_at_ms and credential.expires_at_ms > now_ms + ACCESS_TOKEN_SKEW_MS:
-        return credential.access_token, credential.id_token, credential.expires_at_ms, None
+    if (
+        credential.access_token
+        and credential.expires_at_ms
+        and credential.expires_at_ms > now_ms + ACCESS_TOKEN_SKEW_MS
+    ):
+        return (
+            credential.access_token,
+            credential.id_token,
+            credential.expires_at_ms,
+            None,
+        )
     if credential.access_token and credential.expires_at_ms is None:
-        return credential.access_token, credential.id_token, credential.expires_at_ms, None
+        return (
+            credential.access_token,
+            credential.id_token,
+            credential.expires_at_ms,
+            None,
+        )
     access_token, expires_at_ms, id_token, error = refresh_access_token(credential)
     return access_token, id_token, expires_at_ms, error
 
@@ -483,7 +591,9 @@ def fetch_codex_usage(credential: CodexCredential) -> Dict[str, Any]:
         raise RuntimeError("missing access token")
 
     if not credential.organization_id:
-        credential.organization_id = extract_organization_id_from_payload(decode_jwt(id_token)) or extract_organization_id_from_payload(decode_jwt(access_token))
+        credential.organization_id = extract_organization_id_from_payload(
+            decode_jwt(id_token)
+        ) or extract_organization_id_from_payload(decode_jwt(access_token))
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -533,7 +643,9 @@ def map_usage_window(window: Any) -> Dict[str, Any]:
     if isinstance(used_percent, (int, float)):
         left_percent = max(0, min(100, round(100 - float(used_percent))))
     return {
-        "usedPercent": float(used_percent) if isinstance(used_percent, (int, float)) else None,
+        "usedPercent": float(used_percent)
+        if isinstance(used_percent, (int, float))
+        else None,
         "leftPercent": left_percent,
         "windowMinutes": window_minutes,
         "resetAtMs": reset_at_ms,
@@ -595,7 +707,7 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
     if not credentials:
         return {
             "status": "unavailable",
-            "message": "No Codex/OpenAI OAuth credentials found.",
+            "message": "No Codex/OpenAI OAuth credentials found. Sign in with OpenCode or Codex CLI first.",
             "accounts": [],
         }
 
@@ -607,20 +719,37 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
             "source": credential.source,
             "isActive": credential.is_active,
             "email": credential.email,
-            "accountId": credential.account_id if include_sensitive else redact_identifier(credential.account_id),
-            "organizationId": credential.organization_id if include_sensitive else redact_identifier(credential.organization_id),
+            "accountId": credential.account_id
+            if include_sensitive
+            else redact_identifier(credential.account_id),
+            "organizationId": credential.organization_id
+            if include_sensitive
+            else redact_identifier(credential.organization_id),
         }
         try:
             payload = fetch_codex_usage(credential)
-            primary = map_usage_window((payload.get("rate_limit") or {}).get("primary_window"))
-            secondary = map_usage_window((payload.get("rate_limit") or {}).get("secondary_window"))
+            primary = map_usage_window(
+                (payload.get("rate_limit") or {}).get("primary_window")
+            )
+            secondary = map_usage_window(
+                (payload.get("rate_limit") or {}).get("secondary_window")
+            )
             code_review_source = payload.get("code_review_rate_limit")
-            if not code_review_source and isinstance(payload.get("additional_rate_limits"), list):
+            if not code_review_source and isinstance(
+                payload.get("additional_rate_limits"), list
+            ):
                 for entry in payload.get("additional_rate_limits") or []:
-                    if isinstance(entry, dict) and entry.get("limit_name") == "code_review_rate_limit":
+                    if (
+                        isinstance(entry, dict)
+                        and entry.get("limit_name") == "code_review_rate_limit"
+                    ):
                         code_review_source = entry.get("rate_limit")
                         break
-            code_review = map_usage_window((code_review_source or {}).get("primary_window") if isinstance(code_review_source, dict) else None)
+            code_review = map_usage_window(
+                (code_review_source or {}).get("primary_window")
+                if isinstance(code_review_source, dict)
+                else None
+            )
             limits: List[Dict[str, Any]] = [
                 {
                     "name": format_window_title(primary.get("windowMinutes")),
@@ -633,12 +762,18 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
                     "summary": format_limit_summary(secondary),
                 },
             ]
-            if code_review.get("windowMinutes") or code_review.get("usedPercent") is not None or code_review.get("resetAtMs"):
-                limits.append({
-                    "name": "Code review",
-                    **code_review,
-                    "summary": format_limit_summary(code_review),
-                })
+            if (
+                code_review.get("windowMinutes")
+                or code_review.get("usedPercent") is not None
+                or code_review.get("resetAtMs")
+            ):
+                limits.append(
+                    {
+                        "name": "Code review",
+                        **code_review,
+                        "summary": format_limit_summary(code_review),
+                    }
+                )
             additional = payload.get("additional_rate_limits")
             if isinstance(additional, list):
                 for entry in additional:
@@ -646,16 +781,26 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
                         continue
                     if entry.get("limit_name") == "code_review_rate_limit":
                         continue
-                    mapped = map_usage_window((entry.get("rate_limit") or {}).get("primary_window") if isinstance(entry.get("rate_limit"), dict) else None)
+                    mapped = map_usage_window(
+                        (entry.get("rate_limit") or {}).get("primary_window")
+                        if isinstance(entry.get("rate_limit"), dict)
+                        else None
+                    )
                     limits.append(
                         {
-                            "name": ensure_text(entry.get("limit_name")) or ensure_text(entry.get("metered_feature")) or "Additional limit",
+                            "name": ensure_text(entry.get("limit_name"))
+                            or ensure_text(entry.get("metered_feature"))
+                            or "Additional limit",
                             **mapped,
                             "summary": format_limit_summary(mapped),
                         }
                     )
 
-            credits = payload.get("credits") if isinstance(payload.get("credits"), dict) else {}
+            credits = (
+                payload.get("credits")
+                if isinstance(payload.get("credits"), dict)
+                else {}
+            )
             credits_summary = None
             if credits:
                 if ensure_bool(credits.get("unlimited")):
@@ -678,7 +823,9 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
             account_payload.update({"status": "error", "error": str(error)})
         accounts.append(account_payload)
 
-    status = "ok" if successes == len(accounts) else "partial" if successes > 0 else "error"
+    status = (
+        "ok" if successes == len(accounts) else "partial" if successes > 0 else "error"
+    )
     return {
         "status": status,
         "message": None,
@@ -695,7 +842,9 @@ def parse_copilot_report(path: Path) -> Dict[str, Any]:
         required = {"date", "quantity"}
         missing = required - fields
         if missing:
-            raise RuntimeError(f"report is missing required column(s): {', '.join(sorted(missing))}")
+            raise RuntimeError(
+                f"report is missing required column(s): {', '.join(sorted(missing))}"
+            )
 
         rows: List[Dict[str, Any]] = []
         latest_month: Optional[Tuple[int, int]] = None
@@ -761,7 +910,9 @@ def parse_copilot_report(path: Path) -> Dict[str, Any]:
     if latest_month[1] == 12:
         reset_at = datetime(latest_month[0] + 1, 1, 1, tzinfo=timezone.utc)
     else:
-        reset_at = datetime(latest_month[0], latest_month[1] + 1, 1, tzinfo=timezone.utc)
+        reset_at = datetime(
+            latest_month[0], latest_month[1] + 1, 1, tzinfo=timezone.utc
+        )
 
     def top_entries(values: Dict[str, float]) -> List[Dict[str, Any]]:
         ordered = sorted(values.items(), key=lambda item: (-item[1], item[0]))
@@ -797,14 +948,22 @@ def get_github_auth_token() -> Tuple[Optional[str], Optional[str]]:
             timeout=15,
         )
     except Exception as error:
-        return None, f"failed to run gh auth token: {error}"
+        return None, (
+            f"failed to run gh auth token: {error}. Install GitHub CLI or set GH_TOKEN/GITHUB_TOKEN."
+        )
 
     token = ensure_text(completed.stdout)
     if completed.returncode != 0 or not token:
         stderr = ensure_text(completed.stderr)
         if stderr:
-            return None, f"gh auth token failed: {stderr}"
-        return None, "gh auth token failed"
+            return (
+                None,
+                f"gh auth token failed: {stderr}. Run `gh auth status` or set GH_TOKEN/GITHUB_TOKEN.",
+            )
+        return (
+            None,
+            "gh auth token failed. Run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN.",
+        )
     return token, None
 
 
@@ -813,7 +972,9 @@ def fetch_copilot_live_usage() -> Dict[str, Any]:
     if error:
         raise RuntimeError(error)
     if not token:
-        raise RuntimeError("no GitHub auth token available")
+        raise RuntimeError(
+            "No GitHub auth token available. Run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN."
+        )
 
     request = urllib.request.Request(
         COPILOT_USER_INFO_URL,
@@ -830,9 +991,15 @@ def fetch_copilot_live_usage() -> Dict[str, Any]:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as http_error:
         body = http_error.read().decode("utf-8", errors="replace").strip()
-        raise RuntimeError(f"GitHub Copilot user lookup failed: HTTP {http_error.code} {body[:200]}") from http_error
+        raise RuntimeError(
+            "GitHub Copilot user lookup failed: "
+            f"HTTP {http_error.code} {body[:200]}. "
+            "Confirm the authenticated account can access Copilot usage or use --copilot-report."
+        ) from http_error
     except Exception as request_error:
-        raise RuntimeError(f"GitHub Copilot user lookup failed: {request_error}") from request_error
+        raise RuntimeError(
+            f"GitHub Copilot user lookup failed: {request_error}. Use --copilot-report if live lookup is unavailable."
+        ) from request_error
 
     if not isinstance(payload, dict):
         raise RuntimeError("unexpected GitHub Copilot user payload")
@@ -843,9 +1010,21 @@ def fetch_copilot_live_usage() -> Dict[str, Any]:
         for quota_id, raw in quota_snapshots.items():
             if not isinstance(raw, dict):
                 continue
-            entitlement = raw.get("entitlement") if isinstance(raw.get("entitlement"), (int, float)) else None
-            remaining = raw.get("remaining") if isinstance(raw.get("remaining"), (int, float)) else None
-            percent_remaining = raw.get("percent_remaining") if isinstance(raw.get("percent_remaining"), (int, float)) else None
+            entitlement = (
+                raw.get("entitlement")
+                if isinstance(raw.get("entitlement"), (int, float))
+                else None
+            )
+            remaining = (
+                raw.get("remaining")
+                if isinstance(raw.get("remaining"), (int, float))
+                else None
+            )
+            percent_remaining = (
+                raw.get("percent_remaining")
+                if isinstance(raw.get("percent_remaining"), (int, float))
+                else None
+            )
             unlimited = ensure_bool(raw.get("unlimited"))
             used = None
             if entitlement is not None and remaining is not None and not unlimited:
@@ -853,18 +1032,30 @@ def fetch_copilot_live_usage() -> Dict[str, Any]:
             quotas.append(
                 {
                     "quotaId": quota_id,
-                    "entitlement": float(entitlement) if entitlement is not None else None,
+                    "entitlement": float(entitlement)
+                    if entitlement is not None
+                    else None,
                     "remaining": float(remaining) if remaining is not None else None,
                     "used": used,
-                    "percentRemaining": float(percent_remaining) if percent_remaining is not None else None,
-                    "overageCount": float(raw.get("overage_count")) if isinstance(raw.get("overage_count"), (int, float)) else None,
+                    "percentRemaining": float(percent_remaining)
+                    if percent_remaining is not None
+                    else None,
+                    "overageCount": float(raw.get("overage_count"))
+                    if isinstance(raw.get("overage_count"), (int, float))
+                    else None,
                     "overagePermitted": ensure_bool(raw.get("overage_permitted")),
                     "unlimited": unlimited,
                     "timestampUtc": ensure_text(raw.get("timestamp_utc")),
                 }
             )
 
-    quotas.sort(key=lambda item: (item.get("unlimited") is True, item.get("quotaId") != "premium_interactions", item.get("quotaId") or ""))
+    quotas.sort(
+        key=lambda item: (
+            item.get("unlimited") is True,
+            item.get("quotaId") != "premium_interactions",
+            item.get("quotaId") or "",
+        )
+    )
 
     return {
         "status": "ok",
@@ -873,7 +1064,8 @@ def fetch_copilot_live_usage() -> Dict[str, Any]:
         "accessTypeSku": ensure_text(payload.get("access_type_sku")),
         "copilotPlan": ensure_text(payload.get("copilot_plan")),
         "chatEnabled": ensure_bool(payload.get("chat_enabled")),
-        "resetAt": ensure_text(payload.get("quota_reset_date_utc")) or ensure_text(payload.get("quota_reset_date")),
+        "resetAt": ensure_text(payload.get("quota_reset_date_utc"))
+        or ensure_text(payload.get("quota_reset_date")),
         "quotas": quotas,
     }
 
@@ -885,7 +1077,10 @@ def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
         except Exception as error:
             return {
                 "status": "manual",
-                "message": f"Live Copilot usage lookup failed: {error}",
+                "message": (
+                    f"Live Copilot usage lookup failed: {error}. "
+                    "Provide --copilot-report=<csv> or use the GitHub billing UI/manual report export."
+                ),
                 "docsUrl": COPILOT_DOCS_URL,
                 "billingUrl": COPILOT_MONITORING_URL,
             }
@@ -898,7 +1093,7 @@ def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
     if not path.exists() or not path.is_file():
         return {
             "status": "error",
-            "message": f"Copilot report not found: {path}",
+            "message": f"Copilot report not found: {path}. Export the CSV from GitHub billing or remove --copilot-report.",
             "docsUrl": COPILOT_DOCS_URL,
             "billingUrl": COPILOT_MONITORING_URL,
         }
@@ -918,11 +1113,15 @@ def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
     return summary
 
 
-def collect_codex_section(args: argparse.Namespace, project_root: Path) -> Dict[str, Any]:
+def collect_codex_section(
+    args: argparse.Namespace, project_root: Path
+) -> Dict[str, Any]:
     return summarize_codex(project_root, include_sensitive=args.include_sensitive)
 
 
-def collect_copilot_section(args: argparse.Namespace, project_root: Path) -> Dict[str, Any]:
+def collect_copilot_section(
+    args: argparse.Namespace, project_root: Path
+) -> Dict[str, Any]:
     del project_root
     return summarize_copilot(args.copilot_report)
 
@@ -993,8 +1192,14 @@ def format_text(result: Dict[str, Any]) -> str:
                 for limit in account.get("limits") or []:
                     if not isinstance(limit, dict):
                         continue
-                    left_percent = limit.get("leftPercent") if isinstance(limit.get("leftPercent"), (int, float)) else None
-                    lines.append(f"  {limit.get('name', 'limit')}: {format_bar(left_percent)} {limit.get('summary', 'unavailable')}")
+                    left_percent = (
+                        limit.get("leftPercent")
+                        if isinstance(limit.get("leftPercent"), (int, float))
+                        else None
+                    )
+                    lines.append(
+                        f"  {limit.get('name', 'limit')}: {format_bar(left_percent)} {limit.get('summary', 'unavailable')}"
+                    )
         lines.append("")
 
     copilot = result.get("copilot")
@@ -1029,7 +1234,11 @@ def format_text(result: Dict[str, Any]) -> str:
                     if quota.get("unlimited"):
                         lines.append(f"- {quota_name}: unlimited")
                         continue
-                    percent_remaining = quota.get("percentRemaining") if isinstance(quota.get("percentRemaining"), (int, float)) else None
+                    percent_remaining = (
+                        quota.get("percentRemaining")
+                        if isinstance(quota.get("percentRemaining"), (int, float))
+                        else None
+                    )
                     remaining = quota.get("remaining")
                     entitlement = quota.get("entitlement")
                     detail = ""
@@ -1038,29 +1247,45 @@ def format_text(result: Dict[str, Any]) -> str:
                     overage_text = ""
                     if quota.get("overagePermitted"):
                         overage_text = ", overage allowed"
-                    lines.append(f"- {quota_name}: {format_bar(percent_remaining)} {format_number(percent_remaining)}% left{detail}{overage_text}")
+                    lines.append(
+                        f"- {quota_name}: {format_bar(percent_remaining)} {format_number(percent_remaining)}% left{detail}{overage_text}"
+                    )
             else:
                 lines.append(f"- Month: {copilot.get('month')}")
                 remaining = copilot.get("remaining")
                 monthly_quota = copilot.get("monthlyQuota")
                 remaining_percent = None
-                if isinstance(remaining, (int, float)) and isinstance(monthly_quota, (int, float)) and monthly_quota > 0:
-                    remaining_percent = (float(remaining) / float(monthly_quota)) * 100.0
+                if (
+                    isinstance(remaining, (int, float))
+                    and isinstance(monthly_quota, (int, float))
+                    and monthly_quota > 0
+                ):
+                    remaining_percent = (
+                        float(remaining) / float(monthly_quota)
+                    ) * 100.0
                 lines.append(
                     f"- Premium requests: {format_number(copilot.get('requestsUsed'))}"
                     + (
-                        f" / {format_number(monthly_quota)}" if monthly_quota is not None else ""
+                        f" / {format_number(monthly_quota)}"
+                        if monthly_quota is not None
+                        else ""
                     )
                 )
                 if remaining is not None:
-                    lines.append(f"- Remaining: {format_bar(remaining_percent)} {format_number(remaining)}")
+                    lines.append(
+                        f"- Remaining: {format_bar(remaining_percent)} {format_number(remaining)}"
+                    )
                 if copilot.get("overQuota"):
-                    lines.append(f"- Over quota: {format_number(copilot.get('overQuota'))}")
+                    lines.append(
+                        f"- Over quota: {format_number(copilot.get('overQuota'))}"
+                    )
                 lines.append(f"- Resets: {copilot.get('resetAt')}")
                 by_model = copilot.get("byModel") or []
                 if by_model:
                     top = ", ".join(
-                        f"{entry.get('name')}={format_number(entry.get('quantity'))}" for entry in by_model[:5] if isinstance(entry, dict)
+                        f"{entry.get('name')}={format_number(entry.get('quantity'))}"
+                        for entry in by_model[:5]
+                        if isinstance(entry, dict)
                     )
                     if top:
                         lines.append(f"- By model: {top}")

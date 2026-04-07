@@ -22,12 +22,13 @@ $ARGUMENTS
   - `all`
 - Supported flags:
   - `--source=installed|anthropic|awesome-copilot|all`
+  - `--ref=<tag|sha>` for remote catalog snapshots
   - `--json`
 
 ## Examples
 
 ```text
 /skill-search ux
-/skill-search audit --source=anthropic
+/skill-search audit --source=anthropic --ref=v1.0.0
 /skill-search browser --source=all --json
 ```

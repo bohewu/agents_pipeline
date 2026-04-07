@@ -9,12 +9,10 @@ const ENABLED_KEY = "agents-pipeline.usage-status.enabled";
 const MODE_KEY = "agents-pipeline.usage-status.mode";
 const FILTER_KEY = "agents-pipeline.usage-status.filter";
 const SUMMARY_KEY = "agents-pipeline.usage-status.last-summary";
-const SESSION_TOKENS_KEY = "agents-pipeline.usage-status.session-tokens";
 
 const pluginDir = path.dirname(fileURLToPath(import.meta.url));
 const helperPath = path.join(pluginDir, "..", "..", "tools", "provider-usage.py");
 const accountHelperPath = path.join(pluginDir, "..", "..", "tools", "codex-account.py");
-const sessionTokenHelperPath = path.join(pluginDir, "..", "..", "tools", "session-token-usage.py");
 
 function resolvePythonCommand() {
   const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
@@ -132,22 +130,6 @@ function formatLocalReset(value) {
   const date = parsed.toLocaleDateString([], { month: "short", day: "numeric" });
   const time = parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
   return `${date} ${time}`;
-}
-
-function formatToastTokens(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return "n/a";
-  }
-  const absolute = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-  if (absolute >= 1_000_000) {
-    const rendered = `${(absolute / 1_000_000).toFixed(1)}`.replace(/\.0$/, "");
-    return `${sign}${rendered}M`;
-  }
-  if (absolute >= 1_000) {
-    return `${sign}${Math.round(absolute / 1_000)}k`;
-  }
-  return `${value}`;
 }
 
 function metric(label, percent, detail, reset) {
@@ -524,36 +506,6 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     }
   }
 
-  async function inspectSessionTokens() {
-    try {
-      const result = await runJsonHelper(projectRoot, sessionTokenHelperPath, [
-        "--format",
-        "json",
-        "--project-root",
-        projectRoot,
-      ]);
-      api.kv.set(SESSION_TOKENS_KEY, result);
-      const threadName = result?.thread_name ? ` (${result.thread_name})` : "";
-      const summary = result?.summary || {};
-      const totalText = formatToastTokens(summary.total_tokens);
-      const uncachedText = formatToastTokens(summary.uncached_input_tokens);
-      const cachedText = formatToastTokens(summary.cached_input_tokens);
-      const outputText = formatToastTokens(summary.output_tokens);
-      api.ui.toast({
-        title: "Session tokens (POC)",
-        message: `${totalText} total${threadName} | ${uncachedText} uncached | ${cachedText} cached | ${outputText} out`,
-        variant: "info",
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      api.ui.toast({
-        title: "Session tokens unavailable",
-        message,
-        variant: "error",
-      });
-    }
-  }
-
   function stopPolling() {
     if (intervalId !== undefined) {
       clearInterval(intervalId);
@@ -700,19 +652,6 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       },
       onSelect: () => {
         void rotateCodexAccount();
-      },
-    },
-    {
-      title: "Inspect Session Tokens (POC)",
-      value: "usage-status:session-tokens",
-      description: "Read the current worktree's latest Codex rollout token counts without using a model.",
-      category: "Usage",
-      slash: {
-        name: "session-tokens",
-        aliases: ["session-token-usage"],
-      },
-      onSelect: () => {
-        void inspectSessionTokens();
       },
     },
     {

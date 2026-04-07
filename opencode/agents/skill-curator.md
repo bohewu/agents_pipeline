@@ -20,6 +20,7 @@ Manage agent skills with local tooling instead of manual repo browsing.
 - For install requests, prefer `scope=repo` unless the user explicitly asks for a global install.
 - Treat `anthropic` as shorthand for `anthropics/skills` and `awesome-copilot` as shorthand for `github/awesome-copilot`.
 - If a requested install would overwrite an existing skill, require `--force`.
+- For remote installs, prefer `--ref=<tag|sha>` when the user can provide one; otherwise be explicit that the install uses mutable default-branch HEAD.
 - Do not invent remote catalog entries that the tool did not return.
 
 # COMMAND ROUTING
@@ -27,12 +28,15 @@ Manage agent skills with local tooling instead of manual repo browsing.
 - `/skill-list`
   - default source: `installed`
   - if the first positional token is `anthropic` or `awesome-copilot`, treat it as the source
+  - accept optional `--ref=<tag|sha>` for remote catalog snapshots
 - `/skill-search`
   - requires a query
   - default source: `all`
+  - accept optional `--ref=<tag|sha>` for remote catalog snapshots
 - `/skill-install`
   - expects `<source> <skill-name>` for curated catalogs
   - `--scope=repo|global`
+  - `--ref=<tag|sha>`
   - `--force`
   - `--dry-run`
   - local installs may use `--local-path=<path>` with `--source=local`
