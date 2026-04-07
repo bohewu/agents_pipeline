@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.13] - 2026-04-07
+
+### Added
+
+- Added `/run-monetize` as a research-capable monetization analysis workflow that reuses the general non-coding orchestrator, prefers a dedicated market-research lane, and steers outputs toward comparable scans, monetization-model comparisons, monthly USD scenarios, and validation experiments.
+- Added the hidden `market-researcher` subagent for source-cited web market scans, pricing signal collection, and monetization benchmark gathering.
+- Added `/session-tokens` as an experimental no-token POC command in the usage-status plugin that reads local Codex rollout `token_count` events, separates cached vs uncached input, and reports session-level token totals.
+
+### Changed
+
+- `/next-codex-account` now routes through a local OpenCode plugin command path instead of an agent-backed command, making it a true local/no-model slash command in interactive OpenCode sessions.
+- `run-monetize` now has a stronger output contract with separate research and synthesis lanes plus a preferred three-artifact structure (`market-scan`, `monetization-scenarios`, `monetization-report`).
+- `/session-tokens` output now uses compact `k` / `M` token formatting and explicitly documents why safe subagent token attribution is still unavailable in this POC.
+
+### Fixed
+
+- Claude Code agent export now maps web research tools to the official tool names `WebFetch` and `WebSearch`, so the new market-researcher subagent exports cleanly to Claude.
+
 ## [0.21.12] - 2026-04-07
 
 ### Documentation
