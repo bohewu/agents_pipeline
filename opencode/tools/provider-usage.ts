@@ -7,10 +7,12 @@ const toolDir = path.dirname(fileURLToPath(import.meta.url));
 function resolvePythonCommand() {
   const candidates = ["python3", "python"];
   for (const candidate of candidates) {
-    const probe = Bun.spawnSync([candidate, "--version"], { stdout: "null", stderr: "null" });
-    if (probe.exitCode === 0) {
-      return candidate;
-    }
+    try {
+      const probe = Bun.spawnSync([candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
+      if (probe.exitCode === 0) {
+        return candidate;
+      }
+    } catch {}
   }
   throw new Error("Missing Python interpreter: install python3 or python.");
 }

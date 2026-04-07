@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.6] - 2026-04-07
+
+### Fixed
+
+- Replaced the `Bun.spawnSync` Python-probe stdio settings in `provider-usage`, `usage-status-refresh`, `skill-manager`, and `validate-schema` with a Bun-compatible ignored-stdio form, fixing the `stdio must be array...` runtime failure seen on some OpenCode/Bun builds after installing `v0.21.5`.
+
 ## [0.21.5] - 2026-04-07
 
 ### Fixed
