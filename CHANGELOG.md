@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.12] - 2026-04-07
+
+### Documentation
+
+- Kept the shorter README landing page from `v0.21.11`, with clone-based developer install details living in `docs/developer-install.md` and common OpenCode commands surfaced near `Quick Start`.
+
+### Fixed
+
+- Updated the CI README installer-coverage check to validate the combined coverage from `README.md` and `docs/developer-install.md`, so moving clone-install details out of the main landing page no longer trips the coverage gate.
+
 ## [0.21.11] - 2026-04-07
 
 ### Documentation

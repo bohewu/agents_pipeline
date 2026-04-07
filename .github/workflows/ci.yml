@@ -110,7 +110,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          readme = Path("README.md").read_text(encoding="utf-8")
+          coverage_files = [Path("README.md"), Path("docs/developer-install.md")]
+          coverage_text = "\n\n".join(path.read_text(encoding="utf-8") for path in coverage_files)
           required_snippets = [
               "scripts/install-plugin-status-runtime.ps1",
               "scripts/install-plugin-status-runtime.sh",
@@ -135,14 +136,17 @@ jobs:
               "Dry-run preview (resolves release metadata only):",
           ]
 
-          missing = [snippet for snippet in required_snippets if snippet not in readme]
+          missing = [snippet for snippet in required_snippets if snippet not in coverage_text]
           if missing:
-              print("README.md is missing required installer/status-runtime coverage snippets:")
+              print("README/docs installer coverage is missing required installer/status-runtime snippets:")
+              print("Searched files:")
+              for path in coverage_files:
+                  print(f"- {path}")
               for snippet in missing:
                   print(f"- {snippet}")
               raise SystemExit(1)
 
-          print("README installer coverage includes local/release plugin flows and canonical status layout notes.")
+          print("README/docs installer coverage includes local/release plugin flows and canonical status layout notes.")
           PY
 
       - name: Validate bounded frontmatter regressions
