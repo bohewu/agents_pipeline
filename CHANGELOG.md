@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.10] - 2026-04-07
+
+### Documentation
+
+- Documented the local Codex account management slash commands in the README, including `/codex-account`, `/codex-account-switch`, `/next-codex-account`, and the single-account / no-account behaviors users should expect.
+
 ## [0.21.9] - 2026-04-07
 
 ### Added
