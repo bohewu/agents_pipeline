@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.7] - 2026-04-07
+
+### Fixed
+
+- Python-backed OpenCode runtime helpers now also probe the Windows `py` launcher (`py -3` / `py`) in addition to `python3` and `python`, so environments where interactive terminals can reach Python via the launcher no longer report a missing interpreter inside the Bun/OpenCode runtime.
+
 ## [0.21.6] - 2026-04-07
 
 ### Fixed

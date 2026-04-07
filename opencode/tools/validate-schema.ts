@@ -2,16 +2,16 @@ import { tool } from "@opencode-ai/plugin";
 import path from "path";
 
 function resolvePythonCommand() {
-  const candidates = ["python3", "python"];
+  const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
   for (const candidate of candidates) {
     try {
-      const probe = Bun.spawnSync([candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
+      const probe = Bun.spawnSync([...candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
       if (probe.exitCode === 0) {
         return candidate;
       }
     } catch {}
   }
-  throw new Error("Missing Python interpreter: install python3 or python.");
+  throw new Error("Missing Python interpreter: install python3, python, or the Windows py launcher.");
 }
 
 function resolvePath(worktree: string, value: string) {
@@ -32,7 +32,7 @@ export default tool({
     const inputPath = resolvePath(context.worktree, args.input);
     const scriptPath = path.join(context.worktree, "opencode", "tools", "validate-schema.py");
     const pythonBin = resolvePythonCommand();
-    const proc = Bun.spawn([pythonBin, scriptPath, "--schema", schemaPath, "--input", inputPath], {
+    const proc = Bun.spawn([...pythonBin, scriptPath, "--schema", schemaPath, "--input", inputPath], {
       cwd: context.worktree,
       stdout: "pipe",
       stderr: "pipe",

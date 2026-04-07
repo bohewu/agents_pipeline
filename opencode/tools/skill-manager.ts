@@ -5,16 +5,16 @@ import { fileURLToPath } from "url";
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 
 function resolvePythonCommand() {
-  const candidates = ["python3", "python"];
+  const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
   for (const candidate of candidates) {
     try {
-      const probe = Bun.spawnSync([candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
+      const probe = Bun.spawnSync([...candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
       if (probe.exitCode === 0) {
         return candidate;
       }
     } catch {}
   }
-  throw new Error("Missing Python interpreter: install python3 or python.");
+  throw new Error("Missing Python interpreter: install python3, python, or the Windows py launcher.");
 }
 
 function resolveUserPath(worktree: string, value?: string) {
@@ -48,7 +48,7 @@ export default tool({
     const worktree = context.worktree || process.cwd();
     const pythonBin = resolvePythonCommand();
     const command = [
-      pythonBin,
+      ...pythonBin,
       scriptPath,
       "--action",
       args.action,
