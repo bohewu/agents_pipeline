@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.8] - 2026-04-07
+
+### Fixed
+
+- Python-backed OpenCode runtime helpers now execute Windows interpreter probes and Python script launches via `cmd.exe /d /c`, so Windows systems where `python` works through the normal shell resolution path also work inside Bun/OpenCode for `/usage`, `/usage-status-refresh`, `skill-manager`, and `validate-schema`.
+
 ## [0.21.7] - 2026-04-07
 
 ### Fixed
