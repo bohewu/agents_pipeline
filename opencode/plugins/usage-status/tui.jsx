@@ -134,6 +134,22 @@ function formatLocalReset(value) {
   return `${date} ${time}`;
 }
 
+function formatToastTokens(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "n/a";
+  }
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (absolute >= 1_000_000) {
+    const rendered = `${(absolute / 1_000_000).toFixed(1)}`.replace(/\.0$/, "");
+    return `${sign}${rendered}M`;
+  }
+  if (absolute >= 1_000) {
+    return `${sign}${Math.round(absolute / 1_000)}k`;
+  }
+  return `${value}`;
+}
+
 function metric(label, percent, detail, reset) {
   return {
     label,
@@ -519,10 +535,13 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       api.kv.set(SESSION_TOKENS_KEY, result);
       const threadName = result?.thread_name ? ` (${result.thread_name})` : "";
       const summary = result?.summary || {};
-      const display = summary.display || {};
+      const totalText = formatToastTokens(summary.total_tokens);
+      const uncachedText = formatToastTokens(summary.uncached_input_tokens);
+      const cachedText = formatToastTokens(summary.cached_input_tokens);
+      const outputText = formatToastTokens(summary.output_tokens);
       api.ui.toast({
         title: "Session tokens (POC)",
-        message: `Total ${display.total_tokens ?? summary.total_tokens ?? "n/a"}${threadName}; uncached input ${display.uncached_input_tokens ?? summary.uncached_input_tokens ?? "n/a"}, cached input ${display.cached_input_tokens ?? summary.cached_input_tokens ?? "n/a"}, output ${display.output_tokens ?? summary.output_tokens ?? "n/a"}. Subagent split is still unavailable in this POC.`,
+        message: `${totalText} total${threadName} | ${uncachedText} uncached | ${cachedText} cached | ${outputText} out`,
         variant: "info",
       });
     } catch (error) {

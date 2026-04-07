@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.14] - 2026-04-07
+
+### Changed
+
+- Shortened the experimental `/session-tokens` toast output to a compact `total | uncached | cached | out` summary and rounded `k`-scale values to whole thousands, so the usage-status UI no longer wraps awkwardly on narrow terminal widths.
+
 ## [0.21.13] - 2026-04-07
 
 ### Added
