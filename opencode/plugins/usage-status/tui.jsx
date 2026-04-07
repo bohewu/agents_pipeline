@@ -519,9 +519,10 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       api.kv.set(SESSION_TOKENS_KEY, result);
       const threadName = result?.thread_name ? ` (${result.thread_name})` : "";
       const summary = result?.summary || {};
+      const display = summary.display || {};
       api.ui.toast({
         title: "Session tokens (POC)",
-        message: `Total ${summary.total_tokens ?? "n/a"}${threadName}; uncached input ${summary.uncached_input_tokens ?? "n/a"}, cached input ${summary.cached_input_tokens ?? "n/a"}, output ${summary.output_tokens ?? "n/a"}. No subagent attribution yet.`,
+        message: `Total ${display.total_tokens ?? summary.total_tokens ?? "n/a"}${threadName}; uncached input ${display.uncached_input_tokens ?? summary.uncached_input_tokens ?? "n/a"}, cached input ${display.cached_input_tokens ?? summary.cached_input_tokens ?? "n/a"}, output ${display.output_tokens ?? summary.output_tokens ?? "n/a"}. Subagent split is still unavailable in this POC.`,
         variant: "info",
       });
     } catch (error) {

@@ -111,6 +111,25 @@ def with_uncached(values: Optional[Dict[str, Any]]) -> Dict[str, int]:
     }
 
 
+def format_compact_tokens(value: int) -> str:
+    absolute = abs(int(value))
+    sign = "-" if value < 0 else ""
+    if absolute >= 1_000_000:
+        rendered = f"{absolute / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{sign}{rendered}M"
+    if absolute >= 1_000:
+        rendered = f"{absolute / 1_000:.1f}".rstrip("0").rstrip(".")
+        return f"{sign}{rendered}k"
+    return f"{value}"
+
+
+def with_display(values: Dict[str, int]) -> Dict[str, Any]:
+    return {
+        **values,
+        "display": {key: format_compact_tokens(raw) for key, raw in values.items()},
+    }
+
+
 def select_session(project_root: Path, codex_root: Path) -> Dict[str, Any]:
     target_root = norm_path(str(project_root))
     session_index = load_session_index(codex_root / "session_index.jsonl")
@@ -158,8 +177,8 @@ def build_payload(project_root: Path) -> Dict[str, Any]:
     session_meta = selected["session_meta"]
     token_event = selected["token_event"]
     info = token_event.get("info") if isinstance(token_event.get("info"), dict) else {}
-    total_usage = with_uncached(info.get("total_token_usage"))
-    last_usage = with_uncached(info.get("last_token_usage"))
+    total_usage = with_display(with_uncached(info.get("total_token_usage")))
+    last_usage = with_display(with_uncached(info.get("last_token_usage")))
     rate_limits = (
         token_event.get("rate_limits")
         if isinstance(token_event.get("rate_limits"), dict)
@@ -213,8 +232,16 @@ def build_payload(project_root: Path) -> Dict[str, Any]:
             "notes": [
                 "Reads Codex rollout token_count events from local ~/.codex session logs.",
                 "Counts include cached_input_tokens separately so uncached input can be derived.",
-                "Subagent/child-agent token attribution is not available in this POC; totals are session-level only.",
+                "Codex rollout logs used by this POC do not expose parent/child linkage fields for token_count events.",
+                "OpenCode exposes session parent/children APIs, but this POC does not have a trustworthy token source attached to those OpenCode sessions.",
+                "Subagent/child-agent token attribution is therefore not available in this POC; totals are session-level only.",
             ],
+        },
+        "research": {
+            "codex_rollout_parent_child_linkage": False,
+            "opencode_session_tree_api": True,
+            "opencode_session_token_metadata": False,
+            "conclusion": "No safe subagent token attribution path was found for this POC. The available trustworthy source is Codex rollout session totals only.",
         },
         "summary": {
             "total_tokens": total_usage["total_tokens"],
@@ -223,6 +250,18 @@ def build_payload(project_root: Path) -> Dict[str, Any]:
             "output_tokens": total_usage["output_tokens"],
             "reasoning_output_tokens": total_usage["reasoning_output_tokens"],
             "last_total_tokens": last_usage["total_tokens"],
+            "display": {
+                "total_tokens": total_usage["display"]["total_tokens"],
+                "uncached_input_tokens": total_usage["display"][
+                    "uncached_input_tokens"
+                ],
+                "cached_input_tokens": total_usage["display"]["cached_input_tokens"],
+                "output_tokens": total_usage["display"]["output_tokens"],
+                "reasoning_output_tokens": total_usage["display"][
+                    "reasoning_output_tokens"
+                ],
+                "last_total_tokens": last_usage["display"]["total_tokens"],
+            },
         },
     }
 
