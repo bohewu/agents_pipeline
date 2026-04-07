@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.5] - 2026-04-07
+
+### Fixed
+
+- `provider-usage`, `usage-status-refresh`, `skill-manager`, and `validate-schema` runtime paths now resolve `python3` before falling back to `python`, so Ubuntu environments without a `python` alias no longer fail when refreshing usage, running `/usage`, or invoking Python-backed tools.
+- Python command examples, validator shebangs, and related install/help text now consistently prefer `python3`, reducing copy-paste failures on Linux hosts that only ship `python3`.
+
 ## [0.21.4] - 2026-04-07
 
 ### Fixed

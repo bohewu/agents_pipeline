@@ -13,6 +13,17 @@ const SUMMARY_KEY = "agents-pipeline.usage-status.last-summary";
 const pluginDir = path.dirname(fileURLToPath(import.meta.url));
 const helperPath = path.join(pluginDir, "..", "..", "tools", "provider-usage.py");
 
+function resolvePythonCommand() {
+  const candidates = ["python3", "python"];
+  for (const candidate of candidates) {
+    const probe = Bun.spawnSync([candidate, "--version"], { stdout: "null", stderr: "null" });
+    if (probe.exitCode === 0) {
+      return candidate;
+    }
+  }
+  throw new Error("Missing Python interpreter: install python3 or python.");
+}
+
 function asBoolean(value, fallback) {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -361,9 +372,10 @@ function cardBadge(result, mode) {
 }
 
 async function runUsageHelper(projectRoot) {
+  const pythonBin = resolvePythonCommand();
   const proc = Bun.spawn(
     [
-      "python",
+      pythonBin,
       helperPath,
       "--provider",
       "auto",

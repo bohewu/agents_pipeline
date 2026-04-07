@@ -46,7 +46,7 @@ Pick one preset and stay consistent unless the user asks for a wider sweep.
 If you want a deterministic plan instead of reconstructing presets manually, run:
 
 ```bash
-python scripts/viewport_plan.py --profile desktop-web --format text
+python3 scripts/viewport_plan.py --profile desktop-web --format text
 ```
 
 - `desktop-2`

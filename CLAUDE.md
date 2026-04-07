@@ -12,18 +12,18 @@ There is no traditional build system. Validation is done via Python scripts and 
 
 ```bash
 # Schema validation (requires jsonschema: pip install jsonschema)
-python opencode/tools/validate-schema.py --schema opencode/protocols/schemas/<schema>.json --input <file>.json --require-jsonschema
+python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/<schema>.json --input <file>.json --require-jsonschema
 
 # Flag contract validation
-python scripts/validate-flag-contracts.py
+python3 scripts/validate-flag-contracts.py
 
 # Modernize handoff validation
-python scripts/validate-modernize-handoff.py
+python3 scripts/validate-modernize-handoff.py
 
 # Export dry-run (tests all three exporters)
-python scripts/export-claude-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
-python scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
-python scripts/export-codex-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
+python3 scripts/export-claude-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
+python3 scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
+python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir /tmp/test --strict --dry-run
 
 # Status runtime plugin test (Node.js)
 node --test opencode/plugins/status-runtime/run-registry.test.js
@@ -35,7 +35,7 @@ node --test opencode/plugins/effort-control.test.mjs
 node scripts/validate-status-runtime-smoke.cjs
 
 # README version sync check
-python scripts/sync-readme-version.py --check
+python3 scripts/sync-readme-version.py --check
 
 # Shell installer syntax check
 bash -n scripts/install.sh

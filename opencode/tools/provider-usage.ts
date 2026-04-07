@@ -4,6 +4,17 @@ import { fileURLToPath } from "url";
 
 const toolDir = path.dirname(fileURLToPath(import.meta.url));
 
+function resolvePythonCommand() {
+  const candidates = ["python3", "python"];
+  for (const candidate of candidates) {
+    const probe = Bun.spawnSync([candidate, "--version"], { stdout: "null", stderr: "null" });
+    if (probe.exitCode === 0) {
+      return candidate;
+    }
+  }
+  throw new Error("Missing Python interpreter: install python3 or python.");
+}
+
 function resolveUserPath(worktree: string, value?: string) {
   if (!value) {
     return value;
@@ -28,8 +39,9 @@ export default tool({
   async execute(args, context) {
     const scriptPath = path.join(toolDir, "provider-usage.py");
     const worktree = context.worktree || process.cwd();
+    const pythonBin = resolvePythonCommand();
     const command = [
-      "python",
+      pythonBin,
       scriptPath,
       "--provider",
       args.provider || "auto",

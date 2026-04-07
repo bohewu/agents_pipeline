@@ -1,6 +1,17 @@
 import { tool } from "@opencode-ai/plugin";
 import path from "path";
 
+function resolvePythonCommand() {
+  const candidates = ["python3", "python"];
+  for (const candidate of candidates) {
+    const probe = Bun.spawnSync([candidate, "--version"], { stdout: "null", stderr: "null" });
+    if (probe.exitCode === 0) {
+      return candidate;
+    }
+  }
+  throw new Error("Missing Python interpreter: install python3 or python.");
+}
+
 function resolvePath(worktree: string, value: string) {
   if (path.isAbsolute(value)) {
     return value;
@@ -18,8 +29,21 @@ export default tool({
     const schemaPath = resolvePath(context.worktree, args.schema);
     const inputPath = resolvePath(context.worktree, args.input);
     const scriptPath = path.join(context.worktree, "opencode", "tools", "validate-schema.py");
-
-    const result = await Bun.$`python ${scriptPath} --schema ${schemaPath} --input ${inputPath}`.text();
-    return result.trim();
+    const pythonBin = resolvePythonCommand();
+    const proc = Bun.spawn([pythonBin, scriptPath, "--schema", schemaPath, "--input", inputPath], {
+      cwd: context.worktree,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    const output = stdout.trim();
+    if (exitCode !== 0) {
+      throw new Error(stderr.trim() || output || `validate-schema failed with exit code ${exitCode}`);
+    }
+    return output;
   }
 });

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import argparse
 import json
 import os
@@ -109,7 +109,7 @@ def main():
             "ERROR: --require-jsonschema was set, but the 'jsonschema' package is not installed.",
             file=sys.stderr,
         )
-        print("Install it with: python -m pip install jsonschema", file=sys.stderr)
+        print("Install it with: python3 -m pip install jsonschema", file=sys.stderr)
         return 2
 
     if jsonschema is not None:
@@ -127,7 +127,7 @@ def main():
         for err in errors:
             print(f"- {err}")
         print(
-            "Tip: install jsonschema for full validation: python -m pip install jsonschema"
+            "Tip: install jsonschema for full validation: python3 -m pip install jsonschema"
         )
         return 1
 
