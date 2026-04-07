@@ -534,6 +534,10 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
   Forces a fresh usage refresh.
 - `/effort-medium`, `/effort-high`, `/effort-max`
   Sets a reasoning-effort floor for supported GPT-5 sessions.
+- `/run-monetize ...`
+  Runs a monetization analysis flow with a dedicated market-research lane and monthly USD scenarios.
+- `/session-tokens`
+  POC command that reads the current worktree's latest local Codex rollout token totals, including cached-input separation and explicit no-subagent-attribution caveats.
 
 ### Local Codex account commands
 

@@ -32,6 +32,12 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 - `parallel = true` does not override `max_parallelism`; it only means the batch is eligible for concurrent dispatch up to that cap.
 - Use `notes` to call out expected cleanup steps or RAM-risk when a batch is not `light`.
 
+# EXECUTOR SELECTION HINTS
+
+- Prefer `market-researcher` for tasks that explicitly require external web research, competitor/comparable scans, pricing collection, or benchmark sourcing.
+- Prefer `doc-writer` for final human-friendly reports/specs/checklists built from completed research.
+- Prefer `generalist` for mixed synthesis tasks that combine research findings with strategy/recommendations.
+
 # OUTPUT (JSON ONLY)
   {
     "batches": [

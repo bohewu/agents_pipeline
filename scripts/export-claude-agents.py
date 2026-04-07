@@ -45,8 +45,19 @@ CLAUDE_TOOL_MAP = {
     "grep": "Grep",
     "glob": "Glob",
     "bash": "Bash",
+    "webfetch": "WebFetch",
+    "google_search": "WebSearch",
 }
-CLAUDE_TOOL_ORDER = ["Read", "Edit", "Write", "Grep", "Glob", "Bash"]
+CLAUDE_TOOL_ORDER = [
+    "Read",
+    "Edit",
+    "Write",
+    "Grep",
+    "Glob",
+    "Bash",
+    "WebFetch",
+    "WebSearch",
+]
 
 
 @dataclass
@@ -300,10 +311,7 @@ def make_delegation_adapter(resolved_refs: List[str]) -> str:
         "- Each dispatch block is executed atomically before the orchestrator resumes.",
     ]
     if resolved_refs:
-        lines.append(
-            "\nAvailable agents for dispatch: "
-            + ", ".join(resolved_refs)
-        )
+        lines.append("\nAvailable agents for dispatch: " + ", ".join(resolved_refs))
     return "\n".join(lines) + "\n"
 
 
@@ -562,7 +570,9 @@ def main() -> int:
                     f"{agent.path.as_posix()}: agent description must not be empty"
                 )
 
-        resolved_refs, unresolved = extract_agent_refs(agent.body, known_reference_agents)
+        resolved_refs, unresolved = extract_agent_refs(
+            agent.body, known_reference_agents
+        )
         if args.strict and unresolved:
             errors.append(
                 f"{agent.path.as_posix()}: unresolved @agent reference(s): {', '.join(unresolved)}"

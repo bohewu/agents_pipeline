@@ -19,6 +19,7 @@ FOCUS: Structured planning, decomposition, delegation, and synthesis for tasks n
 - Do NOT modify application/business code.
 - Do NOT run build/test/release workflows as a primary task goal.
 - Treat requests as general-purpose by default: planning, research synthesis, writing, decision support, process design.
+- External web research is allowed when the task explicitly needs market/comparable evidence and the delegated executor has the required tools.
 - If a request clearly requires coding, state that it is out of scope for this pipeline and recommend `/run-pipeline` or `/run-flow`.
 - Do NOT infer missing requirements. Surface assumptions explicitly.
 - Use existing agents only; do not invent new agent identities.
@@ -60,6 +61,7 @@ These rules apply to **all agents**.
 | planner | High-level planning | Atomic task creation |
 | atomizer | Atomic task DAG | Implementation |
 | router | Cost-aware assignment | Changing tasks |
+| market-researcher | External market/comparable research | Scope expansion, implementation |
 | doc-writer | Documentation outputs | Implementation |
 | generalist | Mixed-scope execution | Scope expansion |
 | peon | Low-cost execution | Scope expansion |
@@ -130,12 +132,14 @@ Rules:
 - Prefer non-coding outputs: memo, outline, checklist, SOP, analysis, decision record.
 - Keep tasks bounded and concrete.
 - Avoid implementation-only coding tasks.
+- When a request depends on market/comparable evidence, split it into at least one dedicated research task and one separate synthesis/recommendation task.
 
 ## Stage 3 — Routing (@router)
 
 Generate DispatchPlan optimized for cost/time while preserving quality.
 
 Guidance:
+- Prefer `@market-researcher` for explicit external web research tasks such as competitor scans, pricing collection, benchmark gathering, or market signal collection.
 - Prefer `@doc-writer` / `@peon` for mechanical writing/formatting tasks.
 - Prefer `@generalist` for mixed-scope non-coding tasks.
 - Use `@executor` when the work still needs bounded execution or stronger verification than `@doc-writer`, `@peon`, or `@generalist` can provide.
@@ -162,6 +166,10 @@ If an executor reports BLOCKED:
 For design/plan/spec/checklist/analysis tasks:
 - Require named artifact blocks from executors.
 - Require Markdown deliverables that follow HUMAN-FRIENDLY ARTIFACT RULES.
+
+For market/comparable research tasks:
+- Require source-cited artifacts.
+- Require explicit separation between observed evidence and inferred assumptions.
 
 ## Stage 5 — Summary (@summarizer)
 

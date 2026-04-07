@@ -9,10 +9,12 @@ const ENABLED_KEY = "agents-pipeline.usage-status.enabled";
 const MODE_KEY = "agents-pipeline.usage-status.mode";
 const FILTER_KEY = "agents-pipeline.usage-status.filter";
 const SUMMARY_KEY = "agents-pipeline.usage-status.last-summary";
+const SESSION_TOKENS_KEY = "agents-pipeline.usage-status.session-tokens";
 
 const pluginDir = path.dirname(fileURLToPath(import.meta.url));
 const helperPath = path.join(pluginDir, "..", "..", "tools", "provider-usage.py");
 const accountHelperPath = path.join(pluginDir, "..", "..", "tools", "codex-account.py");
+const sessionTokenHelperPath = path.join(pluginDir, "..", "..", "tools", "session-token-usage.py");
 
 function resolvePythonCommand() {
   const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
@@ -506,6 +508,32 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     }
   }
 
+  async function inspectSessionTokens() {
+    try {
+      const result = await runJsonHelper(projectRoot, sessionTokenHelperPath, [
+        "--format",
+        "json",
+        "--project-root",
+        projectRoot,
+      ]);
+      api.kv.set(SESSION_TOKENS_KEY, result);
+      const threadName = result?.thread_name ? ` (${result.thread_name})` : "";
+      const summary = result?.summary || {};
+      api.ui.toast({
+        title: "Session tokens (POC)",
+        message: `Total ${summary.total_tokens ?? "n/a"}${threadName}; uncached input ${summary.uncached_input_tokens ?? "n/a"}, cached input ${summary.cached_input_tokens ?? "n/a"}, output ${summary.output_tokens ?? "n/a"}. No subagent attribution yet.`,
+        variant: "info",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      api.ui.toast({
+        title: "Session tokens unavailable",
+        message,
+        variant: "error",
+      });
+    }
+  }
+
   function stopPolling() {
     if (intervalId !== undefined) {
       clearInterval(intervalId);
@@ -652,6 +680,19 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       },
       onSelect: () => {
         void rotateCodexAccount();
+      },
+    },
+    {
+      title: "Inspect Session Tokens (POC)",
+      value: "usage-status:session-tokens",
+      description: "Read the current worktree's latest Codex rollout token counts without using a model.",
+      category: "Usage",
+      slash: {
+        name: "session-tokens",
+        aliases: ["session-token-usage"],
+      },
+      onSelect: () => {
+        void inspectSessionTokens();
       },
     },
     {
