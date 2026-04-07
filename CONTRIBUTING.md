@@ -81,6 +81,7 @@ python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/ru
 
 CI currently checks, at minimum:
 
+- lightweight doc/community-only changes keep the README/docs/version coverage checks and skip the heavier runtime/export/installer matrix
 - `VERSION` format and README pinned-version snippets
 - agent export-script dry runs
 - command flag contracts

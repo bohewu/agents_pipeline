@@ -8,7 +8,82 @@ on:
   workflow_dispatch:
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Classify change scope
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "workflow_dispatch requested; running full validation."
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${PULL_REQUEST_BASE_SHA}"
+            head_sha="${PULL_REQUEST_HEAD_SHA}"
+          else
+            base_sha="${PUSH_BEFORE}"
+            head_sha="${CURRENT_SHA}"
+            if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+              echo "Push event has no usable before SHA; running full validation."
+              echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          fi
+
+          changed_file_list="$(git diff --name-only "${base_sha}" "${head_sha}")"
+          if [[ -z "${changed_file_list}" ]]; then
+            echo "No changed files detected; running full validation to stay conservative."
+            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          docs_only=true
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            case "${path}" in
+              README.md|CHANGELOG.md|CONTRIBUTING.md|SECURITY.md|COMPATIBILITY.md|CODEOWNERS|docs/*|.github/ISSUE_TEMPLATE/*|.github/pull_request_template.md)
+                ;;
+              *)
+                docs_only=false
+                break
+                ;;
+            esac
+          done <<< "${changed_file_list}"
+
+          echo "Changed files under review:"
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            echo "- ${path}"
+          done <<< "${changed_file_list}"
+
+          echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
+          echo "Doc-only classification: ${docs_only}"
+
   release-bundle-vars:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,13 +108,25 @@ jobs:
           echo "tag=v${VERSION_VALUE}" >> "${GITHUB_OUTPUT}"
 
   validate:
+    needs: detect-changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      DOCS_ONLY: ${{ needs.detect-changes.outputs.docs_only }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Summarize validation scope
+        shell: bash
+        run: |
+          if [[ "${DOCS_ONLY}" == "true" ]]; then
+            echo "Docs-only change detected; running lightweight validation subset."
+          else
+            echo "Non-doc change detected; running full validation suite."
+          fi
 
       - name: Validate VERSION file
         shell: bash
@@ -150,6 +237,7 @@ jobs:
           PY
 
       - name: Validate bounded frontmatter regressions
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -313,6 +401,7 @@ jobs:
           PY
 
       - name: Validate schema tool
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 --version
@@ -323,6 +412,7 @@ jobs:
           python3 scripts/export-claude-agents.py --source-agents opencode/agents --target-dir ./.tmp-claude --strict --dry-run
 
       - name: Validate provider and skill helper tools
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 opencode/tools/provider-usage.py --help
@@ -378,6 +468,7 @@ jobs:
           PY
 
       - name: Validate Codex managed-merge install behavior
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           rm -rf ./.tmp-codex-merge-check
@@ -478,6 +569,7 @@ jobs:
           PY
 
       - name: Validate optional stale generated-file cleanup
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -598,6 +690,7 @@ jobs:
           PY
 
       - name: Validate modernize handoff schema and examples
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 scripts/validate-modernize-handoff.py --help
@@ -670,6 +763,7 @@ jobs:
           fi
 
       - name: Validate run-command flag contracts
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 scripts/validate-flag-contracts.py --help
@@ -677,12 +771,14 @@ jobs:
           python3 scripts/validate-flag-contracts.py
 
       - name: Validate orchestrator contract projections
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 -m py_compile scripts/validate-orchestrator-contracts.py
           python3 scripts/validate-orchestrator-contracts.py
 
       - name: Validate status schemas and fixtures
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           python3 opencode/tools/validate-schema.py \
@@ -760,6 +856,7 @@ jobs:
           fi
 
       - name: Validate status-runtime smoke harness
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           node --test opencode/plugins/status-runtime/run-registry.test.js
@@ -841,6 +938,7 @@ jobs:
           PY
 
       - name: Validate shell installers
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           PLUGIN_TARGET="./.tmp-plugin-install/status-runtime.js"
@@ -893,6 +991,7 @@ jobs:
           [[ "${all_local_output}" == *"Target support dir: ./.tmp-plugin-install/effort-control"* ]]
 
       - name: Validate shell bootstrap installers
+        if: env.DOCS_ONLY != 'true'
         shell: bash
         run: |
           BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
@@ -939,7 +1038,10 @@ jobs:
           [[ "${bootstrap_all_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
 
   validate-release-bundle:
-    needs: release-bundle-vars
+    needs:
+      - detect-changes
+      - release-bundle-vars
+    if: needs.detect-changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/release-bundle.yml
     permissions:
       contents: read
@@ -950,6 +1052,8 @@ jobs:
       checkout_tag: false
 
   validate-powershell:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs_only != 'true'
     runs-on: windows-latest
     permissions:
       contents: read
