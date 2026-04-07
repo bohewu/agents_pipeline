@@ -46,6 +46,7 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | handoff-writer | Produce run-local handoff artifacts for a fresh session | subagent | hidden |
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
+| codex-account-manager | List and switch local OpenCode Codex account selections | subagent | hidden |
 | usage-inspector | Inspect local Codex quota windows and Copilot premium request sources | subagent | hidden |
 | skill-curator | List/search/install skills from local locations and curated catalogs | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |

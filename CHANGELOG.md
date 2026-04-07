@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.9] - 2026-04-07
+
+### Added
+
+- Added local Codex account management helpers and slash commands for listing accounts, switching to a specific stored account, and rotating to the next stored account without editing `openai-codex-accounts.json` by hand.
+
+### Fixed
+
+- The `usage-status` OpenCode plugin now uses the same Windows `cmd.exe /d /c` Python resolution path as the other Python-backed helpers, so usage refreshes keep working on Windows installs where `python` is only reachable through normal shell resolution.
+- `next-codex-account` now returns a stable no-op result when only one stored account is available, and a clear error when no local OpenCode account-selection file exists.
+
 ## [0.21.8] - 2026-04-07
 
 ### Fixed

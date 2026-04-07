@@ -17,6 +17,15 @@ function resolvePythonCommand() {
   const candidates = [["python3"], ["python"], ["py", "-3"], ["py"]];
   for (const candidate of candidates) {
     try {
+      if (process.platform === "win32") {
+        const probe = Bun.spawnSync(["cmd.exe", "/d", "/c", ...candidate, "--version"], {
+          stdio: ["ignore", "ignore", "ignore"]
+        });
+        if (probe.exitCode === 0) {
+          return ["cmd.exe", "/d", "/c", ...candidate];
+        }
+        continue;
+      }
       const probe = Bun.spawnSync([...candidate, "--version"], { stdio: ["ignore", "ignore", "ignore"] });
       if (probe.exitCode === 0) {
         return candidate;
@@ -373,18 +382,13 @@ function cardBadge(result, mode) {
   return mode === "detail" ? "detail" : "short";
 }
 
-async function runUsageHelper(projectRoot) {
+async function runJsonHelper(projectRoot, scriptPath, args) {
   const pythonBin = resolvePythonCommand();
   const proc = Bun.spawn(
     [
       ...pythonBin,
-      helperPath,
-      "--provider",
-      "auto",
-      "--format",
-      "json",
-      "--project-root",
-      projectRoot,
+      scriptPath,
+      ...args,
     ],
     {
       cwd: projectRoot,
@@ -404,6 +408,10 @@ async function runUsageHelper(projectRoot) {
   }
 
   return JSON.parse(stdout);
+}
+
+async function runUsageHelper(projectRoot) {
+  return runJsonHelper(projectRoot, helperPath, ["--provider", "auto", "--format", "json", "--project-root", projectRoot]);
 }
 
 export async function createUsageStatusTuiPlugin(api, options = {}) {
