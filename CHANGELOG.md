@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.21.11] - 2026-04-07
+
+### Documentation
+
+- Shortened the README landing page by moving clone-based developer install instructions into `docs/developer-install.md`, trimming the table of contents, surfacing common OpenCode commands near `Quick Start`, and moving maintainer-only release notes back to the end of the README.
+
 ## [0.21.10] - 2026-04-07
 
 ### Documentation

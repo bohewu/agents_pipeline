@@ -5,33 +5,20 @@ This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.
 
 ## Contents
 
+- [TL;DR](#tldr)
 - [Usage Prerequisites](#usage-prerequisites)
 - [Install (Recommended)](#install-recommended)
-  - [OpenCode core](#opencode-core)
-  - [Status plugin only](#status-plugin-only)
-  - [Usage only](#usage-only)
-  - [Effort-control plugin only](#effort-control-plugin-only)
-  - [All local assets](#all-local-assets)
-  - [Copilot agents](#copilot-agents)
-  - [Claude Code subagents](#claude-code-subagents)
-  - [Codex roles](#codex-roles)
 - [Developer Install (Clone Repo)](#developer-install-clone-repo)
-  - [OpenCode core from clone](#opencode-core-from-clone)
-  - [Status plugin only from clone](#status-plugin-only-from-clone)
-  - [All local assets from clone](#all-local-assets-from-clone)
-  - [Usage only from clone](#usage-only-from-clone)
-  - [Usage status plugin only from clone](#usage-status-plugin-only-from-clone)
-  - [Effort-control plugin only from clone](#effort-control-plugin-only-from-clone)
-  - [Copilot agents from clone](#copilot-agents-from-clone)
-  - [Claude Code subagents from clone](#claude-code-subagents-from-clone)
-  - [Codex roles from clone](#codex-roles-from-clone)
 - [How To Use](#how-to-use)
 - [Quick Start](#quick-start)
+- [VS Code Copilot Agents](#vs-code-copilot-agents)
+- [Claude Code Subagents](#claude-code-subagents)
+- [Codex Agent Roles](#codex-agent-roles)
 - [Protocol Validation](#protocol-validation)
 - [Config Example](#config-example)
 - [Flags](#flags)
 - [Orchestrators](#orchestrators)
-- [Agent Responsibility Matrix](#agent-responsibility-matrix)
+- [Versioning](#versioning)
 
 ## TL;DR
 
@@ -99,13 +86,13 @@ Existing OpenCode files are backed up by default. The installer refreshes the ma
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -128,13 +115,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -156,13 +143,13 @@ The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -193,13 +180,13 @@ The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in 
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-effort-control.ps1" -OutFile .\bootstrap-install-plugin-effort-control.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-effort-control.ps1" -OutFile .\bootstrap-install-plugin-effort-control.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install-plugin-effort-control.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-effort-control.sh" && bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install-plugin-effort-control.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-effort-control.sh" && bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js"
 ```
 
 Dry-run preview (resolves release metadata only):
@@ -228,13 +215,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
+tag="v0.21.11" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
 ```
 
 Ubuntu/macOS/Linux notes if you prefer downloading the script first:
@@ -247,7 +234,7 @@ Ubuntu/macOS/Linux notes if you prefer downloading the script first:
 Download-then-run version:
 
 ```bash
-tag="v0.21.10"
+tag="v0.21.11"
 curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
 bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
 ```
@@ -269,13 +256,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -297,13 +284,13 @@ Copy-paste commands (recommended):
 Windows (PowerShell):
 
 ```powershell
-$release = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
+$release = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux:
 
 ```bash
-release="v0.21.10" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
+release="v0.21.11" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
 ```
 
 Optional project-local override:
@@ -329,13 +316,13 @@ Existing `.codex` files are backed up by default. The installer preserves non-ag
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.21.10"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.21.11"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux:
 
 ```bash
-tag="v0.21.10" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
+tag="v0.21.11" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
 ```
 
 Quick one-liners (less auditable):
@@ -350,429 +337,8 @@ curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts
 
 ## Developer Install (Clone Repo)
 
-Use this when you are modifying this repo, validating local changes, or you specifically want installers from your working tree instead of the latest release bundle.
-
-### OpenCode core from clone
-
-Default target: `~/.config/opencode`
-
-Behavior notes:
-
-- Existing installed OpenCode files are backed up by default.
-- The installer tracks the files it manages and removes stale managed files that were deleted from this repo on later installs.
-- Unrelated user-created files under the target directory are left in place.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install.ps1 -DryRun` or `bash scripts/install.sh --dry-run`
-- Custom target: `pwsh -NoProfile -File scripts/install.ps1 -Target C:\path\to\opencode-config` or `bash scripts/install.sh --target /path/to/opencode-config`
-- Skip backup: `pwsh -NoProfile -File scripts/install.ps1 -NoBackup` or `bash scripts/install.sh --no-backup`
-
-### Status plugin only from clone
-
-Use this when OpenCode is already set up and you only want the status runtime plugin.
-The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
-The plugin owns the canonical status layout under `<run_output_dir>/status/`, including `run-status.json`, `tasks/<task_id>.json`, and `agents/<agent_id>.json`.
-When status payloads include `working_project_dir`, the OpenCode plugin anchors relative `output_root` and `checkpoint_path` values to that target repo. This is what allows same-session delegated runs such as `run-modernize -> run-pipeline` to keep status/checkpoints under the target project.
-OpenCode core installs now also mirror repo-managed skills into the global cross-runtime skill locations `~/.agents/skills/` and `~/.claude/skills/` by default, while preserving the OpenCode config copy under `~/.config/opencode/skills/`.
-If a newly installed skill does not appear immediately, start a fresh OpenCode session so the runtime can re-scan the installed skill catalog.
-
-Installed file layout:
-
-```text
-~/.config/opencode/
-├─ opencode.json
-└─ plugins/
-   ├─ status-runtime.js
-   └─ status-runtime/
-      └─ index.js
-```
-
-No extra `opencode.json` plugin stanza is required for this repository's local plugin install; the entry file lives directly under `plugins/`.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-plugin-status-runtime.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -DryRun` or `bash scripts/install-plugin-status-runtime.sh --dry-run`
-- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target C:\path\to\opencode-config\plugins\status-runtime.js` or `bash scripts/install-plugin-status-runtime.sh --target /path/to/opencode-config/plugins/status-runtime.js`
-
-### All local assets from clone
-
-Use this when you want the OpenCode core config, the OpenCode-only status-runtime plugin, the OpenCode-only usage-status plugin, the OpenCode-only effort-control plugin, Copilot agents, Claude agents, and Codex config installed together from your working tree.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-all-local.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-all-local.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-all-local.ps1 -DryRun` or `bash scripts/install-all-local.sh --dry-run`
-- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js -EffortPluginTarget C:\path\to\opencode-config\plugins\effort-control.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
-- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js --effort-plugin-target /path/to/opencode-config/plugins/effort-control.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
-
-### Usage only from clone
-
-Use this when you want just the `/usage` command/tool and the usage-status TUI plugin from your working tree, without installing the rest of the pipeline.
-The installer copies the usage command/tool files into `~/.config/opencode`, installs the plugin files under `plugins/usage-status/`, and ensures `tui.json` contains `./plugins/usage-status/index.js`.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-usage-only.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-usage-only.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -DryRun` or `bash scripts/install-usage-only.sh --dry-run`
-- Custom targets: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -OpenCodeTarget C:\path\to\opencode-config -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js` or `bash scripts/install-usage-only.sh --opencode-target /path/to/opencode-config --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js`
-
-### Usage status plugin only from clone
-
-Use this when OpenCode core assets are already installed and you want the toggleable TUI usage footer plugin.
-The installer writes `~/.config/opencode/plugins/usage-status.js` plus its sibling support directory at `~/.config/opencode/plugins/usage-status/`.
-The installer also ensures `~/.config/opencode/tui.json` contains `./plugins/usage-status/index.js`.
-The plugin defaults to `off`; after install, enable it inside OpenCode with `/usage-status` or `/usage-status-on`.
-
-Installed file layout:
-
-```text
-~/.config/opencode/
-├─ plugins/
-│  ├─ usage-status.js
-│  └─ usage-status/
-│     ├─ index.js
-│     └─ tui.jsx
-└─ tui.json
-```
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-plugin-usage-status.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -DryRun` or `bash scripts/install-plugin-usage-status.sh --dry-run`
-- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target C:\path\to\opencode-config\plugins\usage-status.js` or `bash scripts/install-plugin-usage-status.sh --target /path/to/opencode-config/plugins/usage-status.js`
-
-Behavior notes:
-
-- When enabled, the footer refreshes immediately and then every `300` seconds.
-- If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
-- Use `/usage-status-short` for a compact one-line summary or `/usage-status-detail` for the richer sidebar card view.
-- Use `/usage-status-all`, `/usage-status-codex`, or `/usage-status-copilot` to control which provider cards are shown.
-- If a live lookup fails after a previous success, the footer reuses cached data and prefixes the summary with `~`.
-
-Example `tui.json` with explicit plugin options:
-
-```json
-{
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": [
-    ["./plugins/usage-status/index.js", {
-      "enabled": false,
-      "mode": "short",
-      "refreshSeconds": 300,
-      "showCodex": true,
-      "showCopilot": true
-    }]
-  ]
-}
-```
-
-### Usage FAQ
-
-- Why does `/usage` work but the footer is missing?
-  The TUI footer plugin defaults to `off`. Turn it on with `/usage-status` or `/usage-status-on`.
-- Why does Copilot show unavailable or manual mode?
-  Live Copilot usage depends on `gh` plus a working GitHub login. Run `gh auth status` and make sure the active account can access GitHub Copilot usage.
-- Why does the footer start with `~`?
-  The plugin fell back to cached data after a live lookup failed. Run `/usage-status-refresh` or `/usage` when connectivity/auth is back.
-- Can I show only Codex or only Copilot?
-  Yes. Use `/usage-status-codex`, `/usage-status-copilot`, or `/usage-status-all`. You can also set `showCodex` / `showCopilot` in `tui.json` for the default view.
-- What is the difference between `tui.json` and `opencode.json`?
-  `opencode.json` is for OpenCode runtime config and server-side plugins. `tui.json` is where OpenCode loads TUI plugins like `usage-status`.
-
-### Local Codex account commands
-
-These commands manage OpenCode's local `openai-codex-accounts.json` selection file when one exists.
-
-- `/codex-account`
-  Lists discovered local Codex account-selection files, the active stored account, and the switchable choices.
-- `/codex-account-switch --email=<address-or-label>`
-  Switches to a specific stored account.
-- `/codex-account-switch --index=<n>`
-  Switches to the stored account entry that owns that index.
-- `/next-codex-account`
-  Rotates to the next stored account in the selected file.
-
-Behavior notes:
-
-- If only one stored account is available, `/next-codex-account` is a no-op and returns a note explaining there is nothing to rotate.
-- If no local OpenCode account-selection file exists, these commands report that clearly instead of guessing.
-- These commands only manage OpenCode's local stored account-selection file. They do not create new logins by themselves.
-- If Codex usage is coming only from `~/.codex/auth.json` and there is no OpenCode project account file, `/usage` can still work while `/next-codex-account` has nothing to rotate.
-
-Examples:
-
-```text
-/codex-account
-/codex-account --json
-/codex-account-switch --email=bohewu@gmail.com
-/codex-account-switch --index=2
-/next-codex-account
-```
-
-### Effort-control plugin only from clone
-
-Use this when you want an OpenCode-only reasoning-effort controller for OpenAI or GitHub Copilot GPT-5 sessions without changing the rest of the pipeline install.
-The installer writes `~/.config/opencode/plugins/effort-control.js` plus its sibling support directory at `~/.config/opencode/plugins/effort-control/`.
-The installer also ensures `~/.config/opencode/tui.json` contains `./plugins/effort-control/index.js`.
-
-Behavior notes:
-
-- The server plugin is active immediately after install. For OpenAI and GitHub Copilot `gpt-5*`, it floors most non-mechanical agents to at least `medium`.
-- `/effort-medium`, `/effort-high`, and `/effort-max` set a reasoning floor. On the home screen they set a project default; inside a session they set a session override.
-- `/effort-clear` removes the current session override or the project default.
-- The plugin only applies OpenAI `reasoningEffort` overrides. Other providers are left untouched.
-- State and verification traces are written under the active project at `.opencode/effort-control.sessions.json` and `.opencode/effort-control.trace.jsonl`.
-- This installer is intentionally separate from `install-all-local`; it changes runtime behavior and should stay opt-in.
-
-Installed file layout:
-
-```text
-~/.config/opencode/
-├─ plugins/
-│  ├─ effort-control.js
-│  └─ effort-control/
-│     ├─ index.js
-│     ├─ state.js
-│     └─ tui.jsx
-└─ tui.json
-```
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-plugin-effort-control.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -DryRun` or `bash scripts/install-plugin-effort-control.sh --dry-run`
-- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -Target C:\path\to\opencode-config\plugins\effort-control.js` or `bash scripts/install-plugin-effort-control.sh --target /path/to/opencode-config/plugins/effort-control.js`
-
-Quick verification after install:
-
-- Open OpenCode with an OpenAI or GitHub Copilot `gpt-5*` model, run `/effort-high`, then start a new session and dispatch a delegated flow.
-- Inspect `.opencode/effort-control.trace.jsonl` in the active project. `source: "project_default"` or `source: "session_override"` confirms the override path.
-
-### Copilot agents from clone
-
-Default target: `~/.copilot/agents`
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-copilot.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-copilot.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-copilot.ps1 -DryRun` or `bash scripts/install-copilot.sh --dry-run`
-- Custom target: `pwsh -NoProfile -File scripts/install-copilot.ps1 -Target C:\path\to\copilot\agents` or `bash scripts/install-copilot.sh --target /path/to/copilot/agents`
-- Skip backup: `pwsh -NoProfile -File scripts/install-copilot.ps1 -NoBackup` or `bash scripts/install-copilot.sh --no-backup`
-
-### Claude Code subagents from clone
-
-Default target: `~/.claude/agents`
-
-Claude Code support is file-based today. Treat `opencode/agents/*.md` as the source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-claude.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-claude.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-claude.ps1 -DryRun` or `bash scripts/install-claude.sh --dry-run`
-- Custom target: `pwsh -NoProfile -File scripts/install-claude.ps1 -Target C:\path\to\your-project\.claude\agents` or `bash scripts/install-claude.sh --target /path/to/your-project/.claude/agents`
-
-Claude Code limitation note:
-
-- Keep orchestrator guidance conservative: do not assume nested orchestrator -> subagent -> subagent routing in Claude Code.
-- Prefer inline execution for orchestrator-owned stages, or invoke leaf subagents directly when needed.
-
-### Codex roles from clone
-
-Default target: `~/.codex`
-
-Behavior notes:
-
-- Existing Codex files are backed up by default.
-- The installer preserves unrelated Codex settings already present in `config.toml`, such as model, approval, sandbox, MCP, and profile settings.
-- The installer replaces only the managed Codex agent definitions and removes stale managed agent files/entries that were deleted from this repo.
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-codex.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-codex.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun` or `bash scripts/install-codex.sh --dry-run`
-- Custom target: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex` or `bash scripts/install-codex.sh --target /path/to/.codex`
-- `features.multi_agent` is always set to `true`, and the managed `[agents]` settings are refreshed from this repo; `-Force` / `--force` is accepted only for backward compatibility.
-
-Important Codex usage note:
-
-- Generated roles are configured as Codex agent roles in `config.toml`.
-- Use them by role name in prompts.
-- Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
-- Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`
-
-## Versioning
-
-<details>
-<summary>Maintainer release notes</summary>
-
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.21.10`).
-- Use SemVer tags with `v` prefix (for example: `v0.21.10`).
-- Stay in `0.x` while the pipeline and prompts evolve quickly.
-- In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
-- Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.21.10` must release as `v0.21.10`).
-- After bumping `VERSION`, run `python3 scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
-- README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
-- Track release notes in `CHANGELOG.md`.
-
-## Release CI
-
-- Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.21.10`) or manual `workflow_dispatch`
-- Output assets:
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.SHA256SUMS.txt`
-- Release workflow verifies downloaded artifact checksums before publishing release assets.
-- Release workflow generates GitHub Artifact Attestations for the bundle artifacts and verifies them before publishing release assets.
-
-## CI Checks
-
-- Workflow: `.github/workflows/ci.yml`
-- Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
-- Checks:
-  - `VERSION` format check
-  - README pinned version snippet validation against root `VERSION`
-  - schema validator script sanity check
-  - dispatch-plan resource schema/examples validation (positive + negative cases)
-  - status contract schema/examples validation (`run-status`, `task-status`, `agent-status`; positive + negative fixtures)
-  - modernize execution handoff schema/examples validation (positive + negative case)
-  - resource-control prompt coverage assertions for router/orchestrator/executor/reviewer docs
-  - Copilot export script strict dry run
-  - installer script syntax and dry-run validation
-
-Example release:
-
-```bash
-git tag v0.21.10
-git push origin v0.21.10
-```
-
-## Public Release Checklist
-
-- Confirm there are no secrets or private endpoints in the repo.
-- Review git history for removed secrets if any (history still contains them).
-- Ensure `opencode.json.example` contains no real keys.
-- Verify `LICENSE` exists and matches intended usage.
-- Verify README usage notes align with your public story.
-
-## Secret Scan (Optional)
-
-If you already have a secret scanner installed, run one of:
-
-```text
-gitleaks detect --source .
-```
-
-```text
-trufflehog filesystem .
-```
-
-Use whichever tool your team prefers.
-
-</details>
+If you are editing this repo or validating installers from your working tree, see [docs/developer-install.md](docs/developer-install.md).
+Most users should use the published release bundle commands in `Install (Recommended)` instead.
 
 ## How To Use
 
@@ -954,6 +520,49 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
 
 ```text
 /run-pipeline Run tests only --test-only
+```
+
+### Common OpenCode commands
+
+- `/run-pipeline ...`
+  Default end-to-end implementation flow.
+- `/usage`
+  Shows live Codex quota windows and optional Copilot premium-request usage.
+- `/usage-status-on`
+  Turns on the usage footer plugin.
+- `/usage-status-refresh`
+  Forces a fresh usage refresh.
+- `/effort-medium`, `/effort-high`, `/effort-max`
+  Sets a reasoning-effort floor for supported GPT-5 sessions.
+
+### Local Codex account commands
+
+These commands manage OpenCode's local `openai-codex-accounts.json` selection file when one exists.
+
+- `/codex-account`
+  Lists discovered local Codex account-selection files, the active stored account, and the switchable choices.
+- `/codex-account-switch --email=<address-or-label>`
+  Switches to a specific stored account.
+- `/codex-account-switch --index=<n>`
+  Switches to the stored account entry that owns that index.
+- `/next-codex-account`
+  Rotates to the next stored account in the selected file.
+
+Behavior notes:
+
+- If only one stored account is available, `/next-codex-account` is a no-op and returns a note explaining there is nothing to rotate.
+- If no local OpenCode account-selection file exists, these commands report that clearly instead of guessing.
+- These commands only manage OpenCode's local stored account-selection file. They do not create new logins by themselves.
+- If Codex usage is coming only from `~/.codex/auth.json` and there is no OpenCode project account file, `/usage` can still work while `/next-codex-account` has nothing to rotate.
+
+Examples:
+
+```text
+/codex-account
+/codex-account --json
+/codex-account-switch --email=bohewu@gmail.com
+/codex-account-switch --index=2
+/next-codex-account
 ```
 
 <details>
@@ -1266,3 +875,75 @@ Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you fu
 | summarizer | User summary | Technical decisions |
 
 ---
+
+## Versioning
+
+<details>
+<summary>Maintainer release notes</summary>
+
+- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.21.11`).
+- Use SemVer tags with `v` prefix (for example: `v0.21.11`).
+- Stay in `0.x` while the pipeline and prompts evolve quickly.
+- In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
+- Use **patch** bumps for docs/scripting fixes without intended behavior changes.
+- Release CI checks `VERSION` and tag alignment (`VERSION=0.21.11` must release as `v0.21.11`).
+- After bumping `VERSION`, run `python3 scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
+- README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
+- Track release notes in `CHANGELOG.md`.
+
+## Release CI
+
+- Workflow: `.github/workflows/release.yml`
+- Trigger: push tag `v*` (for example `v0.21.11`) or manual `workflow_dispatch`
+- Output assets:
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
+  - `agents-pipeline-opencode-bundle-vX.Y.Z.SHA256SUMS.txt`
+- Release workflow verifies downloaded artifact checksums before publishing release assets.
+- Release workflow generates GitHub Artifact Attestations for the bundle artifacts and verifies them before publishing release assets.
+
+## CI Checks
+
+- Workflow: `.github/workflows/ci.yml`
+- Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
+- Checks:
+  - `VERSION` format check
+  - README pinned version snippet validation against root `VERSION`
+  - schema validator script sanity check
+  - dispatch-plan resource schema/examples validation (positive + negative cases)
+  - status contract schema/examples validation (`run-status`, `task-status`, `agent-status`; positive + negative fixtures)
+  - modernize execution handoff schema/examples validation (positive + negative case)
+  - resource-control prompt coverage assertions for router/orchestrator/executor/reviewer docs
+  - Copilot export script strict dry run
+  - installer script syntax and dry-run validation
+
+Example release:
+
+```bash
+git tag v0.21.11
+git push origin v0.21.11
+```
+
+## Public Release Checklist
+
+- Confirm there are no secrets or private endpoints in the repo.
+- Review git history for removed secrets if any (history still contains them).
+- Ensure `opencode.json.example` contains no real keys.
+- Verify `LICENSE` exists and matches intended usage.
+- Verify README usage notes align with your public story.
+
+## Secret Scan (Optional)
+
+If you already have a secret scanner installed, run one of:
+
+```text
+gitleaks detect --source .
+```
+
+```text
+trufflehog filesystem .
+```
+
+Use whichever tool your team prefers.
+
+</details>
