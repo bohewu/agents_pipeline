@@ -1,7 +1,8 @@
 # Multi-Agent Pipeline
 
 Multi-agent workflows for OpenCode with companion agent docs for Claude Code, VS Code Copilot, and Codex.
-This repository demonstrates a **Multi-Agent Pipeline** with `opencode/agents/*.md` as the single source of truth. See the **How To Use** section below for usage instructions.
+This repository (`bohewu/agents_pipeline`) contains the workflow assets, protocols, tools, and plugins for **Multi-Agent Pipeline**, with `opencode/agents/*.md` as the single source of truth.
+See the **How To Use** section below for usage instructions.
 
 ## Contents
 
