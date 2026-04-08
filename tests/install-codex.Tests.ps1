@@ -1,8 +1,6 @@
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
-$scriptPath = Join-Path $repoRoot "scripts/install-codex.ps1"
-
 Describe "install-codex.ps1 python resolution" {
     It "prefers the py launcher and pins -3" {
+        $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         $binDir = Join-Path $TestDrive "bin"
         $logPath = Join-Path $TestDrive "py.log"
         New-Item -ItemType Directory -Path $binDir | Out-Null
@@ -35,6 +33,7 @@ exit /b 0
     }
 
     It "skips the WindowsApps python alias and uses python3 fallback" {
+        $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         $logPath = Join-Path $TestDrive "python3.log"
         $python3Shim = Join-Path $TestDrive "python3.cmd"
         @"
@@ -60,6 +59,7 @@ exit /b 0
     }
 
     It "fails clearly when only WindowsApps aliases are available" {
+        $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         Mock Get-Command { $null } -ParameterFilter { $Name -eq "py" }
         Mock Get-Command { [pscustomobject]@{ Source = "C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe" } } -ParameterFilter { $Name -eq "python" }
         Mock Get-Command { [pscustomobject]@{ Source = "C:\Users\test\AppData\Local\Microsoft\WindowsApps\python3.exe" } } -ParameterFilter { $Name -eq "python3" }

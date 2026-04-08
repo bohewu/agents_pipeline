@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.5] - 2026-04-08
+
+### Fixed
+
+- Resolved the remaining GitHub-only Pester 5 scope issue in `tests/install-codex.Tests.ps1` by resolving `install-codex.ps1` inside each test case instead of relying on top-level fixture variables, so the PowerShell installer regression suite now runs consistently on both local and hosted runners.
+
 ## [0.22.4] - 2026-04-08
 
 ### Fixed
