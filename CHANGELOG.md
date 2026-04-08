@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-04-08
+
+### Added
+
+- Added `tests/test_validate_orchestrator_contracts.py` to cover successful projections plus three negative cases: missing `AGENTS.md` entries, commands targeting unknown agents, and unallowlisted `run-*` aliases.
+
+### Changed
+
+- `scripts/validate-orchestrator-contracts.py` now validates the full `AGENTS.md` catalog, all command `agent:` frontmatter targets, and an explicit allowlist for intentional `run-*` aliases such as `run-monetize -> orchestrator-general`.
+- CI now runs the new validator unit test coverage in addition to the existing compile-and-script checks for orchestrator contract projections.
+
 ## [0.22.0] - 2026-04-07
 
 ### Added

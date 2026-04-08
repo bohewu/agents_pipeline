@@ -775,6 +775,7 @@ jobs:
         shell: bash
         run: |
           python3 -m py_compile scripts/validate-orchestrator-contracts.py
+          python3 -m unittest tests/test_validate_orchestrator_contracts.py
           python3 scripts/validate-orchestrator-contracts.py
 
       - name: Validate status schemas and fixtures
