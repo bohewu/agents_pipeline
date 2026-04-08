@@ -8,39 +8,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [0.22.5] - 2026-04-08
 
+### Note
+
+- `v0.22.5` is the first stable release for this Codex installer/mapping fix set. The intermediate tags `v0.22.2` through `v0.22.4` were withdrawn after CI-only follow-up corrections, and their Codex installer/exporter changes should be treated as superseded by this release.
+
 ### Fixed
 
 - Resolved the remaining GitHub-only Pester 5 scope issue in `tests/install-codex.Tests.ps1` by resolving `install-codex.ps1` inside each test case instead of relying on top-level fixture variables, so the PowerShell installer regression suite now runs consistently on both local and hosted runners.
-
-## [0.22.4] - 2026-04-08
-
-### Fixed
-
-- Normalized the PowerShell Pester fixture's `install-codex.ps1` path to a plain `ProviderPath` string, avoiding GitHub runner failures where `& $scriptPath` rejected a non-string path object during installer regression tests.
-
-## [0.22.3] - 2026-04-08
-
-### Fixed
-
-- Made `tests/install-codex.Tests.ps1` compatible with both Pester 3 and Pester 5 by removing version-specific `Should` syntax and helper-scope assumptions, so the PowerShell installer validation step now passes on GitHub-hosted runners as well as local Windows machines.
-- Updated the CI Codex managed-merge regression check to expect the new default `agents.max_depth = 2`, matching the released exporter/installer behavior.
-
-## [0.22.2] - 2026-04-08
-
-### Added
-
-- Added `tests/test_codex_install_export.py` and `tests/install-codex.Tests.ps1` to lock in the Codex merge helper temp-dir behavior, the raised default `agents.max_depth`, and the Windows PowerShell installer's Python resolution logic.
-
-### Changed
-
-- Codex exporter/install defaults now write `agents.max_depth = 2` so nested orchestration paths such as `orchestrator-modernize -> orchestrator-pipeline -> executor/reviewer` remain valid under Codex's documented depth semantics.
-- `docs/codex-mapping.md` now documents that OpenCode `tools:` frontmatter is a capability-boundary drift in Codex rather than a lossless mapping, and it points to the limited Codex-native substitutes that exist today.
-- CI now runs a dedicated Pester regression test for `scripts/install-codex.ps1` in addition to the existing installer dry-run coverage.
-
-### Fixed
-
-- `scripts/install-codex.ps1` now prefers `py -3`, skips Windows Store `WindowsApps` Python aliases, and correctly preserves fallback interpreter invocations as arrays so PowerShell installer runs do not break on Windows-specific command resolution.
-- `scripts/install-codex-config.py` now creates its temporary export workspace inside the repo by default and supports `--temp-dir`, avoiding dry-run/install failures in workspace-restricted Codex sandboxes.
 
 ## [0.22.1] - 2026-04-08
 
