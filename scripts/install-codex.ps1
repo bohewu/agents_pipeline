@@ -13,12 +13,30 @@ function Get-DefaultTarget {
     return Join-Path $HOME ".codex"
 }
 
-function Get-PythonCommand {
+function Test-WindowsAppsPythonAlias {
+    param([string]$CommandPath)
+
+    return $CommandPath -like "*\Microsoft\WindowsApps\python*.exe"
+}
+
+function Get-PythonInvocation {
     $py = Get-Command -Name py -ErrorAction SilentlyContinue
-    if ($py) { return $py.Source }
-    $python = Get-Command -Name python -ErrorAction SilentlyContinue
-    if ($python) { return $python.Source }
-    throw "Python runtime not found. Install python or py launcher."
+    if ($py) {
+        return @($py.Source, "-3")
+    }
+
+    foreach ($name in @("python", "python3")) {
+        $command = Get-Command -Name $name -ErrorAction SilentlyContinue
+        if (-not $command) {
+            continue
+        }
+        if (Test-WindowsAppsPythonAlias -CommandPath $command.Source) {
+            continue
+        }
+        return @($command.Source)
+    }
+
+    throw "Python runtime not found. Install Python or the py launcher. Windows Store python aliases are not supported for this installer."
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -42,7 +60,12 @@ if ($Target -match '^-{1,2}[A-Za-z]') {
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
-$pythonCmd = Get-PythonCommand
+$pythonInvocation = @(Get-PythonInvocation)
+$pythonCmd = $pythonInvocation[0]
+$pythonArgs = @()
+if ($pythonInvocation.Count -gt 1) {
+    $pythonArgs = $pythonInvocation[1..($pythonInvocation.Count - 1)]
+}
 
 Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
@@ -110,7 +133,7 @@ if ($DryRun) {
     $exportArgs += "--dry-run"
 }
 
-& $pythonCmd @exportArgs
+& $pythonCmd @pythonArgs @exportArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Codex role export failed with exit code $LASTEXITCODE."
 }

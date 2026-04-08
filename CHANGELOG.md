@@ -6,6 +6,23 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-04-08
+
+### Added
+
+- Added `tests/test_codex_install_export.py` and `tests/install-codex.Tests.ps1` to lock in the Codex merge helper temp-dir behavior, the raised default `agents.max_depth`, and the Windows PowerShell installer's Python resolution logic.
+
+### Changed
+
+- Codex exporter/install defaults now write `agents.max_depth = 2` so nested orchestration paths such as `orchestrator-modernize -> orchestrator-pipeline -> executor/reviewer` remain valid under Codex's documented depth semantics.
+- `docs/codex-mapping.md` now documents that OpenCode `tools:` frontmatter is a capability-boundary drift in Codex rather than a lossless mapping, and it points to the limited Codex-native substitutes that exist today.
+- CI now runs a dedicated Pester regression test for `scripts/install-codex.ps1` in addition to the existing installer dry-run coverage.
+
+### Fixed
+
+- `scripts/install-codex.ps1` now prefers `py -3`, skips Windows Store `WindowsApps` Python aliases, and correctly preserves fallback interpreter invocations as arrays so PowerShell installer runs do not break on Windows-specific command resolution.
+- `scripts/install-codex-config.py` now creates its temporary export workspace inside the repo by default and supports `--temp-dir`, avoiding dry-run/install failures in workspace-restricted Codex sandboxes.
+
 ## [0.22.1] - 2026-04-08
 
 ### Added

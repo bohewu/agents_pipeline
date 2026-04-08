@@ -22,8 +22,11 @@ Do not manually maintain generated Codex role files as a primary source.
 | `mode` | (removed) | not emitted |
 | `hidden` | (removed) | not emitted |
 | `temperature` | (removed) | not emitted |
-| `tools` | (removed) | not emitted |
+| `tools` | (removed) | not emitted as an equivalent capability contract |
 | body | `developer_instructions` | preserved with minimal adaptation |
+
+`tools` needs extra care: Codex does not expose a direct equivalent of OpenCode's per-tool allowlist for built-in capabilities such as `read`, `grep`, `glob`, `edit`, and `write`.
+The current export therefore preserves tool intent only in prompt text, not as a lossless runtime boundary.
 
 ## Root Config Generation
 
@@ -31,8 +34,12 @@ The generator writes a root `config.toml` containing:
 
 - `[features] multi_agent = true` by default
 - `[agents] max_threads = 6`
-- `[agents] max_depth = 1`
+- `[agents] max_depth = 2`
 - one `[agents.<name>]` table per source agent role
+
+This repo intentionally sets `max_depth = 2` instead of Codex's product default.
+Codex defines the root session at depth `0`, and `max_depth = 1` allows only a direct child agent.
+Nested orchestration paths such as `orchestrator-modernize -> orchestrator-pipeline -> executor/reviewer` need depth `2` to remain functional.
 
 Use flags to adjust this output when needed:
 
@@ -50,6 +57,7 @@ Each generated `agents/<name>.toml` file includes:
 - `developer_instructions`
 
 This matches the current Codex custom-agent schema from the official docs, which requires `name`, `description`, and `developer_instructions` in each standalone agent file.
+Codex custom-agent files can also include other supported `config.toml` keys, but this exporter keeps generated agent files minimal unless a specific mapping is implemented explicitly.
 
 Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
 
@@ -92,3 +100,5 @@ For orchestrator agents, the generator prepends a Codex input adapter block:
 - Codex agent roles are experimental and may evolve.
 - The generator does not install files into `~/.codex/` for you; it only generates them.
 - Existing OpenCode prompt text is preserved as much as possible; only minimal Codex-specific adaptation is injected.
+- OpenCode `tools:` frontmatter is not an equivalent Codex mapping today. This is a capability-boundary drift, not a lossless translation.
+- Codex can express some partial substitutes through normal config keys such as `sandbox_mode = "read-only"`, `[features].shell_tool = false`, `web_search`, `mcp_servers`, and `skills.config`, but those are narrower than OpenCode's source tool matrix and are not emitted automatically by this exporter.

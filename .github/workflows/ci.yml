@@ -1180,6 +1180,8 @@ jobs:
             throw 'install-plugin-usage-status.ps1 should reject switch-like target values.'
           }
 
+          Invoke-Pester -Script tests/install-codex.Tests.ps1 -EnableExit
+
           $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
           $global:LASTEXITCODE = 0
 
