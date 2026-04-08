@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.4] - 2026-04-08
+
+### Fixed
+
+- Normalized the PowerShell Pester fixture's `install-codex.ps1` path to a plain `ProviderPath` string, avoiding GitHub runner failures where `& $scriptPath` rejected a non-string path object during installer regression tests.
+
 ## [0.22.3] - 2026-04-08
 
 ### Fixed

@@ -1,4 +1,4 @@
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath
 $scriptPath = Join-Path $repoRoot "scripts/install-codex.ps1"
 
 Describe "install-codex.ps1 python resolution" {
