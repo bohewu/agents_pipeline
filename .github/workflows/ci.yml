@@ -547,8 +547,8 @@ jobs:
               raise SystemExit('Expected Codex merge install to remove stale managed agent entry.')
           if 'multi_agent = true' not in config:
               raise SystemExit('Expected Codex merge install to force features.multi_agent = true.')
-          if 'max_threads = 6' not in config or 'max_depth = 1' not in config:
-              raise SystemExit('Expected Codex merge install to refresh managed [agents] settings.')
+          if 'max_threads = 6' not in config or 'max_depth = 2' not in config:
+            raise SystemExit('Expected Codex merge install to refresh managed [agents] settings.')
 
           stale_file = agents_dir / 'old-removed.toml'
           if stale_file.exists():

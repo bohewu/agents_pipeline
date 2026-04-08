@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.3] - 2026-04-08
+
+### Fixed
+
+- Made `tests/install-codex.Tests.ps1` compatible with both Pester 3 and Pester 5 by removing version-specific `Should` syntax and helper-scope assumptions, so the PowerShell installer validation step now passes on GitHub-hosted runners as well as local Windows machines.
+- Updated the CI Codex managed-merge regression check to expect the new default `agents.max_depth = 2`, matching the released exporter/installer behavior.
+
 ## [0.22.2] - 2026-04-08
 
 ### Added
