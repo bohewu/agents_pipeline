@@ -35,6 +35,7 @@ See the **How To Use** section below for usage instructions.
 - `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
 - `COMPATIBILITY.md` for runtime and host-environment assumptions.
 - `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
+- `docs/pixel-art-pipeline.md` for the phase-1 pixel-art asset brief and prompt workflow.
 
 ## Usage Prerequisites
 
