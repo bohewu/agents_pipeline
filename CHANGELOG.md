@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.6] - 2026-04-10
+
+### Changed
+
+- `/artgen` now behaves as a generic image-generation prompt generator on its normal output surface: it still returns the bounded brief and handoff package, but it now always ends with a `Direct Use Prompt` block that users can paste into an external image-generation tool without extracting prompt text manually.
+- The art-generation scaffold, `/artgen` command contract, `2d-asset-brief` skill, and `art-director` source agent no longer foreground internal phase labels or Codex-specific formatting in user-facing wording; they now describe one generic handoff surface plus one directly usable prompt surface.
+
+### Documentation
+
+- Updated the top-level README art-generation pointer so it matches the current scaffold behavior and explicitly points readers at the standardized handoff package plus the final `Direct Use Prompt`.
+
 ## [0.22.5] - 2026-04-08
 
 ### Note

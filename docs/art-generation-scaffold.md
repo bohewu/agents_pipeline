@@ -1,34 +1,36 @@
-# Art Generation Scaffold (Phase 3)
+# Art Generation Scaffold
 
-## What Phase 3 Does
+## What It Does
 
-Phase 3 standardizes how this repo captures a bounded 2D asset request as reusable documentation and packages it for external handoff on the normal `/artgen` surface:
+This scaffold standardizes how this repo captures a bounded 2D asset request as reusable documentation and packages it for external handoff on the normal `/artgen` surface:
 - request record
 - asset brief
 - reusable prompt
 - suggested outputs
 - manual checks
 - External Handoff Package
+- Direct Use Prompt
 
 Pixel art remains the canonical example profile, but the scaffold also covers adjacent 2D assets such as sprites, animations, tilesets, icons, UI elements, and simple props through one shared brief model.
 
 ## Boundary
 
-Phase 3 remains spec/prompt generation plus formatting-oriented handoff packaging only.
+This scaffold remains spec/prompt generation plus formatting-oriented handoff packaging only.
 It does not render images, create files, store raw assets, call Codex, call MCP servers, or run downstream pipeline steps in this repo.
 Raw generation and any external review happen elsewhere.
-The phase-3 addition is a standardized External Handoff Package rendered as normal `/artgen` output.
-That package stays descriptive, copy-ready, and non-operative.
+The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `/artgen` output.
+The package stays descriptive, copy-ready, and non-operative.
+The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for direct use with external image-generation tools.
 
 ## Canonical Workflow
 
-`request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package`
+`request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> Direct Use Prompt`
 
 Anything after that package stays outside this repo and outside the scaffold surface.
 
 ## Shared Brief Model
 
-All phase-3 scaffold outputs should make these fields visible:
+All scaffold outputs should make these fields visible:
 - asset slug
 - asset type
 - style
@@ -79,10 +81,10 @@ They should capture:
 - output folder structure
 - any version-marker usage needed for traceability
 
-For animations, phase 3 suggested outputs should stay at separate frame files only.
+For animations, suggested outputs should stay at separate frame files only.
 Do not introduce sheet, atlas, packing, or spritesheet output suggestions here.
 
-For tilesets, phase 3 suggested outputs should stay at separate tiles or small logical groups only.
+For tilesets, suggested outputs should stay at separate tiles or small logical groups only.
 Do not introduce packed atlas outputs here.
 
 Raw candidates and approved exports stay outside this repo.
@@ -97,7 +99,7 @@ Before reusing the scaffold output, a human should confirm:
 
 ## External Handoff Package
 
-This package is the standardized phase-3 handoff surface.
+This package is the standardized handoff surface.
 It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal `/artgen` output.
 
 The default package must be:
@@ -107,9 +109,17 @@ The default package must be:
 - aligned to the exact field labels and shared identifiers already established in the scaffold
 - suitable for future external generation or review reference without adding execution behavior
 
-If a user explicitly requests Codex-oriented formatting, `/artgen` may render the same package in a Codex-friendly copy/paste layout on the same output surface.
-That formatting is optional and request-driven.
-It must not add helper commands, emitted files, provider-specific execution promises, or workflow-automation claims.
+## Direct Use Prompt
+
+The normal `/artgen` output should end with a final `Direct Use Prompt` section.
+That section should contain the same reusable prompt in a paste-ready fenced text block so the user does not need to extract it manually from the handoff package.
+
+The Direct Use Prompt must be:
+- provider-agnostic
+- copy-ready
+- consistent with the reusable prompt and shared identifiers above
+- directly usable in external image-generation tools without extra wrapper text
+- free of helper-command wrappers or execution claims
 
 ## Risks and Tradeoffs
 
@@ -119,7 +129,7 @@ It must not add helper commands, emitted files, provider-specific execution prom
 
 ## Remaining Deferrals
 
-The following remain outside this scaffold after the phase-3 packaging addition:
+The following remain outside this scaffold after the current packaging addition:
 - deterministic post-process and cleanup
 - provider adapters
 - integrations
@@ -128,7 +138,7 @@ The following remain outside this scaffold after the phase-3 packaging addition:
 - packing, atlas or spritesheet generation, and slicing
 - broader pipeline behavior beyond this scaffold
 
-## Phase 3 Summary
+## Summary
 
-Phase 3 keeps the repo focused on a thin, reviewable art-generation scaffold.
-It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package while leaving rendering and later pipeline behavior to external systems.
+This scaffold keeps the repo focused on a thin, reviewable art-generation workflow.
+It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt while leaving rendering and later pipeline behavior to external systems.

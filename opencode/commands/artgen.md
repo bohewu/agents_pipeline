@@ -1,5 +1,5 @@
 ---
-description: Generate a phase-3 2D asset brief, reusable prompt, and handoff package
+description: Generate a 2D asset brief, reusable prompt, direct-use prompt, and handoff package
 agent: art-director
 ---
 
@@ -27,6 +27,7 @@ $ARGUMENTS
   - suggested output naming and structure
   - manual checks
   - External Handoff Package as normal `/artgen` output
+  - Direct Use Prompt as the final section of the response
 - Make style explicit; if style is omitted, surface a visible assumption.
 - Make size explicit; if size is omitted in the request, surface a visible assumption instead of implying a hidden default.
 - Derive one shared lowercase kebab-case `asset_slug` from the asset type, subject, and key distinguishing qualifiers.
@@ -42,11 +43,12 @@ $ARGUMENTS
 - Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 - Prefix inferred fields consistently with `Assumption:`.
 - Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
-- For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in phase 3.
-- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in phase 3.
+- For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in this scaffold.
+- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in this scaffold.
 - The External Handoff Package must stay generic, human-readable, and copy-ready by default.
-- If the user explicitly asks for Codex-oriented formatting, render the same External Handoff Package in that optional request-driven format on the same output surface.
 - Do not add helper commands, emitted-file promises, or execution-behavior claims to the External Handoff Package.
+- Always end the response with `Direct Use Prompt` in a fenced `text` block containing the ready-to-paste reusable prompt so the user does not have to extract it from the package manually.
+- The Direct Use Prompt should already be suitable for direct use with external image-generation tools without extra wrapper text.
 
 ## Output contract
 
@@ -56,7 +58,7 @@ $ARGUMENTS
 - Suggested outputs: `output_id`, shared `v001`-style `version_marker`, file stem based on `asset_slug`, example filenames, and a relative folder path or short directory tree for the output structure.
 - Manual checks: what a human should confirm before reusing the brief or prompt.
 - External Handoff Package: standard `/artgen` output that bundles the request record, asset brief, reusable prompt, suggested outputs, and manual checks into a generic, human-readable, copy-ready handoff.
-- Optional Codex-oriented formatting: only when explicitly requested, and only as a non-operative formatting variant of the same External Handoff Package on the same output surface.
+- Direct Use Prompt: final section of the response, in a fenced `text` block, containing the same reusable prompt in a directly pasteable form suitable for external image-generation tools.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
 ## Examples

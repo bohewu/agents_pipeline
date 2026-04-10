@@ -1,13 +1,13 @@
 ---
 name: 2d-asset-brief
-description: Phase-3 docs-only guidance for turning bounded 2D asset requests into reusable briefs, prompts, and External Handoff Packages with explicit style, size, suggested outputs, and version markers.
+description: Docs-only guidance for turning bounded 2D asset requests into reusable briefs, prompts, Direct Use Prompts, and External Handoff Packages with explicit style, size, suggested outputs, and version markers.
 license: See repository license
-compatibility: Docs-only phase-3 scaffold; raw image generation and any later execution remain outside this repo.
+compatibility: Docs-only scaffold; raw image generation and any later execution remain outside this repo.
 ---
 
 # 2D Asset Brief
 
-Use this skill when you need a structured brief, reusable prompt, and standardized External Handoff Package for bounded 2D game assets, especially:
+Use this skill when you need a structured brief, reusable prompt, final Direct Use Prompt, and standardized External Handoff Package for bounded 2D game assets, especially:
 - sprites
 - animations
 - tilesets
@@ -21,22 +21,24 @@ If a request says `sprite` and does not explicitly mention animation, frames, lo
 
 Do not use this skill to claim that this repo renders images, stores raw assets, creates files, runs provider integrations, calls Codex, calls MCP servers, or executes a downstream asset pipeline.
 
-## Phase 3 Boundary
+## Boundary
 
-Phase 3 outputs are documentation artifacts plus formatting-oriented handoff packaging only:
+This scaffold outputs documentation artifacts plus formatting-oriented handoff packaging only:
 - request record
 - asset brief
 - reusable prompt
 - suggested outputs
 - manual checks
 - External Handoff Package
+- Direct Use Prompt
 
 Raw image generation happens elsewhere.
 Keep candidate images, approvals, and any generated files outside this repo.
 The External Handoff Package is standard output on this surface.
 That package must stay generic, human-readable, copy-ready, and non-operative.
-If a user explicitly requests Codex-oriented formatting, render the same package in an optional request-driven format on the same output surface.
 Do not add helper commands, emitted-file promises, provider-specific execution promises, or workflow-automation claims.
+Always end the response with a Direct Use Prompt section so the user can copy one ready-to-paste prompt without extracting it manually from the handoff package.
+The Direct Use Prompt should already be suitable for direct use with external image-generation tools and should not depend on Codex-specific wrappers.
 
 ## Output Contract
 
@@ -84,7 +86,12 @@ Do not bold, rename, or restyle the field labels.
 ### External Handoff Package
 - bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into the normal output
 - default package must be generic, human-readable, copy-ready, and aligned to the exact field labels and shared identifiers above
-- Codex-oriented formatting is optional, request-driven, same-surface, and non-operative
+
+### Direct Use Prompt
+- final section of the response
+- fenced `text` block only
+- restates the same reusable prompt in directly pasteable form
+- provider-agnostic and non-operative
 
 ## Make Style and Size Explicit
 
@@ -160,10 +167,10 @@ Suggested patterns:
 - icon: `<asset-name>_<style>_v001.png`
 - UI element: `<asset-name>_<state>_v001.png`
 
-For animations, suggested outputs stay at separate frame files only in phase 3.
+For animations, suggested outputs stay at separate frame files only in this scaffold.
 Do not suggest spritesheets, atlases, packing, or sheet exports.
 
-For tilesets, suggested outputs stay at separate tiles or small logical groups only in phase 3.
+For tilesets, suggested outputs stay at separate tiles or small logical groups only in this scaffold.
 Do not suggest packed atlas outputs.
 
 Suggested outputs are documentation only.
@@ -180,7 +187,7 @@ Before reuse, confirm:
 
 ## External Handoff Package
 
-This package is the standardized phase-3 handoff surface.
+This package is the standardized handoff surface.
 It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal output.
 
 The default package must be:
@@ -190,13 +197,11 @@ The default package must be:
 - aligned to the exact field labels and shared identifiers already established in the scaffold
 - suitable for future external generation or review reference without adding execution behavior
 
-If a user explicitly requests Codex-oriented formatting, render the same package in a Codex-friendly copy/paste layout on the same output surface.
-That formatting is optional and request-driven.
-It must not add helper commands, emitted files, provider-specific execution promises, or workflow-automation claims.
+The response should still end with a Direct Use Prompt section containing the same reusable prompt in a fenced text block for immediate copy/paste use.
 
 ## Remaining Deferrals
 
-The following remain outside this scaffold after the phase-3 packaging addition:
+The following remain outside this scaffold after the current packaging addition:
 - deterministic post-process or cleanup
 - provider adapters
 - integrations
