@@ -17,6 +17,8 @@ Use this skill when you need a structured brief and reusable prompt for bounded 
 
 Pixel art remains the canonical example profile, but the brief model also supports adjacent 2D asset styles when style and size are stated explicitly.
 
+If a request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
+
 Do not use this skill to claim that this repo renders images, stores raw assets, runs provider integrations, or executes a downstream asset pipeline.
 
 ## Phase 2 Boundary
@@ -37,8 +39,13 @@ The only allowed execution-aware addition is an optional non-operative external 
 
 Return concise Markdown with these sections:
 
+Use the exact field labels below.
+When a value is inferred, write it as `Assumption: ...`.
+Do not bold, rename, or restyle the field labels.
+
 ### Request Record
 - request_id
+- asset_slug
 - version_marker (`v001` style by default)
 - asset type
 - asset style or visible style assumption
@@ -64,7 +71,7 @@ Return concise Markdown with these sections:
 ### Suggested Outputs
 - output_id
 - version_marker (`v001` style by default)
-- file stem
+- file stem (default: `<asset_slug>`)
 - example filenames
 - output folder structure
 
@@ -84,6 +91,8 @@ Return concise Markdown with these sections:
   - icon: output dimensions
   - UI element: output dimensions or state/layout size
 - If the request is underspecified, surface conservative assumptions instead of implying them.
+- Prefix inferred values consistently with `Assumption:`.
+- Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
 - When background is unspecified, prefer a visible transparent-background assumption for production assets.
 
 ## Prompt Construction
@@ -124,6 +133,14 @@ When the request is for pixel art, keep the canonical profile explicit:
 
 Keep request, brief, prompt, and suggested-output identifiers aligned with one visible version marker.
 Default to `v001` unless the user explicitly supplies an existing version family.
+Derive one shared lowercase kebab-case `asset_slug` from the asset type, subject, and key distinguishing qualifiers.
+Use these default templates unless the user explicitly supplies an existing family to continue:
+- `request_id = <asset_slug>-request-v001`
+- `brief_id = <asset_slug>-brief-v001`
+- `prompt_id = <asset_slug>-prompt-v001`
+- `output_id = <asset_slug>-output-v001`
+- `file stem = <asset_slug>`
+- Do not shorten, restyle, or partially omit these identifier templates.
 If assumptions materially change, bump the version marker instead of silently reusing it.
 
 Use lowercase kebab-case or snake_case consistently.

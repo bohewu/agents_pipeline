@@ -28,6 +28,7 @@ Anything after that handoff stays outside this repo and outside the phase-2 scaf
 ## Shared Brief Model
 
 All phase-2 outputs should make these fields visible:
+- asset slug
 - asset type
 - style
 - size plan
@@ -42,6 +43,7 @@ All phase-2 outputs should make these fields visible:
 
 Style and size must always be explicit.
 If either is omitted in the request, surface a visible assumption instead of implying a hidden default.
+If a request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
 
 | Asset type | Canonical example | Size form |
 | --- | --- | --- |
@@ -55,6 +57,15 @@ If either is omitted in the request, surface a visible assumption instead of imp
 
 Keep request, brief, prompt, and suggested-output identifiers aligned on one visible version marker.
 Default to `v001` unless the request or project explicitly supplies an existing version family.
+Use one shared lowercase kebab-case `asset_slug` across the record set.
+Default templates:
+- `request_id = <asset_slug>-request-v001`
+- `brief_id = <asset_slug>-brief-v001`
+- `prompt_id = <asset_slug>-prompt-v001`
+- `output_id = <asset_slug>-output-v001`
+- `file stem = <asset_slug>`
+Prefix inferred values consistently with `Assumption:`.
+Do not shorten, restyle, or partially omit these identifier templates.
 If style, size, subject scope, palette target, or other material assumptions change, bump the version marker instead of silently reusing it.
 
 ## Suggested Outputs
