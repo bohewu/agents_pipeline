@@ -141,6 +141,7 @@ Use these default templates unless the user explicitly supplies an existing fami
 - `output_id = <asset_slug>-output-v001`
 - `file stem = <asset_slug>`
 - Do not shorten, restyle, or partially omit these identifier templates.
+- Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 If assumptions materially change, bump the version marker instead of silently reusing it.
 
 Use lowercase kebab-case or snake_case consistently.

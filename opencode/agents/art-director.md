@@ -38,6 +38,7 @@ Convert one raw 2D asset request into a concise phase-2 asset brief and reusable
   - `output_id`: `<asset_slug>-output-v001`
 - Use the same `asset_slug` as the default file-stem base.
 - Do not shorten, restyle, or partially omit these identifier templates.
+- Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 - Use conservative assumptions for background, palette, and viewpoint only when the request is underspecified, and label them as assumptions.
 - Prefix every inferred value consistently with `Assumption:`.
 - Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
@@ -92,7 +93,7 @@ Do not bold, rename, or restyle the field labels.
 - version_marker: `v001`
 - file stem: `<asset_slug>`
 - example filenames: ...
-- output folder structure: ...
+- output folder structure: relative path or short directory tree
 
 ## External Handoff Note (Optional)
 - optional non-operative note for future external generation or review handoff

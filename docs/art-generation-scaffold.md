@@ -66,6 +66,7 @@ Default templates:
 - `file stem = <asset_slug>`
 Prefix inferred values consistently with `Assumption:`.
 Do not shorten, restyle, or partially omit these identifier templates.
+Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 If style, size, subject scope, palette target, or other material assumptions change, bump the version marker instead of silently reusing it.
 
 ## Suggested Outputs

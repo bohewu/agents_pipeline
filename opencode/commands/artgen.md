@@ -34,9 +34,10 @@ $ARGUMENTS
   - `request_id = <asset_slug>-request-v001`
   - `brief_id = <asset_slug>-brief-v001`
   - `prompt_id = <asset_slug>-prompt-v001`
-  - `output_id = <asset_slug>-output-v001`
+- `output_id = <asset_slug>-output-v001`
 - Use the same `asset_slug` as the default file-stem base.
 - Do not shorten, restyle, or partially omit these identifier templates.
+- Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 - Prefix inferred fields consistently with `Assumption:`.
 - Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
 - For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in phase 2.
@@ -48,7 +49,7 @@ $ARGUMENTS
 - Request record: `request_id`, `asset_slug`, shared `v001`-style `version_marker`, asset type, style, and size input or size assumption.
 - Asset brief: `brief_id`, shared `v001`-style `version_marker`, subject, size plan, viewpoint, palette, and background guidance.
 - Reusable prompt: `prompt_id`, shared `v001`-style `version_marker`, and one reusable prompt with optional negatives.
-- Suggested outputs: `output_id`, shared `v001`-style `version_marker`, file stem based on `asset_slug`, example filenames, and output structure.
+- Suggested outputs: `output_id`, shared `v001`-style `version_marker`, file stem based on `asset_slug`, example filenames, and a relative folder path or short directory tree for the output structure.
 - Optional external handoff note: descriptive only; non-operative.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
