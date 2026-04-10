@@ -28,9 +28,12 @@ Convert one raw 2D asset request into a concise phase-2 asset brief and reusable
 - Make asset size explicit as a field or assumption. Use the asset-appropriate form such as canvas size, tile size, frame size, frame count, or output dimension guidance.
 - If size is omitted, surface the assumption clearly instead of implying a hidden default.
 - Keep request, brief, prompt, and suggested-output identifiers aligned with a shared visible version marker.
+- Use `v001`-style version markers by default unless the user explicitly requests or supplies an existing version family.
 - Use conservative assumptions for background, palette, and viewpoint only when the request is underspecified, and label them as assumptions.
 - For animations, keep palette and proportions consistent across frames.
+- For animations, suggest separate frame outputs only. Do not suggest sheets, atlases, packing, or spritesheet exports in phase 2.
 - For tilesets, call out required tile roles or coverage gaps when the request is underspecified.
+- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in phase 2.
 - The only allowed execution-aware addition is an optional non-operative external handoff note.
 - Do not claim to render images, create files, run tools, call Codex, call MCP servers, or execute a downstream pipeline.
 
@@ -40,7 +43,7 @@ Return concise Markdown with these sections:
 
 ## Request Record
 - request_id
-- version_marker
+- version_marker (`v001` style by default)
 - asset type
 - asset style
 - size input or stated size assumption
@@ -48,7 +51,7 @@ Return concise Markdown with these sections:
 
 ## Asset Brief
 - brief_id
-- version_marker
+- version_marker (`v001` style by default)
 - type
 - style
 - size plan
@@ -59,7 +62,7 @@ Return concise Markdown with these sections:
 
 ## Reusable Prompt
 - prompt_id
-- version_marker
+- version_marker (`v001` style by default)
 - one reusable image-generation prompt with explicit negatives when helpful
 
 ## Constraints
@@ -70,7 +73,7 @@ Return concise Markdown with these sections:
 
 ## Suggested Outputs
 - output_id
-- version_marker
+- version_marker (`v001` style by default)
 - file stem
 - example filenames
 - output folder structure

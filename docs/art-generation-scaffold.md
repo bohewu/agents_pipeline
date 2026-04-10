@@ -53,7 +53,8 @@ If either is omitted in the request, surface a visible assumption instead of imp
 
 ## Version-Marker Discipline
 
-Keep request, brief, prompt, and suggested-output identifiers aligned on one visible version marker such as `v1` or `v001`.
+Keep request, brief, prompt, and suggested-output identifiers aligned on one visible version marker.
+Default to `v001` unless the request or project explicitly supplies an existing version family.
 If style, size, subject scope, palette target, or other material assumptions change, bump the version marker instead of silently reusing it.
 
 ## Suggested Outputs
@@ -64,6 +65,12 @@ They should capture:
 - example filenames
 - output folder structure
 - any version-marker usage needed for traceability
+
+For animations, phase 2 suggested outputs should stay at separate frame files only.
+Do not introduce sheet, atlas, packing, or spritesheet output suggestions here.
+
+For tilesets, phase 2 suggested outputs should stay at separate tiles or small logical groups only.
+Do not introduce packed atlas outputs here.
 
 Raw candidates and approved exports stay outside this repo.
 

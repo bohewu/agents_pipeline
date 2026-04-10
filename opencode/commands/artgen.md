@@ -27,14 +27,17 @@ $ARGUMENTS
 - Make style explicit; if style is omitted, surface a visible assumption.
 - Make size explicit; if size is omitted in the request, surface a visible assumption instead of implying a hidden default.
 - Align request, brief, prompt, and suggested-output identifiers with a shared visible version marker.
+- Use `v001`-style version markers by default unless the request explicitly supplies an existing version family.
+- For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in phase 2.
+- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in phase 2.
 - The only allowed execution-aware addition is an optional non-operative external handoff note.
 
 ## Output contract
 
-- Request record: request identifier, shared version marker, asset type, style, and size input or size assumption.
-- Asset brief: brief identifier, shared version marker, subject, size plan, viewpoint, palette, and background guidance.
-- Reusable prompt: prompt identifier, shared version marker, and one reusable prompt with optional negatives.
-- Suggested outputs: output identifier, shared version marker, file stem, example filenames, and output structure.
+- Request record: request identifier, shared `v001`-style version marker, asset type, style, and size input or size assumption.
+- Asset brief: brief identifier, shared `v001`-style version marker, subject, size plan, viewpoint, palette, and background guidance.
+- Reusable prompt: prompt identifier, shared `v001`-style version marker, and one reusable prompt with optional negatives.
+- Suggested outputs: output identifier, shared `v001`-style version marker, file stem, example filenames, and output structure.
 - Optional external handoff note: descriptive only; non-operative.
 
 ## Examples

@@ -39,7 +39,7 @@ Return concise Markdown with these sections:
 
 ### Request Record
 - request_id
-- version_marker
+- version_marker (`v001` style by default)
 - asset type
 - asset style or visible style assumption
 - size input or visible size assumption
@@ -47,7 +47,7 @@ Return concise Markdown with these sections:
 
 ### Asset Brief
 - brief_id
-- version_marker
+- version_marker (`v001` style by default)
 - type
 - style
 - size plan
@@ -58,12 +58,12 @@ Return concise Markdown with these sections:
 
 ### Reusable Prompt
 - prompt_id
-- version_marker
+- version_marker (`v001` style by default)
 - one reusable image-generation prompt with optional negatives when helpful
 
 ### Suggested Outputs
 - output_id
-- version_marker
+- version_marker (`v001` style by default)
 - file stem
 - example filenames
 - output folder structure
@@ -122,7 +122,8 @@ When the request is for pixel art, keep the canonical profile explicit:
 
 ## Suggested Outputs and Version Discipline
 
-Keep request, brief, prompt, and suggested-output identifiers aligned with one visible version marker such as `v1` or `v001`.
+Keep request, brief, prompt, and suggested-output identifiers aligned with one visible version marker.
+Default to `v001` unless the user explicitly supplies an existing version family.
 If assumptions materially change, bump the version marker instead of silently reusing it.
 
 Use lowercase kebab-case or snake_case consistently.
@@ -132,6 +133,12 @@ Suggested patterns:
 - tileset tile: `<tileset-name>_<tile-role>_v001.png`
 - icon: `<asset-name>_<style>_v001.png`
 - UI element: `<asset-name>_<state>_v001.png`
+
+For animations, suggested outputs stay at separate frame files only in phase 2.
+Do not suggest spritesheets, atlases, packing, or sheet exports.
+
+For tilesets, suggested outputs stay at separate tiles or small logical groups only in phase 2.
+Do not suggest packed atlas outputs.
 
 Suggested outputs are documentation only.
 Raw files, generated candidates, and approved exports stay in the consuming project or an external workspace, not in this repo.
