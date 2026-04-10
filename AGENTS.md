@@ -37,7 +37,7 @@ Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Code
 | ux-judge | Final UX judge (scorecard/findings/priority actions) | subagent | hidden |
 | flow-splitter | Convert a Flow ProblemSpec into a max-5 bounded task list | subagent | hidden |
 | market-researcher | Research specialist for web-based market scans, pricing signals, and monetization benchmarks | subagent | hidden |
-| art-director | Convert raw pixel-art asset requests into concise phase-1 briefs and reusable prompts | subagent | hidden |
+| art-director | Convert raw 2D asset requests into concise briefs and reusable prompts | subagent | hidden |
 | executor | Execute one atomic task with bounded effort/verification settings | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |
 | peon | Low-cost executor for mechanical or repetitive tasks | subagent | hidden |
