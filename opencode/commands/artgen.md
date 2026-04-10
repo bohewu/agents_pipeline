@@ -1,5 +1,5 @@
 ---
-description: Generate a phase-2 2D asset brief and reusable prompt
+description: Generate a phase-3 2D asset brief, reusable prompt, and handoff package
 agent: art-director
 ---
 
@@ -16,7 +16,7 @@ $ARGUMENTS
 - Accept natural-language 2D asset requests for bounded adjacent assets such as sprites, animations, tilesets, icons, UI elements, and simple props.
 - Pixel art remains the canonical example profile, but `/artgen` is not limited to pixel-art-only wording.
 - If the request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
-- `/artgen` is spec/prompt generation only.
+- `/artgen` is spec/prompt generation plus formatting-oriented handoff packaging only.
 - Do not treat `/artgen` as image rendering, file creation, atlas packing, or pipeline execution.
 - Do not treat `/artgen` as calling Codex, MCP servers, image tools, or any downstream execution workflow.
 - Include:
@@ -25,6 +25,8 @@ $ARGUMENTS
   - reusable image-generation prompt
   - style, size, palette, and viewpoint constraints
   - suggested output naming and structure
+  - manual checks
+  - External Handoff Package as normal `/artgen` output
 - Make style explicit; if style is omitted, surface a visible assumption.
 - Make size explicit; if size is omitted in the request, surface a visible assumption instead of implying a hidden default.
 - Derive one shared lowercase kebab-case `asset_slug` from the asset type, subject, and key distinguishing qualifiers.
@@ -40,9 +42,11 @@ $ARGUMENTS
 - Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 - Prefix inferred fields consistently with `Assumption:`.
 - Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
-- For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in phase 2.
-- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in phase 2.
-- The only allowed execution-aware addition is an optional non-operative external handoff note.
+- For animations, keep suggested outputs at separate frame files only; do not suggest sheets, atlases, packing, or spritesheet exports in phase 3.
+- For tilesets, keep suggested outputs at separate tiles or small logical groups only; do not suggest packed atlas outputs in phase 3.
+- The External Handoff Package must stay generic, human-readable, and copy-ready by default.
+- If the user explicitly asks for Codex-oriented formatting, render the same External Handoff Package in that optional request-driven format on the same output surface.
+- Do not add helper commands, emitted-file promises, or execution-behavior claims to the External Handoff Package.
 
 ## Output contract
 
@@ -50,7 +54,9 @@ $ARGUMENTS
 - Asset brief: `brief_id`, shared `v001`-style `version_marker`, subject, size plan, viewpoint, palette, and background guidance.
 - Reusable prompt: `prompt_id`, shared `v001`-style `version_marker`, and one reusable prompt with optional negatives.
 - Suggested outputs: `output_id`, shared `v001`-style `version_marker`, file stem based on `asset_slug`, example filenames, and a relative folder path or short directory tree for the output structure.
-- Optional external handoff note: descriptive only; non-operative.
+- Manual checks: what a human should confirm before reusing the brief or prompt.
+- External Handoff Package: standard `/artgen` output that bundles the request record, asset brief, reusable prompt, suggested outputs, and manual checks into a generic, human-readable, copy-ready handoff.
+- Optional Codex-oriented formatting: only when explicitly requested, and only as a non-operative formatting variant of the same External Handoff Package on the same output surface.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
 ## Examples

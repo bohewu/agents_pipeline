@@ -35,7 +35,7 @@ See the **How To Use** section below for usage instructions.
 - `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
 - `COMPATIBILITY.md` for runtime and host-environment assumptions.
 - `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
-- `docs/art-generation-scaffold.md` for the phase-2 2D asset brief scaffold used by the repo-managed `2d-asset-brief` skill, `art-director`, and `/artgen`.
+- `docs/art-generation-scaffold.md` for the phase-3 bounded 2D asset brief/prompt scaffold and standardized External Handoff Package used by the repo-managed `2d-asset-brief` skill, `art-director`, and the normal `/artgen` surface for future external generation or review reference.
 
 ## Usage Prerequisites
 
