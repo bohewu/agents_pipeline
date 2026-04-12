@@ -34,6 +34,7 @@ $ARGUMENTS
   - `<output-dir>/<bundle-slug>.ui-ux-bundle.md`
 - Export mode is for repo-owned assets, not run-local pipeline artifacts.
 - Use this command for bounded conceptual outputs such as workflow framing, journey concepts, screen or surface maps, interaction guidance, and open questions.
+- Low-fi wireframes may use simple monospace ASCII sketches when that communicates the structure faster than prose.
 - Keep outputs conceptual-only:
   - no implementation-ready DevSpec, acceptance criteria, or test plans
   - no code generation, UI component code, or framework-specific implementation

@@ -58,6 +58,7 @@ Keep all nine sections present for the bounded v1 bundle.
 - describe low-fidelity screen or surface blocking
 - name key regions, hierarchy, and primary actions
 - keep output layout-oriented and intentionally rough
+- simple monospace ASCII sketches are welcome when they make the structure easier to review quickly
 - select from the bounded v1 conceptual template catalog in `../../protocols/UI_UX_WORKFLOW.md` when possible
 - explain template choice, layout direction, density, progressive disclosure, and cross-platform adaptation conceptually rather than as implementation detail
 

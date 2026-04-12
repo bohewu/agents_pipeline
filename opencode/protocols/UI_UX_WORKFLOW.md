@@ -94,6 +94,8 @@ For v1, a complete conceptual UI/UX handoff must enumerate these outputs in revi
 
 These outputs must stay conceptual and approval-oriented. They must not become implementation-ready layouts, component contracts, code-generation instructions, runtime automation, or full preview/editor behavior.
 
+For `low_fi_wireframes`, simple monospace text sketches are encouraged when they help reviewers see structure quickly. ASCII-style blocking with characters such as `*`, `-`, `|`, `+`, and boxed regions is valid as long as it stays rough and conceptual rather than pixel-precise.
+
 ### Required artifact classes and grouped v1 outputs
 
 Every durable bundle must include these conceptual artifact classes:
@@ -157,6 +159,7 @@ Use the v1 catalog as a bounded vocabulary for `low_fi_wireframes` and `mid_fi_d
 - Start with the smallest template that clearly supports the primary user goal.
 - Combine templates only when persistent framing or explicit state coverage is needed.
 - Name regions or slots rather than concrete components, pixel rules, or framework patterns.
+- For low-fi outputs, prefer quick structure-first sketches when helpful. Simple ASCII diagrams are valid and often preferable to verbose prose.
 - Record why the chosen template fits and which nearby alternative was rejected.
 - If no template fits cleanly, name the closest fit and the mismatch instead of inventing a detailed custom layout system.
 
