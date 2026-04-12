@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.7] - 2026-04-12
+
+### Added
+
+- Added the thin conceptual UI/UX layer with `/uiux`, the hidden `ui-ux-designer` subagent, `UI_UX_WORKFLOW.md`, and the versioned `ui-ux-bundle` schema/example bundle for bounded concept-first UI/UX work.
+- `/uiux` now supports repo-owned durable bundle export via `--output-dir=<path>`, writing paired `*.ui-ux-bundle.json` and `*.ui-ux-bundle.md` assets outside `.pipeline-output/` when requested.
+
+### Changed
+
+- The conceptual UI/UX workflow now explicitly supports rough low-fi ASCII/monospace wireframe sketches as a valid structure-first output format.
+- Local repo-owned conceptual UI/UX export assets under `output/` are now ignored by default so smoke tests and saved bundles do not clutter the worktree.
+
 ## [0.22.6] - 2026-04-10
 
 ### Changed
