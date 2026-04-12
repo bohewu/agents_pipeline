@@ -1,0 +1,566 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UiUxBundle",
+  "description": "Versioned conceptual UI/UX artifact bundle that pairs thin machine-readable payloads with required human-readable Markdown sections.",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "artifact_type",
+    "bundle_name",
+    "bundle_intent",
+    "source_of_truth_rule",
+    "paired_files",
+    "artifacts"
+  ],
+  "properties": {
+    "protocol_version": {
+      "$ref": "#/$defs/versionString"
+    },
+    "artifact_type": {
+      "type": "string",
+      "const": "ui-ux-bundle"
+    },
+    "bundle_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "bundle_intent": {
+      "type": "string",
+      "const": "conceptual-ui-ux"
+    },
+    "source_of_truth_rule": {
+      "type": "string",
+      "const": "json-bundle-is-canonical"
+    },
+    "paired_files": {
+      "type": "object",
+      "required": [
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "format",
+            "path_hint"
+          ],
+          "properties": {
+            "format": {
+              "type": "string",
+              "const": "json"
+            },
+            "path_hint": {
+              "type": "string",
+              "pattern": ".*\\.json$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "type": "object",
+          "required": [
+            "format",
+            "path_hint"
+          ],
+          "properties": {
+            "format": {
+              "type": "string",
+              "const": "markdown"
+            },
+            "path_hint": {
+              "type": "string",
+              "pattern": ".*\\.(md|markdown)$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "required": [
+        "surface",
+        "primary_user",
+        "design_goal"
+      ],
+      "properties": {
+        "surface": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "primary_user": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "design_goal": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "constraints": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "non_goals": {
+          "$ref": "#/$defs/stringArray"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "required": [
+        "assessment_summary",
+        "wireframe_selection",
+        "flow_summaries",
+        "prompt_export",
+        "thin_preview_handoff"
+      ],
+      "properties": {
+        "assessment_summary": {
+          "$ref": "#/$defs/assessmentArtifact"
+        },
+        "wireframe_selection": {
+          "$ref": "#/$defs/wireframeArtifact"
+        },
+        "flow_summaries": {
+          "$ref": "#/$defs/flowArtifact"
+        },
+        "prompt_export": {
+          "$ref": "#/$defs/promptExportArtifact"
+        },
+        "thin_preview_handoff": {
+          "$ref": "#/$defs/thinPreviewArtifact"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "versionString": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "nonEmptyStringArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/nonEmptyString"
+      }
+    },
+    "humanReadableSection": {
+      "type": "object",
+      "required": [
+        "format",
+        "section_heading",
+        "required_sections"
+      ],
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "markdown"
+        },
+        "section_heading": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "required_sections": {
+          "$ref": "#/$defs/nonEmptyStringArray"
+        },
+        "notes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      },
+      "additionalProperties": false
+    },
+    "recommendation": {
+      "type": "object",
+      "required": [
+        "id",
+        "summary",
+        "priority",
+        "rationale"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^rec-[a-z0-9._-]+$"
+        },
+        "summary": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["must", "should", "could"]
+        },
+        "rationale": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "expected_user_outcome": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layoutRegion": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "purpose"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9._-]+$"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "purpose": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "flowStep": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "intent"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^step-[a-z0-9._-]+$"
+        },
+        "label": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "intent": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
+    "flowSummary": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "actor",
+        "goal",
+        "steps"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^flow-[a-z0-9._-]+$"
+        },
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "actor": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "goal": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "entry_points": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/flowStep"
+          }
+        },
+        "states_covered": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "edge_cases": {
+          "$ref": "#/$defs/stringArray"
+        },
+        "handoff_notes": {
+          "$ref": "#/$defs/stringArray"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assessmentArtifact": {
+      "type": "object",
+      "required": [
+        "class_version",
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "class_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "problem_frame",
+            "recommendations"
+          ],
+          "properties": {
+            "problem_frame": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "recommendations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/recommendation"
+              }
+            },
+            "assumptions": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "open_questions": {
+              "$ref": "#/$defs/stringArray"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "$ref": "#/$defs/humanReadableSection"
+        }
+      },
+      "additionalProperties": false
+    },
+    "wireframeArtifact": {
+      "type": "object",
+      "required": [
+        "class_version",
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "class_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "surface",
+            "selected_template",
+            "layout_regions",
+            "selection_rationale"
+          ],
+          "properties": {
+            "surface": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "selected_template": {
+              "type": "object",
+              "required": [
+                "template_id",
+                "label",
+                "usage"
+              ],
+              "properties": {
+                "template_id": {
+                  "type": "string",
+                  "pattern": "^wf-[a-z0-9._-]+$"
+                },
+                "label": {
+                  "$ref": "#/$defs/nonEmptyString"
+                },
+                "usage": {
+                  "$ref": "#/$defs/nonEmptyString"
+                },
+                "interaction_density": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high"]
+                }
+              },
+              "additionalProperties": false
+            },
+            "layout_regions": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/layoutRegion"
+              }
+            },
+            "selection_rationale": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "alternatives_considered": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "interaction_notes": {
+              "$ref": "#/$defs/stringArray"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "$ref": "#/$defs/humanReadableSection"
+        }
+      },
+      "additionalProperties": false
+    },
+    "flowArtifact": {
+      "type": "object",
+      "required": [
+        "class_version",
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "class_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "flows"
+          ],
+          "properties": {
+            "primary_flow_id": {
+              "type": "string",
+              "pattern": "^flow-[a-z0-9._-]+$"
+            },
+            "flows": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/flowSummary"
+              }
+            },
+            "cross_flow_notes": {
+              "$ref": "#/$defs/stringArray"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "$ref": "#/$defs/humanReadableSection"
+        }
+      },
+      "additionalProperties": false
+    },
+    "promptExportArtifact": {
+      "type": "object",
+      "required": [
+        "class_version",
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "class_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "export_target",
+            "prompt_format",
+            "prompt_text",
+            "must_include"
+          ],
+          "properties": {
+            "export_target": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "prompt_format": {
+              "type": "string",
+              "enum": ["markdown", "plain-text"]
+            },
+            "prompt_text": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "input_artifacts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "assessment_summary",
+                  "wireframe_selection",
+                  "flow_summaries"
+                ]
+              }
+            },
+            "must_include": {
+              "$ref": "#/$defs/nonEmptyStringArray"
+            },
+            "must_avoid": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "handoff_notes": {
+              "$ref": "#/$defs/stringArray"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "$ref": "#/$defs/humanReadableSection"
+        }
+      },
+      "additionalProperties": false
+    },
+    "thinPreviewArtifact": {
+      "type": "object",
+      "required": [
+        "class_version",
+        "machine_readable",
+        "human_readable"
+      ],
+      "properties": {
+        "class_version": {
+          "$ref": "#/$defs/versionString"
+        },
+        "machine_readable": {
+          "type": "object",
+          "required": [
+            "handoff_mode",
+            "surface",
+            "states",
+            "read_only_constraints",
+            "non_goals"
+          ],
+          "properties": {
+            "handoff_mode": {
+              "type": "string",
+              "const": "thin-read-only-preview"
+            },
+            "surface": {
+              "$ref": "#/$defs/nonEmptyString"
+            },
+            "states": {
+              "$ref": "#/$defs/nonEmptyStringArray"
+            },
+            "read_only_constraints": {
+              "$ref": "#/$defs/nonEmptyStringArray"
+            },
+            "required_annotations": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "non_goals": {
+              "$ref": "#/$defs/nonEmptyStringArray"
+            },
+            "visualization_notes": {
+              "$ref": "#/$defs/stringArray"
+            }
+          },
+          "additionalProperties": false
+        },
+        "human_readable": {
+          "$ref": "#/$defs/humanReadableSection"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

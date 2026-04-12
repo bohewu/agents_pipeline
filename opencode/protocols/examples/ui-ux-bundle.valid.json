@@ -1,0 +1,309 @@
+{
+  "protocol_version": "1.0",
+  "artifact_type": "ui-ux-bundle",
+  "bundle_name": "Workspace onboarding checklist concept",
+  "bundle_intent": "conceptual-ui-ux",
+  "source_of_truth_rule": "json-bundle-is-canonical",
+  "paired_files": {
+    "machine_readable": {
+      "format": "json",
+      "path_hint": "ui-ux-bundle.json"
+    },
+    "human_readable": {
+      "format": "markdown",
+      "path_hint": "ui-ux-bundle.md"
+    }
+  },
+  "context": {
+    "surface": "Workspace onboarding checklist inside the existing dashboard shell",
+    "primary_user": "first-time workspace admin",
+    "design_goal": "Help a new admin finish the first critical setup steps without feeling lost or overcommitted.",
+    "constraints": [
+      "Keep the concept inside the current dashboard shell instead of creating a full-screen wizard.",
+      "Stay low fidelity and approval oriented rather than implementation ready."
+    ],
+    "non_goals": [
+      "No component-level engineering contract.",
+      "No editable prototype or preview editor scope."
+    ]
+  },
+  "artifacts": {
+    "assessment_summary": {
+      "class_version": "1.0",
+      "machine_readable": {
+        "problem_frame": "New workspace admins land on a sparse dashboard and do not know which setup step matters first, which creates hesitation and setup abandonment.",
+        "recommendations": [
+          {
+            "id": "rec-anchor-next-step",
+            "summary": "Anchor the first required setup action above the fold.",
+            "priority": "must",
+            "rationale": "A single clear next step reduces scanning and decision fatigue during first-run setup.",
+            "expected_user_outcome": "Admins can begin setup immediately without exploring unrelated dashboard areas."
+          },
+          {
+            "id": "rec-stage-trust-signals",
+            "summary": "Distinguish required versus optional steps with trust-building copy.",
+            "priority": "should",
+            "rationale": "Users are more likely to continue when they know what can be deferred and what is reversible.",
+            "expected_user_outcome": "Admins feel safer completing billing and invite steps because the flow communicates consequences clearly."
+          }
+        ],
+        "assumptions": [
+          "The dashboard shell and navigation already exist.",
+          "The checklist is a conceptual addition, not a new standalone product area."
+        ],
+        "open_questions": [
+          "Should billing appear before teammate invites for every workspace type?",
+          "What trust copy is legally acceptable around trial conversion timing?"
+        ]
+      },
+      "human_readable": {
+        "format": "markdown",
+        "section_heading": "Assessment Summary",
+        "required_sections": [
+          "Context",
+          "Recommendations",
+          "Assumptions",
+          "Open Questions"
+        ],
+        "notes": [
+          "The Markdown copy may expand on recommendation trade-offs, but it should preserve recommendation ids and priorities."
+        ]
+      }
+    },
+    "wireframe_selection": {
+      "class_version": "1.0",
+      "machine_readable": {
+        "surface": "Onboarding checklist embedded in the dashboard overview page",
+        "selected_template": {
+          "template_id": "wf-checklist-split-panel",
+          "label": "Checklist plus supporting detail panel",
+          "usage": "Use a left-side ordered checklist and a right-side detail panel for the currently selected step.",
+          "interaction_density": "low"
+        },
+        "layout_regions": [
+          {
+            "id": "setup-header",
+            "label": "Setup header",
+            "purpose": "Clarify the setup goal and reinforce the primary next action."
+          },
+          {
+            "id": "checklist-column",
+            "label": "Checklist column",
+            "purpose": "Show ordered setup steps with status, optionality, and lightweight progress cues."
+          },
+          {
+            "id": "detail-panel",
+            "label": "Detail panel",
+            "purpose": "Explain what happens next before the admin commits to the selected step."
+          }
+        ],
+        "selection_rationale": "The split-panel template keeps setup context visible while avoiding modal hopping and preserving a low-fidelity planning shape.",
+        "alternatives_considered": [
+          "Full-screen setup wizard",
+          "Single-card dashboard nudge without persistent checklist context"
+        ],
+        "interaction_notes": [
+          "Keep each checklist item scannable in one line.",
+          "Avoid hidden rules for when a step becomes complete."
+        ]
+      },
+      "human_readable": {
+        "format": "markdown",
+        "section_heading": "Low-Fi Wireframes / Mid-Fi Design Drafts",
+        "required_sections": [
+          "Low-Fi Wireframes",
+          "Mid-Fi Design Drafts",
+          "Selected Direction",
+          "Named Regions",
+          "Why This Template",
+          "Alternatives Considered"
+        ],
+        "notes": [
+          "Expose the grouped v1 outputs as named Markdown subsections under this artifact class."
+        ]
+      }
+    },
+    "flow_summaries": {
+      "class_version": "1.0",
+      "machine_readable": {
+        "primary_flow_id": "flow-complete-initial-setup",
+        "flows": [
+          {
+            "id": "flow-complete-initial-setup",
+            "name": "Admin completes the initial setup path",
+            "actor": "first-time workspace admin",
+            "goal": "Reach an invited-and-billable workspace state without losing orientation.",
+            "entry_points": [
+              "Fresh dashboard visit after workspace creation"
+            ],
+            "steps": [
+              {
+                "id": "step-see-next-step",
+                "label": "See the recommended first step",
+                "intent": "Orient the admin immediately with one primary action."
+              },
+              {
+                "id": "step-review-step-detail",
+                "label": "Review why the step matters",
+                "intent": "Set expectations before the admin commits."
+              },
+              {
+                "id": "step-complete-current-step",
+                "label": "Complete the selected setup step",
+                "intent": "Move setup forward without losing place in the checklist."
+              },
+              {
+                "id": "step-continue-to-next-step",
+                "label": "Return to the checklist with updated status",
+                "intent": "Preserve momentum into the next suggested action."
+              }
+            ],
+            "states_covered": [
+              "First-visit empty setup state",
+              "Checklist with an in-progress required step",
+              "Completed step with the next recommendation surfaced"
+            ],
+            "edge_cases": [
+              "Admin defers billing for now",
+              "Invite action fails because the teammate already has a pending invite"
+            ]
+          },
+          {
+            "id": "flow-defer-noncritical-step",
+            "name": "Admin defers an optional step",
+            "actor": "time-constrained workspace admin",
+            "goal": "Leave setup without feeling blocked or punished.",
+            "entry_points": [
+              "Optional checklist item is opened from the dashboard"
+            ],
+            "steps": [
+              {
+                "id": "step-open-optional-step",
+                "label": "Open an optional step",
+                "intent": "Understand what the optional action would do."
+              },
+              {
+                "id": "step-defer-with-confidence",
+                "label": "Defer the optional step",
+                "intent": "Allow the admin to continue without feeling blocked."
+              },
+              {
+                "id": "step-resume-dashboard",
+                "label": "Resume the checklist",
+                "intent": "Return attention to the next required action."
+              }
+            ],
+            "states_covered": [
+              "Optional step deferred",
+              "Dashboard resumes with a lightweight reminder"
+            ],
+            "handoff_notes": [
+              "Optional steps should never obscure the primary required action."
+            ]
+          }
+        ],
+        "cross_flow_notes": [
+          "The checklist should preserve place when the admin leaves and returns later."
+        ]
+      },
+      "human_readable": {
+        "format": "markdown",
+        "section_heading": "User Flow / Data Flow / Operation Flow / State Transitions",
+        "required_sections": [
+          "User Flow",
+          "Data Flow",
+          "Operation Flow",
+          "State Transitions",
+          "Primary Flow",
+          "Alternate Flow",
+          "States Covered",
+          "Edge Cases"
+        ],
+        "notes": [
+          "Expose the grouped v1 outputs as named Markdown subsections under this artifact class."
+        ]
+      }
+    },
+    "prompt_export": {
+      "class_version": "1.0",
+      "machine_readable": {
+        "export_target": "Human designer or low-fidelity mock generator",
+        "prompt_format": "markdown",
+        "prompt_text": "Design a low-fidelity concept for a workspace onboarding checklist that lives inside an existing dashboard shell. Show one clearly recommended first action, distinguish required and optional steps, and keep the layout to a checklist column plus a supporting detail panel. Preserve trust-building copy near billing-related actions. Do not produce implementation-ready components, editable preview controls, or framework-specific instructions.",
+        "input_artifacts": [
+          "assessment_summary",
+          "wireframe_selection",
+          "flow_summaries"
+        ],
+        "must_include": [
+          "A split checklist and detail-panel layout",
+          "One primary next-step call to action",
+          "Clear labeling for required versus optional steps"
+        ],
+        "must_avoid": [
+          "Pixel-perfect component tokens",
+          "Editable preview behaviors",
+          "Implementation-specific framework details"
+        ],
+        "handoff_notes": [
+          "Keep the result concept-approval oriented.",
+          "Annotated grayscale wireframe output is sufficient."
+        ]
+      },
+      "human_readable": {
+        "format": "markdown",
+        "section_heading": "Prompt Export",
+        "required_sections": [
+          "Target",
+          "Prompt",
+          "Must Include",
+          "Must Avoid"
+        ],
+        "notes": [
+          "The Markdown bundle may repeat the full prompt verbatim for easy copy/paste reuse."
+        ]
+      }
+    },
+    "thin_preview_handoff": {
+      "class_version": "1.0",
+      "machine_readable": {
+        "handoff_mode": "thin-read-only-preview",
+        "surface": "Workspace onboarding checklist preview",
+        "states": [
+          "Default first-visit state",
+          "After the first required step completes",
+          "Optional step deferred state"
+        ],
+        "read_only_constraints": [
+          "The preview must be read-only and may rely on static placeholder content.",
+          "Do not expose editing controls, persistence, or live service integrations."
+        ],
+        "required_annotations": [
+          "Mark the primary next-step CTA.",
+          "Label which checklist items are required versus optional.",
+          "Call out trust copy near billing-related actions."
+        ],
+        "non_goals": [
+          "No editor contract for rearranging checklist items.",
+          "No implementation-ready API or component schema.",
+          "No live data wiring or runtime behavior promises."
+        ],
+        "visualization_notes": [
+          "One main screen plus two annotated state variations is enough.",
+          "Static notes are preferred over interactive controls."
+        ]
+      },
+      "human_readable": {
+        "format": "markdown",
+        "section_heading": "Thin Preview Handoff",
+        "required_sections": [
+          "Preview Goal",
+          "States to Show",
+          "Read-Only Constraints",
+          "Non-Goals"
+        ]
+      }
+    }
+  }
+}

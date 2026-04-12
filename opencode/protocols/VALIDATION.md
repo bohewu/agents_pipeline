@@ -15,6 +15,18 @@ These gates define minimal acceptance for each stage output.
 - Each scenario must include non-empty `given`, `when`, and `then` steps.
 - `test_plan.test_cases` must be non-empty so the spec stays executable.
 
+## UI/UX Artifact Bundle Gate (Optional)
+
+- If `ui-ux-bundle.json` is emitted, it must validate against `./protocols/schemas/ui-ux-bundle.schema.json`.
+- `artifact_type` must be `ui-ux-bundle` and `source_of_truth_rule` must keep the JSON bundle canonical.
+- The bundle must include `assessment_summary`, `wireframe_selection`, `flow_summaries`, `prompt_export`, and `thin_preview_handoff`.
+- Each artifact class must include both `machine_readable` and `human_readable` payloads.
+- Human-readable pairings must remain Markdown-oriented and must map cleanly to stable bundle sections.
+- `thin_preview_handoff.machine_readable.handoff_mode` must remain `thin-read-only-preview`; editable preview/editor contracts are out of scope for this workflow.
+- The contract stays conceptual: implementation-ready component APIs, runtime automation, and provider/model configuration must not be introduced under this schema.
+- Reference positive fixture: `./protocols/examples/ui-ux-bundle.valid.json`.
+- This task registers the contract and fixture only; adding CI enforcement or a dedicated validation harness is future work.
+
 ## Plan Gate
 
 - `milestones` must be present.

@@ -7,6 +7,7 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/problem-spec.schema.json` | ProblemSpec | specifier | Requirements only |
 | `./protocols/schemas/flow-task-list.schema.json` | FlowTaskList | flow-splitter / orchestrator-flow | Max-5 bounded Flow tasks |
 | `./protocols/schemas/dev-spec.schema.json` | DevSpec (optional) | specifier / orchestrator-spec / future spec-focused stage | Human-readable + pipeline-consumable development spec |
+| `./protocols/schemas/ui-ux-bundle.schema.json` | UiUxBundle (optional conceptual artifact) | `/uiux` / `ui-ux-designer` / doc-writer | Versioned conceptual UI/UX bundle; JSON is canonical when paired Markdown exists |
 | `./protocols/schemas/plan-outline.schema.json` | PlanOutline | planner | High-level plan |
 | `./protocols/schemas/repo-findings.schema.json` | RepoFindings | repo-scout | Discovery and risks |
 | `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with optional `trace_ids` |
@@ -31,3 +32,8 @@ All JSON outputs must conform to these schemas.
 - Negative contract fixture set: `./protocols/examples/status-layout.contract.invalid/`
 
 Repository validation and CI must validate the positive fixtures against the matching status schemas and must confirm the negative fixture files fail for the intended contract violations.
+
+## UI/UX contract fixture
+
+- Positive conceptual artifact fixture: `./protocols/examples/ui-ux-bundle.valid.json`
+- This fixture is a reference example for the `UiUxBundle` schema and the paired Markdown-first workflow described in `./protocols/UI_UX_WORKFLOW.md`.

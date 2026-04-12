@@ -16,6 +16,7 @@ See the **How To Use** section below for usage instructions.
 - [VS Code Copilot Agents](#vs-code-copilot-agents)
 - [Claude Code Subagents](#claude-code-subagents)
 - [Codex Agent Roles](#codex-agent-roles)
+- [Conceptual UI/UX Layer](#conceptual-uiux-layer)
 - [Protocol Validation](#protocol-validation)
 - [Config Example](#config-example)
 - [Flags](#flags)
@@ -36,6 +37,7 @@ See the **How To Use** section below for usage instructions.
 - `COMPATIBILITY.md` for runtime and host-environment assumptions.
 - `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
 - `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, and Direct Use Prompt used by the repo-managed `2d-asset-brief` skill, `art-director`, and the normal `/artgen` surface for future external generation or review reference.
+- `opencode/protocols/UI_UX_WORKFLOW.md` for the thin conceptual UI/UX layer, non-expert design/interaction guidance, intake/review rubric, and the `ui-ux-bundle` schema/example bundle used by `/uiux`, `ui-ux-designer`, and the repo-managed `ui-ux-workflow` skill.
 
 ## Usage Prerequisites
 
@@ -393,6 +395,9 @@ Most users should use the published release bundle commands in `Install (Recomme
 - Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
 - Use `/run-general` in `opencode/commands/run-general.md` for non-coding general-purpose workflows (planning/writing/analysis/checklists)
 - Use `/run-ux` in `opencode/commands/run-ux.md` for profile-aware UX audits and normal-user scorecards.
+- Use `/uiux` in `opencode/commands/uiux.md` for the thin conceptual UI/UX layer routed directly to the hidden subagent `opencode/agents/ui-ux-designer.md`.
+- Use `opencode/protocols/UI_UX_WORKFLOW.md` plus `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json` for the conceptual UI/UX protocol and durable bundle contract.
+- Use the repo-managed `opencode/skills/ui-ux-workflow/SKILL.md` for the same bounded conceptual workflow in skill form.
 - Use the repo-managed `devtools-ux-audit` skill for Chrome DevTools browser evidence collection. Installers mirror it into `~/.agents/skills` as the global baseline and `~/.claude/skills` as a compatibility mirror.
 - Use `/skill-list` to inspect installed skills or browse curated catalogs.
 - Use `/skill-search` to search installed skills plus curated catalogs.
@@ -666,6 +671,30 @@ Modernization work:
 Even if a runtime can do same-session cross-repo delegation, a fresh target-project session remains the recommended continuation path for modernization follow-up work.
 
 </details>
+
+## Conceptual UI/UX Layer
+
+Use this thin layer when you need conceptual UI/UX direction before implementation-ready spec work or after `/run-ux` findings need a bounded redesign pass.
+
+- Entry command: `/uiux` in `opencode/commands/uiux.md`
+- Hidden subagent: `ui-ux-designer` in `opencode/agents/ui-ux-designer.md`
+- Protocol, non-expert guidance, and intake/review rubric: `opencode/protocols/UI_UX_WORKFLOW.md`
+- Contract bundle schema: `opencode/protocols/schemas/ui-ux-bundle.schema.json`
+- Valid example bundle: `opencode/protocols/examples/ui-ux-bundle.valid.json`
+- Repo-managed skill: `opencode/skills/ui-ux-workflow/SKILL.md`
+
+Use `/uiux` for conceptual assessments, low-fi wireframes, mid-fi drafts, flows, prompt export, and thin read-only preview handoffs. Use `/run-ux` for audits, `/run-spec` for implementation-ready specs, and `/artgen` for bounded 2D asset briefs.
+
+If you want repo-owned export assets instead of inline-only output, pass `--output-dir=<path>`. Example:
+
+```text
+/uiux Concept a privacy settings refactor for a desktop app --output-dir=output/uiux/
+```
+
+This writes a paired durable bundle under the selected repo path:
+
+- `<output-dir>/<bundle-slug>.ui-ux-bundle.json`
+- `<output-dir>/<bundle-slug>.ui-ux-bundle.md`
 
 ## Protocol Validation
 
