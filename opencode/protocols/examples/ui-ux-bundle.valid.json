@@ -25,6 +25,11 @@
     "non_goals": [
       "No component-level engineering contract.",
       "No editable prototype or preview editor scope."
+    ],
+    "communication_focus": [
+      "What should I do first?",
+      "What can I safely defer?",
+      "What happens if I start a setup step now?"
     ]
   },
   "artifacts": {
@@ -32,6 +37,12 @@
       "class_version": "1.0",
       "machine_readable": {
         "problem_frame": "New workspace admins land on a sparse dashboard and do not know which setup step matters first, which creates hesitation and setup abandonment.",
+        "top_user_questions": [
+          "What is the first thing I should do?",
+          "Which setup steps are required versus optional?",
+          "What will happen if I start this step now?"
+        ],
+        "human_explanation": "Start with the first required setup step below. We will show what each step does before you commit, and you can defer optional tasks until later.",
         "recommendations": [
           {
             "id": "rec-anchor-next-step",
@@ -62,6 +73,8 @@
         "section_heading": "Assessment Summary",
         "required_sections": [
           "Context",
+          "Top User Questions",
+          "Human-to-Human Explanation",
           "Recommendations",
           "Assumptions",
           "Open Questions"
@@ -106,6 +119,37 @@
         "interaction_notes": [
           "Keep each checklist item scannable in one line.",
           "Avoid hidden rules for when a step becomes complete."
+        ],
+        "communication_notes": [
+          "The setup header should explain what the checklist is for and why it matters now.",
+          "The detail panel should answer what happens next before the admin commits to the selected step.",
+          "Billing-related actions should keep trust copy visible near the decision point."
+        ],
+        "microcopy_rewrites": [
+          {
+            "surface_or_region": "setup-header",
+            "slot": "main instruction",
+            "guidance": "Make the first required step and the benefit of starting now obvious.",
+            "example_text": "Finish your workspace setup by starting the first required step below."
+          },
+          {
+            "surface_or_region": "checklist-column",
+            "slot": "step status label",
+            "guidance": "Clearly distinguish required steps from optional steps without sounding punitive.",
+            "example_text": "Required next"
+          },
+          {
+            "surface_or_region": "detail-panel",
+            "slot": "cta",
+            "guidance": "State the action and imply what happens next.",
+            "example_text": "Start billing setup"
+          },
+          {
+            "surface_or_region": "detail-panel",
+            "slot": "helper text",
+            "guidance": "Explain reversibility or defer-ability near trust-sensitive actions.",
+            "example_text": "You can come back to optional steps later."
+          }
         ]
       },
       "human_readable": {
@@ -116,6 +160,8 @@
           "Mid-Fi Design Drafts",
           "Selected Direction",
           "Named Regions",
+          "Communication Notes",
+          "Microcopy Rewrite",
           "Why This Template",
           "Alternatives Considered"
         ],
@@ -141,22 +187,33 @@
               {
                 "id": "step-see-next-step",
                 "label": "See the recommended first step",
-                "intent": "Orient the admin immediately with one primary action."
+                "intent": "Orient the admin immediately with one primary action.",
+                "user_decision": "Decide whether to start the recommended setup task now.",
+                "system_response": "Show one clearly recommended next step, why it matters, and whether it is required.",
+                "commit_point": false
               },
               {
                 "id": "step-review-step-detail",
                 "label": "Review why the step matters",
-                "intent": "Set expectations before the admin commits."
+                "intent": "Set expectations before the admin commits.",
+                "user_decision": "Decide whether to proceed, defer, or learn more.",
+                "system_response": "Explain what the step changes, whether it is reversible, and what the next state will be.",
+                "commit_point": false
               },
               {
                 "id": "step-complete-current-step",
                 "label": "Complete the selected setup step",
-                "intent": "Move setup forward without losing place in the checklist."
+                "intent": "Move setup forward without losing place in the checklist.",
+                "user_decision": "Confirm the chosen action and complete the current step.",
+                "system_response": "Preserve orientation, show completion feedback, and surface the next recommended step.",
+                "commit_point": true
               },
               {
                 "id": "step-continue-to-next-step",
                 "label": "Return to the checklist with updated status",
-                "intent": "Preserve momentum into the next suggested action."
+                "intent": "Preserve momentum into the next suggested action.",
+                "system_response": "Update progress status and keep the next required action easy to find.",
+                "commit_point": false
               }
             ],
             "states_covered": [
@@ -181,17 +238,25 @@
               {
                 "id": "step-open-optional-step",
                 "label": "Open an optional step",
-                "intent": "Understand what the optional action would do."
+                "intent": "Understand what the optional action would do.",
+                "user_decision": "Decide whether the optional task is worth doing now.",
+                "system_response": "Clarify the benefit of the optional step without making it feel blocking.",
+                "commit_point": false
               },
               {
                 "id": "step-defer-with-confidence",
                 "label": "Defer the optional step",
-                "intent": "Allow the admin to continue without feeling blocked."
+                "intent": "Allow the admin to continue without feeling blocked.",
+                "user_decision": "Choose to skip this step for now.",
+                "system_response": "Confirm that deferring is allowed and keep the next required action visible.",
+                "commit_point": false
               },
               {
                 "id": "step-resume-dashboard",
                 "label": "Resume the checklist",
-                "intent": "Return attention to the next required action."
+                "intent": "Return attention to the next required action.",
+                "system_response": "Restore checklist context and avoid punishing the defer decision.",
+                "commit_point": false
               }
             ],
             "states_covered": [
@@ -212,6 +277,7 @@
         "section_heading": "User Flow / Data Flow / Operation Flow / State Transitions",
         "required_sections": [
           "User Flow",
+          "Revised Task Flow",
           "Data Flow",
           "Operation Flow",
           "State Transitions",
@@ -230,7 +296,7 @@
       "machine_readable": {
         "export_target": "Human designer or low-fidelity mock generator",
         "prompt_format": "markdown",
-        "prompt_text": "Design a low-fidelity concept for a workspace onboarding checklist that lives inside an existing dashboard shell. Show one clearly recommended first action, distinguish required and optional steps, and keep the layout to a checklist column plus a supporting detail panel. Preserve trust-building copy near billing-related actions. Do not produce implementation-ready components, editable preview controls, or framework-specific instructions.",
+        "prompt_text": "Design a low-fidelity concept for a workspace onboarding checklist that lives inside an existing dashboard shell. Treat the experience as a conversation with a first-time admin: make the first action obvious, distinguish required and optional steps, and explain what happens next before each commitment. Keep the layout to a checklist column plus a supporting detail panel. Preserve trust-building copy near billing-related actions. Do not produce implementation-ready components, editable preview controls, or framework-specific instructions.",
         "input_artifacts": [
           "assessment_summary",
           "wireframe_selection",

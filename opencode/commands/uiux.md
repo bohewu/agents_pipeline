@@ -1,5 +1,5 @@
 ---
-description: Generate a conceptual UI/UX workflow brief and low-fidelity handoff
+description: Generate a conceptual UI/UX workflow brief or communication-first redesign handoff
 agent: ui-ux-designer
 ---
 
@@ -33,7 +33,8 @@ $ARGUMENTS
   - `<output-dir>/<bundle-slug>.ui-ux-bundle.json`
   - `<output-dir>/<bundle-slug>.ui-ux-bundle.md`
 - Export mode is for repo-owned assets, not run-local pipeline artifacts.
-- Use this command for bounded conceptual outputs such as workflow framing, journey concepts, screen or surface maps, interaction guidance, and open questions.
+- Use this command for bounded conceptual outputs such as workflow framing, journey concepts, screen or surface maps, interaction guidance, communication-first rewrites, and open questions.
+- For communication-first critique or rewrite requests, use the companion repo-managed skill `opencode/skills/ui-communication-designer/SKILL.md` as the framing lens: what the interface must communicate, what the user most needs to know, a short human-to-human explanation, revised task flow, targeted microcopy rewrites, screen and copy changes, and prioritized fixes.
 - Low-fi wireframes may use simple monospace ASCII sketches when that communicates the structure faster than prose.
 - Keep outputs conceptual-only:
   - no implementation-ready DevSpec, acceptance criteria, or test plans
@@ -50,7 +51,9 @@ $ARGUMENTS
 - Concept direction
 - Workflow outline
 - Screen or surface concepts
-- Interaction and copy notes
+- Interaction, communication, and copy notes
+- Top user questions, a short human-to-human explanation, a revised task flow, and targeted microcopy rewrites when the request is communication-first
+- Priority fixes when the request is critique-heavy
 - Open questions or assumptions
 - Suggested next handoff (`/run-ux`, `/run-spec`, `/artgen`, or none)
 - In export mode, also write the paired `ui-ux-bundle` JSON/Markdown assets and report the written file paths.
@@ -61,6 +64,7 @@ $ARGUMENTS
 /uiux Concept a first-run onboarding flow for a privacy-focused desktop app
 /uiux Reframe our billing settings information architecture for admins and end users
 /uiux Turn these /run-ux findings into a conceptual checkout-flow rewrite
+/uiux Rewrite this onboarding flow with a communication-first lens so users understand what happens next
 /uiux Outline a low-fidelity lobby and ready-check experience for a co-op game
 /uiux Concept a privacy settings refactor for a desktop app --output-dir=output/uiux/
 ```

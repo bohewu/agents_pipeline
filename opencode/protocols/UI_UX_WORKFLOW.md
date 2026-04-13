@@ -7,6 +7,7 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 ## Repo Fit
 
 - Use this workflow when the user needs conceptual UI/UX direction for one bounded experience, workflow, or surface.
+- Use the same workflow when the request is mainly a communication-first redesign or critique about task clarity, labels, instructions, trust, or confusing next steps.
 - The workflow sits between raw product intent and later execution-oriented paths:
   - before `/run-spec` when concepts need approval before implementation-ready specs
   - after `/run-ux` when audit findings need conceptual follow-up
@@ -22,6 +23,7 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 - user and journey framing
 - low-fidelity workflow steps and screen or surface maps
 - interaction principles, state coverage prompts, and copy or trust guidance
+- communication-first critique or rewrite for one workflow or screen
 - assumptions, open questions, and next-step handoff notes
 
 ### Out of scope
@@ -31,6 +33,26 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 - high-fidelity visual comps, rendered previews, interactive prototypes, or full preview/editor scope
 - browser-backed audits or runtime automation
 - provider or model selection behavior
+
+## Communication-First Overlay
+
+Use this overlay when the request is mostly about:
+
+- what the interface needs to make clear
+- what the user is likely asking or hesitating about
+- unclear labels, instructions, or navigation
+- trust-sensitive task framing
+- rewriting existing audit findings into a clearer conceptual flow
+
+For these requests, keep the work inside `/uiux` and frame the concept as a conversation between the system and the user. The output should explicitly cover:
+
+- the top user questions the interface must answer
+- a short human-to-human explanation of the task
+- a revised task flow that captures what the user decides and what the system needs to say or show
+- a targeted microcopy rewrite set for the highest-risk or highest-friction text
+- communication priorities for screens, sections, and microcopy
+
+Do not create a second UI/UX command or a new orchestrator for this overlay.
 
 ## Reuse Points
 
@@ -44,6 +66,11 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 - Reuse the docs-first posture and explicit handoff boundary between concept work and implementation-ready specification.
 - Approved conceptual output from `/uiux` can later become input for `/run-spec`.
 
+### Reuse from the companion communication-first skill
+
+- Reuse the task-language critique, top-user-question framing, short human-to-human explanation, and screen-level messaging responsibilities from `../skills/ui-communication-designer/SKILL.md`.
+- Keep that lens inside the same bounded conceptual workflow instead of turning it into a separate surface.
+
 ### Reuse from `/artgen`
 
 - Reuse the thin command-to-hidden-subagent pattern instead of introducing orchestration overhead.
@@ -54,9 +81,10 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 
 1. User enters a conceptual UI/UX request through `/uiux`.
 2. `@ui-ux-designer` returns a bounded concept brief for the primary workflow or surface.
-3. If the user really needs evaluation of an existing experience, redirect or hand off to `/run-ux`.
-4. If the concept is approved and needs implementation-ready specification, hand off to `/run-spec`.
-5. If supporting 2D assets are needed, use `/artgen` separately for those asset briefs.
+3. For communication-first requests, the concept brief also calls out top user questions, a short human-to-human explanation, and the revised task flow and screen messaging implications.
+4. If the user really needs evaluation of an existing experience, redirect or hand off to `/run-ux`.
+5. If the concept is approved and needs implementation-ready specification, hand off to `/run-spec`.
+6. If supporting 2D assets are needed, use `/artgen` separately for those asset briefs.
 
 ## Versioned Artifact Contract Bundle
 
@@ -77,6 +105,23 @@ Reference contract files in this repo:
 - Both forms must be derived from the same source content and kept in sync.
 - If review changes are made in Markdown, the JSON must be updated before the bundle is considered complete.
 - Markdown-only output is still acceptable for early exploration, but it is not the durable versioned contract for later tooling or handoff.
+
+### Communication-first additive fields
+
+Communication-first redesign work still uses the same `ui-ux-bundle` contract. Do not create a second bundle type.
+
+When the request is communication-heavy, these additive fields may be used to preserve the communication-first framing in the canonical JSON bundle:
+
+- `context.communication_focus`
+- `assessment_summary.machine_readable.top_user_questions`
+- `assessment_summary.machine_readable.human_explanation`
+- `wireframe_selection.machine_readable.communication_notes`
+- `wireframe_selection.machine_readable.microcopy_rewrites`
+- `flow_summaries.flows[].steps[].user_decision`
+- `flow_summaries.flows[].steps[].system_response`
+- `flow_summaries.flows[].steps[].commit_point`
+
+These fields remain optional and conceptual. They must not turn the bundle into an implementation-ready interaction contract.
 
 ### Bounded v1 conceptual output bundle
 
@@ -130,6 +175,12 @@ The current schema-lite bundle groups the nine v1 outputs into these five top-le
 - Prompt export content may appear verbatim in Markdown for easy reuse, but the structured JSON payload remains the canonical contract.
 - Prompt export must never be treated as an appendix or optional note; it is a required handoff artifact.
 - Thin preview handoff prose must state `external or thin, read-only` intent explicitly and must preserve non-goals that keep preview/editor scope thin.
+- For communication-first requests, recommended additional Markdown subsections are:
+  - `Top User Questions`
+  - `Human-to-Human Explanation`
+  - `Communication Notes`
+  - `Microcopy Rewrite`
+  - `Revised Task Flow`
 
 ### Repo-owned export mode
 
@@ -659,7 +710,7 @@ Automatic rejection conditions for this workflow:
 
 ## Quick Routing Rule
 
-- Need conceptual UI/UX direction -> `/uiux`
+- Need conceptual UI/UX direction or communication-first redesign -> `/uiux`
 - Need to evaluate an existing experience -> `/run-ux`
 - Need implementation-ready behavior/spec artifacts -> `/run-spec`
 - Need bounded 2D asset briefs/prompts -> `/artgen`

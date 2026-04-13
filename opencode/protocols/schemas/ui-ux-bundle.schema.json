@@ -99,6 +99,9 @@
         },
         "non_goals": {
           "$ref": "#/$defs/stringArray"
+        },
+        "communication_focus": {
+          "$ref": "#/$defs/stringArray"
         }
       },
       "additionalProperties": false
@@ -207,6 +210,29 @@
       },
       "additionalProperties": false
     },
+    "microcopyRewrite": {
+      "type": "object",
+      "required": [
+        "surface_or_region",
+        "slot",
+        "guidance"
+      ],
+      "properties": {
+        "surface_or_region": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "slot": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "guidance": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "example_text": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      },
+      "additionalProperties": false
+    },
     "layoutRegion": {
       "type": "object",
       "required": [
@@ -245,6 +271,15 @@
         },
         "intent": {
           "$ref": "#/$defs/nonEmptyString"
+        },
+        "user_decision": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "system_response": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "commit_point": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -321,6 +356,12 @@
               "items": {
                 "$ref": "#/$defs/recommendation"
               }
+            },
+            "top_user_questions": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "human_explanation": {
+              "$ref": "#/$defs/nonEmptyString"
             },
             "assumptions": {
               "$ref": "#/$defs/stringArray"
@@ -400,6 +441,15 @@
             },
             "interaction_notes": {
               "$ref": "#/$defs/stringArray"
+            },
+            "communication_notes": {
+              "$ref": "#/$defs/stringArray"
+            },
+            "microcopy_rewrites": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/microcopyRewrite"
+              }
             }
           },
           "additionalProperties": false

@@ -3,7 +3,7 @@
 This catalog lists all agents and their roles.
 Model selection is runtime-driven by OpenCode/provider configuration, not pinned per-agent in this repo.
 Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Codex role configs all derive from `opencode/agents/*.md`; generated/exported outputs should not be hand-edited.
-For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`.
+For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`. The same surface now also covers communication-first redesign and critique work via the companion skill `opencode/skills/ui-communication-designer/SKILL.md`.
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|
@@ -39,7 +39,7 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | flow-splitter | Convert a Flow ProblemSpec into a max-5 bounded task list | subagent | hidden |
 | market-researcher | Research specialist for web-based market scans, pricing signals, and monetization benchmarks | subagent | hidden |
 | art-director | Convert raw 2D asset requests into concise briefs and reusable prompts | subagent | hidden |
-| ui-ux-designer | Convert bounded UI/UX requests into conceptual workflow briefs, surface maps, and handoff notes | subagent | hidden |
+| ui-ux-designer | Convert bounded UI/UX requests into conceptual workflow briefs, communication-first redesign guidance, surface maps, and handoff notes | subagent | hidden |
 | executor | Execute one atomic task with bounded effort/verification settings | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |
 | peon | Low-cost executor for mechanical or repetitive tasks | subagent | hidden |

@@ -7,7 +7,7 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/problem-spec.schema.json` | ProblemSpec | specifier | Requirements only |
 | `./protocols/schemas/flow-task-list.schema.json` | FlowTaskList | flow-splitter / orchestrator-flow | Max-5 bounded Flow tasks |
 | `./protocols/schemas/dev-spec.schema.json` | DevSpec (optional) | specifier / orchestrator-spec / future spec-focused stage | Human-readable + pipeline-consumable development spec |
-| `./protocols/schemas/ui-ux-bundle.schema.json` | UiUxBundle (optional conceptual artifact) | `/uiux` / `ui-ux-designer` / doc-writer | Versioned conceptual UI/UX bundle; JSON is canonical when paired Markdown exists |
+| `./protocols/schemas/ui-ux-bundle.schema.json` | UiUxBundle (optional conceptual artifact) | `/uiux` / `ui-ux-designer` / doc-writer | Versioned conceptual UI/UX bundle; JSON is canonical when paired Markdown exists, with optional additive fields for communication-first redesign framing |
 | `./protocols/schemas/plan-outline.schema.json` | PlanOutline | planner | High-level plan |
 | `./protocols/schemas/repo-findings.schema.json` | RepoFindings | repo-scout | Discovery and risks |
 | `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with optional `trace_ids` |

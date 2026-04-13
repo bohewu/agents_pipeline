@@ -11,6 +11,8 @@ Use this skill when you need a bounded conceptual UI/UX output bundle for one ex
 
 If you need the repo-level protocol, read `../../protocols/UI_UX_WORKFLOW.md`.
 
+For communication-first critique or rewrite work on the same conceptual surface, pair with `../ui-communication-designer/SKILL.md` and explicitly include top user questions, a short human-to-human explanation, a revised task flow, and targeted microcopy rewrites for the highest-friction text.
+
 ## Boundary
 
 This skill outputs conceptual documentation artifacts only:

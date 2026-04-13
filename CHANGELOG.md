@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.8] - 2026-04-13
+
+### Added
+
+- Added the repo-managed `ui-communication-designer` skill as the communication-first companion to `/uiux`, covering task clarity, trust, labels, instructions, microcopy, and screen-level redesign guidance derived from *UI is Communication*.
+
+### Changed
+
+- The `/uiux` command, `ui-ux-designer` agent, `UI_UX_WORKFLOW.md` protocol, and `ui-ux-bundle` schema/example bundle now explicitly support communication-first redesign and critique inside the existing conceptual UI/UX surface instead of adding a separate command or orchestrator.
+- Communication-first `/uiux` outputs and the optional `ui-ux-bundle` export fields now more explicitly preserve a short human-to-human explanation, revised task-flow structure, and targeted microcopy rewrites.
+
 ## [0.22.7] - 2026-04-12
 
 ### Added
