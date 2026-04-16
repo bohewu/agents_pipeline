@@ -11,7 +11,12 @@ Use these notes when browser-backed UX audits are running on Windows.
 ## Local Targets
 
 - Prefer `http://localhost:<port>` over `file://` URLs when the app can be served locally.
-- If a local app requires a dev server, start it separately and verify the page loads before beginning the viewport sweep.
+- For local preview or dev-server audits, pair the browser audit with an equivalent local-server lifecycle workflow before starting DevTools interactions.
+- Begin browser automation only after the target URL is confirmed reachable.
+- If the agent started the local server, cleanup is complete only when the URL no longer responds and the expected port is no longer listening.
+- `npm.cmd run ...` may return a wrapper PID instead of the real listener PID, so teardown may need a listener-PID fallback.
+
+These reachability and teardown checks still apply on Linux/Ubuntu/macOS even when direct executable launch is optional.
 
 ## Evidence Hygiene
 

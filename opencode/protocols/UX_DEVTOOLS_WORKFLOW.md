@@ -15,6 +15,16 @@ The workflow is designed to support:
 
 It is **not** the right fit for native desktop UI frameworks that do not expose browser tooling.
 
+## Local Preview Boundaries
+
+When the audit target is a local preview or dev server, pair this workflow with an equivalent local-server lifecycle workflow before starting browser automation.
+
+- Keep this workflow browser-focused; the paired local-server lifecycle workflow owns local server startup, readiness checks, and teardown.
+- Begin browser automation only after the target URL has been confirmed reachable.
+- If the agent started the local server, cleanup is complete only when the URL no longer responds and the expected port is no longer listening.
+- On Linux/Ubuntu/macOS, direct executable launch is optional, but reachability and teardown verification are still required.
+- On Windows, `npm.cmd run ...` can return a wrapper PID instead of the real listener PID, so teardown may need a listener-PID fallback.
+
 ## Profiles
 
 Pick one profile before testing:
@@ -56,7 +66,7 @@ This avoids unfairly penalizing desktop-first products for not being mobile-firs
 
 ## Evidence Capture Loop
 
-For each viewport in the selected preset:
+After the target URL is confirmed reachable, for each viewport in the selected preset:
 
 1. Open or navigate to the target page/app entry point.
 2. Resize/emulate the viewport.
@@ -75,7 +85,7 @@ For each viewport in the selected preset:
 
 ## Suggested Tool Flow
 
-When Chrome DevTools tools are available, a typical sequence is:
+When Chrome DevTools tools are available, a typical sequence once the target URL is reachable is:
 
 1. `chrome-devtools_new_page` or `chrome-devtools_navigate_page`
 2. `chrome-devtools_resize_page` or `chrome-devtools_emulate`

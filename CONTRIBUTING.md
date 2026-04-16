@@ -68,6 +68,7 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
 python3 scripts/export-claude-agents.py --source-agents opencode/agents --target-dir ./.tmp-claude --strict --dry-run
 node --test opencode/plugins/status-runtime/run-registry.test.js
 node scripts/validate-status-runtime-smoke.cjs
+node scripts/validate-local-preview-lifecycle-smoke.cjs
 ```
 
 For full schema validation parity with CI, install `jsonschema` first:

@@ -862,6 +862,7 @@ jobs:
         run: |
           node --test opencode/plugins/status-runtime/run-registry.test.js
           node scripts/validate-status-runtime-smoke.cjs
+          node scripts/validate-local-preview-lifecycle-smoke.cjs
 
       - name: Validate resource-control prompt coverage
         shell: bash
@@ -1037,6 +1038,38 @@ jobs:
           [[ "${bootstrap_usage_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
           bootstrap_all_output="$(bash scripts/bootstrap-install-all-local.sh --repo example/agents --version v1.2.3 --opencode-target ./.tmp-bootstrap-install --plugin-target "${BOOTSTRAP_PLUGIN_TARGET}" --copilot-target ./.tmp-bootstrap-copilot --claude-target ./.tmp-bootstrap-claude --codex-target ./.tmp-bootstrap-codex --no-backup --force-codex --dry-run)"
           [[ "${bootstrap_all_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
+
+  validate-local-preview-macos:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs_only != 'true'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate local-preview lifecycle smoke harness on macOS
+        shell: bash
+        run: |
+          node scripts/validate-local-preview-lifecycle-smoke.cjs
+
+  validate-local-preview-windows:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs_only != 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Validate local-preview lifecycle smoke harness on Windows
+        shell: pwsh
+        run: |
+          node scripts/validate-local-preview-lifecycle-smoke.cjs
 
   validate-release-bundle:
     needs:

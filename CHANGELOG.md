@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.9] - 2026-04-16
+
+### Added
+
+- Added `scripts/validate-local-preview-lifecycle-smoke.cjs` plus a minimal `scripts/fixtures/local-preview-smoke/` fixture so the local-preview lifecycle behind `devtools-ux-audit` can be smoke-tested with explicit reachability and teardown checks.
+
+### Changed
+
+- The `devtools-ux-audit` skill, its Windows notes, and `UX_DEVTOOLS_WORKFLOW.md` now make the local-preview/dev-server boundary explicit: browser automation starts only after the target URL is reachable, teardown must verify both URL failure and closed listener port, Linux/Ubuntu/macOS still require the same reachability/cleanup proof, and Windows notes now call out the `npm.cmd` wrapper-PID caveat.
+- CI and contributor validation guidance now include the local-preview lifecycle smoke harness, with dedicated macOS and Windows hosted-runner coverage in addition to the existing Ubuntu validation job.
+
 ## [0.22.8] - 2026-04-13
 
 ### Added

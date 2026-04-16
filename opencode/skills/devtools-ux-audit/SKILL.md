@@ -25,8 +25,17 @@ Always run the helper with `--help` first before using it in a workflow.
 
 - Use this skill as the browser evidence workflow.
 - Use `/run-ux` as the reporting/scoring workflow when you want a formal scorecard and synthesized report.
+- When the audit target is a local preview or dev server, pair this skill with an equivalent local-server lifecycle workflow before starting any Chrome DevTools interaction.
 
 If you need detailed background or want the repo-level source document, read `../../protocols/UX_DEVTOOLS_WORKFLOW.md`.
+
+## Local Preview Boundaries
+
+- Keep this skill browser-focused. A paired local-server lifecycle workflow should own local server startup, readiness checks, and teardown.
+- Browser automation should begin only after the target URL has been confirmed reachable.
+- If the agent started the local server, cleanup is complete only when the URL no longer responds and the expected port is no longer listening.
+- On Linux/Ubuntu/macOS, direct executable launch is optional, but reachability before the audit and teardown verification after the audit are still required.
+- On Windows, `npm.cmd run ...` can return a wrapper PID instead of the real listener PID, so teardown may need a listener-PID fallback.
 
 ## Profile First
 
@@ -69,7 +78,7 @@ For `desktop-web` and `desktop-app`, mobile checks should normally be compatibil
 
 ## Evidence Loop
 
-For each viewport:
+After the target URL is confirmed reachable, for each viewport:
 
 1. Navigate to the target URL/page.
 2. Resize or emulate the viewport.
@@ -91,7 +100,7 @@ Prefer snapshots over screenshots for routine inspection.
 
 ## Suggested Tool Sequence
 
-Typical browser sequence:
+Typical browser sequence once the target URL is reachable:
 
 1. `chrome-devtools_new_page` or `chrome-devtools_navigate_page`
 2. `chrome-devtools_resize_page` or `chrome-devtools_emulate`
@@ -106,6 +115,7 @@ Typical browser sequence:
 - Prefer `http://localhost:...` targets over `file://` paths when possible.
 - If saving screenshots or request bodies, prefer absolute paths under the workspace or `%TEMP%`/the OS temp directory.
 - Keep viewport names in reports normalized like `1366x768`; do not rely on window-title text or OS-specific labels.
+- If a paired local-preview workflow launches `npm.cmd run ...`, do not assume the returned PID is the real listener PID during teardown.
 
 For more Windows-specific notes, read `references/windows-notes.md`.
 
