@@ -82,7 +82,11 @@ def find_block_index(blocks: Sequence[Block], *, kind: str, path: str) -> Option
 
 def insert_index_before_prefix(blocks: Sequence[Block], prefix: str) -> Optional[int]:
     for idx, block in enumerate(blocks):
-        if block.kind in {"table", "array"} and block.path and block.path.startswith(prefix):
+        if (
+            block.kind in {"table", "array"}
+            and block.path
+            and block.path.startswith(prefix)
+        ):
             return idx
     return None
 
@@ -141,7 +145,9 @@ def parse_manifest(path: Path) -> Optional[Dict[str, List[str]]]:
     }
 
 
-def write_manifest(path: Path, *, agent_names: Sequence[str], agent_files: Sequence[str]) -> None:
+def write_manifest(
+    path: Path, *, agent_names: Sequence[str], agent_files: Sequence[str]
+) -> None:
     payload = {
         "managed_agent_names": sorted(agent_names),
         "managed_agent_files": sorted(agent_files),
@@ -189,6 +195,7 @@ def build_export_command(
     max_threads: int,
     max_depth: int,
     job_max_runtime_seconds: Optional[int],
+    resolve_opencode_refs_to: Optional[Path],
 ) -> List[str]:
     command = [
         sys.executable,
@@ -208,6 +215,10 @@ def build_export_command(
         command.append("--strict")
     if job_max_runtime_seconds is not None:
         command.extend(["--job-max-runtime-seconds", str(job_max_runtime_seconds)])
+    if resolve_opencode_refs_to is not None:
+        command.extend(
+            ["--resolve-opencode-refs-to", resolve_opencode_refs_to.as_posix()]
+        )
     return command
 
 
@@ -227,10 +238,13 @@ def run_export(
     max_depth: int,
     job_max_runtime_seconds: Optional[int],
     temp_root: Path,
+    resolve_opencode_refs_to: Optional[Path],
 ) -> Path:
     try:
         temp_root.mkdir(parents=True, exist_ok=True)
-        temp_dir = Path(tempfile.mkdtemp(prefix="agents-pipeline-codex-", dir=temp_root))
+        temp_dir = Path(
+            tempfile.mkdtemp(prefix="agents-pipeline-codex-", dir=temp_root)
+        )
     except OSError as exc:
         raise RuntimeError(
             f"Unable to create temp dir under {temp_root.as_posix()}: {exc}"
@@ -244,6 +258,7 @@ def run_export(
         max_threads=max_threads,
         max_depth=max_depth,
         job_max_runtime_seconds=job_max_runtime_seconds,
+        resolve_opencode_refs_to=resolve_opencode_refs_to,
     )
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
@@ -252,7 +267,9 @@ def run_export(
         if result.stderr:
             sys.stderr.write(result.stderr)
         shutil.rmtree(temp_dir, ignore_errors=True)
-        raise RuntimeError(f"Codex role export failed with exit code {result.returncode}.")
+        raise RuntimeError(
+            f"Codex role export failed with exit code {result.returncode}."
+        )
     return temp_dir
 
 
@@ -260,7 +277,11 @@ def extract_generated_agent_blocks(config_text: str) -> Dict[str, Block]:
     blocks = parse_blocks(config_text)
     generated: Dict[str, Block] = {}
     for block in blocks:
-        if block.kind != "table" or not block.path or not block.path.startswith("agents."):
+        if (
+            block.kind != "table"
+            or not block.path
+            or not block.path.startswith("agents.")
+        ):
             continue
         if block.path == "agents":
             continue
@@ -282,7 +303,8 @@ def merge_config_text(
 ) -> str:
     blocks = parse_blocks(existing_text)
     managed_headers = {
-        f"agents.{name}" for name in set(previous_agent_names) | set(current_agent_blocks)
+        f"agents.{name}"
+        for name in set(previous_agent_names) | set(current_agent_blocks)
     }
     blocks = [
         block
@@ -322,10 +344,24 @@ def remove_file_if_present(path: Path, *, stop_path: Path) -> bool:
         return False
     path.unlink()
     parent = path.parent
-    while parent != stop_path and parent.exists() and parent.is_dir() and not any(parent.iterdir()):
+    while (
+        parent != stop_path
+        and parent.exists()
+        and parent.is_dir()
+        and not any(parent.iterdir())
+    ):
         parent.rmdir()
         parent = parent.parent
     return True
+
+
+def sync_support_tree(source_root: Path, target_root: Path) -> None:
+    if target_root.exists():
+        if target_root.is_dir():
+            shutil.rmtree(target_root)
+        else:
+            target_root.unlink()
+    shutil.copytree(source_root, target_root)
 
 
 def main() -> int:
@@ -398,12 +434,17 @@ def main() -> int:
     target_dir = Path(args.target_dir).expanduser()
     catalog_path = Path(args.catalog).expanduser()
     temp_root = resolve_temp_root(repo_root=repo_root, temp_dir=args.temp_dir)
+    support_tree_source = repo_root / "opencode"
+    support_tree_target = target_dir / "opencode"
 
     if not export_script.exists():
         print(f"Export script not found: {export_script.as_posix()}", file=sys.stderr)
         return 2
     if not source_agents_dir.exists():
-        print(f"Source directory not found: {source_agents_dir.as_posix()}", file=sys.stderr)
+        print(
+            f"Source directory not found: {source_agents_dir.as_posix()}",
+            file=sys.stderr,
+        )
         return 2
 
     temp_dir: Optional[Path] = None
@@ -417,6 +458,7 @@ def main() -> int:
             max_depth=args.max_depth,
             job_max_runtime_seconds=args.job_max_runtime_seconds,
             temp_root=temp_root,
+            resolve_opencode_refs_to=support_tree_target,
         )
         generated_config = read_text(temp_dir / "config.toml")
         generated_role_files = collect_generated_role_files(temp_dir)
@@ -467,6 +509,12 @@ def main() -> int:
                     "- write managed agent file: "
                     + (target_dir / relative_path).as_posix()
                 )
+            print(
+                "- sync repo-managed Codex support tree: "
+                + support_tree_source.as_posix()
+                + " -> "
+                + support_tree_target.as_posix()
+            )
             print(f"- write merged config: {config_path.as_posix()}")
             print(f"- write manifest: {manifest_path.as_posix()}")
             return 0
@@ -482,6 +530,7 @@ def main() -> int:
         for relative_path, content in generated_role_files.items():
             write_text(target_dir / relative_path, content)
 
+        sync_support_tree(support_tree_source, support_tree_target)
         write_text(config_path, merged_config_text)
         write_manifest(
             manifest_path,

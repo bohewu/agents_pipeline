@@ -76,6 +76,7 @@ Write-Host "Cleanup: stale managed Codex agent outputs"
 $existingConfig = $null
 $existingRoles = @()
 $existingManifest = $null
+$existingSupportTree = $null
 if (Test-Path -LiteralPath $targetPath -PathType Container) {
     $configPath = Join-Path $targetPath "config.toml"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
@@ -91,9 +92,14 @@ if (Test-Path -LiteralPath $targetPath -PathType Container) {
     if (Test-Path -LiteralPath $agentsDir -PathType Container) {
         $existingRoles = Get-ChildItem -Path $agentsDir -Filter "*.toml" -File -ErrorAction SilentlyContinue
     }
+
+    $supportTree = Join-Path $targetPath "opencode"
+    if (Test-Path -LiteralPath $supportTree -PathType Container) {
+        $existingSupportTree = Get-Item -LiteralPath $supportTree
+    }
 }
 
-if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0)) {
+if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0 -or $existingSupportTree)) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupDir = Join-Path $targetPath ".backup-agents-pipeline-codex-$stamp"
     if ($DryRun) {
@@ -112,6 +118,9 @@ if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRole
             foreach ($item in $existingRoles) {
                 Copy-Item -LiteralPath $item.FullName -Destination $backupAgentsDir -Force
             }
+        }
+        if ($existingSupportTree) {
+            Copy-Item -LiteralPath $existingSupportTree.FullName -Destination $backupDir -Recurse -Force
         }
         Write-Host "Backup created: $backupDir"
     }

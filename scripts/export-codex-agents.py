@@ -13,6 +13,7 @@ TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 TOOL_ENTRY_RE = re.compile(r"^  ([A-Za-z0-9_-]+)\s*:\s*(true|false)\s*$")
 AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
 ROLE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+REPO_MANAGED_REF_RE = re.compile(r"(?<![A-Za-z0-9_./:-])(opencode/[A-Za-z0-9_./-]+)")
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -272,7 +273,27 @@ def make_role_reference_adapter() -> str:
     )
 
 
-def adapt_body(agent_name: str, original_body: str, has_subagents: bool) -> str:
+def rewrite_opencode_refs(text: str, opencode_root_ref: Optional[str]) -> str:
+    if not opencode_root_ref:
+        return text
+
+    normalized_root = opencode_root_ref.rstrip("/\\")
+
+    def repl(match: re.Match[str]) -> str:
+        repo_relative = match.group(1)
+        suffix = repo_relative[len("opencode/") :]
+        return f"{normalized_root}/{suffix}"
+
+    return REPO_MANAGED_REF_RE.sub(repl, text)
+
+
+def adapt_body(
+    agent_name: str,
+    original_body: str,
+    has_subagents: bool,
+    *,
+    opencode_root_ref: Optional[str] = None,
+) -> str:
     body = original_body.replace("$ARGUMENTS", "raw_input")
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):
@@ -280,7 +301,8 @@ def adapt_body(agent_name: str, original_body: str, has_subagents: bool) -> str:
     if has_subagents:
         blocks.append(make_role_reference_adapter())
     blocks.append(body.lstrip("\n"))
-    return "\n\n".join(blocks).rstrip() + "\n"
+    adapted = "\n\n".join(blocks).rstrip() + "\n"
+    return rewrite_opencode_refs(adapted, opencode_root_ref)
 
 
 def toml_quote(value: str) -> str:
@@ -484,6 +506,14 @@ def main() -> int:
         action="store_false",
         help="Do not emit the `[features]` block.",
     )
+    parser.add_argument(
+        "--resolve-opencode-refs-to",
+        default=None,
+        help=(
+            "Optional install root used to rewrite repo-managed `opencode/...` references "
+            "inside generated developer instructions."
+        ),
+    )
     args = parser.parse_args()
 
     if args.max_threads < 1:
@@ -499,6 +529,9 @@ def main() -> int:
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
     catalog_path = Path(args.catalog).expanduser()
+    opencode_root_ref = None
+    if args.resolve_opencode_refs_to:
+        opencode_root_ref = Path(args.resolve_opencode_refs_to).expanduser().as_posix()
 
     if not source_agents_dir.exists():
         print(f"Source directory not found: {source_agents_dir}", file=sys.stderr)
@@ -555,7 +588,12 @@ def main() -> int:
                 f"{agent.path.as_posix()}: unresolved @agent reference(s): {', '.join(unresolved)}"
             )
 
-        body = adapt_body(agent.name, agent.body, has_subagents=bool(subagents))
+        body = adapt_body(
+            agent.name,
+            agent.body,
+            has_subagents=bool(subagents),
+            opencode_root_ref=opencode_root_ref,
+        )
         content = build_role_config(agent, body)
         out_path = target_dir / "agents" / f"{agent.file_stem}.toml"
         collect_generated(generated, generated_names, out_path, content, errors)

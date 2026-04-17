@@ -103,6 +103,9 @@ if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
       backup_needed=1
     fi
   fi
+  if [[ -d "${TARGET_DIR}/opencode" ]]; then
+    backup_needed=1
+  fi
   if [[ ${backup_needed} -eq 1 ]]; then
     backup_dir="${TARGET_DIR}/.backup-agents-pipeline-codex-$(date +%Y%m%d-%H%M%S)"
     if [[ ${DRY_RUN} -eq 1 ]]; then
@@ -122,6 +125,9 @@ if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
           cp -a "${f}" "${backup_dir}/agents/"
         done
         shopt -u nullglob
+      fi
+      if [[ -d "${TARGET_DIR}/opencode" ]]; then
+        cp -a "${TARGET_DIR}/opencode" "${backup_dir}/"
       fi
       echo "Backup created: ${backup_dir}"
     fi

@@ -17,6 +17,7 @@ See the **How To Use** section below for usage instructions.
 - [Claude Code Subagents](#claude-code-subagents)
 - [Codex Agent Roles](#codex-agent-roles)
 - [Conceptual UI/UX Layer](#conceptual-uiux-layer)
+- [Art Generation Layer](#art-generation-layer)
 - [Protocol Validation](#protocol-validation)
 - [Config Example](#config-example)
 - [Flags](#flags)
@@ -36,7 +37,7 @@ See the **How To Use** section below for usage instructions.
 - `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
 - `COMPATIBILITY.md` for runtime and host-environment assumptions.
 - `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
-- `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, and Direct Use Prompt used by the repo-managed `2d-asset-brief` skill, `art-director`, and the normal `/artgen` surface for future external generation or review reference.
+- `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, final Direct Use Prompt, and the optional Codex-assisted export lane used by the repo-managed `2d-asset-brief` and `codex-imagegen` skills, `art-director`, and the normal `/artgen` surface.
 - `opencode/protocols/UI_UX_WORKFLOW.md` for the thin conceptual UI/UX layer, non-expert design/interaction guidance, communication-first overlay, intake/review rubric, and the `ui-ux-bundle` schema/example bundle used by `/uiux`, `ui-ux-designer`, and the repo-managed `ui-ux-workflow` and `ui-communication-designer` skills.
 
 ## Usage Prerequisites
@@ -697,6 +698,33 @@ This writes a paired durable bundle under the selected repo path:
 
 - `<output-dir>/<bundle-slug>.ui-ux-bundle.json`
 - `<output-dir>/<bundle-slug>.ui-ux-bundle.md`
+
+## Art Generation Layer
+
+Use this thin layer when you need a bounded 2D asset brief, reusable prompt, and Direct Use Prompt, with optional one-shot local Codex image export.
+
+- Entry command: `/artgen` in `opencode/commands/artgen.md`
+- Hidden subagent: `art-director` in `opencode/agents/art-director.md`
+- Docs-first repo-managed skill: `opencode/skills/2d-asset-brief/SKILL.md`
+- Codex execution companion skill: `opencode/skills/codex-imagegen/SKILL.md`
+- Workflow boundary and export notes: `docs/art-generation-scaffold.md`
+
+Default `/artgen` behavior stays inline-only and returns the brief, handoff package, and Direct Use Prompt.
+
+If you want one repo-owned generated image as part of the same run, pass this flag after the main asset request:
+
+- `--codex-output=<path>`
+  - default route: local `codex mcp-server`
+  - fallback route: local `codex exec --enable image_generation` only when the MCP route is unavailable or lacks built-in image generation
+
+Examples:
+
+```text
+/artgen type=icon style=flat-2d size=256x256 subject="single green leaf app icon"
+/artgen type=icon style=flat-2d size=256x256 subject="single green leaf app icon" --codex-output=output/art/leaf.png
+```
+
+If Codex or built-in image generation is unavailable, `/artgen` should still return the normal handoff package and Direct Use Prompt plus a warning with the next step.
 
 ## Protocol Validation
 

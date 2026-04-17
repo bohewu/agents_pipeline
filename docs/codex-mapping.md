@@ -63,6 +63,8 @@ Model/provider selection remains runtime-driven; source agents must not define p
 
 Sandbox mode, MCP servers, and other Codex-specific config are intentionally left unset so they inherit from the parent Codex environment unless you customize them after generation.
 
+When Codex role bodies reference repo-managed assets such as `opencode/protocols/...` or `opencode/skills/...`, the installer-backed merge path rewrites those references to installed absolute paths under the target Codex directory and mirrors the `opencode/` tree there. This avoids broken repo-relative references in global installs such as `~/.codex` on Linux/macOS or `%USERPROFILE%\.codex` on Windows.
+
 ## `@agent` Reference Handling
 
 - Source bodies may contain `@planner`, `@reviewer`, `@executor`, and similar tokens.

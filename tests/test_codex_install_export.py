@@ -51,7 +51,9 @@ class CodexInstallExportTest(unittest.TestCase):
             temp_root = Path(temp_dir_name) / "workspace-temp"
             fake_result = mock.Mock(returncode=0, stdout="", stderr="")
 
-            with mock.patch.object(INSTALL_MODULE.subprocess, "run", return_value=fake_result):
+            with mock.patch.object(
+                INSTALL_MODULE.subprocess, "run", return_value=fake_result
+            ):
                 generated_dir = INSTALL_MODULE.run_export(
                     Path("export-codex-agents.py"),
                     Path("opencode/agents"),
@@ -61,6 +63,7 @@ class CodexInstallExportTest(unittest.TestCase):
                     max_depth=2,
                     job_max_runtime_seconds=None,
                     temp_root=temp_root,
+                    resolve_opencode_refs_to=None,
                 )
 
             self.assertEqual(generated_dir.parent, temp_root)
@@ -71,7 +74,9 @@ class CodexInstallExportTest(unittest.TestCase):
             temp_root = Path(temp_dir_name) / "not-a-directory"
             temp_root.write_text("x", encoding="utf-8")
 
-            with self.assertRaisesRegex(RuntimeError, r"Unable to create temp dir under"):
+            with self.assertRaisesRegex(
+                RuntimeError, r"Unable to create temp dir under"
+            ):
                 INSTALL_MODULE.run_export(
                     Path("export-codex-agents.py"),
                     Path("opencode/agents"),
@@ -81,7 +86,43 @@ class CodexInstallExportTest(unittest.TestCase):
                     max_depth=2,
                     job_max_runtime_seconds=None,
                     temp_root=temp_root,
+                    resolve_opencode_refs_to=None,
                 )
+
+    def test_exporter_rewrites_repo_managed_refs_without_touching_source_comments(
+        self,
+    ) -> None:
+        body = (
+            "# Source: C:/repo/opencode/agents/orchestrator-pipeline.md\n"
+            "Use `opencode/protocols/PIPELINE_PROTOCOL.md` and `opencode/skills/codex-imagegen/SKILL.md`.\n"
+        )
+        rewritten = EXPORT_MODULE.rewrite_opencode_refs(
+            body, "/home/test/.codex/opencode"
+        )
+        self.assertIn(
+            "# Source: C:/repo/opencode/agents/orchestrator-pipeline.md", rewritten
+        )
+        self.assertIn(
+            "`/home/test/.codex/opencode/protocols/PIPELINE_PROTOCOL.md`", rewritten
+        )
+        self.assertIn(
+            "`/home/test/.codex/opencode/skills/codex-imagegen/SKILL.md`", rewritten
+        )
+
+    def test_build_export_command_forwards_opencode_ref_root(self) -> None:
+        command = INSTALL_MODULE.build_export_command(
+            Path("scripts/export-codex-agents.py"),
+            Path("opencode/agents"),
+            Path("AGENTS.md"),
+            Path(".codex"),
+            strict=True,
+            max_threads=6,
+            max_depth=2,
+            job_max_runtime_seconds=None,
+            resolve_opencode_refs_to=Path("/home/test/.codex/opencode"),
+        )
+        self.assertIn("--resolve-opencode-refs-to", command)
+        self.assertIn("/home/test/.codex/opencode", command)
 
 
 if __name__ == "__main__":
