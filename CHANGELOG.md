@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.12] - 2026-04-17
+
+### Fixed
+
+- `codex-imagegen` now resolves explicit `codex_command` values, `CODEX_IMAGEGEN_CODEX_COMMAND`, and common Windows npm/fnm Codex CLI install paths before falling back to `codex` on `PATH`, reducing false warnings when OpenCode is launched outside a shell-initialized PATH.
+- `codex-imagegen` now supports deterministic `output_path` targets, including `/codex-imagegen --output-path=...` command text, and detects updates to an existing target file.
+
 ## [0.22.11] - 2026-04-17
 
 ### Added

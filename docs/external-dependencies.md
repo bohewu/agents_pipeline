@@ -63,6 +63,9 @@ Local auth/state inputs:
 Expected failure modes:
 
 - Codex CLI is missing, not on `PATH`, or cannot start
+- OpenCode was launched without shell-specific PATH entries; use `codex_command`,
+  `CODEX_IMAGEGEN_CODEX_COMMAND`, or the tool's Windows npm/fnm auto-discovery
+- requested `output_path` is missing a supported image extension
 - local Codex CLI login is missing or expired
 - the Codex CLI `image_generation` feature is unavailable or renamed in the installed build
 - `$imagegen` returns no new image file

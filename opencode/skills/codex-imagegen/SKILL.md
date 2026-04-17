@@ -30,6 +30,20 @@ Do not persistently enable or disable Codex features unless the user explicitly 
 
 If a local Codex build uses a different image feature name, pass that known name as `image_generation_feature`. Do not guess alternate feature names.
 
+## Codex CLI Path
+
+The tool first honors an explicit `codex_command` argument, then the `CODEX_IMAGEGEN_CODEX_COMMAND` environment variable. If neither is set, it auto-discovers common Windows npm/fnm Codex CLI installs before falling back to `codex` on `PATH`.
+
+If OpenCode reports `codex was not found on PATH`, find the local Codex CLI path and retry with `codex_command` set to that executable. Prefer the native npm package `codex.exe` over temporary `fnm_multishells` shims because OpenCode may not inherit shell-specific PATH entries.
+
+Example Windows native executable shape:
+
+```text
+C:\Users\<you>\AppData\Roaming\npm\node_modules\@openai\codex\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\codex\codex.exe
+```
+
+Using an alternate Codex CLI executable path is allowed. Using an alternate image API or image provider is not allowed.
+
 ## Codex CLI Warnings
 
 By default, the tool also passes per-run disable flags for Codex plugin sync, general analytics, and shell snapshots to reduce non-actionable warning noise. These flags are only for the delegated Codex CLI run and must not be treated as image provider fallback.
@@ -39,15 +53,21 @@ If Codex still emits analytics or service-sync warnings but exits successfully a
 ## Workflow
 
 1. Convert the user request into a concise image brief.
-2. Choose an output directory inside the current project unless the user provides one.
-3. Choose a lowercase kebab-case `file_stem` when the user does not provide a filename.
-4. Call `codex-imagegen` with:
+2. Use `output_path` when the user provides an exact file path, including `--output-path=...` in slash-command text.
+3. Otherwise, choose an output directory inside the current project unless the user provides one.
+4. Choose a lowercase kebab-case `file_stem` when the user does not provide a filename.
+5. Call `codex-imagegen` with:
    - `prompt`
-   - `output_dir`
-   - `file_stem`
+   - `output_path` for an exact file target, or `output_dir` plus `file_stem`
    - optional `size`, `quality`, `background`
-5. Report generated files only if the tool returns `status: "ok"`.
-6. If the tool returns `status: "warning"`, show the warning plainly and mention that no API/provider fallback was attempted.
+6. Report generated files only if the tool returns `status: "ok"`.
+7. If the tool returns `status: "warning"`, show the warning plainly and mention that no API/provider fallback was attempted.
+
+## Output Path
+
+Use `output_path` when the caller needs deterministic output for tests, scripts, or follow-up editing. Relative paths resolve from the OpenCode worktree. The path must include a supported image extension: `.png`, `.jpg`, `.jpeg`, or `.webp`.
+
+If slash-command text uses `--output-path=path/to/file.png`, map it to the tool's `output_path` argument. `output_path` takes precedence over `output_dir` and `file_stem`.
 
 ## Prompt Shape
 
