@@ -1,0 +1,63 @@
+---
+name: codex-imagegen
+description: Use when OpenCode should generate or edit images by delegating to Codex CLI image generation through a local custom tool, using the signed-in Codex CLI account and Codex usage limits. Trigger when users ask to call Codex imagegen, use Codex quota for images, generate images from OpenCode through Codex CLI, or use `$imagegen` outside Codex.
+---
+
+# Codex Imagegen
+
+Use this skill when the user wants OpenCode to create or edit images through Codex CLI and explicitly wants the work to use Codex quota rather than OpenCode provider usage or direct API billing.
+
+## Hard Boundary
+
+- Invoke the OpenCode custom tool `codex-imagegen` when it is available.
+- Do not use the OpenAI Images API directly.
+- Do not set or rely on `CODEX_API_KEY`.
+- Do not fall back to any other image provider, API, browser tool, local renderer, or manual asset generation.
+- If Codex CLI, `$imagegen`, or the image generation feature fails, return the tool warning and stop.
+- Treat `fallback_used: false` as required behavior, not a recoverable error.
+
+## Feature Flag
+
+Codex CLI currently exposes the `image_generation` feature flag on some builds.
+
+By default, the `codex-imagegen` tool passes:
+
+```text
+--enable image_generation
+```
+
+Do not persistently enable or disable Codex features unless the user explicitly asks. Prefer the per-run `--enable` flag so the workflow remains local to this call.
+
+If a local Codex build uses a different image feature name, pass that known name as `image_generation_feature`. Do not guess alternate feature names.
+
+## Codex CLI Warnings
+
+By default, the tool also passes per-run disable flags for Codex plugin sync, general analytics, and shell snapshots to reduce non-actionable warning noise. These flags are only for the delegated Codex CLI run and must not be treated as image provider fallback.
+
+If Codex still emits analytics or service-sync warnings but exits successfully and returns generated files, report success with a brief note. Treat missing files, nonzero exit, or a tool warning as the actual failure signal.
+
+## Workflow
+
+1. Convert the user request into a concise image brief.
+2. Choose an output directory inside the current project unless the user provides one.
+3. Choose a lowercase kebab-case `file_stem` when the user does not provide a filename.
+4. Call `codex-imagegen` with:
+   - `prompt`
+   - `output_dir`
+   - `file_stem`
+   - optional `size`, `quality`, `background`
+5. Report generated files only if the tool returns `status: "ok"`.
+6. If the tool returns `status: "warning"`, show the warning plainly and mention that no API/provider fallback was attempted.
+
+## Prompt Shape
+
+The tool wraps the prompt with the required `$imagegen` instruction. Keep the user-facing prompt focused on the desired visual result:
+
+- subject and composition
+- style
+- dimensions or aspect ratio
+- background requirements
+- output naming needs
+- edit/reference instructions, if applicable
+
+Do not add fallback instructions.

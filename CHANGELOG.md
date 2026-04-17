@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.11] - 2026-04-17
+
+### Added
+
+- Added `/codex-imagegen`, the repo-managed `codex-imagegen` skill, and the `codex-imagegen` OpenCode custom tool for delegating image generation to Codex CLI `$imagegen` using the locally signed-in Codex account and Codex usage limits.
+
+### Changed
+
+- The Codex image generation bridge now enables Codex CLI's `image_generation` feature per run, suppresses non-actionable Codex plugin/analytics/shell-snapshot warning noise where possible, and returns warnings instead of using any API or provider fallback when Codex image generation fails.
+
 ## [0.22.10] - 2026-04-17
 
 ### Changed

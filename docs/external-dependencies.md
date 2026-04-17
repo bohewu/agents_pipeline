@@ -43,6 +43,44 @@ Privacy notes:
 - The tool intentionally avoids printing raw tokens and credential blobs.
 - `--include-sensitive` exposes less-redacted account identifiers; avoid sharing that output in public issues or PRs.
 
+## `codex-imagegen`
+
+Files:
+
+- `opencode/tools/codex-imagegen.ts`
+- `opencode/commands/codex-imagegen.md`
+- `opencode/skills/codex-imagegen/SKILL.md`
+
+External services used:
+
+- Codex CLI's built-in `$imagegen` path, using the local Codex CLI account and Codex usage limits.
+
+Local auth/state inputs:
+
+- local Codex CLI login state, normally under the user's Codex config directory
+- generated image files that Codex CLI may stage under its own generated-images directory before the delegated run copies or saves them into the requested project output directory
+
+Expected failure modes:
+
+- Codex CLI is missing, not on `PATH`, or cannot start
+- local Codex CLI login is missing or expired
+- the Codex CLI `image_generation` feature is unavailable or renamed in the installed build
+- `$imagegen` returns no new image file
+- output directory creation or file copying fails
+- Codex service, quota, rate-limit, or policy failures
+
+Fallback behavior:
+
+- There is intentionally no direct OpenAI Images API fallback.
+- There is intentionally no alternate provider, browser, local-renderer, or manual asset fallback.
+- Failures return a warning with `fallback_used: false`.
+
+Privacy and billing notes:
+
+- The tool deletes `CODEX_API_KEY` from the delegated process environment so normal use relies on the signed-in Codex CLI account instead of direct API-key billing.
+- Prompts and generated images are sent through Codex CLI's built-in image generation path and should be treated according to the user's Codex account terms and retention settings.
+- Per-run disable flags reduce non-actionable Codex plugin/analytics/shell-snapshot warning noise, but successful image generation may still emit Codex CLI service warnings that are not image-generation failures.
+
 ## `skill-manager`
 
 Files:
