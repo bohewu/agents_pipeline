@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.10] - 2026-04-17
+
+### Changed
+
+- Codex installer/exporter flows now rewrite repo-managed `opencode/...` references inside generated role instructions to installed absolute paths under the target `.codex` directory, so global installs work reliably on Ubuntu/Linux, macOS, and Windows instead of depending on the original repo-relative layout.
+- `install-codex` now mirrors the repo-managed `opencode/` support tree into the target Codex directory and includes that support tree in installer backups, keeping the generated roles and their referenced protocol/skill files aligned across platforms.
+
+### Fixed
+
+- Added regression coverage for Codex support-tree rewriting and installer command forwarding so Linux-style installed paths such as `~/.codex/opencode/...` stay validated in local and CI checks.
+
 ## [0.22.9] - 2026-04-16
 
 ### Added
