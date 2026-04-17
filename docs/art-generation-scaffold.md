@@ -11,27 +11,13 @@ This scaffold standardizes how this repo captures a bounded 2D asset request as 
 - External Handoff Package
 - Direct Use Prompt
 
-An optional opt-in Codex export lane can also ask a local Codex runtime to render one image from the same Direct Use Prompt when the caller supplies `--codex-output=<path>`.
-
 Pixel art remains the canonical example profile, but the scaffold also covers adjacent 2D assets such as sprites, animations, tilesets, icons, UI elements, and simple props through one shared brief model.
 
 ## Boundary
 
-By default, this scaffold remains spec/prompt generation plus formatting-oriented handoff packaging only.
-Without an explicit Codex output flag, it does not render images, create files, store raw assets, call Codex, call MCP servers, or run downstream pipeline steps in this repo.
-
-With `/artgen --codex-output=<path>`, the scaffold may ask a local Codex surface to perform one bounded built-in image-generation pass and save the selected output file to the requested path.
-That export lane is still intentionally narrow:
-- one requested output path per run
-- `codex mcp-server` as the default route
-- `codex exec --enable image_generation` only as the availability fallback when the MCP route is unavailable or lacks built-in image generation
-- built-in Codex image generation only
-- no API-key fallback, provider switching, or custom SDK wrappers
-- no batch generation, review queue, atlas packing, or post-processing pipeline
-
-If both local Codex routes are unavailable, the scaffold should still return the normal prompt package plus a warning and next-step guidance.
-
-Raw generation outside this opt-in lane and any later external review still happen elsewhere.
+This scaffold remains spec/prompt generation plus formatting-oriented handoff packaging only.
+It does not render images, create files, store raw assets, call Codex, call MCP servers, or run downstream pipeline steps in this repo.
+Raw generation and any external review happen elsewhere.
 The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `/artgen` output.
 The package stays descriptive, copy-ready, and non-operative.
 The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for direct use with external image-generation tools.
@@ -40,7 +26,7 @@ The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for dir
 
 `request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> Direct Use Prompt`
 
-Anything after that package stays outside this repo and outside the scaffold surface unless the caller explicitly requests the narrow Codex export lane.
+Anything after that package stays outside this repo and outside the scaffold surface.
 
 ## Shared Brief Model
 
@@ -101,8 +87,7 @@ Do not introduce sheet, atlas, packing, or spritesheet output suggestions here.
 For tilesets, suggested outputs should stay at separate tiles or small logical groups only.
 Do not introduce packed atlas outputs here.
 
-Generated candidates stay outside this repo by default.
-When the caller explicitly requests the Codex export lane, the selected final image may be copied into the requested repo-owned output path.
+Raw candidates and approved exports stay outside this repo.
 
 ## Manual Checks
 
@@ -156,4 +141,4 @@ The following remain outside this scaffold after the current packaging addition:
 ## Summary
 
 This scaffold keeps the repo focused on a thin, reviewable art-generation workflow.
-It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt, while keeping rendering outside the repo by default and limiting optional Codex-assisted export to one explicit local output path.
+It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt while leaving rendering and later pipeline behavior to external systems.

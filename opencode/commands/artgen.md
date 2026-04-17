@@ -11,41 +11,14 @@ agent: art-director
 $ARGUMENTS
 ```
 
-## Parsing contract
-
-- Positional arguments `$1..$n` represent the asset request split by whitespace.
-- Reconstruct the main request by concatenating all positional arguments until the first token starting with `--`.
-- All tokens starting with `--` are treated as flags.
-
-### Supported flags
-
-- `--codex-output=<path>`
-  - Attempt one bounded local image-generation pass and save one selected output file.
-  - Relative paths should be treated as repo-root relative.
-  - Default route: `codex mcp-server`.
-  - Fallback route: `codex exec --enable image_generation` only if the MCP route is unavailable or does not expose built-in image generation.
-
 ## Notes
 
 - Accept natural-language 2D asset requests for bounded adjacent assets such as sprites, animations, tilesets, icons, UI elements, and simple props.
 - Pixel art remains the canonical example profile, but `/artgen` is not limited to pixel-art-only wording.
 - If the request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
-- By default, `/artgen` is spec/prompt generation plus formatting-oriented handoff packaging only.
-- Without a Codex output flag, do not treat `/artgen` as image rendering, file creation, atlas packing, or pipeline execution.
-- When one Codex output flag is present, still generate the normal brief, handoff package, and final Direct Use Prompt first, then attempt one bounded local Codex render using that same prompt.
-- In export mode, try `codex mcp-server` first.
-- Only fall back to `codex exec --enable image_generation` when the MCP route is unavailable or when built-in image generation is unavailable on the MCP route.
-- Do not treat every downstream generation failure as a fallback trigger. If the MCP route starts successfully and the failure is no longer an availability/capability issue, report a warning instead of automatically retrying on CLI.
-- Use Codex built-in `image_gen` only for export mode.
-- Do not use `scripts/image_gen.py`, `OPENAI_API_KEY` fallback, custom SDK scripts, non-Codex image providers, or other downstream execution paths on this surface.
-- Use cross-platform path handling in export mode:
-  - preserve absolute paths when provided
-  - resolve relative paths from the repo root
-  - do not hardcode path separators or shell-specific path assumptions
-- Before claiming export success, verify that the requested output file exists at the target path.
-- If local Codex is missing, both routes are unavailable, or built-in image generation is unavailable on both routes, do not fail the scaffold itself. Return the normal `/artgen` package plus a warning with the next step:
-  - install Codex CLI
-  - or manually use the returned Direct Use Prompt elsewhere
+- `/artgen` is spec/prompt generation plus formatting-oriented handoff packaging only.
+- Do not treat `/artgen` as image rendering, file creation, atlas packing, or pipeline execution.
+- Do not treat `/artgen` as calling Codex, MCP servers, image tools, or any downstream execution workflow.
 - Include:
   - request record
   - asset brief
@@ -86,7 +59,6 @@ $ARGUMENTS
 - Manual checks: what a human should confirm before reusing the brief or prompt.
 - External Handoff Package: standard `/artgen` output that bundles the request record, asset brief, reusable prompt, suggested outputs, and manual checks into a generic, human-readable, copy-ready handoff.
 - Direct Use Prompt: final section of the response, in a fenced `text` block, containing the same reusable prompt in a directly pasteable form suitable for external image-generation tools.
-- Codex Image Export: include this optional section only when a Codex output flag is present; report the chosen route, requested output path, execution status (`generated` or `warning`), and a short detail message.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
 ## Examples
@@ -97,5 +69,4 @@ $ARGUMENTS
 /artgen type=tileset style=pixel-art tile_size=32x32 subject="forest biome terrain set"
 /artgen type=icon style=flat-2d size=128x128 subject="health potion inventory icon"
 /artgen type=ui-element style=clean-2d size=960x240 subject="fantasy dialogue panel"
-/artgen type=icon style=flat-2d size=256x256 subject="single green leaf app icon" --codex-output=output/art/leaf.png
 ```

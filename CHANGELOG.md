@@ -6,16 +6,6 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
-### Added
-
-- Added the repo-managed `codex-imagegen` skill for bounded local Codex image generation with cross-platform environment checks, `codex mcp-server` as the preferred route, and `codex exec` as the explicit alternate local route.
-- Added `scripts/probe-codex-mcp.py` as a small cross-platform helper for probing `codex mcp-server` availability and tool calls during local Codex image-generation workflows.
-
-### Changed
-
-- `/artgen` and the hidden `art-director` agent now support opt-in local Codex image export via one `--codex-output=<path>` flag, using `codex mcp-server` by default and `codex exec` only as the availability fallback while keeping the default brief/prompt surface inline-only.
-- The art-generation scaffold and README now document the new Codex-assisted export lane, its cross-platform path rules, and the requirement to fall back to warnings plus the returned Direct Use Prompt when the local Codex environment is unavailable.
-
 ## [0.22.9] - 2026-04-16
 
 ### Added
