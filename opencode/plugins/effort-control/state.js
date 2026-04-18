@@ -78,8 +78,12 @@ function isOpenAiGpt5Model(modelId) {
   return typeof modelId === "string" && /^gpt-5(?:$|[.-])/.test(modelId);
 }
 
-function defaultEffortForAgent(agent, modelId) {
+function defaultEffortForAgent(agent, modelId, options = {}) {
   if (!isOpenAiGpt5Model(modelId)) {
+    return undefined;
+  }
+
+  if (options && options.suppressBaseline) {
     return undefined;
   }
 
@@ -235,14 +239,14 @@ async function findInheritedSessionEffort({ sessionId, store, getParentSessionId
   return undefined;
 }
 
-function resolveDesiredEffort({ providerId, modelId, agent, sessionEffort, projectEffort, existingEffort }) {
+function resolveDesiredEffort({ providerId, modelId, agent, sessionEffort, projectEffort, existingEffort, suppressBaseline }) {
   if (!SUPPORTED_PROVIDERS.has(providerId) || !isOpenAiGpt5Model(modelId)) {
     return undefined;
   }
 
   const explicit = normalizeEffort(sessionEffort);
   const projectDefault = normalizeEffort(projectEffort);
-  const baseline = defaultEffortForAgent(agent, modelId);
+  const baseline = defaultEffortForAgent(agent, modelId, { suppressBaseline });
   const existing = normalizeEffort(existingEffort);
 
   if (explicit) {

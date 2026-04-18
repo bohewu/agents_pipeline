@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  defaultEffortForAgent,
   findInheritedSessionEffort,
   getProjectDefaultEffort,
   readState,
@@ -12,6 +13,11 @@ import {
   setProjectDefaultEffort,
   setSessionEffort
 } from "./effort-control/state.js";
+import {
+  extractCommandEffortContext,
+  extractMessageEffortContext,
+  shouldSuppressBaselineForContext
+} from "./effort-control.js";
 
 test("OpenAI and Copilot GPT-5 models floor selected agents while leaving excluded roles alone", () => {
   assert.equal(
@@ -183,6 +189,98 @@ test("project defaults raise delegated effort without downgrading stronger exist
     }),
     undefined
   );
+});
+
+test("context-aware planning flags can suppress the default GPT-5 medium floor without affecting explicit overrides", () => {
+  assert.equal(
+    defaultEffortForAgent("executor", "gpt-5.4", { suppressBaseline: true }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "executor",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined,
+      suppressBaseline: true
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "executor",
+      sessionEffort: undefined,
+      projectEffort: "high",
+      existingEffort: undefined,
+      suppressBaseline: true
+    }),
+    "high"
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "executor",
+      sessionEffort: "xhigh",
+      projectEffort: undefined,
+      existingEffort: "medium",
+      suppressBaseline: true
+    }),
+    "xhigh"
+  );
+});
+
+test("context-aware effort detection only reacts to reliable slash-command planning flags", () => {
+  assert.deepEqual(
+    extractCommandEffortContext("run-pipeline", "Fix bug --dry"),
+    {
+      command: "run-pipeline",
+      dryRun: true,
+      decisionOnly: false
+    }
+  );
+
+  assert.deepEqual(
+    extractCommandEffortContext("/modernize", "Audit legacy app --decision-only"),
+    {
+      command: "modernize",
+      dryRun: false,
+      decisionOnly: true
+    }
+  );
+
+  assert.equal(
+    extractCommandEffortContext("run-flow", "Ship fix --autopilot"),
+    undefined
+  );
+
+  assert.deepEqual(
+    extractMessageEffortContext("/run-pipeline plan this change --decision-only"),
+    {
+      command: "run-pipeline",
+      dryRun: false,
+      decisionOnly: true
+    }
+  );
+
+  assert.equal(
+    extractMessageEffortContext("Can you explain what --dry does?"),
+    undefined
+  );
+
+  assert.equal(
+    shouldSuppressBaselineForContext({ dryRun: true, decisionOnly: false }),
+    true
+  );
+
+  assert.equal(shouldSuppressBaselineForContext(undefined), false);
 });
 
 test("project defaults and parent-session overrides are persisted and inherited", async (t) => {

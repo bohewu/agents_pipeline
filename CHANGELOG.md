@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - Exported Copilot, Codex, and Claude orchestrator prompts now compact repeated checkpoint and run-status protocol sections at export time, reducing generated prompt overhead without changing source agent markdown, runtime contracts, or output paths.
+- The effort-control plugin now suppresses its automatic GPT-5 medium floor on reliably detected planning-only slash-command runs such as `--dry` and `--decision-only`, while preserving stronger project/session overrides and the existing agent-based exclusions.
 
 ## [0.22.14] - 2026-04-18
 
