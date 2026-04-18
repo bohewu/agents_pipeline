@@ -15,6 +15,20 @@ AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
 ROLE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO_MANAGED_REF_RE = re.compile(r"(?<![A-Za-z0-9_./:-])(opencode/[A-Za-z0-9_./-]+)")
 FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})(.*)$")
+HANDOFF_PROTOCOL_RE = re.compile(
+    r"(?ms)^# HANDOFF PROTOCOL \(GLOBAL\)\n.*?(?=^## AGENT RESPONSIBILITY MATRIX|^# )"
+)
+RESPONSIBILITY_MATRIX_RE = re.compile(
+    r"(?ms)^## AGENT RESPONSIBILITY MATRIX\n\n"
+    r"\| Agent \| Primary Responsibility \| Forbidden Actions \|\n"
+    r"\|[-| ]+\|\n"
+    r"(?P<rows>(?:\|.*\|\n)+)"
+)
+FLAG_PARSING_INTRO_RE = re.compile(
+    r"(?ms)^(?P<heading>#{1,2} FLAG PARSING PROTOCOL(?: \([^)]+\))?)\n\n"
+    r"You are given positional parameters via the slash command\.\n\n"
+    r"Parse `raw_input`: tokens before the first `--\*` flag form `main_task_prompt`; `--\*` tokens are flags\.(?P<resume> If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation\.)?\n"
+)
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -269,6 +283,78 @@ def compact_markdown(text: str) -> str:
     return out
 
 
+def ensure_sentence(text: str) -> str:
+    return text if text.endswith((".", "!", "?")) else f"{text}."
+
+
+def minify_handoff_protocol(text: str) -> str:
+    match = HANDOFF_PROTOCOL_RE.search(text)
+    if not match:
+        return text
+
+    section = match.group(0)
+    general_match = re.search(
+        r"(?m)^## General Handoff Rules\n\n(?P<bullets>(?:- [^\n]+\n)+)",
+        section,
+    )
+    if not general_match:
+        return text
+
+    lines = ["# HANDOFF PROTOCOL (GLOBAL)", ""]
+    lines.extend(line.rstrip() for line in general_match.group("bullets").strip().splitlines())
+    lines.append(
+        "- Orchestrator -> subagent: selected for specialization; stay within scope; satisfy the provided Definition of Done exactly."
+    )
+
+    if "## EXECUTOR -> REVIEWER HANDOFF" in section:
+        lines.append(
+            "- Executor -> reviewer: only evidence and DoD satisfaction count; missing or weak evidence means incomplete."
+        )
+    if "## REVIEWER -> ORCHESTRATOR HANDOFF" in section:
+        lines.append(
+            "- Reviewer -> orchestrator: reviewer decisions are final. If `status = fail` and `test_only = false`, convert `required_followups` into delta tasks, route them, and retry up to `max_retry_rounds`; if `test_only = true`, skip retries; stop and report blockers when failure persists."
+        )
+
+    replacement = "\n".join(lines) + "\n\n"
+    return text[: match.start()] + replacement + text[match.end() :]
+
+
+def minify_agent_responsibility_matrix(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        bullets: List[str] = []
+        for raw_row in match.group("rows").strip().splitlines():
+            cells = [cell.strip() for cell in raw_row.strip().strip("|").split("|")]
+            if len(cells) != 3 or not all(cells):
+                return match.group(0)
+            bullets.append(
+                f"- `{cells[0]}`: {ensure_sentence(cells[1])} Forbidden: {ensure_sentence(cells[2])}"
+            )
+        return "## AGENT RESPONSIBILITY MATRIX\n\n" + "\n".join(bullets) + "\n"
+
+    return RESPONSIBILITY_MATRIX_RE.sub(repl, text, count=1)
+
+
+def minify_flag_parsing_intro(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        resume = match.group("resume") or ""
+        return (
+            f"{match.group('heading')}\n\n"
+            "Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags."
+            f"{resume}\n"
+        )
+
+    return FLAG_PARSING_INTRO_RE.sub(repl, text, count=1)
+
+
+def minify_orchestrator_runtime_body(agent_name: str, text: str) -> str:
+    if not agent_name.startswith(ORCHESTRATOR_PREFIX):
+        return text
+
+    text = minify_handoff_protocol(text)
+    text = minify_agent_responsibility_matrix(text)
+    return minify_flag_parsing_intro(text)
+
+
 def expand_ref_token(
     token: str, available_agents: Set[str]
 ) -> Tuple[List[str], List[str]]:
@@ -335,6 +421,7 @@ def adapt_body(
     opencode_root_ref: Optional[str] = None,
 ) -> str:
     body = original_body.replace("$ARGUMENTS", "raw_input")
+    body = minify_orchestrator_runtime_body(agent_name, body)
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):
         blocks.append(make_input_adapter(agent_name))

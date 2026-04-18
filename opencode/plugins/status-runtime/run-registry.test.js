@@ -7,7 +7,13 @@ const assert = require("node:assert/strict");
 const { StatusProjector, StatusRuntime } = require("./index");
 const { RunRegistry } = require("./run-registry");
 const { ORCHESTRATORS } = require("./constants");
-const { canonicalizeCheckpoint, canonicalizeRunStatus } = require("./schema-lite");
+const {
+  canonicalizeAgentStatus,
+  canonicalizeCheckpoint,
+  canonicalizeRunStatus,
+  canonicalizeTaskStatus
+} = require("./schema-lite");
+const { StatusWriter } = require("./status-writer");
 const { resolvePayloadPath, resolvePayloadPathAnchor } = require("./utils");
 
 async function writeJson(filePath, value) {
@@ -296,6 +302,91 @@ test("status runtime rejects agent.started without agent using a clear message",
     /agent\.started requires non-empty string field\(s\): agent/
   );
   assert.equal(registryTouched, false);
+});
+
+test("status runtime only rewrites entities touched by the current event", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-dirty-writes-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  class CountingWriter extends StatusWriter {
+    constructor() {
+      super();
+      this.calls = [];
+    }
+
+    async writeCheckpoint(filePath, value) {
+      this.calls.push(["checkpoint", path.basename(filePath), canonicalizeCheckpoint(value)]);
+      return super.writeCheckpoint(filePath, value);
+    }
+
+    async writeRunStatus(filePath, value) {
+      this.calls.push(["run-status", path.basename(filePath), canonicalizeRunStatus(value)]);
+      return super.writeRunStatus(filePath, value);
+    }
+
+    async writeTaskStatus(filePath, value) {
+      this.calls.push(["task", path.basename(filePath), canonicalizeTaskStatus(value)]);
+      return super.writeTaskStatus(filePath, value);
+    }
+
+    async writeAgentStatus(filePath, value) {
+      this.calls.push(["agent", path.basename(filePath), canonicalizeAgentStatus(value)]);
+      return super.writeAgentStatus(filePath, value);
+    }
+  }
+
+  const writer = new CountingWriter();
+  const runtime = new StatusRuntime({ writer, registry: new RunRegistry({ writer }) });
+
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-dirty-writes",
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Exercise dirty writes",
+    timestamp: "2026-04-18T02:00:00.000Z"
+  });
+
+  writer.calls = [];
+  await runtime.applyEvent("tasks.registered", {
+    output_root: tempRoot,
+    run_id: "run-dirty-writes",
+    timestamp: "2026-04-18T02:01:00.000Z",
+    tasks: [
+      { task_id: "task-a", summary: "Task A" },
+      { task_id: "task-b", summary: "Task B" }
+    ]
+  });
+
+  assert.deepEqual(
+    writer.calls.map(([kind, name]) => [kind, name]),
+    [
+      ["run-status", "run-status.json"],
+      ["task", "task-a.json"],
+      ["task", "task-b.json"]
+    ]
+  );
+
+  writer.calls = [];
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot,
+    run_id: "run-dirty-writes",
+    agent_id: "executor",
+    agent: "executor",
+    task_id: "task-a",
+    status: "running",
+    timestamp: "2026-04-18T02:02:00.000Z"
+  });
+
+  assert.deepEqual(
+    writer.calls.map(([kind, name]) => [kind, name]),
+    [
+      ["run-status", "run-status.json"],
+      ["task", "task-a.json"],
+      ["agent", "executor.json"]
+    ]
+  );
 });
 
 test("status schema-lite accepts every supported orchestrator", () => {

@@ -342,6 +342,9 @@ class StatusProjector {
     assert(state.runStatus, "run.started must be emitted before run.finished");
     state.runStatus.status = payload.status;
     state.runStatus.updated_at = timestamp;
+    if (state.checkpoint) {
+      state.checkpoint.updated_at = timestamp;
+    }
     if (payload.waiting_on !== undefined) {
       state.runStatus.waiting_on = payload.waiting_on;
     }
@@ -509,7 +512,6 @@ class StatusProjector {
 
     if (state.checkpoint) {
       state.checkpoint.protocol_version = PROTOCOL_VERSION;
-      state.checkpoint.updated_at = timestamp;
     }
 
     return state;

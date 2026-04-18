@@ -3,6 +3,7 @@ const path = require("path");
 const { RunRegistry } = require("./run-registry");
 const { StatusProjector } = require("./status-projector");
 const { StatusWriter } = require("./status-writer");
+const { nowIso } = require("./utils");
 
 const STATUS_RUNTIME_EVENTS = [
   "run.started",
@@ -46,26 +47,27 @@ class StatusRuntime {
   }
 
   async applyEvent(eventName, payload) {
-    validateEventPayload(eventName, payload);
+    const eventPayload = payload && payload.timestamp ? payload : { ...payload, timestamp: nowIso() };
+    validateEventPayload(eventName, eventPayload);
 
     let run;
     if (eventName === "run.started") {
-      run = await this.registry.resolveFreshRun({ output_root: payload.output_root, run_id: payload.run_id });
+      run = await this.registry.resolveFreshRun({ output_root: eventPayload.output_root, run_id: eventPayload.run_id });
     } else if (eventName === "run.resumed") {
       run = await this.registry.resolveResumeRun({
-        output_root: payload.output_root,
-        run_id: payload.run_id,
-        orchestrator: payload.orchestrator
+        output_root: eventPayload.output_root,
+        run_id: eventPayload.run_id,
+        orchestrator: eventPayload.orchestrator
       });
     } else {
-      run = await this.registry.resolveFreshRun({ output_root: payload.output_root, run_id: payload.run_id });
+      run = await this.registry.resolveFreshRun({ output_root: eventPayload.output_root, run_id: eventPayload.run_id });
     }
 
     const state = await this.registry.loadState(run.runDir);
     state.runDir = run.runDir;
 
-    this.projector.applyEvent(state, eventName, payload);
-    await this.persistState(run, state);
+    this.projector.applyEvent(state, eventName, eventPayload);
+    await this.persistState(run, state, eventPayload.timestamp);
 
     return {
       event: eventName,
@@ -79,20 +81,31 @@ class StatusRuntime {
     };
   }
 
-  async persistState(run, state) {
-    if (state.checkpoint) {
+  async persistState(run, state, timestamp) {
+    if (state.checkpoint && this.wasEntityTouched(state.checkpoint, timestamp)) {
       await this.writer.writeCheckpoint(run.checkpointPath, state.checkpoint);
     }
-    if (state.runStatus) {
+    if (state.runStatus && this.wasEntityTouched(state.runStatus, timestamp)) {
       await this.writer.writeRunStatus(run.runStatusPath, state.runStatus);
     }
 
     for (const [taskId, task] of state.tasks.entries()) {
-      await this.writer.writeTaskStatus(path.join(run.tasksDir, `${taskId}.json`), task);
+      if (this.wasEntityTouched(task, timestamp)) {
+        await this.writer.writeTaskStatus(path.join(run.tasksDir, `${taskId}.json`), task);
+      }
     }
     for (const [agentId, agent] of state.agents.entries()) {
-      await this.writer.writeAgentStatus(path.join(run.agentsDir, `${agentId}.json`), agent);
+      if (this.wasEntityTouched(agent, timestamp)) {
+        await this.writer.writeAgentStatus(path.join(run.agentsDir, `${agentId}.json`), agent);
+      }
     }
+  }
+
+  wasEntityTouched(entity, timestamp) {
+    if (!entity || !timestamp) {
+      return true;
+    }
+    return entity.updated_at === timestamp || entity.created_at === timestamp;
   }
 }
 
