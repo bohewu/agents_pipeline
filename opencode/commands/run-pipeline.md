@@ -31,7 +31,7 @@ $ARGUMENTS
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
 - `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
-- `--compress` — compress context between stages
+- `--compress` — write a reusable `context-pack.json` at the end of the run; trivial successful runs use an inline minimal pack instead of dispatching `@compressor`
 - `--commit=off|before|after` — optional git helper lane; runs outside the canonical TaskList and does not affect task/reviewer/retry quotas
 - `--handoff` — write run-local handoff artifacts at the end of the run
 - `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior

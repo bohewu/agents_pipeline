@@ -319,7 +319,7 @@ Use this gate for `DevSpec`:
 - Stage 5 (Execution + optional validation): @executor / @peon / @generalist / @doc-writer / @test-runner
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
-- Stage 8 (Compression, opt-in): @compressor (only if `compress_mode = true`)
+- Stage 8 (Compression, opt-in): @compressor for non-trivial runs; trivial successful runs may emit `context-pack.json` inline (only if `compress_mode = true`)
 - Stage 9 (Summary): Orchestrator-owned (no subagent)
 
 All intermediate JSON outputs (ProblemSpec, optional DevSpec, PlanOutline, TaskList, etc.) are written to `<run_output_dir>/pipeline/` for traceability.
@@ -349,7 +349,23 @@ Stage 5: Execute batches + optional validation:
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`.
 Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
-Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes) — only if `compress_mode = true`; skip otherwise
+Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
+
+- Treat the run as trivial only when all of these are true:
+  - Stage 6 passed and reviewer `required_followups` is empty
+  - no Stage 7 retry round ran
+  - no `dev-spec.json` was generated
+  - `task-list.json` contains at most 2 tasks
+  - `dispatch-plan.json` does not require `browser` or `server` work, and no task requires teardown evidence
+  - the run stayed localized to one small fix/change thread with no unresolved design branch or notable open-question list
+- If the run is trivial:
+  - do NOT dispatch `@compressor`
+  - synthesize `context-pack.json` directly as a minimal valid `ContextPack`
+  - keep `repo_summary` to one short sentence
+  - keep `decisions` to 0-2 short items and `outcomes` to 1-2 short items
+  - include `open_questions`, `risks`, and `artifacts` only when non-empty, and keep each list to the smallest useful set
+- If the run is not trivial, or if you are unsure, call `@compressor` normally to produce `context-pack.json`
+- If `compress_mode = false`, skip Stage 8 entirely
 Stage 9: Orchestrator-owned summary (no subagent). Use this template:
 
 ## Outcome

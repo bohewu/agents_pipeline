@@ -795,6 +795,9 @@ For resume-only flows, `--resume` can be used without a new prompt.
   - Optional git helper lane for pre-run or post-run commits
   - Does not consume Flow's max-5 task budget or the pipeline `TaskList` quota
   - Explicit `--commit=*` wins over workflow-style commit wording in the prompt
+- `--compress`
+  - Write reusable `context-pack.json` at the end of the run
+  - On clearly trivial successful runs, the pipeline writes a minimal valid pack inline instead of paying for a separate compressor subagent call
 - `--confirm`
   - Pause after each stage for review
 - `--verbose`
