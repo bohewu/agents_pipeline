@@ -16,7 +16,6 @@ Date: 2026-04-18
 - Add a low-risk first step for reviewer fail classification by prefixing `review-report` issue/followup strings with `[artifact]`, `[evidence]`, or `[logic]` so narrow repair-only failures can avoid broad retries.
 - Let `orchestrator-pipeline` inline a minimal `context-pack.json` for clearly trivial successful `--compress` runs instead of always paying for a dedicated Stage 8 compressor call.
 - Compact repeated orchestrator checkpoint and run-status boilerplate at export time so generated Copilot/Codex/Claude prompts stay shorter without changing source markdown contracts.
-- Add a conservative context-aware effort shortcut that suppresses the automatic GPT-5 medium floor on reliably detected planning-only slash-command runs such as `--dry` and `--decision-only`.
 - Slim `PROTOCOL_SUMMARY.md` again so the global instruction file keeps only the two universal rules and leaves task/evidence/resource specifics in the local agent or protocol docs that already own them.
 
 ## Next Candidates
@@ -24,7 +23,7 @@ Date: 2026-04-18
 | Priority | Item | Expected gain | Risk | Notes |
 |---|---|---:|---:|---|
 | P3 | Extend exporter compile/minify beyond the current handoff/response/checkpoint/status coverage | Low-Medium prompt | Medium | Keep source markdown readable; remaining gains are smaller unless we also trim Claude delegation boilerplate. |
-| P3 | Extend context-aware effort control beyond the current reliable slash-flag signals | Low-Medium runtime | Medium | Current shortcut only uses clearly observed planning-only flags. Avoid natural-language guessing until broader SDK context is stable. |
+| P2 | Reintroduce context-aware effort control only after verifying OpenCode runtime compatibility for the added hook/export surface | Medium runtime | Medium-High | The previous low-risk shortcut caused a startup regression in local OpenCode validation; keep any retry narrowly scoped and host-version tested. |
 | P3 | Extend Stage 8 trivial-pack bypass beyond the current conservative pass-only heuristic | Low-Medium runtime | Medium | Current shortcut only fires for obvious small successful runs; larger ambiguous runs still use `@compressor`. |
 | P2 | Complete reviewer-failure routing beyond prefix-based classes | Medium-High runtime | Medium-High | Current prompts now classify `[artifact]` / `[evidence]` / `[logic]` without schema churn. Remaining work is making routing/executor selection even more targeted and auditable. |
 | P3 | Checkpoint pointer/hash mode for `stage_artifacts` | Medium context/runtime | High | Keep canonical files as source of truth and store only pointers + hashes in checkpoint state. |
@@ -34,7 +33,7 @@ Date: 2026-04-18
 
 1. Heartbeat emitter-side debounce/coalescing.
 2. More exporter-only orchestrator compaction.
-3. Context-aware effort control.
+3. Host-compatible effort-control follow-up only if runtime/API behavior is confirmed.
 
 ## Guardrails
 
