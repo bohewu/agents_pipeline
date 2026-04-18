@@ -389,6 +389,101 @@ test("status runtime only rewrites entities touched by the current event", async
   );
 });
 
+test("status runtime coalesces redundant heartbeats inside the debounce window", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-heartbeat-coalesce-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  class CountingWriter extends StatusWriter {
+    constructor() {
+      super();
+      this.calls = [];
+    }
+
+    async writeCheckpoint(filePath, value) {
+      this.calls.push(["checkpoint", path.basename(filePath), canonicalizeCheckpoint(value)]);
+      return super.writeCheckpoint(filePath, value);
+    }
+
+    async writeRunStatus(filePath, value) {
+      this.calls.push(["run-status", path.basename(filePath), canonicalizeRunStatus(value)]);
+      return super.writeRunStatus(filePath, value);
+    }
+
+    async writeTaskStatus(filePath, value) {
+      this.calls.push(["task", path.basename(filePath), canonicalizeTaskStatus(value)]);
+      return super.writeTaskStatus(filePath, value);
+    }
+
+    async writeAgentStatus(filePath, value) {
+      this.calls.push(["agent", path.basename(filePath), canonicalizeAgentStatus(value)]);
+      return super.writeAgentStatus(filePath, value);
+    }
+  }
+
+  const writer = new CountingWriter();
+  const runtime = new StatusRuntime({ writer, registry: new RunRegistry({ writer }) });
+
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-heartbeat-coalesce",
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Exercise heartbeat coalescing",
+    timestamp: "2026-04-18T04:00:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    output_root: tempRoot,
+    run_id: "run-heartbeat-coalesce",
+    timestamp: "2026-04-18T04:00:01.000Z",
+    tasks: [{ task_id: "task-a", summary: "Task A" }]
+  });
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot,
+    run_id: "run-heartbeat-coalesce",
+    agent_id: "executor",
+    agent: "executor",
+    task_id: "task-a",
+    status: "running",
+    resource_status: "running",
+    timestamp: "2026-04-18T04:00:02.000Z"
+  });
+
+  writer.calls = [];
+  const coalesced = await runtime.applyEvent("agent.heartbeat", {
+    output_root: tempRoot,
+    run_id: "run-heartbeat-coalesce",
+    agent_id: "executor",
+    status: "running",
+    resource_status: "running",
+    last_heartbeat_at: "2026-04-18T04:00:10.000Z",
+    timestamp: "2026-04-18T04:00:10.000Z"
+  });
+
+  assert.equal(coalesced.coalesced, true);
+  assert.deepEqual(writer.calls, []);
+
+  const flushed = await runtime.applyEvent("agent.heartbeat", {
+    output_root: tempRoot,
+    run_id: "run-heartbeat-coalesce",
+    agent_id: "executor",
+    status: "running",
+    resource_status: "running",
+    last_heartbeat_at: "2026-04-18T04:00:18.000Z",
+    timestamp: "2026-04-18T04:00:18.000Z"
+  });
+
+  assert.equal(flushed.coalesced, undefined);
+  assert.deepEqual(
+    writer.calls.map(([kind, name]) => [kind, name]),
+    [
+      ["run-status", "run-status.json"],
+      ["task", "task-a.json"],
+      ["agent", "executor.json"]
+    ]
+  );
+});
+
 test("status runtime can apply a batch of events with one final flush", async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-batch-events-"));
   t.after(async () => {

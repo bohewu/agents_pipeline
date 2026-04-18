@@ -5,8 +5,10 @@ const STATE_FILE = "effort-control.sessions.json";
 const TRACE_FILE = "effort-control.trace.jsonl";
 const EFFORT_ORDER = ["medium", "high", "xhigh"];
 const EXCLUDED_BASELINE_AGENTS = new Set([
+  "codex-account-manager",
   "compressor",
   "doc-writer",
+  "flow-splitter",
   "handoff-writer",
   "kanban-manager",
   "peon",
@@ -15,6 +17,7 @@ const EXCLUDED_BASELINE_AGENTS = new Set([
   "router",
   "session-guide-writer",
   "skill-curator",
+  "specifier",
   "summarizer",
   "test-runner",
   "usage-inspector"

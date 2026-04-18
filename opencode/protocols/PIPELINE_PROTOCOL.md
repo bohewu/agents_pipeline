@@ -324,6 +324,7 @@ Minimal payload skeleton guidance:
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
 - `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
 - When many semantic deltas land together for the same run, prefer one `event = "batch"` call with `shared_payload` over many single-event tool calls. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed.
+- Runtime/plugin MAY debounce redundant `agent.heartbeat` events within a short window when the heartbeat does not change semantic agent/task state beyond liveness timestamp.
 
 These event payloads are semantic deltas, not full file rewrites.
 

@@ -1,4 +1,5 @@
 const path = require("path");
+const { isDeepStrictEqual } = require("util");
 
 const { RunRegistry } = require("./run-registry");
 const { StatusProjector } = require("./status-projector");
@@ -17,6 +18,15 @@ const STATUS_RUNTIME_EVENTS = [
   "run.finished"
 ];
 const STATUS_RUNTIME_BATCH_EVENT = "batch";
+const HEARTBEAT_DEBOUNCE_MS = 15000;
+const HEARTBEAT_IGNORED_FIELDS = new Set([
+  "checkpoint_path",
+  "last_heartbeat_at",
+  "output_root",
+  "run_id",
+  "timestamp",
+  "working_project_dir"
+]);
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.length > 0;
@@ -56,19 +66,14 @@ class StatusRuntime {
     const state = await this.registry.loadState(run.runDir);
     state.runDir = run.runDir;
 
+    if (eventName === "agent.heartbeat" && this.shouldCoalesceHeartbeat(state, eventPayload)) {
+      return this.buildResult(eventName, run, state, { coalesced: true });
+    }
+
     this.projector.applyEvent(state, eventName, eventPayload);
     await this.persistState(run, state, this.captureDirtyState(state, eventPayload.timestamp));
 
-    return {
-      event: eventName,
-      run_id: state.runStatus?.run_id,
-      run_dir: run.runDir,
-      checkpoint_path: run.checkpointPath,
-      run_status_path: run.runStatusPath,
-      task_count: state.tasks.size,
-      agent_count: state.agents.size,
-      layout: state.runStatus?.layout
-    };
+    return this.buildResult(eventName, run, state);
   }
 
   async applyEvents(events) {
@@ -103,25 +108,23 @@ class StatusRuntime {
     state.runDir = run.runDir;
 
     const dirty = this.createDirtyState();
+    let coalescedEvents = 0;
     for (const entry of normalizedEvents) {
+      if (entry.event === "agent.heartbeat" && this.shouldCoalesceHeartbeat(state, entry.payload)) {
+        coalescedEvents += 1;
+        continue;
+      }
       this.projector.applyEvent(state, entry.event, entry.payload);
       this.mergeDirtyState(dirty, this.captureDirtyState(state, entry.payload.timestamp));
     }
 
     await this.persistState(run, state, dirty);
 
-    return {
-      event: STATUS_RUNTIME_BATCH_EVENT,
+    return this.buildResult(STATUS_RUNTIME_BATCH_EVENT, run, state, {
       event_count: normalizedEvents.length,
       events: normalizedEvents.map((entry) => entry.event),
-      run_id: state.runStatus?.run_id,
-      run_dir: run.runDir,
-      checkpoint_path: run.checkpointPath,
-      run_status_path: run.runStatusPath,
-      task_count: state.tasks.size,
-      agent_count: state.agents.size,
-      layout: state.runStatus?.layout
-    };
+      coalesced_events: coalescedEvents
+    });
   }
 
   async resolveRun(eventName, payload) {
@@ -167,6 +170,20 @@ class StatusRuntime {
     };
   }
 
+  buildResult(eventName, run, state, extra = {}) {
+    return {
+      event: eventName,
+      run_id: state.runStatus?.run_id,
+      run_dir: run.runDir,
+      checkpoint_path: run.checkpointPath,
+      run_status_path: run.runStatusPath,
+      task_count: state.tasks.size,
+      agent_count: state.agents.size,
+      layout: state.runStatus?.layout,
+      ...extra
+    };
+  }
+
   captureDirtyState(state, timestamp) {
     const dirty = this.createDirtyState();
     if (state.checkpoint && this.wasEntityTouched(state.checkpoint, timestamp)) {
@@ -198,6 +215,31 @@ class StatusRuntime {
       target.agents.add(agentId);
     }
     return target;
+  }
+
+  shouldCoalesceHeartbeat(state, payload) {
+    const entry = this.projector.resolveAgentEntry(state, payload);
+    const agent = entry.agent;
+    const previousAt = Date.parse(agent.last_heartbeat_at || agent.updated_at || agent.started_at || "");
+    const nextAt = Date.parse(payload.last_heartbeat_at || payload.timestamp || "");
+
+    if (!Number.isFinite(previousAt) || !Number.isFinite(nextAt) || nextAt < previousAt) {
+      return false;
+    }
+    if (nextAt - previousAt >= HEARTBEAT_DEBOUNCE_MS) {
+      return false;
+    }
+
+    for (const [key, value] of Object.entries(payload)) {
+      if (HEARTBEAT_IGNORED_FIELDS.has(key)) {
+        continue;
+      }
+      if (!isDeepStrictEqual(agent[key], value)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   wasEntityTouched(entity, timestamp) {

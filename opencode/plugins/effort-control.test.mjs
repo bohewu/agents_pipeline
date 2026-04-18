@@ -42,6 +42,42 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
     resolveDesiredEffort({
       providerId: "openai",
       modelId: "gpt-5.4",
+      agent: "specifier",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "flow-splitter",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "codex-account-manager",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
       agent: "planner",
       sessionEffort: undefined,
       projectEffort: undefined,

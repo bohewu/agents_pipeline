@@ -53,6 +53,8 @@ async function logAppliedEvent(client, event, result) {
         extra: {
           event,
           event_count: result.event_count,
+          coalesced: result.coalesced,
+          coalesced_events: result.coalesced_events,
           run_id: result.run_id,
           run_dir: result.run_dir
         }
