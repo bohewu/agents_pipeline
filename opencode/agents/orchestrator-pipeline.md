@@ -289,25 +289,15 @@ For the human-readable development spec, do NOT invent alternate filenames. Alwa
 
 # DEV SPEC GENERATION POLICY
 
-Generate `DevSpec` by default for genuinely behavior-heavy work, including:
+Use this gate for `DevSpec`:
 
-- explicit spec, BDD, TDD, scenario, or acceptance-criteria requests
-- user-facing feature behavior
-- API contract or request/response behavior changes
-- workflow/state-transition changes
-- multi-scenario or multi-story work where traceability materially helps planning, testing, or review
+- Force off unless the user explicitly asks for a spec artifact when the run is clearly one of these: `test_only = true`, `decision_only = true`, `dry_run = true`, docs/copy/content-only work, formatting/lint/rename/comment-only work, mechanical refactors with no intended behavior change, config-only or dependency-only changes with no intended behavior change, or small single-path bugfixes where normal `ProblemSpec` acceptance criteria are enough.
 
-Skip `DevSpec` by default when the run is clearly one of these:
+- Force on when the user explicitly asks for a spec-style contract, for example spec, BDD, TDD, scenario, or acceptance-criteria driven work.
 
-- `test_only = true`
-- `decision_only = true`
-- `dry_run = true`
-- docs-only, copy-only, or content-only changes
-- formatting, lint, rename, comment-only, or mechanical refactors with no intended behavior change
-- config-only or dependency-only changes with no intended behavior change
-- small single-path bugfixes where normal `ProblemSpec` acceptance criteria are enough
+- Otherwise, auto-generate `DevSpec` only when at least TWO of these signals apply: user-facing feature behavior changes; API contract or request/response behavior changes; workflow/state-transition changes; multi-scenario or multi-story acceptance surface; cross-module or elevated-regression-risk work where traceability will materially help planning, testing, or review.
 
-If unsure, default to `ProblemSpec`; add `DevSpec` only when the extra behavior and traceability contract is materially useful.
+- If only zero or one soft signal applies, default to `ProblemSpec`. When unsure, default to `ProblemSpec`. A small isolated user-visible fix, one-path UI polish, or narrow request/response tweak should stay on `ProblemSpec` unless it is force-on or crosses the threshold gate above.
 
 # CONFIRM / VERBOSE PROTOCOL
 
