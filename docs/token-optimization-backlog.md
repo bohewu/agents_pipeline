@@ -12,12 +12,12 @@ Date: 2026-04-18
 - Expand GPT-5 medium-floor exclusions for clearly structured low-reasoning agents.
 - Reduce status-runtime cost by rewriting only touched entities.
 - Add `status_runtime_event(event="batch")` so same-run deltas can be applied in order and flushed once.
+- Clarify emitter-side heartbeat cadence so orchestrators/executors treat standalone heartbeats as low-frequency liveness signals instead of routine per-step updates.
 
 ## Next Candidates
 
 | Priority | Item | Expected gain | Risk | Notes |
 |---|---|---:|---:|---|
-| P1 | Heartbeat emitter-side debounce/coalescing | Medium runtime | Low-Medium | Runtime now supports batch + redundant-heartbeat suppression, but orchestrators/executors can still over-emit heartbeat tool calls. Add a simple cadence/default guidance and coalesce at call sites where practical. |
 | P1 | Scope `PROTOCOL_SUMMARY.md` to orchestrators only or split a lighter subagent summary | High prompt | Medium | Still a global tax when injected into agents that do not need status/schema/todo details. |
 | P2 | Extend exporter compile/minify to `RESPONSE MODE`, progress narration boilerplate, and other repeated orchestrator sections | Medium prompt | Medium | Keep source markdown readable; continue slimming exported runtime prompts only. |
 | P2 | Context-aware effort control when plugin input exposes prompt/flags reliably | Medium runtime | Medium | Candidate signals: `--dry`, `--decision-only`, docs-only/copy-only/config-only, or obvious planning-only phrasing. Avoid guessing until SDK fields are stable. |

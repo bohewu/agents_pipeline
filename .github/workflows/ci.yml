@@ -871,6 +871,7 @@ jobs:
           node --test opencode/plugins/status-runtime/run-registry.test.js
           node scripts/validate-status-runtime-smoke.cjs
           node scripts/validate-local-preview-lifecycle-smoke.cjs
+          python3 scripts/validate-status-emission-guidance.py
 
       - name: Validate resource-control prompt coverage
         shell: bash

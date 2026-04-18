@@ -193,7 +193,7 @@ If a delegated caller or runtime provides `working_project_dir`, include it unch
 
 If an upstream caller/runtime expects this Flow run to execute against `working_project_dir`, worktree-aware runtimes SHOULD launch the Flow orchestrator in that repo. If the runtime cannot honor the delegated worktree safely, stop and report BLOCKED instead of silently running against the caller repo.
 
-Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required.
+Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required, and keep standalone heartbeats coarse (roughly >=15 seconds) unless a semantic state change makes an earlier heartbeat useful.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -265,11 +265,11 @@ Stage 3 — Dispatch & Execution
   - Expected output
   - `effort`, `verification`, and `repair_budget`
   - Artifact output contract (below)
-- For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should heartbeat while active when practical, and must reflect cleanup state before reporting success.
+- For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should use standalone heartbeats only for genuinely long-running active work, should keep them coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), and must reflect cleanup state before reporting success.
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".
 - Before dispatch, move eligible tasks to `ready`; when any subagent is handed off, emit the agent registration/update event and keep `active_agent_ids` aligned even if the subagent is not attached to a task yet.
-- After each task result, immediately reconcile the semantic task outcome, any related agent outcome, and the run summary inputs. Prefer one batched `status_runtime_event` flush for the related task/agent deltas; only emit standalone heartbeats when the task is still active and the newer heartbeat adds useful liveness information.
+- After each task result, immediately reconcile the semantic task outcome, any related agent outcome, and the run summary inputs. Prefer one batched `status_runtime_event` flush for the related task/agent deltas; only emit standalone heartbeats when the task is still active, the newer heartbeat adds useful liveness information, and roughly 15 seconds have passed since the last flushed heartbeat unless semantic state changed sooner.
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
 

@@ -63,7 +63,7 @@ $ARGUMENTS
 - All behavior is enforced at orchestrator-pipeline prompt level
 - Compatible with OpenCode official command system
 - Runtime/plugin writes canonical checkpoint and status artifacts under `<output_root>/<run_id>/` via the plugin tool `status_runtime_event`.
-- The orchestrator must follow the shared `status_runtime_event` contract in `opencode/protocols/PIPELINE_PROTOCOL.md`, including `event = "batch"` when several same-run status deltas can be flushed together.
+- The orchestrator must follow the shared `status_runtime_event` contract in `opencode/protocols/PIPELINE_PROTOCOL.md`, including `event = "batch"` when several same-run status deltas can be flushed together and coarse standalone heartbeat cadence when no richer flush is needed.
 - When generated, the human-readable development spec is written to `<run_output_dir>/pipeline/dev-spec.md`.
 - When `--handoff` is enabled, run-local handoff files are written under `<run_output_dir>/pipeline/`.
 - Root-tracked carryover artifacts live outside `.pipeline-output/`:

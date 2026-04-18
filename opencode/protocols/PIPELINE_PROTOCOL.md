@@ -322,6 +322,7 @@ Minimal payload skeleton guidance:
 - `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
+- Emitter guidance for `agent.heartbeat`: use standalone heartbeats only for still-active work that genuinely needs liveness visibility. Prefer a coarse cadence (roughly no more than once per 15 seconds per active agent) unless semantic state, resource state, or cleanup state changed. If completion is imminent, skip the heartbeat and flush the final batch instead.
 - `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
 - When many semantic deltas land together for the same run, prefer one `event = "batch"` call with `shared_payload` over many single-event tool calls. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed.
 - Runtime/plugin MAY debounce redundant `agent.heartbeat` events within a short window when the heartbeat does not change semantic agent/task state beyond liveness timestamp.

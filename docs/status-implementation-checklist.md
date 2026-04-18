@@ -27,6 +27,7 @@ Use this checklist when implementing runtime-owned status emission for `run-*` o
 - Runtime/plugin owns file creation, timestamps, refs, counts, and reconciliation.
 - Orchestrator owns semantic transitions: stage completion, task planning, dispatch intent, final outcomes.
 - Subagents should only report their own start/heartbeat/finish payloads through runtime APIs.
+- Standalone heartbeats are for long-running active work only; prefer coarse cadence (roughly >=15 seconds) and skip them when a final batched outcome is imminent.
 
 ## Run index maintenance
 
