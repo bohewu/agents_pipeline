@@ -1,6 +1,6 @@
 ---
 name: kanban-manager
-description: Manages the root-tracked todo-ledger.json and renders a human-readable kanban.md view.
+description: Manages canonical todo-ledger.json data and renders kanban.md.
 mode: subagent
 hidden: true
 temperature: 0.1
@@ -22,8 +22,8 @@ Manage the project's root-tracked kanban state.
 
 # RULES
 
-- Treat `todo-ledger.json` as the canonical board data.
-- Keep `kanban.md` as a rendered view; do not invent state there that is missing from `todo-ledger.json`.
+- Treat `todo-ledger.json` as the canonical board data and primary source of truth.
+- Keep `kanban.md` as a derived human-readable render; do not invent state there that is missing from `todo-ledger.json`.
 - Supported statuses are `backlog`, `ready`, `doing`, `blocked`, `done`, and `archived`.
 - Normalize legacy statuses during writes when practical:
   - `open` -> `ready`

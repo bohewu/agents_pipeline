@@ -778,6 +778,14 @@ jobs:
           python3 -m unittest tests/test_validate_orchestrator_contracts.py
           python3 scripts/validate-orchestrator-contracts.py
 
+      - name: Validate helper artifact contracts
+        if: env.DOCS_ONLY != 'true'
+        shell: bash
+        run: |
+          python3 -m py_compile scripts/validate-helper-contracts.py
+          python3 -m unittest tests/test_validate_helper_contracts.py
+          python3 scripts/validate-helper-contracts.py
+
       - name: Validate status schemas and fixtures
         if: env.DOCS_ONLY != 'true'
         shell: bash

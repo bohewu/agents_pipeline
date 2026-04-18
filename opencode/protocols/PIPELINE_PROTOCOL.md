@@ -19,7 +19,7 @@ The ledger must conform to `./protocols/schemas/todo-ledger.schema.json`.
 
 Canonical ownership:
 
-- `todo-ledger.json` is the root-tracked source of truth for carryover / kanban state.
+- `todo-ledger.json` is the root-tracked canonical board data for carryover / kanban state.
 - `kanban.md` is an optional human-readable render derived from `todo-ledger.json`.
 
 ## Optional Input: Session Guide
@@ -29,7 +29,8 @@ If `session-guide.md` exists in the project root, orchestrators MAY read it as s
 Usage rules:
 
 - Treat it as advisory repo context, not as a scope override.
-- Keep it stable and repo-owned; it should not contain transient run progress.
+- Keep it stable and repo-owned; it should not contain transient run progress, temporary blockers, or kanban/task state.
+- Its contract is limited to durable section structure and non-ephemeral repo guidance such as architecture landmarks, conventions, recurring commands, and canonical artifact locations.
 
 ## Optional Input: Approved Spec Artifacts
 
@@ -174,12 +175,13 @@ All pipeline artifacts MUST live under a single configurable base output root so
 These files are intentionally stable enough to live in the project root and follow normal git workflows:
 
 - `<project-root>/session-guide.md` — stable repo guidance for fresh sessions
-- `<project-root>/todo-ledger.json` — canonical kanban / carryover data
-- `<project-root>/kanban.md` — human-readable render of the kanban state
+- `<project-root>/todo-ledger.json` — canonical kanban / carryover board data
+- `<project-root>/kanban.md` — human-readable render derived from `todo-ledger.json`
 
 Rules:
 
 - Do NOT store run-local status, checkpoint state, or transient task counts in these files.
+- Do NOT treat `kanban.md` as canonical state; update `todo-ledger.json` instead.
 - Prefer `.pipeline-output/` for run-specific or high-churn artifacts.
 
 ### Canonical Filenames For `orchestrator-pipeline`

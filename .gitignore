@@ -2,7 +2,6 @@
 .env
 .env.*
 opencode.json
-todo-ledger.json
 !.env.example
 # Targeted local artifact ignores (avoid broad catch-alls)
 debug/

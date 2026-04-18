@@ -384,9 +384,9 @@ Most users should use the published release bundle commands in `Install (Recomme
 - Modernize example lives in `opencode/protocols/MODERNIZE_EXAMPLE.md`.
 - Public checklist lives in `opencode/protocols/PUBLIC_CHECKLIST.md`.
 - Root-tracked helper artifacts live in the project root:
-  - `session-guide.md` for stable repo guidance
-  - `todo-ledger.json` as the canonical kanban / carryover source (schema in `opencode/protocols/schemas/todo-ledger.schema.json`)
-  - `kanban.md` as the rendered board view
+  - `session-guide.md` for stable repo guidance only; keep it limited to non-ephemeral content such as architecture landmarks, conventions, recurring commands, and canonical artifact locations
+  - `todo-ledger.json` as the canonical kanban / carryover data (schema in `opencode/protocols/schemas/todo-ledger.schema.json`)
+  - `kanban.md` as the human-readable rendered board view derived from `todo-ledger.json`
   - A starter ledger template is provided in `todo-ledger.example.json`.
   - A starter rendered board example is provided in `kanban.example.md`.
   - A starter session guide skeleton is provided in `session-guide.example.md`.

@@ -71,6 +71,8 @@ These gates define minimal acceptance for each stage output.
 
 Run the same status contract checks locally or in automation with `opencode/tools/validate-schema.py --require-jsonschema`.
 
+Run the helper artifact contract checks locally or in automation with `python3 scripts/validate-helper-contracts.py`.
+
 Current repository coverage validates:
 
 - `./protocols/examples/status-layout.run-only.valid/run-status.json`
@@ -78,6 +80,8 @@ Current repository coverage validates:
 - all `./protocols/examples/status-layout.expanded.valid/tasks/*.json`
 - all `./protocols/examples/status-layout.expanded.valid/agents/*.json`
 - negative fixtures under `./protocols/examples/status-layout.contract.invalid/`, which must fail against the matching status schemas
+- `kanban.example.md` as a faithful human-readable render of `todo-ledger.example.json`
+- `session-guide.example.md` against the stable top-level section order from the session-guide template and the non-ephemeral helper rules
 
 This repository enforces those checks in `.github/workflows/ci.yml` so contributor changes to status schemas or fixtures are exercised in the default CI path.
 
@@ -89,8 +93,18 @@ This repository enforces those checks in `.github/workflows/ci.yml` so contribut
 ## Todo Ledger Gate (Optional)
 
 - If `todo-ledger.json` exists in the project root, it must validate against the TodoLedger schema.
+- `todo-ledger.json` remains the canonical kanban / carryover board data when present.
+- If `kanban.md` exists in the project root, it should remain a human-readable render derived from `todo-ledger.json`, not a second source of truth.
+- The helper contract check expects every ledger item to appear exactly once under the mapped kanban section (`open -> Ready`, `obsolete -> Archived` when encountered).
 - Canonical item `status` values should be `backlog`, `ready`, `doing`, `blocked`, `done`, or `archived`.
 - Legacy values `open` and `obsolete` are tolerated for migration, but helper commands should rewrite them to canonical statuses when practical.
+
+## Session Guide Gate (Optional)
+
+- If `session-guide.md` exists in the project root, it should remain stable repo guidance only.
+- Stable starter section order is: `Repo Purpose`, `Working Rules`, `Architecture Landmarks`, `Canonical Artifacts`, `Common Commands`, and `Known Long-Lived Risks`.
+- `session-guide.md` should not store transient run progress, temporary blockers, task counts, or kanban state.
+- The repository-local helper validator enforces that section contract and rejects kanban headings, kanban item bullets, and checklist/task-state markers in session-guide helper output.
 
 ## Handoff Gate (Optional)
 

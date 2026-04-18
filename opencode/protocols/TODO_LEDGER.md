@@ -1,14 +1,15 @@
 # Todo Ledger / Kanban Source
 
 The Todo Ledger captures unfinished or blocked items after a pipeline run.
-It also acts as the canonical source of truth for the repo-level kanban view.
+It is the canonical board data for repo-level kanban / carryover state.
+`kanban.md` is an optional human-readable render derived from the ledger.
 It is intentionally lightweight and optional.
 
 ## Default Location
 
 `<project-root>/todo-ledger.json`
 
-Optional human-readable render:
+Optional human-readable render derived from the ledger:
 
 `<project-root>/kanban.md`
 
