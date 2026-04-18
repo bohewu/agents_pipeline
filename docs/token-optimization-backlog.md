@@ -17,12 +17,12 @@ Date: 2026-04-18
 - Let `orchestrator-pipeline` inline a minimal `context-pack.json` for clearly trivial successful `--compress` runs instead of always paying for a dedicated Stage 8 compressor call.
 - Compact repeated orchestrator checkpoint and run-status boilerplate at export time so generated Copilot/Codex/Claude prompts stay shorter without changing source markdown contracts.
 - Add a conservative context-aware effort shortcut that suppresses the automatic GPT-5 medium floor on reliably detected planning-only slash-command runs such as `--dry` and `--decision-only`.
+- Slim `PROTOCOL_SUMMARY.md` again so the global instruction file keeps only the two universal rules and leaves task/evidence/resource specifics in the local agent or protocol docs that already own them.
 
 ## Next Candidates
 
 | Priority | Item | Expected gain | Risk | Notes |
 |---|---|---:|---:|---|
-| P1 | Scope `PROTOCOL_SUMMARY.md` to orchestrators only or split a lighter subagent summary | High prompt | Medium | Still a global tax when injected into agents that do not need status/schema/todo details. |
 | P3 | Extend exporter compile/minify beyond the current handoff/response/checkpoint/status coverage | Low-Medium prompt | Medium | Keep source markdown readable; remaining gains are smaller unless we also trim Claude delegation boilerplate. |
 | P3 | Extend context-aware effort control beyond the current reliable slash-flag signals | Low-Medium runtime | Medium | Current shortcut only uses clearly observed planning-only flags. Avoid natural-language guessing until broader SDK context is stable. |
 | P3 | Extend Stage 8 trivial-pack bypass beyond the current conservative pass-only heuristic | Low-Medium runtime | Medium | Current shortcut only fires for obvious small successful runs; larger ambiguous runs still use `@compressor`. |
@@ -33,9 +33,8 @@ Date: 2026-04-18
 ## Suggested Order
 
 1. Heartbeat emitter-side debounce/coalescing.
-2. `PROTOCOL_SUMMARY.md` scoping or splitting.
-3. More exporter-only orchestrator compaction.
-4. Context-aware effort control.
+2. More exporter-only orchestrator compaction.
+3. Context-aware effort control.
 
 ## Guardrails
 

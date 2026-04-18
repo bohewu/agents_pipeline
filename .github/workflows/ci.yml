@@ -910,12 +910,6 @@ jobs:
                   "teardown_required",
                   "batches set `teardown_required = true` only",
               ],
-              Path("opencode/protocols/PROTOCOL_SUMMARY.md"): [
-                  "resource_class",
-                  "max_parallelism",
-                  "teardown_required",
-                  "lingering child-process resources",
-              ],
               Path("opencode/protocols/VALIDATION.md"): [
                   "## Resource Gate",
                   "teardown_required = true",
