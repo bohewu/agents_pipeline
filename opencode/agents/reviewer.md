@@ -54,6 +54,15 @@ If the handoff includes `--loose-review` or `loose_review = true`:
 - Missing cleanup evidence for `server` or `browser` work is also a review failure.
 - If an executor reports cleanup failure or uncertain teardown, surface it as an issue and fail the run.
 
+# FAILURE CLASSIFICATION (MANDATORY)
+
+- When `overall_status = fail`, every entry in `issues` and `required_followups` MUST start with exactly one of these prefixes:
+  - `[artifact]` for missing/wrong artifact blocks, filenames, formatting, or other deliverable-shape problems where the requested work may already exist but the output contract is incomplete
+  - `[evidence]` for missing verification, missing cleanup evidence, unsupported claims, or other proof gaps where the work may be correct but is not yet verifiable
+  - `[logic]` for incorrect behavior, unmet requirements, contradictions, missing implementation, or any gap that needs substantive code/content changes
+- Use the narrowest honest prefix. If multiple problems exist, mix prefixes across entries rather than collapsing everything to `[logic]`.
+- For review failures caused only by artifact/evidence gaps, keep `required_followups` narrowly repair-oriented so the orchestrator can avoid a full retry loop when possible.
+
 # OUTPUT (JSON ONLY)
 {
   "overall_status": "pass | fail",

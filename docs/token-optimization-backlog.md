@@ -13,6 +13,7 @@ Date: 2026-04-18
 - Reduce status-runtime cost by rewriting only touched entities.
 - Add `status_runtime_event(event="batch")` so same-run deltas can be applied in order and flushed once.
 - Clarify emitter-side heartbeat cadence so orchestrators/executors treat standalone heartbeats as low-frequency liveness signals instead of routine per-step updates.
+- Add a low-risk first step for reviewer fail classification by prefixing `review-report` issue/followup strings with `[artifact]`, `[evidence]`, or `[logic]` so narrow repair-only failures can avoid broad retries.
 
 ## Next Candidates
 
@@ -22,7 +23,7 @@ Date: 2026-04-18
 | P2 | Extend exporter compile/minify to `RESPONSE MODE`, progress narration boilerplate, and other repeated orchestrator sections | Medium prompt | Medium | Keep source markdown readable; continue slimming exported runtime prompts only. |
 | P2 | Context-aware effort control when plugin input exposes prompt/flags reliably | Medium runtime | Medium | Candidate signals: `--dry`, `--decision-only`, docs-only/copy-only/config-only, or obvious planning-only phrasing. Avoid guessing until SDK fields are stable. |
 | P2 | Make compressor stage smarter about when it runs | Medium prompt/runtime | Medium | Prefer opt-in or auto-skip on trivial runs where `context-pack.json` is unlikely to be reused. |
-| P3 | Split reviewer failures into format/artifact, evidence, and logic classes | Medium-High runtime | Medium-High | Avoid re-running full retry loops for artifact/evidence repair only. |
+| P2 | Complete reviewer-failure routing beyond prefix-based classes | Medium-High runtime | Medium-High | Current prompts now classify `[artifact]` / `[evidence]` / `[logic]` without schema churn. Remaining work is making routing/executor selection even more targeted and auditable. |
 | P3 | Checkpoint pointer/hash mode for `stage_artifacts` | Medium context/runtime | High | Keep canonical files as source of truth and store only pointers + hashes in checkpoint state. |
 | P4 | File-first artifact protocol | High prompt | High | Replace large inline artifact echoes with `{path, summary, checksum, evidence}` metadata where runtime write capability exists. |
 

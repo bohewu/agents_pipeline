@@ -347,8 +347,8 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one `status_runtime_event` call with `event = "batch"` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec
-Stage 7: If fail and `test_only = false` -> create DeltaTaskList, re-run Stage 4-6 (up to max_retry_rounds retry rounds)
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) using TaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`.
+Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: @compressor -> `context-pack.json` (compressed summary of repo + decisions + outcomes) — only if `compress_mode = true`; skip otherwise
 Stage 9: Orchestrator-owned summary (no subagent). Use this template:
 
@@ -427,6 +427,11 @@ If `decision_only = true`:
   - Else: max_retry_rounds = 2
 - `--max-retry=0` disables Stage 7 retries entirely.
 - Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry round, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED.
+- Retry classification rules:
+  - `[artifact]`: prefer narrow repair of output formatting, filenames, missing artifact blocks, or other contract-shape gaps in the already-assigned task output.
+  - `[evidence]`: prefer narrow repair of missing verification, cleanup proof, or unsupported claims by re-running the smallest task or validation step that can produce the missing evidence.
+  - `[logic]`: treat as substantive implementation/content gaps; use the normal delta-task retry path.
+  - If prefixes are mixed, only skip the broad Stage 4-6 retry when every followup is `[artifact]` or `[evidence]` and the repair can stay within the existing task boundaries. Otherwise use the normal delta-task retry path.
 - If `test_only = true`, skip Stage 7 retries and summarize the reviewer result directly.
 - On review fail (and retries remaining):
   1) Convert "required_followups" into Delta tasks (atomic)

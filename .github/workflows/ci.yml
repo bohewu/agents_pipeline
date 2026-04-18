@@ -872,6 +872,7 @@ jobs:
           node scripts/validate-status-runtime-smoke.cjs
           node scripts/validate-local-preview-lifecycle-smoke.cjs
           python3 scripts/validate-status-emission-guidance.py
+          python3 scripts/validate-reviewer-retry-guidance.py
 
       - name: Validate resource-control prompt coverage
         shell: bash
