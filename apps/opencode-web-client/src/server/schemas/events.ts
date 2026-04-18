@@ -1,0 +1,2 @@
+// events schema — placeholder
+export {};

@@ -1,0 +1,2 @@
+// workspace schema — placeholder
+export {};

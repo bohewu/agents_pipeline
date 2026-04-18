@@ -1,0 +1,2 @@
+// effort schema — placeholder
+export {};

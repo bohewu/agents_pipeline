@@ -1,0 +1,2 @@
+// session schema — placeholder
+export {};
