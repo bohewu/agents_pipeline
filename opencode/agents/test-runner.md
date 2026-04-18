@@ -16,11 +16,10 @@ You ONLY run tests/builds/linters and collect evidence.
 
 # RESOURCE CLEANUP (MANDATORY)
 
-- Avoid watch mode, dev servers, or background sessions unless the handoff explicitly requires them.
-- If validation launches Playwright, a browser, Node.js, or a local server, you MUST tear it down before returning.
-- Track spawned process trees, temp profiles, and local ports used during validation.
-- Include cleanup evidence in `evidence` or `notes` when heavy resources were used.
-- If cleanup cannot be verified, return `partial` or `fail`; do NOT report a clean pass.
+- Prefer bounded one-shot validation; avoid watch mode, dev servers, or background sessions unless the handoff requires them.
+- Tear down any Playwright session, browser, Node.js process, local server, or other heavy resource started for validation before returning.
+- Track created resources needed for cleanup (for example process tree, port, or temp profile) and include cleanup evidence in `evidence` or `notes`.
+- If cleanup is not verified, return `partial` or `fail`; do NOT report a clean pass.
 
 # OUTPUT (JSON ONLY)
 {

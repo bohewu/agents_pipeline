@@ -12,6 +12,7 @@ FRONTMATTER_BOUNDARY = re.compile(r"^\s*---\s*$")
 TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 TOOL_ENTRY_RE = re.compile(r"^  ([A-Za-z0-9_-]+)\s*:\s*(true|false)\s*$")
 AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
+FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})(.*)$")
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -247,6 +248,47 @@ def ordered_unique(values: Sequence[str]) -> List[str]:
     return out
 
 
+def compact_markdown(text: str) -> str:
+    lines = text.splitlines()
+    compacted: List[str] = []
+    pending_blank = False
+    in_fence = False
+    fence_token = ""
+
+    for line in lines:
+        fence_match = FENCE_RE.match(line)
+        if in_fence:
+            compacted.append(line)
+            if fence_match and line.strip() == fence_token:
+                in_fence = False
+                fence_token = ""
+            continue
+
+        if fence_match:
+            if pending_blank and compacted:
+                compacted.append("")
+                pending_blank = False
+            compacted.append(line)
+            in_fence = True
+            fence_token = fence_match.group(1)
+            continue
+
+        stripped = line.rstrip()
+        if not stripped:
+            pending_blank = True
+            continue
+
+        if pending_blank and compacted:
+            compacted.append("")
+            pending_blank = False
+        compacted.append(stripped)
+
+    out = "\n".join(compacted)
+    if text.endswith("\n"):
+        out += "\n"
+    return out
+
+
 def expand_ref_token(
     token: str, available_agents: Set[str]
 ) -> Tuple[List[str], List[str]]:
@@ -280,21 +322,15 @@ def make_input_adapter(agent_name: str) -> str:
     helper_token = f"/{suffix}"
     return (
         "## Claude Code Input Adapter\n\n"
-        "Claude Code custom subagents do not provide the OpenCode positional input variable.\n"
         "Use the user's latest message as `raw_input`.\n"
-        f"If `raw_input` starts with `{command_token}` or `{helper_token}`, remove that first token before parsing flags.\n"
-        "Then apply the existing flag parsing protocol unchanged.\n"
+        f"If it starts with `{command_token}` or `{helper_token}`, strip that first token, then apply the existing flag parsing unchanged.\n"
     )
 
 
 def make_delegation_adapter(resolved_refs: List[str]) -> str:
     lines = [
         "## Claude Code Delegation Protocol\n",
-        "Claude Code subagents cannot nest `Agent` calls. Instead of delegating",
-        "directly, return a **dispatch plan** so the top-level Claude Code instance",
-        "can execute it on your behalf.\n",
-        "When you reach a stage that requires `@agent-name` delegation, output a",
-        "fenced JSON block with the key `dispatch`:\n",
+        "Claude Code subagents cannot nest `Agent` calls. When a stage needs `@agent-name` delegation, return a fenced JSON block with the key `dispatch` so the top-level runner can execute it.\n",
         "```json",
         '{ "dispatch": [',
         '    { "id": "T1", "agent": "<agent-name>", "prompt": "<full task handoff>", "deps": [] },',
@@ -303,10 +339,9 @@ def make_delegation_adapter(resolved_refs: List[str]) -> str:
         "```\n",
         "Rules:",
         "- Include all required inputs, constraints, and expected output format in each task `prompt`.",
-        "- Use `deps` to express ordering: tasks with no deps may run in parallel.",
+        "- Use `deps` for ordering; tasks with no deps may run in parallel.",
         "- Include `worktree` only when the delegated task must run in another repo/worktree; if the runtime cannot honor it, it should stop rather than silently use the current repo.",
-        "- The top-level runner will execute tasks, collect results, and — if you still have",
-        "  post-dispatch stages (e.g. synthesis) — send the results back to you for completion.",
+        "- The top-level runner executes tasks, collects results, and sends them back if you still have post-dispatch stages (for example synthesis).",
         "- You may interleave orchestrator-owned stages (no dispatch needed) with dispatch blocks.",
         "- Each dispatch block is executed atomically before the orchestrator resumes.",
     ]
@@ -326,7 +361,7 @@ def adapt_body(
         blocks.append(make_input_adapter(agent_name))
         blocks.append(make_delegation_adapter(resolved_refs or []))
     blocks.append(body.lstrip("\n"))
-    return "\n\n".join(blocks).rstrip() + "\n"
+    return compact_markdown("\n\n".join(blocks).rstrip() + "\n")
 
 
 def yaml_quote(value: str) -> str:

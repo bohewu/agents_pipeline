@@ -24,7 +24,7 @@ Execute EXACTLY ONE task focused on documentation. No scope creep.
 
 # ARTIFACT OUTPUT (MANDATORY)
 
-If a task’s primary_output is a design, plan, spec, checklist, notes, or analysis, you MUST emit a named artifact using the EXACT format below. Prose-only answers are INVALID. Missing artifact = task INCOMPLETE.
+If `primary_output` is a design, plan, spec, checklist, notes, or analysis, you MUST emit a named artifact. Prose-only output is INVALID. Missing required artifact = task INCOMPLETE.
 
 Required format:
 

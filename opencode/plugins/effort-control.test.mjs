@@ -13,7 +13,7 @@ import {
   setSessionEffort
 } from "./effort-control/state.js";
 
-test("OpenAI and Copilot GPT-5 models default non-mechanical agents to at least medium", () => {
+test("OpenAI and Copilot GPT-5 models floor selected agents while leaving excluded roles alone", () => {
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
@@ -31,6 +31,42 @@ test("OpenAI and Copilot GPT-5 models default non-mechanical agents to at least 
       providerId: "openai",
       modelId: "gpt-5.4",
       agent: "test-runner",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "planner",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "router",
+      sessionEffort: undefined,
+      projectEffort: undefined,
+      existingEffort: undefined
+    }),
+    undefined
+  );
+
+  assert.equal(
+    resolveDesiredEffort({
+      providerId: "openai",
+      modelId: "gpt-5.4",
+      agent: "repo-scout",
       sessionEffort: undefined,
       projectEffort: undefined,
       existingEffort: undefined

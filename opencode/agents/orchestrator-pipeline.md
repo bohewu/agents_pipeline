@@ -289,20 +289,25 @@ For the human-readable development spec, do NOT invent alternate filenames. Alwa
 
 # DEV SPEC GENERATION POLICY
 
-Generate `DevSpec` by default when the task includes at least one of the following:
+Generate `DevSpec` by default for genuinely behavior-heavy work, including:
 
+- explicit spec, BDD, TDD, scenario, or acceptance-criteria requests
 - user-facing feature behavior
-- API behavior or contract changes
-- workflow/state transitions
-- explicit BDD, TDD, acceptance-criteria, scenario, or spec requests
+- API contract or request/response behavior changes
+- workflow/state-transition changes
+- multi-scenario or multi-story work where traceability materially helps planning, testing, or review
 
-Skip `DevSpec` by default only when the run is clearly one of these:
+Skip `DevSpec` by default when the run is clearly one of these:
 
 - `test_only = true`
-- trivial docs-only change
-- mechanical refactor with no intended behavior change
+- `decision_only = true`
+- `dry_run = true`
+- docs-only, copy-only, or content-only changes
+- formatting, lint, rename, comment-only, or mechanical refactors with no intended behavior change
+- config-only or dependency-only changes with no intended behavior change
+- small single-path bugfixes where normal `ProblemSpec` acceptance criteria are enough
 
-If unsure and the task is implementation-oriented, prefer generating `DevSpec` because it improves traceability for planning, testing, and review.
+If unsure, default to `ProblemSpec`; add `DevSpec` only when the extra behavior and traceability contract is materially useful.
 
 # CONFIRM / VERBOSE PROTOCOL
 

@@ -216,7 +216,7 @@ bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$
 
 Behavior notes:
 
-- For OpenAI and GitHub Copilot `gpt-5*`, the plugin floors most non-mechanical agents to at least `medium`.
+- For OpenAI and GitHub Copilot `gpt-5*`, the plugin floors most execution/review-style agents to at least `medium`, but leaves structured low-reasoning roles such as `planner`, `router`, `repo-scout`, and `test-runner` excluded.
 - `/effort-medium`, `/effort-high`, and `/effort-max` set a reasoning floor. On the home screen they set a project default; inside a session they set a session override.
 - `/effort-clear` removes the current session override or the project default.
 - Verification traces are written under the active project at `.opencode/effort-control.trace.jsonl`.

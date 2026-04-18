@@ -12,6 +12,7 @@ FRONTMATTER_BOUNDARY = re.compile(r"^\s*---\s*$")
 TOP_LEVEL_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 TOOL_ENTRY_RE = re.compile(r"^  ([A-Za-z0-9_-]+)\s*:\s*(true|false)\s*$")
 AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
+FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})(.*)$")
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -227,6 +228,47 @@ def ordered_unique(values: Sequence[str]) -> List[str]:
     return out
 
 
+def compact_markdown(text: str) -> str:
+    lines = text.splitlines()
+    compacted: List[str] = []
+    pending_blank = False
+    in_fence = False
+    fence_token = ""
+
+    for line in lines:
+        fence_match = FENCE_RE.match(line)
+        if in_fence:
+            compacted.append(line)
+            if fence_match and line.strip() == fence_token:
+                in_fence = False
+                fence_token = ""
+            continue
+
+        if fence_match:
+            if pending_blank and compacted:
+                compacted.append("")
+                pending_blank = False
+            compacted.append(line)
+            in_fence = True
+            fence_token = fence_match.group(1)
+            continue
+
+        stripped = line.rstrip()
+        if not stripped:
+            pending_blank = True
+            continue
+
+        if pending_blank and compacted:
+            compacted.append("")
+            pending_blank = False
+        compacted.append(stripped)
+
+    out = "\n".join(compacted)
+    if text.endswith("\n"):
+        out += "\n"
+    return out
+
+
 def expand_ref_token(
     token: str, available_agents: Set[str]
 ) -> Tuple[List[str], List[str]]:
@@ -258,10 +300,8 @@ def make_input_adapter(agent_name: str) -> str:
     helper_token = f"/{suffix}"
     return (
         "## Copilot Input Adapter\n\n"
-        "Copilot custom agents do not provide the OpenCode positional input variable.\n"
         "Use the user's latest message as `raw_input`.\n"
-        f"If `raw_input` starts with `{command_token}` or `{helper_token}`, remove that first token before parsing flags.\n"
-        "Then apply the existing flag parsing protocol unchanged.\n"
+        f"If it starts with `{command_token}` or `{helper_token}`, strip that first token, then apply the existing flag parsing unchanged.\n"
     )
 
 
@@ -279,11 +319,10 @@ def adapt_body(agent_name: str, original_body: str, solo_mode: bool) -> str:
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):
         blocks.append(make_input_adapter(agent_name))
-        if solo_mode:
-            blocks.append(make_solo_adapter())
+    if solo_mode:
+        blocks.append(make_solo_adapter())
     blocks.append(body.lstrip("\n"))
-    out = "\n\n".join(blocks).rstrip() + "\n"
-    return out
+    return compact_markdown("\n\n".join(blocks).rstrip() + "\n")
 
 
 def yaml_quote(value: str) -> str:

@@ -14,6 +14,7 @@ TOOL_ENTRY_RE = re.compile(r"^  ([A-Za-z0-9_-]+)\s*:\s*(true|false)\s*$")
 AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
 ROLE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO_MANAGED_REF_RE = re.compile(r"(?<![A-Za-z0-9_./:-])(opencode/[A-Za-z0-9_./-]+)")
+FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})(.*)$")
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -227,6 +228,47 @@ def ordered_unique(values: Sequence[str]) -> List[str]:
     return out
 
 
+def compact_markdown(text: str) -> str:
+    lines = text.splitlines()
+    compacted: List[str] = []
+    pending_blank = False
+    in_fence = False
+    fence_token = ""
+
+    for line in lines:
+        fence_match = FENCE_RE.match(line)
+        if in_fence:
+            compacted.append(line)
+            if fence_match and line.strip() == fence_token:
+                in_fence = False
+                fence_token = ""
+            continue
+
+        if fence_match:
+            if pending_blank and compacted:
+                compacted.append("")
+                pending_blank = False
+            compacted.append(line)
+            in_fence = True
+            fence_token = fence_match.group(1)
+            continue
+
+        stripped = line.rstrip()
+        if not stripped:
+            pending_blank = True
+            continue
+
+        if pending_blank and compacted:
+            compacted.append("")
+            pending_blank = False
+        compacted.append(stripped)
+
+    out = "\n".join(compacted)
+    if text.endswith("\n"):
+        out += "\n"
+    return out
+
+
 def expand_ref_token(
     token: str, available_agents: Set[str]
 ) -> Tuple[List[str], List[str]]:
@@ -258,18 +300,16 @@ def make_input_adapter(agent_name: str) -> str:
     helper_token = f"/{suffix}"
     return (
         "## Codex Input Adapter\n\n"
-        "Codex role configs do not provide the OpenCode positional input variable.\n"
         "Use the user's latest message as `raw_input`.\n"
-        f"If `raw_input` starts with `{command_token}` or `{helper_token}`, remove that first token before parsing flags.\n"
-        "Then apply the existing flag parsing protocol unchanged.\n"
+        f"If it starts with `{command_token}` or `{helper_token}`, strip that first token, then apply the existing flag parsing unchanged.\n"
     )
 
 
 def make_role_reference_adapter() -> str:
     return (
         "## Codex Agent Role Adapter\n\n"
-        "Interpret source `@agent-name` references in these instructions as references to generated role names defined in the `.codex/config.toml`.\n"
-        "When you decide to spawn or route work, use the corresponding role names directly.\n"
+        "Interpret source `@agent-name` references as generated role names from `.codex/config.toml`.\n"
+        "When routing work, use those role names directly.\n"
     )
 
 
@@ -301,7 +341,7 @@ def adapt_body(
     if has_subagents:
         blocks.append(make_role_reference_adapter())
     blocks.append(body.lstrip("\n"))
-    adapted = "\n\n".join(blocks).rstrip() + "\n"
+    adapted = compact_markdown("\n\n".join(blocks).rstrip() + "\n")
     return rewrite_opencode_refs(adapted, opencode_root_ref)
 
 
