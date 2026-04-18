@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.13] - 2026-04-18
+
+### Changed
+
+- Source agent prompts for `executor`, `peon`, `generalist`, `doc-writer`, `market-researcher`, and `test-runner` now use shorter cleanup and artifact wording while preserving the existing JSON contracts, artifact delimiters, cleanup evidence requirements, and non-clean success semantics.
+- Exported Copilot, Codex, and Claude orchestrator prompts now use shorter runtime adapter text plus conservative markdown whitespace compaction, reducing generated prompt overhead without changing exporter CLI behavior or output paths.
+- `orchestrator-pipeline` now defaults more small or mechanical runs back to `ProblemSpec`, reserving automatic `DevSpec` generation for behavior-heavier work where the extra traceability is more likely to pay off.
+- The GPT-5 effort-control exclusions now also cover `planner`, `router`, and `repo-scout`, so structured planning/routing/scouting steps no longer inherit the default medium-effort floor.
+
 ## [0.22.12] - 2026-04-17
 
 ### Fixed
