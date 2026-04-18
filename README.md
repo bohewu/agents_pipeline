@@ -36,7 +36,7 @@ See the **How To Use** section below for usage instructions.
 - `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
 - `COMPATIBILITY.md` for runtime and host-environment assumptions.
 - `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
-- `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, Direct Use Prompt, and optional `/artgen --gen-provider=codex` bridge used by the repo-managed `2d-asset-brief` skill, `art-director`, and the normal `/artgen` surface.
+- `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, Direct Use Prompt, and optional `/artgen --gen-provider=codex` bridge used by the repo-managed `artgen-scaffold` skill, `art-director`, and the normal `/artgen` surface.
 - `opencode/skills/codex-imagegen/SKILL.md` for the Codex CLI `$imagegen` bridge used by `/codex-imagegen` when OpenCode should generate images through Codex quota without direct API or provider fallback.
 - `opencode/protocols/UI_UX_WORKFLOW.md` for the thin conceptual UI/UX layer, non-expert design/interaction guidance, communication-first overlay, intake/review rubric, and the `ui-ux-bundle` schema/example bundle used by `/uiux`, `ui-ux-designer`, and the repo-managed `ui-ux-workflow` and `ui-communication-designer` skills.
 

@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - `/artgen` now supports optional `--gen-provider=codex` execution mode: the default brief/prompt handoff output stays intact, while the flag routes the final reusable prompt through the repo-managed `codex-imagegen` bridge, uses `danger-full-access` for that delegated image-generation step, and reports generated files separately from the External Handoff Package.
+- Renamed the repo-managed `2d-asset-brief` skill to `artgen-scaffold` so the reusable docs-only scaffold matches the `/artgen` surface it supports.
 
 ## [0.22.16] - 2026-04-18
 
@@ -112,7 +113,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - `/artgen` now behaves as a generic image-generation prompt generator on its normal output surface: it still returns the bounded brief and handoff package, but it now always ends with a `Direct Use Prompt` block that users can paste into an external image-generation tool without extracting prompt text manually.
-- The art-generation scaffold, `/artgen` command contract, `2d-asset-brief` skill, and `art-director` source agent no longer foreground internal phase labels or Codex-specific formatting in user-facing wording; they now describe one generic handoff surface plus one directly usable prompt surface.
+- The art-generation scaffold, `/artgen` command contract, `artgen-scaffold` skill, and `art-director` source agent no longer foreground internal phase labels or Codex-specific formatting in user-facing wording; they now describe one generic handoff surface plus one directly usable prompt surface.
 
 ### Documentation
 

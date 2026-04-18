@@ -6,7 +6,7 @@ It was superseded by the approved and implemented phase-2 scaffold.
 
 Current live surfaces:
 - `docs/art-generation-scaffold.md`
-- `opencode/skills/2d-asset-brief/SKILL.md`
+- `opencode/skills/artgen-scaffold/SKILL.md`
 
 Names and paths below reflect the original phase-1 proposal and are preserved as historical context.
 

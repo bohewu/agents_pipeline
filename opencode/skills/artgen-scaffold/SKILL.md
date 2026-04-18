@@ -1,13 +1,13 @@
 ---
-name: 2d-asset-brief
-description: Docs-only guidance for turning bounded 2D asset requests into reusable briefs, prompts, Direct Use Prompts, and External Handoff Packages with explicit style, size, suggested outputs, and version markers.
+name: artgen-scaffold
+description: Docs-only guidance for turning bounded /artgen-style 2D asset requests into reusable briefs, prompts, Direct Use Prompts, and External Handoff Packages with explicit style, size, suggested outputs, and version markers.
 license: See repository license
 compatibility: Docs-only scaffold; raw image generation and any later execution remain outside this repo.
 ---
 
-# 2D Asset Brief
+# Artgen Scaffold
 
-Use this skill when you need a structured brief, reusable prompt, final Direct Use Prompt, and standardized External Handoff Package for bounded 2D game assets, especially:
+Use this skill when you need the reusable scaffold behind `/artgen`: a structured brief, reusable prompt, final Direct Use Prompt, and standardized External Handoff Package for bounded 2D game assets, especially:
 - sprites
 - animations
 - tilesets
