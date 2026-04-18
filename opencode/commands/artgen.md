@@ -1,5 +1,5 @@
 ---
-description: Generate a 2D asset brief, reusable prompt, direct-use prompt, and handoff package
+description: Generate a 2D asset brief/prompt package with optional Codex-backed image output
 agent: art-director
 ---
 
@@ -11,14 +11,40 @@ agent: art-director
 $ARGUMENTS
 ```
 
+## Parsing contract
+
+- Positional arguments `$1..$n` represent the asset request split by whitespace.
+- Reconstruct the main request by concatenating all positional arguments until the first token starting with `--`.
+- All tokens starting with `--` are treated as flags.
+
+### Supported flags
+
+- `--gen-provider=codex`
+  - Keep the normal `/artgen` brief/prompt output.
+  - After preparing the reusable prompt, delegate image generation to the repo-managed `codex-imagegen` skill and custom tool.
+  - This mode should use `sandbox=danger-full-access` for the Codex image-generation step.
+- `--output-dir=<path>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Relative paths should be treated as repo-root relative.
+  - When omitted in Codex mode, default to `generated/artgen`.
+- `--output-path=<path>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Map directly to the `codex-imagegen` tool's `output_path` argument.
+
 ## Notes
 
 - Accept natural-language 2D asset requests for bounded adjacent assets such as sprites, animations, tilesets, icons, UI elements, and simple props.
 - Pixel art remains the canonical example profile, but `/artgen` is not limited to pixel-art-only wording.
 - If the request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
-- `/artgen` is spec/prompt generation plus formatting-oriented handoff packaging only.
-- Do not treat `/artgen` as image rendering, file creation, atlas packing, or pipeline execution.
-- Do not treat `/artgen` as calling Codex, MCP servers, image tools, or any downstream execution workflow.
+- `/artgen` defaults to spec/prompt generation plus formatting-oriented handoff packaging only.
+- Without `--gen-provider=codex`, do not treat `/artgen` as image rendering, file creation, atlas packing, or pipeline execution.
+- When `--gen-provider=codex` is present:
+  - still produce the normal request record, brief, reusable prompt, suggested outputs, manual checks, External Handoff Package, and final Direct Use Prompt
+  - use the reusable prompt as the Codex image-generation prompt basis
+  - use `danger-full-access` for the delegated Codex image-generation sandbox
+  - use the shared `asset_slug` as the default `file_stem`
+  - keep generated-file reporting in a separate `Generation Result` section instead of mixing it into the External Handoff Package
+  - if Codex image generation returns a warning, show it plainly and do not claim success
 - Include:
   - request record
   - asset brief
@@ -58,6 +84,7 @@ $ARGUMENTS
 - Suggested outputs: `output_id`, shared `v001`-style `version_marker`, file stem based on `asset_slug`, example filenames, and a relative folder path or short directory tree for the output structure.
 - Manual checks: what a human should confirm before reusing the brief or prompt.
 - External Handoff Package: standard `/artgen` output that bundles the request record, asset brief, reusable prompt, suggested outputs, and manual checks into a generic, human-readable, copy-ready handoff.
+- Generation Result: only when `--gen-provider=codex`; include provider, status, chosen output target, generated file paths, or warning text. Keep it outside the External Handoff Package.
 - Direct Use Prompt: final section of the response, in a fenced `text` block, containing the same reusable prompt in a directly pasteable form suitable for external image-generation tools.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
@@ -69,4 +96,5 @@ $ARGUMENTS
 /artgen type=tileset style=pixel-art tile_size=32x32 subject="forest biome terrain set"
 /artgen type=icon style=flat-2d size=128x128 subject="health potion inventory icon"
 /artgen type=ui-element style=clean-2d size=960x240 subject="fantasy dialogue panel"
+/artgen type=icon style=flat-2d size=256x256 subject="blue apple app icon" --gen-provider=codex --output-dir=generated/artgen
 ```
