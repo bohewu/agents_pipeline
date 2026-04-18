@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- Exported Copilot, Codex, and Claude orchestrator prompts now compact repeated checkpoint and run-status protocol sections at export time, reducing generated prompt overhead without changing source agent markdown, runtime contracts, or output paths.
+
 ## [0.22.14] - 2026-04-18
 
 ### Changed

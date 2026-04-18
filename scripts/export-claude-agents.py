@@ -35,6 +35,12 @@ CONFIRM_VERBOSE_RE = re.compile(
     r"(?ms)^(?P<heading>#{1,2} CONFIRM / VERBOSE PROTOCOL)\n\n"
     r"(?P<bullets>(?:- [^\n]+\n)+)"
 )
+CHECKPOINT_PROTOCOL_RE = re.compile(
+    r"(?ms)^(?P<heading>#{1,2} CHECKPOINT PROTOCOL)\n\n(?P<body>.*?)(?=^#{1,2} |\Z)"
+)
+RUN_STATUS_PROTOCOL_RE = re.compile(
+    r"(?ms)^(?P<heading>#{1,2} (?:RUN STATUS PROTOCOL|STATUS ARTIFACT PROTOCOL))\n\n(?P<body>.*?)(?=^#{1,2} |\Z)"
+)
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -411,6 +417,75 @@ def minify_confirm_verbose_protocol(text: str) -> str:
     return CONFIRM_VERBOSE_RE.sub(repl, text, count=1)
 
 
+def minify_checkpoint_protocol(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        body = match.group("body")
+        if (
+            "<run_output_dir>/checkpoint.json" not in body
+            or "checkpoint.schema.json" not in body
+        ):
+            return match.group(0)
+        return (
+            f"{match.group('heading')}\n\n"
+            "After each successful stage, emit the checkpoint event via `status_runtime_event` so runtime/plugin updates `<run_output_dir>/checkpoint.json` (schema: `opencode/protocols/schemas/checkpoint.schema.json`).\n\n"
+        )
+
+    return CHECKPOINT_PROTOCOL_RE.sub(repl, text, count=1)
+
+
+def minify_run_status_protocol(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        body = match.group("body")
+        heading = match.group("heading")
+        if (
+            "<run_output_dir>/status/run-status.json" not in body
+            or "PIPELINE_PROTOCOL.md" not in body
+        ):
+            return match.group(0)
+
+        if "Use the expanded status layout (`tasks/<task_id>.json`, `agents/<agent_id>.json`) once task decomposition begins at Stage 3." in body:
+            lines = [
+                heading,
+                "",
+                "- Emit `status_runtime_event` updates for `<run_output_dir>/status/run-status.json` per `opencode/protocols/PIPELINE_PROTOCOL.md`; preserve `working_project_dir` unchanged when present.",
+                "- Use expanded status files from Stage 3: `tasks/<task_id>.json` and `agents/<agent_id>.json`.",
+                "- Required events: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`.",
+                '- Prefer `event = "batch"` for related same-run deltas; keep standalone heartbeats coarse and skip redundant ones.',
+            ]
+            return "\n".join(lines) + "\n\n"
+
+        if "Use the expanded status layout once Stage 2 creates the task list." in body:
+            lines = [
+                heading,
+                "",
+                '- Emit `status_runtime_event` updates for `<run_output_dir>/status/run-status.json` per `opencode/protocols/PIPELINE_PROTOCOL.md`; prefer `event = "batch"` for same-run task/agent deltas.',
+                "- Preserve `working_project_dir` unchanged when provided; if the runtime cannot honor a required delegated worktree, stop instead of silently using the caller repo.",
+                "- Use expanded status files after Stage 2 creates the task list.",
+                "- Required events: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Keep standalone heartbeats coarse unless an earlier semantic change makes one useful.",
+            ]
+            return "\n".join(lines) + "\n\n"
+
+        if "target_project_dir" in body and "working_project_dir" in body:
+            lines = [
+                heading,
+                "",
+                "- Emit `status_runtime_event` updates for `<run_output_dir>/status/run-status.json` (`layout = run-only`) per `opencode/protocols/PIPELINE_PROTOCOL.md`.",
+                "- Keep modernization-planning status/checkpoint writes anchored to the source-project run root; do not pass `target_project_dir` as `working_project_dir` for planning events.",
+                "- Delegated `@orchestrator-pipeline` runs must preserve `working_project_dir` so target-local status/checkpoint files land in the target repo.",
+            ]
+            return "\n".join(lines) + "\n\n"
+
+        if "(`layout = run-only`)" in body:
+            return (
+                f"{heading}\n\n"
+                "Emit `status_runtime_event` updates for `<run_output_dir>/status/run-status.json` (`layout = run-only`) per `opencode/protocols/PIPELINE_PROTOCOL.md`.\n\n"
+            )
+
+        return match.group(0)
+
+    return RUN_STATUS_PROTOCOL_RE.sub(repl, text, count=1)
+
+
 def minify_orchestrator_runtime_body(agent_name: str, text: str) -> str:
     if not agent_name.startswith(ORCHESTRATOR_PREFIX):
         return text
@@ -419,6 +494,8 @@ def minify_orchestrator_runtime_body(agent_name: str, text: str) -> str:
     text = minify_agent_responsibility_matrix(text)
     text = minify_flag_parsing_intro(text)
     text = minify_response_mode(text)
+    text = minify_checkpoint_protocol(text)
+    text = minify_run_status_protocol(text)
     return minify_confirm_verbose_protocol(text)
 
 
