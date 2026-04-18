@@ -49,7 +49,15 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertNotIn("## ORCHESTRATOR -> SUBAGENT HANDOFF", adapted, label)
             self.assertNotIn("You are given positional parameters via the slash command.", adapted, label)
             self.assertNotIn("|------|------------------------|-------------------|", adapted, label)
+            self.assertNotIn(
+                "If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.",
+                adapted,
+                label,
+            )
+            self.assertNotIn("Update status to `waiting_for_user`. On abort: checkpoint and stop.", adapted, label)
             self.assertIn("- `orchestrator-general`:", adapted, label)
+            self.assertIn("Default to concise final-only reporting", adapted, label)
+            self.assertIn("after each stage, update status to `waiting_for_user` and pause", adapted, label)
             self.assertIn("Forbidden:", adapted, label)
 
     def test_pipeline_export_keeps_reviewer_retry_semantics(self) -> None:
@@ -62,6 +70,21 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("- Reviewer -> orchestrator:", adapted, label)
             self.assertIn("required_followups", adapted, label)
             self.assertIn("max_retry_rounds", adapted, label)
+
+    def test_flow_export_keeps_autopilot_guard_while_minifying_progress_boilerplate(self) -> None:
+        relative_path = "opencode/agents/orchestrator-flow.md"
+        for label, module in (("copilot", COPILOT), ("codex", CODEX), ("claude", CLAUDE)):
+            adapted = adapt_body(module, "orchestrator-flow", parse_body(module, relative_path))
+
+            self.assertNotIn(
+                "If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.",
+                adapted,
+                label,
+            )
+            self.assertIn("Default to concise final-only reporting", adapted, label)
+            self.assertIn("`autopilot_mode = false`", adapted, label)
+            self.assertIn("`confirm_mode` (when not autopilot): after each stage, pause", adapted, label)
+            self.assertIn("`verbose_mode` (implies confirm): pause after each task in Stage 3.", adapted, label)
 
 
 if __name__ == "__main__":

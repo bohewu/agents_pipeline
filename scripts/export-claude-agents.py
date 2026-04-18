@@ -27,6 +27,14 @@ FLAG_PARSING_INTRO_RE = re.compile(
     r"You are given positional parameters via the slash command\.\n\n"
     r"Parse `raw_input`: tokens before the first `--\*` flag form `main_task_prompt`; `--\*` tokens are flags\.(?P<resume> If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation\.)?\n"
 )
+RESPONSE_MODE_RE = re.compile(
+    r"(?ms)^(?P<heading>#{1,2} RESPONSE MODE \(DEFAULT\))\n\n"
+    r"(?P<bullets>(?:- [^\n]+\n)+)"
+)
+CONFIRM_VERBOSE_RE = re.compile(
+    r"(?ms)^(?P<heading>#{1,2} CONFIRM / VERBOSE PROTOCOL)\n\n"
+    r"(?P<bullets>(?:- [^\n]+\n)+)"
+)
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
     "name",
@@ -366,13 +374,52 @@ def minify_flag_parsing_intro(text: str) -> str:
     return FLAG_PARSING_INTRO_RE.sub(repl, text, count=1)
 
 
+def minify_response_mode(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        section = match.group("bullets")
+        autopilot_clause = " and `autopilot_mode = false`" if "autopilot_mode = false" in section else ""
+        return (
+            f"{match.group('heading')}\n\n"
+            "- Default to concise final-only reporting: outcome, key deliverables, blockers/errors. Emit stage-by-stage progress only when `--confirm` or `--verbose` requires it"
+            f"{autopilot_clause}.\n"
+        )
+
+    return RESPONSE_MODE_RE.sub(repl, text, count=1)
+
+
+def minify_confirm_verbose_protocol(text: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        bullets = [line.strip()[2:] for line in match.group("bullets").strip().splitlines()]
+        if len(bullets) < 2:
+            return match.group(0)
+
+        confirm_line = bullets[0]
+        verbose_line = bullets[1]
+        if "Proceed? [yes / feedback / abort]" not in confirm_line or "On abort: checkpoint and stop." not in confirm_line:
+            return match.group(0)
+
+        confirm_label = "`confirm_mode` (when not autopilot)" if "when not autopilot" in confirm_line else "`confirm_mode`"
+        waiting_clause = "update status to `waiting_for_user` and " if "waiting_for_user" in confirm_line else ""
+        verbose_line = verbose_line.replace("`verbose_mode` (implies confirm): also ", "`verbose_mode` (implies confirm): ")
+
+        return (
+            f"{match.group('heading')}\n\n"
+            f"- {confirm_label}: after each stage, {waiting_clause}pause with `Proceed? [yes / feedback / abort]`; on abort checkpoint and stop.\n"
+            f"- {verbose_line}\n"
+        )
+
+    return CONFIRM_VERBOSE_RE.sub(repl, text, count=1)
+
+
 def minify_orchestrator_runtime_body(agent_name: str, text: str) -> str:
     if not agent_name.startswith(ORCHESTRATOR_PREFIX):
         return text
 
     text = minify_handoff_protocol(text)
     text = minify_agent_responsibility_matrix(text)
-    return minify_flag_parsing_intro(text)
+    text = minify_flag_parsing_intro(text)
+    text = minify_response_mode(text)
+    return minify_confirm_verbose_protocol(text)
 
 
 def expand_ref_token(
