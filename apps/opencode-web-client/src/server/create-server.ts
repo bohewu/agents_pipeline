@@ -5,6 +5,7 @@ import type { ApiEnvelope } from '../shared/types.js';
 import { API_PREFIX } from '../shared/constants.js';
 import { healthRoute } from './routes/health.js';
 import { diagnosticsRoute } from './routes/diagnostics.js';
+import { fsBrowseRoute } from './routes/fs-browse.js';
 import { WorkspacesRoute } from './routes/workspaces.js';
 import { SessionsRoute } from './routes/sessions.js';
 import { MessagesRoute } from './routes/messages.js';
@@ -58,6 +59,7 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
   const api = new Hono();
   api.route('/health', healthRoute());
   api.route('/diagnostics', diagnosticsRoute(options));
+  api.route('/fs', fsBrowseRoute());
 
   // Mount workspace routes (if deps provided)
   if (deps) {

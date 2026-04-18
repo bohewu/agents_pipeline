@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
+import { RuntimeProvider } from '../../runtime/runtime-provider.js';
 import { TopBar } from './TopBar.js';
 import { Sidebar } from './Sidebar.js';
 import { RightDrawer } from './RightDrawer.js';
@@ -49,12 +50,14 @@ export function AppShell() {
     <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
       <TopBar />
       {sidebarOpen && <Sidebar />}
-      <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <Thread />
+      <RuntimeProvider>
+        <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <Thread />
+          </div>
+          <Composer />
         </div>
-        <Composer />
-      </div>
+      </RuntimeProvider>
       {rightDrawerOpen && <RightDrawer />}
     </div>
   );

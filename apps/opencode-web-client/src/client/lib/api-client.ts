@@ -55,6 +55,15 @@ export const api = {
   health: () => get<{ status: string }>('/api/health'),
   diagnostics: () => get<InstallDiagnostics>('/api/diagnostics/install'),
 
+  // Filesystem browsing
+  browse: (path?: string) =>
+    post<{
+      currentPath: string;
+      parentPath: string | null;
+      entries: Array<{ name: string; path: string; isDirectory: boolean; isGitRepo: boolean }>;
+      homePath: string;
+    }>('/api/fs/browse', { path }),
+
   // Workspaces
   listWorkspaces: () => get<WorkspaceProfile[]>('/api/workspaces'),
   addWorkspace: (data: { rootPath: string; name?: string }) =>

@@ -143,3 +143,45 @@ input:focus, textarea:focus, select:focus {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── assistant-ui overrides ── */
+
+/* Pulse animation for "Generating..." indicator */
+.aui-pulse {
+  animation: pulse 1s infinite;
+}
+
+/* ThreadPrimitive.Root fills available space */
+[data-aui-thread-root] {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ThreadPrimitive.Viewport scrolls */
+[data-aui-thread-viewport] {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ComposerPrimitive.Input styling overrides */
+.aui-composer-input {
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  min-height: 60px;
+}
+
+.aui-composer-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* Hide cancel button when not streaming (assistant-ui hides it automatically,
+   but add display rule for safety) */
+.aui-cancel-btn[data-disabled] {
+  display: none;
+}
+
+/* Message root spacing */
+[data-aui-message-root] {
+  animation: fadeIn 0.15s ease;
+}
