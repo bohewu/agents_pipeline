@@ -17,7 +17,7 @@ $ARGUMENTS
 - `--resume` also supports resume-only invocation without a new prompt (reuses checkpoint prompt when valid).
 - Source of truth for flag parsing/behavior: `opencode/agents/orchestrator-flow.md`.
 - Prerequisite: the runtime must load the status plugin that exposes the `status_runtime_event` tool.
-- Flow uses the shared `status_runtime_event` contract in `opencode/protocols/PIPELINE_PROTOCOL.md` for checkpoint/status writes.
+- Flow uses the shared `status_runtime_event` contract in `opencode/protocols/PIPELINE_PROTOCOL.md` for checkpoint/status writes, including batched same-run flushes via `event = "batch"` when appropriate.
 - Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`, where `<run_output_dir>` is a run-specific directory under the selected output root.
 - Flow task decomposition is persisted to `<run_output_dir>/flow/task-list.json` and should follow the dedicated Flow task-list schema.
 - Heavy resource tasks such as local servers and browser automation are routed conservatively and require teardown evidence before the next heavy task.

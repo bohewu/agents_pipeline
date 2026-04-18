@@ -106,6 +106,15 @@ async function apply(runtime, eventName, payload) {
   return runtime.applyEvent(eventName, payload);
 }
 
+async function applyBatch(runtime, sharedPayload, events) {
+  return runtime.applyEvents(
+    events.map((entry) => ({
+      event: entry.event,
+      payload: { ...sharedPayload, ...entry.payload }
+    }))
+  );
+}
+
 async function scenarioRunOnly(runtime, tempRoot, python) {
   const outputRoot = path.join(tempRoot, "run-only-output");
   const runId = "status-runtime-smoke-run-only";
@@ -315,65 +324,72 @@ async function scenarioExpanded(runtime, tempRoot, python) {
     timestamp: "2026-03-24T11:04:00.000Z"
   });
 
-  await apply(runtime, "task.updated", {
-    output_root: outputRoot,
-    run_id: runId,
-    task_id: "task-process-smoke",
-    status: "in_progress",
-    resource_status: "starting",
-    timestamp: "2026-03-24T11:05:00.000Z"
-  });
-
-  await apply(runtime, "agent.started", {
-    output_root: outputRoot,
-    run_id: runId,
-    agent_id: "agent-process-01",
-    agent: "executor",
-    task_id: "task-process-smoke",
-    batch_id: "batch-process",
-    attempt: 1,
-    status: "running",
-    resource_class: "process",
-    resource_status: "starting",
-    teardown_required: true,
-    resource_handles: { process_label: "smoke-worker", pid: 4321 },
-    cleanup_status: "pending",
-    timestamp: "2026-03-24T11:06:00.000Z"
-  });
-
-  await apply(runtime, "agent.heartbeat", {
-    output_root: outputRoot,
-    run_id: runId,
-    agent_id: "agent-process-01",
-    status: "running",
-    resource_status: "running",
-    last_heartbeat_at: "2026-03-24T11:07:00.000Z",
-    timestamp: "2026-03-24T11:07:00.000Z"
-  });
-
-  await apply(runtime, "agent.finished", {
-    output_root: outputRoot,
-    run_id: runId,
-    agent_id: "agent-process-01",
-    status: "done",
-    resource_status: "cleaned",
-    cleanup_status: "cleaned",
-    result_summary: "Process worker exited cleanly.",
-    evidence_refs: ["logs/process.log", "artifacts/process-report.json"],
-    completed_at: "2026-03-24T11:08:00.000Z",
-    timestamp: "2026-03-24T11:08:00.000Z"
-  });
-
-  await apply(runtime, "task.updated", {
-    output_root: outputRoot,
-    run_id: runId,
-    task_id: "task-process-smoke",
-    status: "done",
-    result_summary: "Process-backed smoke completed.",
-    evidence_refs: ["logs/process.log", "artifacts/process-report.json"],
-    completed_at: "2026-03-24T11:09:00.000Z",
-    timestamp: "2026-03-24T11:09:00.000Z"
-  });
+  await applyBatch(
+    runtime,
+    { output_root: outputRoot, run_id: runId },
+    [
+      {
+        event: "task.updated",
+        payload: {
+          task_id: "task-process-smoke",
+          status: "in_progress",
+          resource_status: "starting",
+          timestamp: "2026-03-24T11:05:00.000Z"
+        }
+      },
+      {
+        event: "agent.started",
+        payload: {
+          agent_id: "agent-process-01",
+          agent: "executor",
+          task_id: "task-process-smoke",
+          batch_id: "batch-process",
+          attempt: 1,
+          status: "running",
+          resource_class: "process",
+          resource_status: "starting",
+          teardown_required: true,
+          resource_handles: { process_label: "smoke-worker", pid: 4321 },
+          cleanup_status: "pending",
+          timestamp: "2026-03-24T11:06:00.000Z"
+        }
+      },
+      {
+        event: "agent.heartbeat",
+        payload: {
+          agent_id: "agent-process-01",
+          status: "running",
+          resource_status: "running",
+          last_heartbeat_at: "2026-03-24T11:07:00.000Z",
+          timestamp: "2026-03-24T11:07:00.000Z"
+        }
+      },
+      {
+        event: "agent.finished",
+        payload: {
+          agent_id: "agent-process-01",
+          status: "done",
+          resource_status: "cleaned",
+          cleanup_status: "cleaned",
+          result_summary: "Process worker exited cleanly.",
+          evidence_refs: ["logs/process.log", "artifacts/process-report.json"],
+          completed_at: "2026-03-24T11:08:00.000Z",
+          timestamp: "2026-03-24T11:08:00.000Z"
+        }
+      },
+      {
+        event: "task.updated",
+        payload: {
+          task_id: "task-process-smoke",
+          status: "done",
+          result_summary: "Process-backed smoke completed.",
+          evidence_refs: ["logs/process.log", "artifacts/process-report.json"],
+          completed_at: "2026-03-24T11:09:00.000Z",
+          timestamp: "2026-03-24T11:09:00.000Z"
+        }
+      }
+    ]
+  );
 
   const finishResult = await apply(runtime, "run.finished", {
     output_root: outputRoot,

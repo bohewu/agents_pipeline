@@ -284,12 +284,22 @@ Future runtime repos MAY project the same entities into a database, API, or rich
 Use the plugin tool name literally: `status_runtime_event`.
 
 - Fixed args:
-  - `event`: string
+  - `event`: string (`batch` is reserved for ordered multi-event flushes)
   - `payload_json`: JSON string that decodes to exactly one object
 - Base path rule: every call MUST include `payload_json.output_root` and `payload_json.run_id`.
 - `output_root` is the base artifact root (for example `.pipeline-output`), not `<run_output_dir>`.
 - Optional cross-repo anchor: when a run is executing against another repo, include `payload_json.working_project_dir`. OpenCode's `status-runtime` plugin resolves relative `output_root` and `checkpoint_path` against that target project directory instead of the current session worktree.
 - Runtime/plugin derives `<run_output_dir>` as `<output_root>/<run_id>/` and owns resolved paths, timestamps, refs, counts, active ids, and reconciliation.
+
+Batch mode (`event = "batch"`):
+
+- `payload_json` MUST decode to an object with a non-empty `events[]` array.
+- Optional `shared_payload` may hold common envelope fields such as `output_root`, `run_id`, and `working_project_dir`.
+- Each batch item MUST include `event` plus either:
+  - `payload`: object with the event-specific delta, or
+  - inline delta fields on the batch item itself.
+- After merging `shared_payload`, every child event MUST target the same run (`output_root` + `run_id`).
+- Runtime/plugin applies child events in order and flushes canonical files once at the end.
 
 Required event vocabulary for Flow and Pipeline status/checkpoint writes:
 
@@ -313,6 +323,7 @@ Minimal payload skeleton guidance:
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
 - `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
+- When many semantic deltas land together for the same run, prefer one `event = "batch"` call with `shared_payload` over many single-event tool calls. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed.
 
 These event payloads are semantic deltas, not full file rewrites.
 

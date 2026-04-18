@@ -187,13 +187,13 @@ After each stage completes successfully, call the `status_runtime_event` plugin 
 
 ## STATUS ARTIFACT PROTOCOL
 
-Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json`. Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md`.
+Emit semantic events via `status_runtime_event` for `<run_output_dir>/status/run-status.json`. Follow the contract in `opencode/protocols/PIPELINE_PROTOCOL.md` and prefer `event = "batch"` when several task/agent deltas for the same run can be flushed together.
 
 If a delegated caller or runtime provides `working_project_dir`, include it unchanged in every `status_runtime_event` payload. OpenCode's `status-runtime` plugin uses it to anchor relative `output_root` and `checkpoint_path` writes to that repo.
 
 If an upstream caller/runtime expects this Flow run to execute against `working_project_dir`, worktree-aware runtimes SHOULD launch the Flow orchestrator in that repo. If the runtime cannot honor the delegated worktree safely, stop and report BLOCKED instead of silently running against the caller repo.
 
-Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`.
+Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -269,7 +269,7 @@ Stage 3 — Dispatch & Execution
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".
 - Before dispatch, move eligible tasks to `ready`; when any subagent is handed off, emit the agent registration/update event and keep `active_agent_ids` aligned even if the subagent is not attached to a task yet.
-- After each task result, immediately reconcile the semantic task outcome, any related agent outcome, and the run summary inputs so runtime/plugin can refresh `task_counts`, `active_task_ids`, `active_agent_ids`, and the top-level `run-status.json` summary.
+- After each task result, immediately reconcile the semantic task outcome, any related agent outcome, and the run summary inputs. Prefer one batched `status_runtime_event` flush for the related task/agent deltas; only emit standalone heartbeats when the task is still active and the newer heartbeat adds useful liveness information.
 
 # EXECUTOR OUTPUT CONTRACT (MANDATORY)
 
