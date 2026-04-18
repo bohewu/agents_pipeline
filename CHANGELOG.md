@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.17] - 2026-04-18
+
 ### Changed
 
 - `/artgen` now supports optional `--gen-provider=codex` execution mode: the default brief/prompt handoff output stays intact, while the flag routes the final reusable prompt through the repo-managed `codex-imagegen` bridge, uses `danger-full-access` for that delegated image-generation step, and reports generated files separately from the External Handoff Package.

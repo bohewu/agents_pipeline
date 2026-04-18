@@ -6,8 +6,6 @@ hidden: true
 temperature: 0.1
 tools:
   read: true
-  skill: true
-  codex-imagegen: true
 ---
 
 # ROLE
