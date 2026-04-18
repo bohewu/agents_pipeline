@@ -6,8 +6,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.15] - 2026-04-18
+
 ### Changed
 
+- `orchestrator-pipeline` now writes a minimal inline `context-pack.json` for clearly trivial successful `--compress` runs instead of always dispatching `@compressor`, keeping the flag/artifact contract unchanged while avoiding extra Stage 8 cost on obvious small-pass runs.
 - Exported Copilot, Codex, and Claude orchestrator prompts now compact repeated checkpoint and run-status protocol sections at export time, reducing generated prompt overhead without changing source agent markdown, runtime contracts, or output paths.
 - The effort-control plugin now suppresses its automatic GPT-5 medium floor on reliably detected planning-only slash-command runs such as `--dry` and `--decision-only`, while preserving stronger project/session overrides and the existing agent-based exclusions.
 - `PROTOCOL_SUMMARY.md` is now smaller again: the global instruction file keeps only the two universal rules, while task traceability, evidence, and resource-control specifics stay in the local agent/protocol docs that already own those contracts.
