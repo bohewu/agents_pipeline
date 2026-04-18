@@ -13,12 +13,14 @@ This scaffold standardizes how this repo captures a bounded 2D asset request as 
 
 Pixel art remains the canonical example profile, but the scaffold also covers adjacent 2D assets such as sprites, animations, tilesets, icons, UI elements, and simple props through one shared brief model.
 When `/artgen` is invoked with `--gen-provider=codex`, this same scaffold still produces the package below and then optionally delegates the final prompt to the repo-managed Codex image-generation bridge.
+That delegated generation path should stay conservative by default: medium reasoning effort, medium quality, single-pass bias, and numeric size ceilings that avoid oversized requests.
 
 ## Boundary
 
 This scaffold remains the default spec/prompt generation plus formatting-oriented handoff packaging layer.
 Without `--gen-provider=codex`, it does not render images, create files, store raw assets, call Codex, call MCP servers, or run downstream pipeline steps in this repo.
 With `--gen-provider=codex`, `/artgen` may delegate the prepared prompt to the repo-managed `codex-imagegen` bridge using `danger-full-access` for the image-generation step, but generated-file reporting stays outside the External Handoff Package.
+That delegated step should default to a conservative generation posture unless the caller explicitly overrides it.
 The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `/artgen` output.
 The package stays descriptive, copy-ready, and non-operative.
 The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for direct use with external image-generation tools.
@@ -28,6 +30,7 @@ The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for dir
 `request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> optional Generation Result -> Direct Use Prompt`
 
 Anything after that package stays outside the External Handoff Package, even when `/artgen` also triggers optional Codex generation.
+The delegated generation side may apply runtime-specific controls such as reasoning-effort defaults, single-pass bias, and raster-size caps without changing the scaffold fields.
 
 ## Shared Brief Model
 
@@ -126,6 +129,7 @@ The Direct Use Prompt must be:
 
 - A broader 2D brief model avoids pixel-art-only wording, but it requires more explicit style and size fields.
 - Keeping prompt packaging as the default path preserves a thin scaffold boundary, while optional Codex generation adds convenience without changing the scaffold fields.
+- Conservative generation defaults reduce wasted Codex retries and oversized image requests, but callers may still need to override size for wide banners or UI-heavy compositions.
 - Shared version markers improve traceability, but they require deliberate bumps when assumptions materially change.
 
 ## Remaining Deferrals

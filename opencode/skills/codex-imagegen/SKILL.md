@@ -60,6 +60,9 @@ If Codex still emits analytics or service-sync warnings but exits successfully a
    - `prompt`
    - `output_path` for an exact file target, or `output_dir` plus `file_stem`
    - optional `size`, `quality`, `background`
+   - optional `reasoning_effort` when you want to override the local Codex default
+   - optional `default_size`, `max_side`, and `max_pixels` when the caller wants a bounded raster ceiling
+   - optional `prefer_single_pass=true` when the caller wants to discourage proactive retries or self-edits
 6. Report generated files only if the tool returns `status: "ok"`.
 7. If the tool returns `status: "warning"`, show the warning plainly and mention that no API/provider fallback was attempted.
 
@@ -81,3 +84,9 @@ The tool wraps the prompt with the required `$imagegen` instruction. Keep the us
 - edit/reference instructions, if applicable
 
 Do not add fallback instructions.
+
+## Cost Controls
+
+- When the caller wants lower token or image-generation cost, prefer a conservative default such as `reasoning_effort=medium` and a numeric `default_size` at or below `1024x1024` unless the composition clearly needs a wider aspect ratio.
+- When the caller wants a hard raster ceiling, pass `max_side` and `max_pixels`; numeric `size` or `default_size` values larger than those limits will be clamped before the Codex request is sent.
+- When the caller wants to avoid repeated retries or cleanup loops, pass `prefer_single_pass=true` so the wrapped prompt explicitly asks Codex to avoid proactive retries, self-edits, or local post-processing unless the first pass fails to create output.

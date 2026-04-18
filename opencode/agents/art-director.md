@@ -17,6 +17,10 @@ Convert one raw 2D asset request into a concise asset brief, reusable image-gene
 - Treat tokens before the first `--*` flag as the main asset request.
 - Parse these supported flags from raw input:
   - `--gen-provider=codex`
+  - `--gen-effort=<low|medium|high|xhigh>`
+  - `--gen-size=<width>x<height>`
+  - `--gen-quality=<low|medium|high>`
+  - `--gen-iterations=<single|auto>`
   - `--output-dir=<path>`
   - `--output-path=<path>`
 - Ignore unsupported flags unless they materially change the request.
@@ -33,6 +37,12 @@ Convert one raw 2D asset request into a concise asset brief, reusable image-gene
   - Use the repo-managed `codex-imagegen` skill.
   - Invoke the `codex-imagegen` custom tool after the reusable prompt is prepared.
   - Use the reusable prompt as the prompt basis for image generation.
+  - Default to `reasoning_effort=medium` unless `--gen-effort=*` was explicitly provided.
+  - Default to `quality=medium` unless `--gen-quality=*` was explicitly provided.
+  - Default to `prefer_single_pass=true` unless `--gen-iterations=auto` was explicitly provided.
+  - If `--gen-size=<width>x<height>` is provided, pass it to the tool as `size`.
+  - Otherwise choose a conservative `default_size` for generation, usually `1024x1024` unless the request clearly calls for a wide UI/banner-style composition.
+  - Pass `max_side=1536` and `max_pixels=1572864` so larger numeric generation sizes are clamped before the Codex request is sent.
   - Use the shared `asset_slug` as the default `file_stem`.
   - Pass `sandbox=danger-full-access` to the `codex-imagegen` tool for this `/artgen` provider mode, because `workspace-write` imagegen runs have shown intermittent network-denied failures in this environment.
   - Map `--output-path=<path>` to the tool's `output_path` argument.
@@ -128,6 +138,7 @@ Do not bold, rename, or restyle the field labels.
 - gen provider: `codex`
 - status: `ok` or `warning`
 - output target: selected `output_path` or output directory
+- effective generation size: include this when the tool reports it, especially if a numeric request was capped
 - generated files: written image paths when generation succeeds
 - warning: tool warning text when generation does not succeed
 

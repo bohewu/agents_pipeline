@@ -6,6 +6,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- `/artgen --gen-provider=codex` now supports generation-specific cost-control flags such as `--gen-effort`, `--gen-size`, `--gen-quality`, and `--gen-iterations`, with conservative defaults that bias toward medium effort, medium quality, single-pass output, and capped numeric raster sizes.
+- `codex-imagegen` now supports optional reasoning-effort overrides, default-size fallbacks, numeric size caps, and a single-pass prompt bias so `/artgen` can avoid oversized or retry-heavy image runs by default.
+
 ## [0.22.17] - 2026-04-18
 
 ### Changed

@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const NUMERIC_SIZE_RE = /^\s*(\d+)\s*x\s*(\d+)\s*$/i;
 const WINDOWS_CODEX_EXE_PARTS = [
   "node_modules",
   "@openai",
@@ -31,6 +32,101 @@ function resolvePath(worktree: string, value?: string) {
 
 function requestedOutputPath(args: any) {
   return args.output_path || args["output-path"];
+}
+
+function positiveInteger(value: any) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function parseNumericSize(value?: string) {
+  if (!value) {
+    return null;
+  }
+  const match = NUMERIC_SIZE_RE.exec(value);
+  if (!match) {
+    return null;
+  }
+  const width = positiveInteger(match[1]);
+  const height = positiveInteger(match[2]);
+  if (!width || !height) {
+    return null;
+  }
+  return { width, height };
+}
+
+function formatNumericSize(width: number, height: number) {
+  return `${width}x${height}`;
+}
+
+function normalizeRequestedSize(args: any) {
+  const requestedSize = String(args.size || args.default_size || "").trim();
+  if (!requestedSize) {
+    return {
+      requestedSize: "",
+      effectiveSize: "",
+      sizeCapped: false,
+    };
+  }
+
+  const parsed = parseNumericSize(requestedSize);
+  if (!parsed) {
+    return {
+      requestedSize,
+      effectiveSize: requestedSize,
+      sizeCapped: false,
+    };
+  }
+
+  const maxSide = positiveInteger(args.max_side);
+  const maxPixels = positiveInteger(args.max_pixels);
+  let width = parsed.width;
+  let height = parsed.height;
+  let scale = 1;
+
+  if (maxSide > 0) {
+    scale = Math.min(scale, maxSide / Math.max(width, height));
+  }
+
+  if (maxPixels > 0) {
+    scale = Math.min(scale, Math.sqrt(maxPixels / (width * height)));
+  }
+
+  if (scale < 1) {
+    width = Math.max(1, Math.floor(width * scale));
+    height = Math.max(1, Math.floor(height * scale));
+  }
+
+  if (maxSide > 0) {
+    while (Math.max(width, height) > maxSide) {
+      if (width >= height && width > 1) {
+        width -= 1;
+      } else if (height > 1) {
+        height -= 1;
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (maxPixels > 0) {
+    while (width * height > maxPixels) {
+      if (width >= height && width > 1) {
+        width -= 1;
+      } else if (height > 1) {
+        height -= 1;
+      } else {
+        break;
+      }
+    }
+  }
+
+  const effectiveSize = formatNumericSize(width, height);
+  return {
+    requestedSize,
+    effectiveSize,
+    sizeCapped: effectiveSize !== requestedSize,
+  };
 }
 
 function resolveOutputTarget(worktree: string, args: any) {
@@ -201,7 +297,7 @@ async function listImages(directory: string) {
   }
 }
 
-function buildPrompt(args: any, outputDir: string, outputPath: string) {
+function buildPrompt(args: any, outputDir: string, outputPath: string, sizeInfo: ReturnType<typeof normalizeRequestedSize>) {
   const lines = [
     "Use $imagegen to generate or edit an image with Codex CLI's built-in image generation.",
     "Do not write API client code, do not use CODEX_API_KEY, and do not fall back to any external image API or provider.",
@@ -223,14 +319,26 @@ function buildPrompt(args: any, outputDir: string, outputPath: string) {
   } else if (outputPath) {
     lines.push(`Use this filename stem when possible: ${path.basename(outputPath, path.extname(outputPath))}`);
   }
-  if (args.size) {
-    lines.push(`Requested size or aspect ratio: ${args.size}`);
+  if (sizeInfo.effectiveSize) {
+    lines.push(`Requested size or aspect ratio: ${sizeInfo.effectiveSize}`);
+  }
+  if (sizeInfo.sizeCapped) {
+    lines.push(`The original requested size was larger, so keep generation at this capped size: ${sizeInfo.effectiveSize}.`);
   }
   if (args.quality) {
     lines.push(`Requested quality: ${args.quality}`);
   }
   if (args.background) {
     lines.push(`Requested background: ${args.background}`);
+  }
+
+  if (args.prefer_single_pass !== false) {
+    lines.push(
+      "Prefer a single generation pass. Avoid proactive retries, self-edits, or local post-processing unless the first pass fails to create the requested output file.",
+    );
+    if (String(args.background || "").trim().toLowerCase() === "transparent") {
+      lines.push("If transparency is requested, generate true alpha directly instead of a rendered checkerboard backdrop.");
+    }
   }
 
   lines.push(
@@ -256,6 +364,10 @@ function buildCodexCommand(args: any, prompt: string, codexCommand: string) {
     command.push("--enable", imageFeature);
   }
 
+  if (args.reasoning_effort) {
+    command.push("-c", `model_reasoning_effort=${JSON.stringify(String(args.reasoning_effort))}`);
+  }
+
   if (args.model) {
     command.push("-c", `model=${args.model}`);
   }
@@ -276,6 +388,11 @@ export default tool({
     size: tool.schema.string().optional().describe("Requested image size, aspect ratio, or dimensions, for example 1024x1024."),
     quality: tool.schema.string().optional().describe("Requested quality hint, for example low, medium, or high."),
     background: tool.schema.string().optional().describe("Requested background handling, for example transparent or white."),
+    default_size: tool.schema.string().optional().describe("Fallback size to use when size is omitted, for example 1024x1024."),
+    max_side: tool.schema.number().optional().describe("Optional hard cap for the generated image long side when size is numeric."),
+    max_pixels: tool.schema.number().optional().describe("Optional hard cap for total generated pixels when size is numeric."),
+    reasoning_effort: tool.schema.string().optional().describe("Optional Codex reasoning override, for example low, medium, high, or xhigh."),
+    prefer_single_pass: tool.schema.boolean().optional().describe("Ask Codex to avoid proactive retries, self-edits, or post-processing unless the first pass fails to create output. Default: false."),
     model: tool.schema.string().optional().describe("Optional Codex model config override passed as -c model=<value>."),
     sandbox: tool.schema.string().optional().describe("Codex exec sandbox mode. Default: workspace-write."),
     suppress_codex_sync_warnings: tool.schema.boolean().optional().describe("Pass per-run Codex flags to reduce plugin, analytics, and shell snapshot warning noise. Default: true."),
@@ -320,7 +437,8 @@ export default tool({
 
     const before = new Set(await listImages(outputDir));
     const beforeOutputSignature = outputPath ? await fileSignature(outputPath) : null;
-    const prompt = buildPrompt(args, outputDir, outputPath);
+    const sizeInfo = normalizeRequestedSize(args);
+    const prompt = buildPrompt(args, outputDir, outputPath, sizeInfo);
     const env = { ...process.env };
     delete env.CODEX_API_KEY;
     const codexCommand = await resolveCodexCommand(args, env);
@@ -368,6 +486,10 @@ export default tool({
       exit_code: exitCode,
       output_dir: outputDir,
       output_path: outputPath,
+      requested_size: sizeInfo.requestedSize,
+      effective_size: sizeInfo.effectiveSize,
+      size_capped: sizeInfo.sizeCapped,
+      reasoning_effort: args.reasoning_effort || "",
       generated_files: generated,
       warning:
         exitCode !== 0

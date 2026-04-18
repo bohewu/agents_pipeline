@@ -23,6 +23,21 @@ $ARGUMENTS
   - Keep the normal `/artgen` brief/prompt output.
   - After preparing the reusable prompt, delegate image generation to the repo-managed `codex-imagegen` skill and custom tool.
   - This mode should use `sandbox=danger-full-access` for the Codex image-generation step.
+- `--gen-effort=<low|medium|high|xhigh>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Default to `medium` for `/artgen` Codex generation.
+- `--gen-size=<width>x<height>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Overrides the generated raster size request sent to Codex.
+  - When omitted, default to a conservative size chosen by the agent, typically `1024x1024` unless the request clearly needs a wide UI/banner-style aspect ratio.
+  - Never exceed a long side of `1536` or a total pixel count of `1572864`; clamp larger numeric requests to fit that ceiling.
+- `--gen-quality=<low|medium|high>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Default to `medium`.
+- `--gen-iterations=<single|auto>`
+  - Only meaningful with `--gen-provider=codex`.
+  - Default to `single`.
+  - `single` asks Codex to avoid proactive retries, self-edits, or local cleanup unless the first pass fails to create the requested output.
 - `--output-dir=<path>`
   - Only meaningful with `--gen-provider=codex`.
   - Relative paths should be treated as repo-root relative.
@@ -42,6 +57,8 @@ $ARGUMENTS
   - still produce the normal request record, brief, reusable prompt, suggested outputs, manual checks, External Handoff Package, and final Direct Use Prompt
   - use the reusable prompt as the Codex image-generation prompt basis
   - use `danger-full-access` for the delegated Codex image-generation sandbox
+  - default to `--gen-effort=medium`, `--gen-quality=medium`, and `--gen-iterations=single` when those flags are omitted
+  - choose a conservative generation size when `--gen-size` is omitted, and clamp numeric generation sizes to a maximum long side of `1536` and a maximum total pixel count of `1572864`
   - use the shared `asset_slug` as the default `file_stem`
   - keep generated-file reporting in a separate `Generation Result` section instead of mixing it into the External Handoff Package
   - if Codex image generation returns a warning, show it plainly and do not claim success
@@ -85,6 +102,7 @@ $ARGUMENTS
 - Manual checks: what a human should confirm before reusing the brief or prompt.
 - External Handoff Package: standard `/artgen` output that bundles the request record, asset brief, reusable prompt, suggested outputs, and manual checks into a generic, human-readable, copy-ready handoff.
 - Generation Result: only when `--gen-provider=codex`; include provider, status, chosen output target, generated file paths, or warning text. Keep it outside the External Handoff Package.
+- Generation Result: when present, include the effective generation size if Codex size capping adjusted the numeric request.
 - Direct Use Prompt: final section of the response, in a fenced `text` block, containing the same reusable prompt in a directly pasteable form suitable for external image-generation tools.
 - Use the exact field labels shown in the agent contract. Do not bold, rename, or restyle them.
 
@@ -97,4 +115,5 @@ $ARGUMENTS
 /artgen type=icon style=flat-2d size=128x128 subject="health potion inventory icon"
 /artgen type=ui-element style=clean-2d size=960x240 subject="fantasy dialogue panel"
 /artgen type=icon style=flat-2d size=256x256 subject="blue apple app icon" --gen-provider=codex --output-dir=generated/artgen
+/artgen type=ui-element style=clean-2d size=1600x900 subject="README footer illustration" --gen-provider=codex --gen-effort=medium --gen-size=1536x1024 --gen-quality=medium --gen-iterations=single --output-path=docs/repo-footer-art.png
 ```
