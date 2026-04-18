@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.14] - 2026-04-18
+
+### Changed
+
+- Helper artifact guidance now treats `todo-ledger.json` as the canonical kanban state while `kanban.md` stays a rendered view and `session-guide.md` stays stable repo guidance, with validator and CI coverage to keep those helper contracts aligned.
+- Exported orchestrator prompts are leaner: runtime adapters, handoff boilerplate, responsibility matrices, response-mode defaults, and confirm/verbose progress rules are compacted at export time without changing source prompt readability, exporter CLIs, or output paths.
+- The pipeline now defaults more aggressively to `ProblemSpec` for small isolated fixes by using an explicit `DevSpec` threshold gate instead of opening Stage 0.5 for most implementation-oriented uncertainty.
+- Status runtime writes are cheaper and less chatty: same-run status deltas can flush through `status_runtime_event(event="batch")`, untouched status files are no longer rewritten on every event, redundant heartbeats are coalesced, and orchestrator guidance now treats standalone heartbeats as coarse liveness signals rather than routine per-step updates.
+- GPT-5 effort-control exclusions now also cover additional structured low-reasoning roles such as `specifier`, `flow-splitter`, and `codex-account-manager`, reducing unnecessary medium-effort floors on planner-style work.
+- Review failures now use in-band `[artifact]`, `[evidence]`, and `[logic]` prefixes so narrow formatting/evidence repairs can avoid broad retry loops when the underlying work is already present, with CI-backed guidance checks to keep reviewer and pipeline prompts aligned.
+
 ## [0.22.13] - 2026-04-18
 
 ### Changed
