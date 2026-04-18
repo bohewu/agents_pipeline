@@ -1026,3 +1026,9 @@ trufflehog filesystem .
 Use whichever tool your team prefers.
 
 </details>
+
+<p align="center">
+  <img src="docs/repo-footer-art.png" width="920" alt="Playful footer illustration of a multi-agent orchestration control room for agents_pipeline">
+</p>
+
+<p align="center"><sub>Generated with this repo's own <code>/artgen --gen-provider=codex</code> flow.</sub></p>
