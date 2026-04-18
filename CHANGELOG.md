@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.16] - 2026-04-18
+
 ### Fixed
 
 - Reverted the latest context-aware `effort-control` server-plugin expansion after local OpenCode validation showed it could trigger a startup crash in non-pure mode; the plugin returns to the prior GPT-5 floor behavior until the host-runtime compatibility issue is understood.
