@@ -8,6 +8,7 @@ import { RightDrawer } from './RightDrawer.js';
 import { Thread } from '../thread/Thread.js';
 import { AddWorkspaceDialog } from '../workspaces/AddWorkspaceDialog.js';
 import { resolveAgentId, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
+import { mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
 
 export function AppShell() {
   const {
@@ -24,11 +25,16 @@ export function AppShell() {
     setActiveSession,
     setMessages,
     setEffort,
+    setUsage,
+    setUsageLoading,
     setSelectedProvider,
     setSelectedModel,
     setSelectedAgent,
     setWorkspaceDialogOpen,
   } = useStore();
+  const compactDesktop = useViewportWidth() <= 1440;
+  const sidebarWidth = compactDesktop ? '248px' : '280px';
+  const drawerWidth = compactDesktop ? '300px' : '360px';
 
   // Bootstrap workspace on selection
   useEffect(() => {
@@ -37,6 +43,22 @@ export function AppShell() {
 
     const hydrateWorkspace = async () => {
       setConnection(activeWorkspaceId, 'connecting');
+      setUsageLoading(activeWorkspaceId, true);
+
+      void api.getUsage(activeWorkspaceId, selectedProvider ?? undefined)
+        .then((usage) => {
+          if (!cancelled) {
+            setUsage(activeWorkspaceId, usage);
+          }
+        })
+        .catch(() => {
+          /* ignore usage prefetch errors */
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setUsageLoading(activeWorkspaceId, false);
+          }
+        });
 
       try {
         const boot = await api.getBootstrap(activeWorkspaceId);
@@ -55,7 +77,7 @@ export function AppShell() {
           setEffort(activeWorkspaceId, boot.effort);
         }
 
-        let sessions = boot.sessions;
+        let sessions = sortSessionsForSidebar(boot.sessions);
         const previousSessionId = useStore.getState().activeSessionByWorkspace[activeWorkspaceId];
         let session = sessions.find((entry) => entry.id === previousSessionId)
           ?? [...sessions].sort((left, right) => {
@@ -74,13 +96,14 @@ export function AppShell() {
 
         if (cancelled) return;
 
-        setSessions(activeWorkspaceId, sessions);
+        setSessions(activeWorkspaceId, sortSessionsForSidebar(sessions));
         setActiveSession(activeWorkspaceId, session.id);
 
         const messages = await api.listMessages(activeWorkspaceId, session.id).catch(() => []);
         if (cancelled) return;
 
         setMessages(session.id, messages);
+        setSessions(activeWorkspaceId, mergeSessionMessages(sessions, session.id, messages));
         setConnection(activeWorkspaceId, 'connected');
       } catch {
         if (!cancelled) {
@@ -108,9 +131,6 @@ export function AppShell() {
     };
   }, [
     activeWorkspaceId,
-    selectedAgent,
-    selectedModel,
-    selectedProvider,
     setEffort,
     setMessages,
     setSelectedAgent,
@@ -120,12 +140,14 @@ export function AppShell() {
     setWorkspaceBootstrap,
     setConnection,
     setActiveSession,
+    setUsage,
+    setUsageLoading,
   ]);
 
   const gridCols = [
-    sidebarOpen ? '280px' : '56px',
+    sidebarOpen ? sidebarWidth : '56px',
     'minmax(0, 1fr)',
-    rightDrawerOpen ? '360px' : '56px',
+    rightDrawerOpen ? drawerWidth : '56px',
   ].join(' ');
 
   return (
@@ -140,4 +162,16 @@ export function AppShell() {
       {workspaceDialogOpen && <AddWorkspaceDialog onClose={() => setWorkspaceDialogOpen(false)} />}
     </div>
   );
+}
+
+function useViewportWidth() {
+  const [width, setWidth] = React.useState(() => window.innerWidth);
+
+  React.useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return width;
 }

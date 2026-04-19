@@ -4,6 +4,7 @@ import { SessionList } from '../sessions/SessionList.js';
 import { api } from '../../lib/api-client.js';
 import { PanelLeftIcon, PlusIcon } from '../common/Icons.js';
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
+import { sortSessionsForSidebar } from '../../lib/session-meta.js';
 
 export function Sidebar() {
   const {
@@ -26,9 +27,10 @@ export function Sidebar() {
         modelId: selectedModel ?? undefined,
         agentId: selectedAgent ?? undefined,
       });
-      const sessions = await api.listSessions(activeWorkspaceId);
-      setSessions(activeWorkspaceId, sessions);
+      const existingSessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
+      setSessions(activeWorkspaceId, sortSessionsForSidebar([session, ...existingSessions]));
       setActiveSession(activeWorkspaceId, session.id);
+      useStore.getState().setMessages(session.id, []);
     } catch {
       /* ignore */
     }
@@ -60,9 +62,9 @@ export function Sidebar() {
           </button>
         </div>
         <div className="oc-sidebar-divider" />
-        <div className="oc-sidebar-title">Chats</div>
+        <div className="oc-sidebar-title">Sessions</div>
         <div className="oc-sidebar-empty">
-          Open a workspace first, then each repo gets its own chat history here.
+          Open a workspace first. Each repo keeps its own session history here.
         </div>
       </aside>
     );
@@ -84,8 +86,8 @@ export function Sidebar() {
       </div>
       <div className="oc-sidebar-divider" />
       <div className="oc-sidebar-header oc-sidebar-header--tight">
-        <span className="oc-sidebar-title">Chats</span>
-        <button type="button" onClick={handleNewSession} className="oc-icon-button oc-icon-button--soft" title="New chat">
+        <span className="oc-sidebar-title">Sessions</span>
+        <button type="button" onClick={handleNewSession} className="oc-icon-button oc-icon-button--soft" title="New session">
           <PlusIcon size={16} />
         </button>
       </div>

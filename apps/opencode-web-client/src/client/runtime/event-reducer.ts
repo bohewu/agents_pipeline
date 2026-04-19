@@ -1,27 +1,43 @@
 import type { BffEvent } from '../../shared/types.js';
 import type { UIStore } from './store.js';
+import { mergeSessionMessageEvent, sortSessionsForSidebar } from '../lib/session-meta.js';
 
 export function handleBffEvent(event: BffEvent, store: UIStore): void {
   const p = event.payload;
 
   switch (event.type) {
     case 'message.created': {
+      const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
       if (sessionId && message) store.addMessage(sessionId, message);
+      if (workspaceId && sessionId && message) {
+        const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
+        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 1)));
+      }
       break;
     }
     case 'message.delta': {
+      const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
       if (sessionId && message) store.updateMessage(sessionId, message);
+      if (workspaceId && sessionId && message) {
+        const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
+        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 0)));
+      }
       store.setStreaming(true);
       break;
     }
     case 'message.completed': {
+      const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
       if (sessionId && message) store.updateMessage(sessionId, message);
+      if (workspaceId && sessionId && message) {
+        const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
+        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 0)));
+      }
       store.setStreaming(false);
       break;
     }
@@ -30,7 +46,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const session = p.session as any;
       if (workspaceId && session) {
         const existing = store.sessionsByWorkspace[workspaceId] ?? [];
-        store.setSessions(workspaceId, [...existing, session]);
+        store.setSessions(workspaceId, sortSessionsForSidebar([session, ...existing]));
       }
       break;
     }
@@ -43,7 +59,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
         if (idx >= 0) {
           const next = [...existing];
           next[idx] = session;
-          store.setSessions(workspaceId, next);
+          store.setSessions(workspaceId, sortSessionsForSidebar(next));
         }
       }
       break;

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import type { SessionSummary } from '../../../shared/types.js';
+import { getSessionMetaLabel, mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
 
-export function SessionItem({ session, active }: { session: SessionSummary; active: boolean }) {
+export function SessionItem({ session, active, depth }: { session: SessionSummary; active: boolean; depth: number }) {
   const { activeWorkspaceId, setActiveSession, setSessions, setMessages } = useStore();
   const [showMenu, setShowMenu] = useState(false);
 
@@ -13,6 +14,8 @@ export function SessionItem({ session, active }: { session: SessionSummary; acti
     try {
       const messages = await api.listMessages(activeWorkspaceId, session.id);
       setMessages(session.id, messages);
+      const currentSessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
+      setSessions(activeWorkspaceId, sortSessionsForSidebar(mergeSessionMessages(currentSessions, session.id, messages)));
     } catch {
       /* ignore */
     }
@@ -23,24 +26,43 @@ export function SessionItem({ session, active }: { session: SessionSummary; acti
     if (!activeWorkspaceId) return;
     try {
       await api.deleteSession(activeWorkspaceId, session.id);
-      const sessions = await api.listSessions(activeWorkspaceId);
-      setSessions(activeWorkspaceId, sessions);
+      const sessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
+      const remaining = sessions.filter((entry) => entry.id !== session.id);
+      setSessions(activeWorkspaceId, remaining);
+      if (active) {
+        setActiveSession(activeWorkspaceId, remaining[0]?.id);
+      }
     } catch {
       /* ignore */
     }
     setShowMenu(false);
   };
 
+  const metaLabel = getSessionMetaLabel(session);
+
   return (
     <div
       onClick={handleSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          void handleSelect();
+        }
+      }}
       onContextMenu={(event) => { event.preventDefault(); setShowMenu(!showMenu); }}
       title={session.title || session.id}
-      className={`oc-session-item ${active ? 'is-active' : ''}`}
+      className={`oc-session-item ${active ? 'is-active' : ''} ${depth > 0 ? 'oc-session-item--child' : ''}`}
+      style={{ paddingInlineStart: `${12 + depth * 18}px` }}
+      role="button"
+      tabIndex={0}
+      aria-current={active ? 'true' : undefined}
     >
-      <div className="oc-session-item__title">{session.title || `Session ${session.id.slice(0, 8)}`}</div>
+      <div className="oc-session-item__title-row">
+        {depth > 0 && <span className="oc-session-item__branch">Branch</span>}
+        <div className="oc-session-item__title">{session.title || `Session ${session.id.slice(0, 8)}`}</div>
+      </div>
       <div className="oc-session-item__meta">
-        <span>{session.messageCount} msgs</span>
+        <span>{metaLabel ?? 'Session'}</span>
         <span>{formatTimeAgo(session.updatedAt)}</span>
       </div>
       {showMenu && (

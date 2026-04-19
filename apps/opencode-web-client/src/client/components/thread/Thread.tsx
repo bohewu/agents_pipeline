@@ -13,6 +13,7 @@ import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
 import { Composer } from '../composer/Composer.js';
 import { ConnectionStatus } from '../common/ConnectionStatus.js';
+import { ArrowDownIcon } from '../common/Icons.js';
 
 function useNormalizedMessage() {
   const messageId = useMessage((s) => s.id);
@@ -115,6 +116,10 @@ export function Thread() {
     >
       <ThreadPrimitive.Viewport
         className="oc-thread-viewport"
+        autoScroll
+        scrollToBottomOnInitialize
+        scrollToBottomOnRunStart
+        scrollToBottomOnThreadSwitch
         style={{ flex: 1, overflow: 'auto' }}
       >
         <div className="oc-thread-statusbar">
@@ -135,8 +140,8 @@ export function Thread() {
 
         <ThreadPrimitive.ViewportFooter className="oc-thread-footer">
           <div className="oc-thread-footer__scroll">
-            <ThreadPrimitive.ScrollToBottom className="oc-scroll-to-bottom">
-              Jump to latest
+            <ThreadPrimitive.ScrollToBottom className="oc-scroll-to-bottom" aria-label="Jump to latest">
+              <ArrowDownIcon size={16} />
             </ThreadPrimitive.ScrollToBottom>
           </div>
           <Composer />

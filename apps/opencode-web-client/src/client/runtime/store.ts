@@ -28,6 +28,7 @@ export interface UIStore {
   selectedAgent: string | null;
   effortByWorkspace: Record<string, EffortStateSummary>;
   usageByWorkspace: Record<string, UsageDetails>;
+  usageLoadingByWorkspace: Record<string, boolean>;
   rightPanel: RightPanel;
   composerMode: ComposerMode;
   sidebarOpen: boolean;
@@ -51,6 +52,7 @@ export interface UIStore {
   setSelectedAgent: (id: string | null) => void;
   setEffort: (workspaceId: string, effort: EffortStateSummary) => void;
   setUsage: (workspaceId: string, usage: UsageDetails) => void;
+  setUsageLoading: (workspaceId: string, loading: boolean) => void;
   setRightPanel: (panel: RightPanel) => void;
   setComposerMode: (mode: ComposerMode) => void;
   toggleSidebar: () => void;
@@ -73,8 +75,9 @@ export const useStore = create<UIStore>((set) => ({
   selectedModel: null,
   selectedAgent: null,
   effortByWorkspace: {},
-  usageByWorkspace: {},
-  rightPanel: 'diagnostics',
+  usageByWorkspace: loadUsageCache(),
+  usageLoadingByWorkspace: {},
+  rightPanel: 'usage',
   composerMode: 'ask',
   sidebarOpen: true,
   rightDrawerOpen: false,
@@ -134,7 +137,13 @@ export const useStore = create<UIStore>((set) => ({
   setEffort: (workspaceId, effort) =>
     set((s) => ({ effortByWorkspace: { ...s.effortByWorkspace, [workspaceId]: effort } })),
   setUsage: (workspaceId, usage) =>
-    set((s) => ({ usageByWorkspace: { ...s.usageByWorkspace, [workspaceId]: usage } })),
+    set((s) => {
+      const nextUsage = { ...s.usageByWorkspace, [workspaceId]: usage };
+      saveUsageCache(nextUsage);
+      return { usageByWorkspace: nextUsage };
+    }),
+  setUsageLoading: (workspaceId, loading) =>
+    set((s) => ({ usageLoadingByWorkspace: { ...s.usageLoadingByWorkspace, [workspaceId]: loading } })),
   setRightPanel: (panel) => set({ rightPanel: panel }),
   setComposerMode: (mode) => set({ composerMode: mode }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
@@ -143,3 +152,28 @@ export const useStore = create<UIStore>((set) => ({
     set((s) => ({ connectionByWorkspace: { ...s.connectionByWorkspace, [workspaceId]: state } })),
   setStreaming: (streaming) => set({ streaming }),
 }));
+
+const USAGE_CACHE_KEY = 'opencode-web-client:usage-cache';
+
+function loadUsageCache(): Record<string, UsageDetails> {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    const raw = window.localStorage.getItem(USAGE_CACHE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveUsageCache(cache: Record<string, UsageDetails>): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(USAGE_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    /* ignore storage failures */
+  }
+}

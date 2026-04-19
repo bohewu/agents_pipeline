@@ -10,7 +10,7 @@ import { useStore } from '../../runtime/store.js';
 import { ComposerModeSelector } from './ComposerModeSelector.js';
 import { ArrowUpIcon, SquareIcon } from '../common/Icons.js';
 import { EffortControl } from '../effort/EffortControl.js';
-import { getModelOptions, getVisibleAgents, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
+import { getModelOptions, getVisibleAgents, getVisibleProviders, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
 
 type SuggestionKind = 'agent' | 'command';
 
@@ -41,6 +41,7 @@ export function Composer() {
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const disabled = !sessionId;
   const boot = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
+  const providerOptions = getVisibleProviders(boot);
   const providerId = resolveProviderId(boot, selectedProvider);
   const modelId = resolveModelId(boot, providerId, selectedModel);
   const modelOptions = getModelOptions(boot, providerId);
@@ -109,6 +110,20 @@ export function Composer() {
     setCursor(target.selectionStart ?? target.value.length);
   };
 
+  const scrollComposerIntoLatest = () => {
+    requestAnimationFrame(() => {
+      const viewport = document.querySelector<HTMLElement>('.oc-thread-viewport');
+      if (!viewport) return;
+      viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+    });
+  };
+
+  const handleProviderChange = (value: string) => {
+    const nextProvider = providerOptions.find((provider) => provider.id === value);
+    setSelectedProvider(nextProvider?.id ?? null);
+    setSelectedModel(null);
+  };
+
   const applySuggestion = (suggestion: ComposerSuggestion) => {
     if (!activeToken) return;
     const tokenText = suggestion.kind === 'agent'
@@ -149,7 +164,11 @@ export function Composer() {
   };
 
   return (
-    <div className="oc-composer-shell">
+    <div
+      className="oc-composer-shell"
+      onMouseDownCapture={scrollComposerIntoLatest}
+      onFocusCapture={scrollComposerIntoLatest}
+    >
       <ComposerPrimitive.Root className="oc-composer-root">
         {suggestions.length > 0 && activeToken && (
           <div className="oc-composer-suggestions" role="listbox" aria-label={activeToken.trigger === '@' ? 'Agent suggestions' : 'Command and skill suggestions'}>
@@ -222,13 +241,27 @@ export function Composer() {
               <>
                 <ComposerModeSelector />
                 <select
+                  name="provider"
+                  value={providerId ?? ''}
+                  onChange={(event) => handleProviderChange(event.target.value)}
+                  className="oc-topbar-select oc-topbar-select--compact"
+                  aria-label="Provider"
+                  disabled={providerOptions.length === 0}
+                >
+                  <option value="">Provider</option>
+                  {providerOptions.map((provider) => (
+                    <option key={provider.id} value={provider.id}>{provider.name}</option>
+                  ))}
+                </select>
+                <select
+                  name="model"
                   value={modelId ?? ''}
                   onChange={(event) => handleModelChange(event.target.value)}
-                  className="oc-topbar-select oc-topbar-select--compact"
+                  className="oc-topbar-select oc-topbar-select--compact oc-topbar-select--model"
                   aria-label="Model variant"
                   disabled={modelOptions.length === 0}
                 >
-                  <option value="">Model</option>
+                  <option value="">Model variant</option>
                   {modelOptions.map((model) => (
                     <option key={model.id} value={model.id}>{model.name}</option>
                   ))}

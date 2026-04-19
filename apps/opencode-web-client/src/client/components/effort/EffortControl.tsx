@@ -28,6 +28,7 @@ export function EffortControl() {
 
   return (
     <select
+      name="effort"
       value={currentLevel}
       onChange={(event) => handleChange(event.target.value)}
       className="oc-topbar-select oc-topbar-select--compact"

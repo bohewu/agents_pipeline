@@ -85,6 +85,12 @@ export interface SessionSummary {
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  parentId?: string;
+  changeSummary?: {
+    files: number;
+    additions: number;
+    deletions: number;
+  };
 }
 
 // ── Messages ──

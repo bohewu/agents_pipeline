@@ -4,7 +4,23 @@ import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
 import { EffortControl } from '../effort/EffortControl.js';
 import { UsageBadge } from '../usage/UsageBadge.js';
 import { ConnectionStatus } from '../common/ConnectionStatus.js';
-import { PanelLeftIcon, PanelRightIcon, PlusIcon } from '../common/Icons.js';
+import { ActivityIcon, DiffIcon, FilesIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
+
+const PANEL_ICONS = {
+  diff: DiffIcon,
+  files: FilesIcon,
+  usage: UsageIcon,
+  permissions: ShieldIcon,
+  diagnostics: ActivityIcon,
+};
+
+const PANEL_LABELS = {
+  diff: 'Diff',
+  files: 'Files',
+  usage: 'Usage',
+  permissions: 'Permissions',
+  diagnostics: 'Diagnostics',
+};
 
 export function TopBar() {
   const {
@@ -17,10 +33,12 @@ export function TopBar() {
     setSelectedModel,
     setSelectedAgent,
     setWorkspaceDialogOpen,
+    setRightPanel,
     toggleSidebar,
     toggleRightDrawer,
     sidebarOpen,
     rightDrawerOpen,
+    rightPanel,
   } = useStore();
 
   const activeBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
@@ -48,6 +66,7 @@ export function TopBar() {
   const resolvedAgentId = visibleAgents.some((agent) => agent.id === selectedAgent)
     ? selectedAgent
     : preferredAgentId;
+  const DrawerIcon = PANEL_ICONS[rightPanel];
 
   useEffect(() => {
     if (selectedProvider !== resolvedProviderId) {
@@ -121,9 +140,26 @@ export function TopBar() {
         <EffortControl />
         <UsageBadge />
         <ConnectionStatus />
-        <button type="button" onClick={toggleRightDrawer} className="oc-icon-button" title={rightDrawerOpen ? 'Hide inspector' : 'Show inspector'}>
-          <PanelRightIcon size={16} className={!rightDrawerOpen ? 'oc-icon--flipped' : undefined} />
-        </button>
+        {rightDrawerOpen ? (
+          <button
+            type="button"
+            onClick={toggleRightDrawer}
+            className="oc-icon-button"
+            title="Hide side panel"
+          >
+            <PanelRightIcon size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleRightDrawer}
+            className="oc-pill-button oc-pill-button--drawer"
+            title={`Open ${PANEL_LABELS[rightPanel]}`}
+          >
+            <DrawerIcon size={16} />
+            <span>{PANEL_LABELS[rightPanel]}</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -138,6 +174,7 @@ function Select({ label, value, onChange, options, disabled }: {
 }) {
   return (
     <select
+      name={label.toLowerCase().replace(/\s+/g, '-')}
       value={value}
       onChange={(event) => onChange(event.target.value || null)}
       title={label}

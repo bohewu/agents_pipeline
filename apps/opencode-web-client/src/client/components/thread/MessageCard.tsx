@@ -85,7 +85,7 @@ export function MessageCard({ message }: { message: NormalizedMessage }) {
               aria-label={copied ? 'Copied message' : 'Copy message'}
               title={copied ? 'Copied' : 'Copy message'}
             >
-              {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              {copied ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
             </button>
           </div>
         )}
@@ -98,7 +98,68 @@ const MARKDOWN_COMPONENTS = {
   a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a {...props} target="_blank" rel="noreferrer" />
   ),
+  pre: (props: React.HTMLAttributes<HTMLPreElement>) => <>{props.children}</>,
+  code: MarkdownCode,
+  h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h1 className="oc-markdown-heading oc-markdown-heading--h1" {...props} />,
+  h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h2 className="oc-markdown-heading oc-markdown-heading--h2" {...props} />,
+  h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => <h3 className="oc-markdown-heading oc-markdown-heading--h3" {...props} />,
+  table: (props: React.TableHTMLAttributes<HTMLTableElement>) => (
+    <div className="oc-markdown-table-wrap">
+      <table {...props} />
+    </div>
+  ),
+  blockquote: (props: React.BlockquoteHTMLAttributes<HTMLQuoteElement>) => <blockquote className="oc-markdown-blockquote" {...props} />,
 };
+
+function MarkdownCode({ className, children, ...props }: React.HTMLAttributes<HTMLElement>) {
+  const codeText = String(children ?? '').replace(/\n$/, '');
+  const language = className?.match(/language-([\w-]+)/)?.[1] ?? null;
+
+  if (!language && !codeText.includes('\n')) {
+    return <code className="oc-markdown-inline-code" {...props}>{children}</code>;
+  }
+
+  return <CodeBlockPreview language={language ?? 'text'} code={codeText} />;
+}
+
+function CodeBlockPreview({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div className="oc-code-block">
+      <div className="oc-code-block__header">
+        <span className="oc-code-block__label">{language}</span>
+        <button
+          type="button"
+          className="oc-code-block__copy"
+          onClick={() => void handleCopy()}
+          aria-label={copied ? 'Copied code block' : 'Copy code block'}
+          title={copied ? 'Copied' : 'Copy code block'}
+        >
+          {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
+        </button>
+      </div>
+      <pre className="oc-code-block__body">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
 
 interface RenderableToolPart {
   key: string;
