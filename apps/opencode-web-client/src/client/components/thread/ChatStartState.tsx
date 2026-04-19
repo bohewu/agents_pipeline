@@ -1,7 +1,6 @@
 import React from 'react';
 import { useStore } from '../../runtime/store.js';
 import { DiagnosticsView } from '../diagnostics/DiagnosticsView.js';
-import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
 
 export function ChatStartState() {
   const { setWorkspaceDialogOpen, workspaces } = useStore();
@@ -10,11 +9,8 @@ export function ChatStartState() {
     <div className="oc-empty-state">
       <div className="oc-empty-state__avatar">O</div>
       <h1 className="oc-empty-state__title">Let's start building</h1>
-      <div className="oc-empty-state__workspace">
-        <WorkspaceSelector />
-      </div>
       <p className="oc-empty-state__subtitle">
-        Start from the chat surface. Choose a folder once, then describe what you want to build.
+        Choose a folder from the left sidebar, then describe what you want to build here.
       </p>
 
       <div className="oc-empty-state__actions">

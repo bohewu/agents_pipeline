@@ -158,6 +158,7 @@ export interface UsageDetails {
   provider: string;
   status: string;
   data: Record<string, unknown>;
+  error?: string;
 }
 
 // ── Events (SSE) ──

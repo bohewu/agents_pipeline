@@ -3,20 +3,27 @@ import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 
 export function UsagePanel() {
-  const { activeWorkspaceId, usageByWorkspace, setUsage } = useStore();
+  const { activeWorkspaceId, usageByWorkspace, setUsage, selectedProvider } = useStore();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const loadUsage = async () => {
     if (!activeWorkspaceId) return;
     setLoading(true);
+    setError(null);
     try {
-      const usage = await api.getUsage(activeWorkspaceId);
+      const usage = await api.getUsage(activeWorkspaceId, selectedProvider ?? undefined);
       setUsage(activeWorkspaceId, usage);
-    } catch { /* ignore */ }
+      if (usage.status !== 'ok' && usage.error) {
+        setError(usage.error);
+      }
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load usage data');
+    }
     setLoading(false);
   };
 
-  useEffect(() => { loadUsage(); }, [activeWorkspaceId]);
+  useEffect(() => { void loadUsage(); }, [activeWorkspaceId, selectedProvider]);
 
   const usage = activeWorkspaceId ? usageByWorkspace[activeWorkspaceId] : undefined;
 
@@ -33,9 +40,16 @@ export function UsagePanel() {
       </div>
 
       {!usage ? (
-        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No usage data</div>
+        <div style={{ color: error ? 'var(--error)' : 'var(--text-muted)', fontSize: 12, lineHeight: 1.5 }}>
+          {error ?? 'No usage data'}
+        </div>
       ) : (
         <div>
+          {error && (
+            <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--error)', lineHeight: 1.5 }}>
+              {error}
+            </div>
+          )}
           <div style={{ fontSize: 12, marginBottom: 8 }}>
             <span style={{ color: 'var(--text-muted)' }}>Provider: </span>
             <span style={{ color: 'var(--accent)' }}>{usage.provider}</span>

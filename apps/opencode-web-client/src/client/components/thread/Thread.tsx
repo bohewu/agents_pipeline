@@ -12,7 +12,7 @@ import { useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
 import { Composer } from '../composer/Composer.js';
-import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
+import { ConnectionStatus } from '../common/ConnectionStatus.js';
 
 function useNormalizedMessage() {
   const messageId = useMessage((s) => s.id);
@@ -116,13 +116,14 @@ export function Thread() {
         className="oc-thread-viewport"
         style={{ flex: 1, overflow: 'auto' }}
       >
+        <div className="oc-thread-statusbar">
+          <ConnectionStatus className="oc-status-pill--thread" />
+        </div>
+
         <ThreadPrimitive.Empty>
           <div className="oc-empty-thread-state">
             <div className="oc-empty-thread-state__avatar">O</div>
             <h1 className="oc-empty-thread-state__title">Let's start building</h1>
-            <div className="oc-empty-thread-state__workspace">
-              <WorkspaceSelector />
-            </div>
             <p className="oc-empty-thread-state__subtitle">Ask about this repo, request edits, or type /command, @agent, or $shell directly in the composer.</p>
           </div>
         </ThreadPrimitive.Empty>

@@ -4,7 +4,7 @@ import { api } from '../../lib/api-client.js';
 import { shortenPath } from '../../lib/path-display.js';
 import { ChevronDownIcon, FolderIcon, PlusIcon } from '../common/Icons.js';
 
-export function WorkspaceSelector() {
+export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }) {
   const { workspaces, activeWorkspaceId, setActiveWorkspace, setWorkspaceDialogOpen } = useStore();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -39,7 +39,7 @@ export function WorkspaceSelector() {
       <button
         type="button"
         onClick={() => (workspaces.length === 0 ? handleOpenWorkspaceDialog() : setOpen(!open))}
-        className="oc-pill-button oc-pill-button--workspace"
+        className={`oc-pill-button oc-pill-button--workspace ${fullWidth ? 'oc-pill-button--full' : ''}`.trim()}
       >
         <FolderIcon size={15} />
         <span className="oc-workspace-selector__label">

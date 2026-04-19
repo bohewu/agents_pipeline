@@ -1,22 +1,42 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useStore } from '../../runtime/store.js';
-import { EffortPopover } from './EffortPopover.js';
+import { api } from '../../lib/api-client.js';
 
 export function EffortControl() {
-  const { activeWorkspaceId, effortByWorkspace } = useStore();
-  const [showPopover, setShowPopover] = useState(false);
+  const { activeWorkspaceId, activeSessionByWorkspace, effortByWorkspace, setEffort } = useStore();
 
   const effort = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
-  const currentLevel = effort?.projectDefault ?? 'medium';
-  const displayLevel = currentLevel === 'xhigh' ? 'max' : currentLevel;
+  const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const currentLevel = sessionId
+    ? effort?.sessionOverrides[sessionId] ?? effort?.projectDefault ?? 'medium'
+    : effort?.projectDefault ?? 'medium';
+
+  const handleChange = async (level: string) => {
+    if (!activeWorkspaceId) return;
+    try {
+      await api.setEffort(activeWorkspaceId, {
+        level,
+        scope: sessionId ? 'session' : 'project',
+        sessionId: sessionId ?? undefined,
+      });
+      const nextEffort = await api.getEffort(activeWorkspaceId);
+      setEffort(activeWorkspaceId, nextEffort);
+    } catch {
+      /* ignore */
+    }
+  };
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setShowPopover(!showPopover)} className="oc-badge-button">
-        <span className="oc-badge-button__label">Effort</span>
-        <span>{displayLevel}</span>
-      </button>
-      {showPopover && <EffortPopover onClose={() => setShowPopover(false)} />}
-    </div>
+    <select
+      value={currentLevel}
+      onChange={(event) => handleChange(event.target.value)}
+      className="oc-topbar-select oc-topbar-select--compact"
+      aria-label="Effort"
+      disabled={!activeWorkspaceId}
+    >
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="xhigh">Max</option>
+    </select>
   );
 }
