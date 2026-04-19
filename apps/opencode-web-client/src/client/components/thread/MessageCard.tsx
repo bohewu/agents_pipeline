@@ -26,17 +26,17 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const extraParts = message.parts.filter((part) => part.type === 'error' || part.type === 'permission-request');
   const showAvatar = message.role !== 'user';
   const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0;
-  const visibleReasoningParts = showReasoningSummaries && !isRunning && hasPrimaryContent ? reasoningParts : [];
-
-  if (!hasPrimaryContent && visibleReasoningParts.length === 0) {
-    return null;
-  }
+  const visibleReasoningParts = showReasoningSummaries && !isRunning ? reasoningParts : [];
 
   useEffect(() => {
     if (!copied) return;
     const timer = window.setTimeout(() => setCopied(false), 1500);
     return () => window.clearTimeout(timer);
   }, [copied]);
+
+  if (!hasPrimaryContent && visibleReasoningParts.length === 0) {
+    return null;
+  }
 
   const handleCopy = async () => {
     if (!copyText) return;
@@ -64,27 +64,29 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
           </div>
         )}
 
-        <div className={`oc-message-card__bubble oc-message-card__bubble--${message.role}`} title={new Date(message.createdAt).toLocaleString()}>
-          <div className="oc-message-card__content">
-            {textParts.map((part, index) => (
-              <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                {part.text ?? ''}
-              </ReactMarkdown>
-            ))}
+        {hasPrimaryContent && (
+          <div className={`oc-message-card__bubble oc-message-card__bubble--${message.role}`} title={new Date(message.createdAt).toLocaleString()}>
+            <div className="oc-message-card__content">
+              {textParts.map((part, index) => (
+                <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                  {part.text ?? ''}
+                </ReactMarkdown>
+              ))}
 
-            {toolParts.map((part) => (
-              <AssistantToolPart key={part.key} part={part} />
-            ))}
+              {toolParts.map((part) => (
+                <AssistantToolPart key={part.key} part={part} />
+              ))}
+            </div>
+
+            {extraParts.map((part, index) =>
+              part.type === 'permission-request'
+                ? <PermissionCard key={`permission-${index}`} part={part} />
+                : <ErrorCard key={`error-${index}`} part={part} />,
+            )}
           </div>
+        )}
 
-          {extraParts.map((part, index) =>
-            part.type === 'permission-request'
-              ? <PermissionCard key={`permission-${index}`} part={part} />
-              : <ErrorCard key={`error-${index}`} part={part} />,
-          )}
-        </div>
-
-        {message.role === 'assistant' && (
+        {message.role === 'assistant' && hasPrimaryContent && (
           <div className="oc-message-card__actions">
             <button
               type="button"

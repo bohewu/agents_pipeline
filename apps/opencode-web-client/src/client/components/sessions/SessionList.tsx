@@ -19,11 +19,13 @@ export function SessionList() {
   const [query, setQuery] = React.useState('');
   const [filter, setFilterState] = React.useState<SessionFilter>('all');
   const [expandedRoots, setExpandedRoots] = React.useState<Record<string, boolean>>({});
-  if (!activeWorkspaceId) return null;
 
   React.useEffect(() => {
+    if (!activeWorkspaceId) return;
     setFilterState(readSessionFilter(activeWorkspaceId, settings.sessionsDefaultView));
   }, [activeWorkspaceId, settings.sessionsDefaultView]);
+
+  if (!activeWorkspaceId) return null;
 
   const sessions = sessionsByWorkspace[activeWorkspaceId] ?? [];
   const activeSessionId = activeSessionByWorkspace[activeWorkspaceId];

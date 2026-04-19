@@ -1104,7 +1104,7 @@ select:focus {
 .oc-message-row {
   display: flex;
   width: 100%;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .oc-message-row--assistant,
@@ -1140,16 +1140,16 @@ select:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  background: rgba(255, 255, 255, 0.92);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 
 .oc-message-card__main {
@@ -1161,7 +1161,7 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -1172,26 +1172,24 @@ select:focus {
 }
 
 .oc-message-card__bubble--assistant {
-  padding: 16px 18px;
-  border-radius: 24px;
-  border: 1px solid rgba(17, 17, 17, 0.05);
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .oc-message-card__bubble--system {
-  padding: 14px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  background: var(--bg-primary);
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 .oc-message-card__bubble--user {
-  padding: 12px 16px;
-  border-radius: 24px;
-  border: 1px solid rgba(17, 17, 17, 0.05);
-  background: var(--accent-soft);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 10px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(17, 17, 17, 0.04);
+  background: rgba(236, 236, 241, 0.9);
+  box-shadow: none;
 }
 
 .oc-message-card__content {
@@ -1199,6 +1197,11 @@ select:focus {
   font-size: 15px;
   line-height: 1.78;
   word-break: break-word;
+}
+
+.oc-message-card__bubble--assistant .oc-message-card__content,
+.oc-message-card__bubble--system .oc-message-card__content {
+  max-width: min(100%, 52rem);
 }
 
 .oc-message-card__content > * + * {
@@ -1280,7 +1283,7 @@ select:focus {
 
 .oc-message-card__actions {
   display: flex;
-  padding-top: 10px;
+  padding-top: 6px;
 }
 
 .oc-message-card__supplement {
@@ -1304,8 +1307,8 @@ select:focus {
 
 .oc-message-copy:hover,
 .oc-message-copy[data-copied] {
-  background: var(--bg-hover);
-  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(17, 17, 17, 0.08);
   color: var(--text-primary);
 }
 
@@ -1315,7 +1318,7 @@ select:focus {
 }
 
 .oc-message-running {
-  padding: 6px 0 0 46px;
+  padding: 4px 0 0 38px;
   color: var(--text-muted);
   font-size: 13px;
 }
