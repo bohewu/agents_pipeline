@@ -10,6 +10,7 @@ export function normalizeSession(data: any): SessionSummary {
     updatedAt: updatedAt ?? createdAt ?? new Date().toISOString(),
     messageCount: data.messageCount ?? data.message_count ?? data.summary?.messages ?? 0,
     parentId: data.parentId ?? data.parentID,
+    state: normalizeSessionState(data.state ?? data.status),
     changeSummary: data.summary && typeof data.summary === 'object'
       ? {
           files: toNumber(data.summary.files),
@@ -42,4 +43,20 @@ function normalizeTimestamp(value: unknown): string | undefined {
 
 function toNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function normalizeSessionState(value: unknown): SessionSummary['state'] | undefined {
+  if (value === 'idle' || value === 'running' || value === 'error') {
+    return value
+  }
+
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'running' || normalized === 'streaming') return 'running'
+  if (normalized === 'error' || normalized === 'failed') return 'error'
+  if (normalized === 'idle' || normalized === 'completed' || normalized === 'ready') return 'idle'
+  return undefined
 }

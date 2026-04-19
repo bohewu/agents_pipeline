@@ -1,12 +1,29 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import type { SessionSummary } from '../../../shared/types.js';
-import { getSessionMetaLabel, mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
+import { getSessionBadgeLabel, getSessionMetaLabel, mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
 
-export function SessionItem({ session, active, depth }: { session: SessionSummary; active: boolean; depth: number }) {
+export function SessionItem({
+  session,
+  active,
+  depth,
+  metaLabel,
+  updatedAt,
+  latestChildTitle,
+}: {
+  session: SessionSummary;
+  active: boolean;
+  depth: number;
+  metaLabel?: string | null;
+  updatedAt?: string;
+  latestChildTitle?: string | null;
+}) {
   const { activeWorkspaceId, setActiveSession, setSessions, setMessages } = useStore();
   const [showMenu, setShowMenu] = useState(false);
+  const [showTitlePreview, setShowTitlePreview] = useState(false);
+  const [titleOverflowing, setTitleOverflowing] = useState(false);
+  const titleRef = useRef<HTMLDivElement | null>(null);
 
   const handleSelect = async () => {
     if (!activeWorkspaceId) return;
@@ -38,7 +55,24 @@ export function SessionItem({ session, active, depth }: { session: SessionSummar
     setShowMenu(false);
   };
 
-  const metaLabel = getSessionMetaLabel(session);
+  const title = session.title || `Session ${session.id.slice(0, 8)}`;
+  const displayMetaLabel = metaLabel ?? getSessionMetaLabel(session);
+  const badgeLabel = getSessionBadgeLabel(session);
+  const showExpandedTitle = titleOverflowing && showTitlePreview;
+  const displayUpdatedAt = updatedAt ?? session.updatedAt;
+
+  useEffect(() => {
+    const node = titleRef.current;
+    if (!node) return;
+
+    const updateOverflow = () => {
+      setTitleOverflowing(node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1);
+    };
+
+    updateOverflow();
+    window.addEventListener('resize', updateOverflow);
+    return () => window.removeEventListener('resize', updateOverflow);
+  }, [title]);
 
   return (
     <div
@@ -49,8 +83,12 @@ export function SessionItem({ session, active, depth }: { session: SessionSummar
           void handleSelect();
         }
       }}
+      onMouseEnter={() => setShowTitlePreview(true)}
+      onMouseLeave={() => setShowTitlePreview(false)}
+      onFocus={() => setShowTitlePreview(true)}
+      onBlur={() => setShowTitlePreview(false)}
       onContextMenu={(event) => { event.preventDefault(); setShowMenu(!showMenu); }}
-      title={session.title || session.id}
+      title={title}
       className={`oc-session-item ${active ? 'is-active' : ''} ${depth > 0 ? 'oc-session-item--child' : ''}`}
       style={{ paddingInlineStart: `${12 + depth * 18}px` }}
       role="button"
@@ -58,13 +96,19 @@ export function SessionItem({ session, active, depth }: { session: SessionSummar
       aria-current={active ? 'true' : undefined}
     >
       <div className="oc-session-item__title-row">
-        {depth > 0 && <span className="oc-session-item__branch">Branch</span>}
-        <div className="oc-session-item__title">{session.title || `Session ${session.id.slice(0, 8)}`}</div>
+        {badgeLabel && <span className="oc-session-item__branch">{badgeLabel}</span>}
+        <div ref={titleRef} className="oc-session-item__title">{title}</div>
       </div>
+      {latestChildTitle && depth === 0 && (
+        <div className="oc-session-item__latest">Latest branch: {latestChildTitle}</div>
+      )}
       <div className="oc-session-item__meta">
-        <span>{metaLabel ?? 'Session'}</span>
-        <span>{formatTimeAgo(session.updatedAt)}</span>
+        <span>{displayMetaLabel ?? 'Session'}</span>
+        <span>{formatTimeAgo(displayUpdatedAt)}</span>
       </div>
+      {showExpandedTitle && (
+        <div className="oc-session-item__title-preview">{title}</div>
+      )}
       {showMenu && (
         <div className="oc-session-item__menu">
           <button type="button" onClick={handleDelete} className="oc-inline-delete">Delete</button>

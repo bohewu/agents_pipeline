@@ -1,5 +1,6 @@
 import type {
   WorkspaceProfile,
+  WorkspaceServerStatus,
   WorkspaceBootstrap,
   SessionSummary,
   NormalizedMessage,
@@ -19,6 +20,7 @@ const BASE = '';
 interface WorkspaceStateResponse {
   workspaces: WorkspaceProfile[];
   activeWorkspaceId?: string;
+  serverStatuses?: Record<string, WorkspaceServerStatus>;
 }
 
 const EVENT_TYPES: BffEventType[] = [

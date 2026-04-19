@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStore } from '../../runtime/store.js';
+import { getCachedUsage, readUsageCacheSnapshot, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
 import { RuntimeProvider } from '../../runtime/runtime-provider.js';
@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar.js';
 import { RightDrawer } from './RightDrawer.js';
 import { Thread } from '../thread/Thread.js';
 import { AddWorkspaceDialog } from '../workspaces/AddWorkspaceDialog.js';
+import { AppSettingsDialog } from '../settings/AppSettingsDialog.js';
 import { resolveAgentId, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
 import { mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
 
@@ -16,11 +17,13 @@ export function AppShell() {
     sidebarOpen,
     rightDrawerOpen,
     workspaceDialogOpen,
+    settingsDialogOpen,
     selectedProvider,
     selectedModel,
     selectedAgent,
     setConnection,
     setWorkspaceBootstrap,
+    setWorkspaceServerStatus,
     setSessions,
     setActiveSession,
     setMessages,
@@ -31,10 +34,43 @@ export function AppShell() {
     setSelectedModel,
     setSelectedAgent,
     setWorkspaceDialogOpen,
+    setSettingsDialogOpen,
   } = useStore();
   const compactDesktop = useViewportWidth() <= 1440;
   const sidebarWidth = compactDesktop ? '248px' : '280px';
   const drawerWidth = compactDesktop ? '300px' : '360px';
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    let cancelled = false;
+
+    const cachedUsage = getCachedUsage(useStore.getState().usageByWorkspace, activeWorkspaceId, selectedProvider)
+      ?? readUsageCacheSnapshot(activeWorkspaceId, selectedProvider);
+
+    if (cachedUsage) {
+      setUsage(activeWorkspaceId, cachedUsage, selectedProvider);
+    }
+
+    setUsageLoading(activeWorkspaceId, true, selectedProvider);
+    void api.getUsage(activeWorkspaceId, selectedProvider ?? undefined)
+      .then((usage) => {
+        if (!cancelled) {
+          setUsage(activeWorkspaceId, usage, selectedProvider);
+        }
+      })
+      .catch(() => {
+        /* ignore usage prefetch errors */
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setUsageLoading(activeWorkspaceId, false, selectedProvider);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspaceId, selectedProvider, setUsage, setUsageLoading]);
 
   // Bootstrap workspace on selection
   useEffect(() => {
@@ -43,28 +79,15 @@ export function AppShell() {
 
     const hydrateWorkspace = async () => {
       setConnection(activeWorkspaceId, 'connecting');
-      setUsageLoading(activeWorkspaceId, true);
-
-      void api.getUsage(activeWorkspaceId, selectedProvider ?? undefined)
-        .then((usage) => {
-          if (!cancelled) {
-            setUsage(activeWorkspaceId, usage);
-          }
-        })
-        .catch(() => {
-          /* ignore usage prefetch errors */
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setUsageLoading(activeWorkspaceId, false);
-          }
-        });
 
       try {
         const boot = await api.getBootstrap(activeWorkspaceId);
         if (cancelled) return;
 
         setWorkspaceBootstrap(activeWorkspaceId, boot);
+        if (boot.server) {
+          setWorkspaceServerStatus(activeWorkspaceId, boot.server);
+        }
         const providerId = resolveProviderId(boot, selectedProvider);
         const modelId = resolveModelId(boot, providerId, selectedModel);
         const agentId = resolveAgentId(boot, selectedAgent);
@@ -138,10 +161,9 @@ export function AppShell() {
     setSelectedProvider,
     setSessions,
     setWorkspaceBootstrap,
+    setWorkspaceServerStatus,
     setConnection,
     setActiveSession,
-    setUsage,
-    setUsageLoading,
   ]);
 
   const gridCols = [
@@ -160,6 +182,7 @@ export function AppShell() {
       </RuntimeProvider>
       <RightDrawer />
       {workspaceDialogOpen && <AddWorkspaceDialog onClose={() => setWorkspaceDialogOpen(false)} />}
+      {settingsDialogOpen && <AppSettingsDialog onClose={() => setSettingsDialogOpen(false)} />}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 
-export function EffortControl() {
+export function EffortControl({ className = '' }: { className?: string }) {
   const { activeWorkspaceId, activeSessionByWorkspace, effortByWorkspace, setEffort } = useStore();
 
   const effort = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
@@ -31,7 +31,7 @@ export function EffortControl() {
       name="effort"
       value={currentLevel}
       onChange={(event) => handleChange(event.target.value)}
-      className="oc-topbar-select oc-topbar-select--compact"
+      className={`oc-topbar-select oc-topbar-select--compact ${className}`.trim()}
       aria-label="Effort"
       disabled={!activeWorkspaceId}
     >

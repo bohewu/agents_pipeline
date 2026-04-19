@@ -24,7 +24,11 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       if (sessionId && message) store.updateMessage(sessionId, message);
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
-        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 0)));
+        const merged = mergeSessionMessageEvent(sessions, sessionId, message, 0).map((session) => {
+          if (session.id !== sessionId) return session;
+          return { ...session, state: 'running' as const };
+        });
+        store.setSessions(workspaceId, sortSessionsForSidebar(merged));
       }
       store.setStreaming(true);
       break;
@@ -36,7 +40,11 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       if (sessionId && message) store.updateMessage(sessionId, message);
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
-        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 0)));
+        const merged = mergeSessionMessageEvent(sessions, sessionId, message, 0).map((session) => {
+          if (session.id !== sessionId) return session;
+          return { ...session, state: 'idle' as const };
+        });
+        store.setSessions(workspaceId, sortSessionsForSidebar(merged));
       }
       store.setStreaming(false);
       break;

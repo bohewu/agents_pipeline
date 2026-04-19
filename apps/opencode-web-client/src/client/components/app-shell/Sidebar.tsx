@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../../runtime/store.js';
 import { SessionList } from '../sessions/SessionList.js';
 import { api } from '../../lib/api-client.js';
-import { PanelLeftIcon, PlusIcon } from '../common/Icons.js';
+import { GitBranchIcon, PanelLeftIcon, PlusIcon, SettingsIcon } from '../common/Icons.js';
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
 import { sortSessionsForSidebar } from '../../lib/session-meta.js';
 
@@ -12,12 +12,17 @@ export function Sidebar() {
     selectedProvider,
     selectedModel,
     selectedAgent,
+    workspaceBootstraps,
     sidebarOpen,
     setSessions,
     setActiveSession,
     setWorkspaceDialogOpen,
+    setSettingsDialogOpen,
     toggleSidebar,
   } = useStore();
+  const activeBranch = activeWorkspaceId
+    ? workspaceBootstraps[activeWorkspaceId]?.opencode?.project?.branch
+    : undefined;
 
   const handleNewSession = async () => {
     if (!activeWorkspaceId) return;
@@ -54,7 +59,11 @@ export function Sidebar() {
             <PanelLeftIcon size={16} />
           </button>
           <div className="oc-sidebar-title">Workspace</div>
-          <div className="oc-sidebar-header__spacer" />
+          <div className="oc-sidebar-header__actions">
+            <button type="button" onClick={() => setSettingsDialogOpen(true)} className="oc-icon-button oc-icon-button--soft" title="Settings">
+              <SettingsIcon size={16} />
+            </button>
+          </div>
         </div>
         <div className="oc-sidebar-workspace">
           <button type="button" onClick={() => setWorkspaceDialogOpen(true)} className="oc-primary-button oc-primary-button--full">
@@ -77,12 +86,23 @@ export function Sidebar() {
           <PanelLeftIcon size={16} />
         </button>
         <span className="oc-sidebar-title">Workspace</span>
-        <button type="button" onClick={() => setWorkspaceDialogOpen(true)} className="oc-icon-button oc-icon-button--soft" title="Add workspace">
-          <PlusIcon size={16} />
-        </button>
+        <div className="oc-sidebar-header__actions">
+          <button type="button" onClick={() => setSettingsDialogOpen(true)} className="oc-icon-button oc-icon-button--soft" title="Settings">
+            <SettingsIcon size={16} />
+          </button>
+          <button type="button" onClick={() => setWorkspaceDialogOpen(true)} className="oc-icon-button oc-icon-button--soft" title="Add workspace">
+            <PlusIcon size={16} />
+          </button>
+        </div>
       </div>
       <div className="oc-sidebar-workspace">
         <WorkspaceSelector fullWidth />
+        {activeBranch && (
+          <div className="oc-sidebar-workspace-meta">
+            <GitBranchIcon size={13} />
+            <span>{activeBranch}</span>
+          </div>
+        )}
       </div>
       <div className="oc-sidebar-divider" />
       <div className="oc-sidebar-header oc-sidebar-header--tight">

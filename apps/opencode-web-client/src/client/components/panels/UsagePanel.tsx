@@ -1,48 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import { useStore } from '../../runtime/store.js';
+import { getCachedUsage, readUsageCacheSnapshot, resolveUsageCacheKey, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
-import { getUsageHighlights } from '../../lib/usage-display.js';
+import { formatUsageTimestamp, formatUsageValue, getUsageHighlights } from '../../lib/usage-display.js';
 
 export function UsagePanel() {
   const { activeWorkspaceId, usageByWorkspace, usageLoadingByWorkspace, setUsage, setUsageLoading, selectedProvider } = useStore();
   const [error, setError] = useState<string | null>(null);
-  const loading = activeWorkspaceId ? (usageLoadingByWorkspace[activeWorkspaceId] ?? false) : false;
+  const loading = activeWorkspaceId
+    ? (usageLoadingByWorkspace[resolveUsageCacheKey(activeWorkspaceId, selectedProvider)] ?? false)
+    : false;
 
   const loadUsage = async () => {
     if (!activeWorkspaceId) {
       return;
     }
 
-    setUsageLoading(activeWorkspaceId, true);
+    setUsageLoading(activeWorkspaceId, true, selectedProvider);
     setError(null);
 
     try {
       const usage = await api.getUsage(activeWorkspaceId, selectedProvider ?? undefined);
-      setUsage(activeWorkspaceId, usage);
+      setUsage(activeWorkspaceId, usage, selectedProvider);
       if (usage.status !== 'ok' && usage.error) {
         setError(usage.error);
       }
     } catch (err: any) {
       setError(err.message ?? 'Failed to load usage data');
     } finally {
-      setUsageLoading(activeWorkspaceId, false);
+      setUsageLoading(activeWorkspaceId, false, selectedProvider);
     }
   };
 
   useEffect(() => { void loadUsage(); }, [activeWorkspaceId, selectedProvider]);
 
-  const usage = activeWorkspaceId ? usageByWorkspace[activeWorkspaceId] : undefined;
+  const usage = activeWorkspaceId
+    ? getCachedUsage(usageByWorkspace, activeWorkspaceId, selectedProvider)
+      ?? readUsageCacheSnapshot(activeWorkspaceId, selectedProvider)
+    : undefined;
   const highlights = getUsageHighlights(usage);
+  const updatedAt = usage?.status === 'ok'
+    ? formatUsageTimestamp((usage.data as Record<string, unknown>).generatedAt)
+    : null;
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Usage</span>
-        <button onClick={loadUsage} disabled={loading} style={{
-          background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 999,
-          padding: '4px 10px', fontSize: 11, cursor: 'pointer',
-        }}>
-          {loading ? '...' : '↻ Refresh'}
+          <button type="button" onClick={() => void loadUsage()} disabled={loading} style={{
+            background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 999,
+            padding: '4px 10px', fontSize: 11, cursor: 'pointer',
+          }}>
+          {loading ? 'Refreshing...' : '↻ Refresh'}
         </button>
       </div>
 
@@ -80,6 +88,11 @@ export function UsagePanel() {
               {error}
             </div>
           )}
+          {loading && (
+            <div style={{ marginBottom: 8, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              Showing the latest cached usage while the drawer refreshes.
+            </div>
+          )}
           <div style={{ fontSize: 12, marginBottom: 8 }}>
             <span style={{ color: 'var(--text-muted)' }}>Provider: </span>
             <span style={{ color: 'var(--accent)' }}>{usage.provider}</span>
@@ -88,6 +101,12 @@ export function UsagePanel() {
             <span style={{ color: 'var(--text-muted)' }}>Status: </span>
             <span style={{ color: usage.status === 'ok' ? 'var(--success)' : 'var(--warning)' }}>{usage.status}</span>
           </div>
+          {updatedAt && (
+            <div style={{ fontSize: 12, marginBottom: 8 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Updated: </span>
+              <span style={{ color: 'var(--text-secondary)' }}>{updatedAt}</span>
+            </div>
+          )}
 
           {highlights.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, marginBottom: 12 }}>
@@ -148,7 +167,7 @@ function UsageValueRow({
       <div style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
         <span style={{ color: 'var(--text-muted)' }}>{label}</span>
         <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textAlign: 'right', wordBreak: 'break-word' }}>
-          {formatPrimitive(value)}
+          {formatUsageValue(label, value)}
         </span>
       </div>
     );
@@ -178,18 +197,4 @@ function UsageValueRow({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function formatPrimitive(value: unknown): string {
-  if (value == null) return '-';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-    return String(value);
-  }
-
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }

@@ -1,6 +1,11 @@
 import type { AgentSummary, ModelSummary, ProviderSummary, WorkspaceBootstrap } from '../../shared/types.js';
 import type { ComposerMode } from '../runtime/store.js';
 
+export interface GroupedModelOptions {
+  provider: ProviderSummary;
+  models: ModelSummary[];
+}
+
 export function getVisibleProviders(boot?: WorkspaceBootstrap): ProviderSummary[] {
   const providers = boot?.opencode?.providers ?? [];
   const connected = providers.filter((provider) => provider.connected);
@@ -18,6 +23,16 @@ export function getModelOptions(boot?: WorkspaceBootstrap, providerId?: string |
   const models = boot?.opencode?.models ?? [];
   if (!providerId) return models.filter((model) => model.connected);
   return models.filter((model) => model.providerId === providerId);
+}
+
+export function getGroupedModelOptions(boot?: WorkspaceBootstrap): GroupedModelOptions[] {
+  const providers = getVisibleProviders(boot);
+  return providers
+    .map((provider) => ({
+      provider,
+      models: getModelOptions(boot, provider.id),
+    }))
+    .filter((group) => group.models.length > 0);
 }
 
 export function resolveModelId(

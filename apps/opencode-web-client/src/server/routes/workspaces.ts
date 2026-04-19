@@ -25,7 +25,10 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
   route.get('/', (c) => {
     const workspaces = registry.list()
     const active = registry.getActive()
-    return c.json(ok({ workspaces, activeWorkspaceId: active?.id }))
+    const serverStatuses = Object.fromEntries(
+      serverManager.getAll().map((runtime) => [runtime.workspaceId, serverManager.toJSON(runtime)])
+    )
+    return c.json(ok({ workspaces, activeWorkspaceId: active?.id, serverStatuses }))
   })
 
   // POST /api/workspaces/validate — validate a path
@@ -183,6 +186,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
 
   async function getBootstrap(workspaceId: string, rootPath: string, opencodeConfigDir?: string): Promise<WorkspaceBootstrap> {
     const workspace = registry.get(workspaceId)!
+    const gitBranch = resolveGitBranch(rootPath)
 
     // Ensure server is running
     let runtime = serverManager.get(workspaceId)
@@ -231,6 +235,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
           id: workspace.id,
           path: rootPath,
           name: workspace.name || path.basename(rootPath),
+          branch: gitBranch,
         },
         providers: config.providers,
         models: config.models,
@@ -244,4 +249,23 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
   }
 
   return route
+}
+
+function resolveGitBranch(rootPath: string): string | undefined {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+      cwd: rootPath,
+      encoding: 'utf-8',
+      timeout: 3000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim()
+
+    if (!branch || branch === 'HEAD') {
+      return undefined
+    }
+
+    return branch
+  } catch {
+    return undefined
+  }
 }

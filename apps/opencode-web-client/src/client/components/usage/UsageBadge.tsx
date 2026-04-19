@@ -1,11 +1,24 @@
 import React from 'react';
-import { useStore } from '../../runtime/store.js';
+import { getCachedUsage, readUsageCacheSnapshot, resolveUsageCacheKey, useStore } from '../../runtime/store.js';
 import { getUsageBadgeSummary } from '../../lib/usage-display.js';
 
 export function UsageBadge() {
-  const { activeWorkspaceId, usageByWorkspace, usageLoadingByWorkspace, rightDrawerOpen, setRightPanel, toggleRightDrawer } = useStore();
-  const usage = activeWorkspaceId ? usageByWorkspace[activeWorkspaceId] : undefined;
-  const loading = activeWorkspaceId ? (usageLoadingByWorkspace[activeWorkspaceId] ?? false) : false;
+  const {
+    activeWorkspaceId,
+    selectedProvider,
+    usageByWorkspace,
+    usageLoadingByWorkspace,
+    rightDrawerOpen,
+    setRightPanel,
+    toggleRightDrawer,
+  } = useStore();
+  const usage = activeWorkspaceId
+    ? getCachedUsage(usageByWorkspace, activeWorkspaceId, selectedProvider)
+      ?? readUsageCacheSnapshot(activeWorkspaceId, selectedProvider)
+    : undefined;
+  const loading = activeWorkspaceId
+    ? (usageLoadingByWorkspace[resolveUsageCacheKey(activeWorkspaceId, selectedProvider)] ?? false)
+    : false;
   const summary = getUsageBadgeSummary(usage);
 
   if (!usage && !loading) return null;

@@ -2,32 +2,127 @@ import React, { useEffect } from 'react';
 import { useStore } from './runtime/store.js';
 import { api } from './lib/api-client.js';
 import { AppShell } from './components/app-shell/AppShell.js';
+import type { SessionSummary, WorkspaceServerStatus } from '../shared/types.js';
 
 export function App() {
-  const { activeWorkspaceId, setInstall, setWorkspaces, setActiveWorkspace } = useStore();
+  const {
+    activeWorkspaceId,
+    settings,
+    setInstall,
+    setWorkspaces,
+    setActiveWorkspace,
+    setWorkspaceServerStatuses,
+    setWorkspaceServerStatus,
+    setSessions,
+  } = useStore();
 
   useEffect(() => {
     let cancelled = false;
 
-    api.diagnostics().then(setInstall).catch(() => {});
-    api.listWorkspaceState().then(({ workspaces: nextWorkspaces, activeWorkspaceId: serverActiveWorkspaceId }) => {
+    const refreshWorkspaceState = async () => {
+      const { workspaces: nextWorkspaces, activeWorkspaceId: serverActiveWorkspaceId, serverStatuses } = await api.listWorkspaceState();
       if (cancelled) return;
+
       setWorkspaces(nextWorkspaces);
-      if (nextWorkspaces.length > 0 && !activeWorkspaceId) {
+      setWorkspaceServerStatuses(serverStatuses ?? {});
+      if (nextWorkspaces.length > 0 && !useStore.getState().activeWorkspaceId) {
         setActiveWorkspace(serverActiveWorkspaceId ?? nextWorkspaces[0].id);
       }
-    }).catch(() => {});
+
+      const inactiveWorkspaceIds = nextWorkspaces
+        .map((workspace) => workspace.id)
+        .filter((workspaceId) => workspaceId !== useStore.getState().activeWorkspaceId)
+        .filter((workspaceId) => {
+          const status = serverStatuses?.[workspaceId]?.state;
+          return status != null && status !== 'stopped';
+        });
+
+      await Promise.allSettled(
+        inactiveWorkspaceIds.map(async (workspaceId) => {
+          const sessions = await api.listSessions(workspaceId);
+          if (cancelled) return;
+
+          setSessions(workspaceId, sessions);
+
+          const serverStatus = serverStatuses?.[workspaceId];
+          if (shouldAutoSleepWorkspace(serverStatus, sessions, settings.inactiveWorkspaceAutoSleepMinutes)) {
+            await api.stopServer(workspaceId).catch(() => {});
+            if (!cancelled) {
+              setWorkspaceServerStatus(workspaceId, {
+                ...serverStatus,
+                state: 'stopped',
+              });
+            }
+          }
+        }),
+      );
+    };
+
+    api.diagnostics().then(setInstall).catch(() => {});
+
+    void refreshWorkspaceState().catch(() => {});
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      void refreshWorkspaceState().catch(() => {});
+    }, settings.inactiveWorkspacePollIntervalMs);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, []);
+  }, [
+    activeWorkspaceId,
+    settings,
+    setActiveWorkspace,
+    setInstall,
+    setSessions,
+    setWorkspaceServerStatus,
+    setWorkspaceServerStatuses,
+    setWorkspaces,
+  ]);
 
   return (
     <AppErrorBoundary>
       <AppShell />
     </AppErrorBoundary>
   );
+}
+
+function shouldAutoSleepWorkspace(
+  serverStatus: WorkspaceServerStatus | undefined,
+  sessions: SessionSummary[],
+  autoSleepMinutes: number,
+): boolean {
+  if (autoSleepMinutes <= 0) return false;
+  if (!serverStatus || serverStatus.state === 'stopped') return false;
+  if (sessions.some((session) => session.state === 'running')) return false;
+
+  const lastActivityAt = getWorkspaceLastActivityAt(serverStatus, sessions);
+  if (!lastActivityAt) return false;
+
+  return Date.now() - lastActivityAt.getTime() >= autoSleepMinutes * 60 * 1000;
+}
+
+function getWorkspaceLastActivityAt(
+  serverStatus: WorkspaceServerStatus,
+  sessions: SessionSummary[],
+): Date | null {
+  const timestamps = [
+    serverStatus.startedAt,
+    ...sessions.map((session) => session.updatedAt),
+  ].filter(Boolean);
+
+  let latest: Date | null = null;
+  for (const value of timestamps) {
+    const date = new Date(value!);
+    if (Number.isNaN(date.getTime())) continue;
+    if (!latest || date.getTime() > latest.getTime()) {
+      latest = date;
+    }
+  }
+
+  return latest;
 }
 
 interface AppErrorBoundaryState {

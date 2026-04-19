@@ -22,6 +22,8 @@ export interface WorkspaceProfile {
   addedAt: string;
 }
 
+export type SessionState = 'idle' | 'running' | 'error';
+
 export interface WorkspaceServerStatus {
   state: 'starting' | 'ready' | 'unhealthy' | 'stopped';
   port?: number;
@@ -61,7 +63,7 @@ export interface CommandSummary {
 
 export interface OpenCodeBootstrap {
   health: { healthy: boolean; version?: string };
-  project?: { id?: string; path?: string; name?: string };
+  project?: { id?: string; path?: string; name?: string; branch?: string };
   providers: ProviderSummary[];
   models: ModelSummary[];
   agents: AgentSummary[];
@@ -86,6 +88,7 @@ export interface SessionSummary {
   updatedAt: string;
   messageCount: number;
   parentId?: string;
+  state?: SessionState;
   changeSummary?: {
     files: number;
     additions: number;

@@ -8,9 +8,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ComposerPrimitive } from '@assistant-ui/react';
 import { useStore } from '../../runtime/store.js';
 import { ComposerModeSelector } from './ComposerModeSelector.js';
-import { ArrowUpIcon, SquareIcon } from '../common/Icons.js';
+import { ArrowUpIcon, FolderIcon, GitBranchIcon, SquareIcon } from '../common/Icons.js';
 import { EffortControl } from '../effort/EffortControl.js';
-import { getModelOptions, getVisibleAgents, getVisibleProviders, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
+import { getGroupedModelOptions, getVisibleAgents, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
 
 type SuggestionKind = 'agent' | 'command';
 
@@ -31,6 +31,7 @@ interface ActiveToken {
 export function Composer() {
   const composerMode = useStore((s) => s.composerMode);
   const streaming = useStore((s) => s.streaming);
+  const composerDensity = useStore((s) => s.settings.composerDensity);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const workspaceBootstraps = useStore((s) => s.workspaceBootstraps);
@@ -41,14 +42,16 @@ export function Composer() {
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const disabled = !sessionId;
   const boot = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
-  const providerOptions = getVisibleProviders(boot);
   const providerId = resolveProviderId(boot, selectedProvider);
   const modelId = resolveModelId(boot, providerId, selectedModel);
-  const modelOptions = getModelOptions(boot, providerId);
+  const groupedModelOptions = getGroupedModelOptions(boot);
+  const allModelOptions = groupedModelOptions.flatMap((group) => group.models);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [draftValue, setDraftValue] = useState('');
   const [cursor, setCursor] = useState(0);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const projectName = boot?.opencode?.project?.name;
+  const projectBranch = boot?.opencode?.project?.branch;
 
   let placeholder = 'Choose a folder from the left to start chatting';
   if (activeWorkspaceId && !sessionId) {
@@ -63,9 +66,10 @@ export function Composer() {
   }
 
   const handleModelChange = (value: string) => {
-    const nextModel = modelOptions.find((model) => model.id === value);
+    const nextModel = allModelOptions.find((model) => model.id === value);
     if (!nextModel) {
       setSelectedModel(null);
+      setSelectedProvider(null);
       return;
     }
     setSelectedModel(nextModel.id);
@@ -118,12 +122,6 @@ export function Composer() {
     });
   };
 
-  const handleProviderChange = (value: string) => {
-    const nextProvider = providerOptions.find((provider) => provider.id === value);
-    setSelectedProvider(nextProvider?.id ?? null);
-    setSelectedModel(null);
-  };
-
   const applySuggestion = (suggestion: ComposerSuggestion) => {
     if (!activeToken) return;
     const tokenText = suggestion.kind === 'agent'
@@ -165,7 +163,7 @@ export function Composer() {
 
   return (
     <div
-      className="oc-composer-shell"
+      className={`oc-composer-shell oc-composer-shell--${composerDensity}`}
       onMouseDownCapture={scrollComposerIntoLatest}
       onFocusCapture={scrollComposerIntoLatest}
     >
@@ -207,7 +205,7 @@ export function Composer() {
             disabled={disabled}
             name="message"
             placeholder={placeholder}
-            rows={3}
+            rows={4}
             className={`aui-composer-input ${composerMode === 'shell' ? 'aui-composer-input--mono' : ''}`}
             unstable_focusOnRunStart={false}
             unstable_focusOnScrollToBottom={false}
@@ -241,51 +239,53 @@ export function Composer() {
               <>
                 <ComposerModeSelector />
                 <select
-                  name="provider"
-                  value={providerId ?? ''}
-                  onChange={(event) => handleProviderChange(event.target.value)}
-                  className="oc-topbar-select oc-topbar-select--compact"
-                  aria-label="Provider"
-                  disabled={providerOptions.length === 0}
-                >
-                  <option value="">Provider</option>
-                  {providerOptions.map((provider) => (
-                    <option key={provider.id} value={provider.id}>{provider.name}</option>
-                  ))}
-                </select>
-                <select
                   name="model"
                   value={modelId ?? ''}
                   onChange={(event) => handleModelChange(event.target.value)}
-                  className="oc-topbar-select oc-topbar-select--compact oc-topbar-select--model"
-                  aria-label="Model variant"
-                  disabled={modelOptions.length === 0}
+                  className="oc-topbar-select oc-topbar-select--compact oc-composer-control oc-topbar-select--model"
+                  aria-label="Model"
+                  disabled={groupedModelOptions.length === 0}
                 >
-                  <option value="">Model variant</option>
-                  {modelOptions.map((model) => (
-                    <option key={model.id} value={model.id}>{model.name}</option>
+                  <option value="">Model</option>
+                  {groupedModelOptions.map((group) => (
+                    <optgroup key={group.provider.id} label={group.provider.name}>
+                      {group.models.map((model) => (
+                        <option key={model.id} value={model.id}>{`${group.provider.name} · ${model.name}`}</option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
-                <EffortControl />
+                <EffortControl className="oc-composer-control" />
               </>
-            )}
-          </div>
-
-          <div className="oc-composer-footer__secondary">
-            {activeWorkspaceId && boot?.opencode?.project?.name && (
-              <div className="oc-composer-meta">{boot.opencode.project.name}</div>
             )}
           </div>
         </div>
       </ComposerPrimitive.Root>
 
-      <p className="oc-composer-note">
-        {disabled
-          ? activeWorkspaceId
-            ? 'Connecting workspace chat. You can start typing now and send once the composer unlocks.'
-            : 'Not sure? Choose a folder from the left, then describe your goal in plain language.'
-          : 'Review important changes before applying them.'}
-      </p>
+      {(projectName || projectBranch) && (
+        <div className="oc-composer-context">
+          {projectName && (
+            <div className="oc-composer-meta-pill">
+              <FolderIcon size={13} />
+              <span>{projectName}</span>
+            </div>
+          )}
+          {projectBranch && (
+            <div className="oc-composer-meta-pill">
+              <GitBranchIcon size={13} />
+              <span>{projectBranch}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {disabled && (
+        <p className="oc-composer-note">
+          {activeWorkspaceId
+            ? 'Connecting workspace chat. You can type now and send once the composer unlocks.'
+            : 'Choose a workspace from the left, then describe what you want to do.'}
+        </p>
+      )}
     </div>
   );
 }
