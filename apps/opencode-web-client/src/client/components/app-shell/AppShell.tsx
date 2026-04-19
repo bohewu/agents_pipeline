@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { startTransition, useEffect } from 'react';
 import { getCachedUsage, readUsageCacheSnapshot, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
@@ -144,7 +144,7 @@ export function AppShell() {
 
     const close = api.connectEvents(
       activeWorkspaceId,
-      (event) => handleBffEvent(event, useStore.getState()),
+      (event) => startTransition(() => handleBffEvent(event, useStore.getState())),
       () => {
         if (!cancelled) {
           setConnection(activeWorkspaceId, 'error');

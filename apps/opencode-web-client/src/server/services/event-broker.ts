@@ -21,6 +21,7 @@ const UPSTREAM_EVENT_MAP: Record<string, BffEventType> = {
 
 // Events to explicitly EXCLUDE
 const EXCLUDED_PREFIXES = ['run.', 'stage.', 'task.', 'status-runtime.', 'status_runtime.']
+const MESSAGE_DELTA_FLUSH_MS = 80
 
 type BrowserClient = {
   id: string
@@ -47,6 +48,7 @@ export class EventBroker {
   private liveMessages = new Map<string, LiveMessage>()
   private activeAssistantBySession = new Map<string, string>()
   private completedMessages = new Set<string>()
+  private pendingMessageDeltaFlushes = new Map<string, ReturnType<typeof setTimeout>>()
   private keepaliveTimer?: ReturnType<typeof setInterval>
 
   constructor(serverManager: ManagedServerManager) {
@@ -235,12 +237,12 @@ export class EventBroker {
         }
 
         if (message.info.role === 'user' && hasRenderableParts(message)) {
-          this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.created')
+          this.emitLiveMessage(workspaceId, sessionId, messageId, 'message.created')
           return true
         }
 
         if (isMessageFinished(message.info)) {
-          this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.completed')
+          this.emitLiveMessage(workspaceId, sessionId, messageId, 'message.completed')
         }
         return true
       }
@@ -270,7 +272,7 @@ export class EventBroker {
         }
 
         const bffType = message.info.role === 'user' ? 'message.created' : 'message.delta'
-        this.broadcastLiveMessage(workspaceId, sessionId, messageId, bffType)
+        this.emitLiveMessage(workspaceId, sessionId, messageId, bffType)
         return true
       }
 
@@ -285,7 +287,7 @@ export class EventBroker {
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         appendPartDelta(message, partId, delta)
-        this.broadcastLiveMessage(workspaceId, sessionId, messageId, message.info.role === 'user' ? 'message.created' : 'message.delta')
+        this.emitLiveMessage(workspaceId, sessionId, messageId, message.info.role === 'user' ? 'message.created' : 'message.delta')
         return true
       }
 
@@ -298,7 +300,7 @@ export class EventBroker {
         if (sessionId && (eventType === 'session.idle' || statusType === 'idle')) {
           const assistantId = this.activeAssistantBySession.get(this.sessionKey(workspaceId, sessionId))
           if (assistantId) {
-            this.broadcastLiveMessage(workspaceId, sessionId, assistantId, 'message.completed')
+            this.emitLiveMessage(workspaceId, sessionId, assistantId, 'message.completed')
           }
         }
         return true
@@ -339,6 +341,48 @@ export class EventBroker {
         message: normalized,
       },
     })
+  }
+
+  private emitLiveMessage(
+    workspaceId: string,
+    sessionId: string,
+    messageId: string,
+    type: Extract<BffEventType, 'message.created' | 'message.delta' | 'message.completed'>,
+  ): void {
+    if (type !== 'message.delta') {
+      this.clearPendingMessageDeltaFlush(workspaceId, messageId)
+      this.broadcastLiveMessage(workspaceId, sessionId, messageId, type)
+      return
+    }
+
+    const messageKey = this.messageKey(workspaceId, messageId)
+    if (this.pendingMessageDeltaFlushes.has(messageKey)) return
+
+    const timer = setTimeout(() => {
+      this.pendingMessageDeltaFlushes.delete(messageKey)
+      this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.delta')
+    }, MESSAGE_DELTA_FLUSH_MS)
+
+    this.pendingMessageDeltaFlushes.set(messageKey, timer)
+  }
+
+  private clearPendingMessageDeltaFlush(workspaceId: string, messageId: string): void {
+    const messageKey = this.messageKey(workspaceId, messageId)
+    const timer = this.pendingMessageDeltaFlushes.get(messageKey)
+    if (!timer) return
+
+    clearTimeout(timer)
+    this.pendingMessageDeltaFlushes.delete(messageKey)
+  }
+
+  private clearPendingMessageDeltaFlushesForWorkspace(workspaceId: string): void {
+    const prefix = `${workspaceId}:`
+
+    for (const [messageKey, timer] of this.pendingMessageDeltaFlushes.entries()) {
+      if (!messageKey.startsWith(prefix)) continue
+      clearTimeout(timer)
+      this.pendingMessageDeltaFlushes.delete(messageKey)
+    }
   }
 
   private getOrCreateLiveMessage(workspaceId: string, sessionId: string, messageId: string): LiveMessage {
@@ -391,6 +435,7 @@ export class EventBroker {
 
     conn.controller.abort()
     if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
+    this.clearPendingMessageDeltaFlushesForWorkspace(workspaceId)
     this.upstreamConnections.delete(workspaceId)
   }
 
@@ -416,6 +461,10 @@ export class EventBroker {
    */
   shutdown(): void {
     if (this.keepaliveTimer) clearInterval(this.keepaliveTimer)
+    for (const timer of this.pendingMessageDeltaFlushes.values()) {
+      clearTimeout(timer)
+    }
+    this.pendingMessageDeltaFlushes.clear()
     for (const conn of this.upstreamConnections.values()) {
       conn.controller.abort()
       if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
