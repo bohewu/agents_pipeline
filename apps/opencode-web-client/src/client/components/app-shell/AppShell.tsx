@@ -3,12 +3,11 @@ import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
 import { RuntimeProvider } from '../../runtime/runtime-provider.js';
-import { TopBar } from './TopBar.js';
 import { Sidebar } from './Sidebar.js';
 import { RightDrawer } from './RightDrawer.js';
 import { Thread } from '../thread/Thread.js';
 import { AddWorkspaceDialog } from '../workspaces/AddWorkspaceDialog.js';
-import type { WorkspaceBootstrap } from '../../../shared/types.js';
+import { resolveAgentId, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
 
 export function AppShell() {
   const {
@@ -16,12 +15,18 @@ export function AppShell() {
     sidebarOpen,
     rightDrawerOpen,
     workspaceDialogOpen,
+    selectedProvider,
+    selectedModel,
+    selectedAgent,
     setConnection,
     setWorkspaceBootstrap,
     setSessions,
     setActiveSession,
     setMessages,
     setEffort,
+    setSelectedProvider,
+    setSelectedModel,
+    setSelectedAgent,
     setWorkspaceDialogOpen,
   } = useStore();
 
@@ -38,6 +43,14 @@ export function AppShell() {
         if (cancelled) return;
 
         setWorkspaceBootstrap(activeWorkspaceId, boot);
+        const providerId = resolveProviderId(boot, selectedProvider);
+        const modelId = resolveModelId(boot, providerId, selectedModel);
+        const agentId = resolveAgentId(boot, selectedAgent);
+
+        setSelectedProvider(providerId);
+        setSelectedModel(modelId);
+        setSelectedAgent(agentId);
+
         if (boot.effort) {
           setEffort(activeWorkspaceId, boot.effort);
         }
@@ -48,9 +61,9 @@ export function AppShell() {
         if (!session) {
           session = await api.createSession(activeWorkspaceId, {
             title: 'New chat',
-            providerId: getDefaultProviderId(boot) ?? undefined,
-            modelId: getDefaultModelId(boot) ?? undefined,
-            agentId: getDefaultAgentId(boot) ?? undefined,
+            providerId: providerId ?? undefined,
+            modelId: modelId ?? undefined,
+            agentId: agentId ?? undefined,
           });
           sessions = [session];
         }
@@ -89,18 +102,31 @@ export function AppShell() {
       close();
       setConnection(activeWorkspaceId, 'disconnected');
     };
-  }, [activeWorkspaceId]);
+  }, [
+    activeWorkspaceId,
+    selectedAgent,
+    selectedModel,
+    selectedProvider,
+    setEffort,
+    setMessages,
+    setSelectedAgent,
+    setSelectedModel,
+    setSelectedProvider,
+    setSessions,
+    setWorkspaceBootstrap,
+    setConnection,
+    setActiveSession,
+  ]);
 
   const gridCols = [
-    sidebarOpen ? '260px' : '0px',
-    '1fr',
-    rightDrawerOpen ? '340px' : '0px',
+    sidebarOpen ? '280px' : '56px',
+    'minmax(0, 1fr)',
+    rightDrawerOpen ? '360px' : '56px',
   ].join(' ');
 
   return (
     <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
-      <TopBar />
-      {sidebarOpen && <Sidebar />}
+      <Sidebar />
       <Suspense fallback={<ChatShellFallback />}>
         <RuntimeProvider>
           <div className="main-content">
@@ -152,32 +178,4 @@ function ChatShellFallback() {
       </div>
     </div>
   );
-}
-
-function getDefaultProviderId(boot?: WorkspaceBootstrap): string | null {
-  const providers = boot?.opencode?.providers ?? []
-  return providers.find((provider) => provider.connected)?.id ?? providers[0]?.id ?? null
-}
-
-function getDefaultModelId(boot?: WorkspaceBootstrap): string | null {
-  const providers = boot?.opencode?.providers ?? []
-  const models = boot?.opencode?.models ?? []
-  const providerId = getDefaultProviderId(boot)
-  if (!providerId) return null
-
-  const provider = providers.find((entry) => entry.id === providerId)
-  const providerModels = models.filter((model) => model.providerId === providerId)
-
-  return provider?.defaultModelId
-    ?? providerModels.find((model) => model.isDefault)?.id
-    ?? providerModels[0]?.id
-    ?? null
-}
-
-function getDefaultAgentId(boot?: WorkspaceBootstrap): string | null {
-  const agents = boot?.opencode?.agents ?? []
-  return agents.find((agent) => agent.id === 'build')?.id
-    ?? agents.find((agent) => agent.mode === 'primary')?.id
-    ?? agents[0]?.id
-    ?? null
 }

@@ -1,6 +1,5 @@
 :root {
   color-scheme: light;
-  --top-bar-height: 56px;
   --bg-app: #f7f7f8;
   --bg-sidebar: #f3f4f6;
   --bg-primary: #ffffff;
@@ -56,44 +55,36 @@ body {
 
 .app-shell {
   display: grid;
-  grid-template-rows: var(--top-bar-height) 1fr;
   min-height: 100vh;
   background: var(--bg-app);
   transition: grid-template-columns 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.top-bar {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px;
-  background: rgba(247, 247, 248, 0.86);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid rgba(229, 229, 229, 0.9);
-  z-index: 20;
-}
-
-.oc-topbar-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.oc-topbar-group--grow {
-  flex: 1;
-  margin-left: 12px;
-}
-
 .sidebar {
   background: rgba(243, 244, 246, 0.92);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  overflow: hidden;
   padding: 12px;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.sidebar--collapsed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+.sidebar--open {
+  overflow-y: auto;
 }
 
 .main-content {
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--bg-app);
 }
@@ -101,26 +92,22 @@ body {
 .right-drawer-shell {
   min-width: 0;
   overflow: hidden;
+  min-height: 100vh;
 }
 
 .right-drawer {
-  height: calc(100vh - var(--top-bar-height));
+  height: 100vh;
   background: rgba(255, 255, 255, 0.94);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 12px;
   overflow: hidden;
-  transform: translateX(18px);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease;
 }
 
-.right-drawer-shell.is-open .right-drawer {
-  transform: translateX(0);
-  opacity: 1;
-  pointer-events: auto;
+.right-drawer--collapsed {
+  align-items: center;
+  padding-top: 16px;
 }
 
 .right-drawer__header {
@@ -299,6 +286,12 @@ body {
   cursor: pointer;
 }
 
+.oc-topbar-select--compact {
+  min-width: 0;
+  width: auto;
+  max-width: 220px;
+}
+
 .oc-topbar-select:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -409,11 +402,16 @@ body {
 .oc-sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
 }
 
+.oc-sidebar-header__spacer {
+  width: 36px;
+  height: 36px;
+}
+
 .oc-sidebar-title {
+  margin-right: auto;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
@@ -562,7 +560,7 @@ select:focus {
   width: 100%;
   max-width: 48rem;
   margin: 0 auto;
-  padding: 56px 24px 12px;
+  padding: 48px 24px 12px;
 }
 
 .oc-message-row {
@@ -739,7 +737,7 @@ select:focus {
 }
 
 .oc-empty-thread-state {
-  min-height: calc(100vh - 320px);
+  min-height: calc(100vh - 260px);
   padding: 72px 24px 24px;
 }
 
@@ -775,6 +773,11 @@ select:focus {
   color: var(--text-secondary);
   font-size: 16px;
   line-height: 1.6;
+}
+
+.oc-empty-thread-state__workspace,
+.oc-empty-state__workspace {
+  margin-top: 14px;
 }
 
 .oc-empty-state {
@@ -857,42 +860,6 @@ select:focus {
   background: var(--bg-hover);
 }
 
-.oc-mode-selector {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-}
-
-.oc-mode-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.oc-mode-button.is-active {
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
-}
-
-.oc-mode-button__prefix {
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
 .oc-composer-shell {
   width: 100%;
   max-width: 48rem;
@@ -901,8 +868,8 @@ select:focus {
 
 .oc-composer-root {
   width: 100%;
-  padding: 8px;
-  border-radius: 28px;
+  padding: 10px 12px 12px;
+  border-radius: 30px;
   border: 1px solid var(--border);
   background: var(--bg-composer);
   box-shadow: var(--shadow-soft);
@@ -920,6 +887,22 @@ select:focus {
   display: flex;
   align-items: flex-end;
   gap: 8px;
+}
+
+.oc-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 0;
+}
+
+.oc-composer-footer__primary,
+.oc-composer-footer__secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .aui-composer-input {
@@ -1013,28 +996,6 @@ select:focus {
 }
 
 @media (max-width: 960px) {
-  .top-bar {
-    flex-wrap: wrap;
-    align-content: center;
-    height: auto;
-    min-height: var(--top-bar-height);
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
-
-  .app-shell {
-    grid-template-rows: auto 1fr;
-  }
-
-  .oc-topbar-group--grow {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
   .oc-thread-messages,
   .oc-thread-footer {
     padding-left: 16px;
@@ -1057,5 +1018,15 @@ select:focus {
 
   .oc-workspace-selector__label {
     max-width: 160px;
+  }
+
+  .oc-composer-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .oc-composer-footer__primary,
+  .oc-composer-footer__secondary {
+    flex-wrap: wrap;
   }
 }

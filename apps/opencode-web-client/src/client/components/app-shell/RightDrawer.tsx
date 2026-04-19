@@ -28,9 +28,15 @@ export function RightDrawer() {
   };
 
   return (
-    <aside className={`right-drawer-shell ${rightDrawerOpen ? 'is-open' : 'is-closed'}`} aria-hidden={!rightDrawerOpen}>
-      {rightDrawerOpen && (
-        <div className="right-drawer">
+    <aside className={`right-drawer-shell ${rightDrawerOpen ? 'is-open' : 'is-closed'}`}>
+      {!rightDrawerOpen ? (
+        <div className="right-drawer right-drawer--collapsed">
+          <button type="button" onClick={toggleRightDrawer} className="oc-icon-button oc-icon-button--soft" title="Show inspector">
+            <PanelRightIcon size={16} className="oc-icon--flipped" />
+          </button>
+        </div>
+      ) : (
+        <div className="right-drawer right-drawer--open">
           <div className="right-drawer__header">
             <div className="right-drawer__toolbar" role="tablist" aria-label="Inspector panels">
               {TABS.map((tab) => (

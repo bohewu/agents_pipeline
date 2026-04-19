@@ -14,6 +14,7 @@ import {
 import { useStore } from './store.js';
 import { convertMessage } from './assistant-ui-mapper.js';
 import { api } from '../lib/api-client.js';
+import { parseComposerIntent } from '../lib/opencode-controls.js';
 
 export function RuntimeProvider({ children }: { children: ReactNode }) {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
@@ -25,6 +26,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const selectedModel = useStore((s) => s.selectedModel);
   const selectedAgent = useStore((s) => s.selectedAgent);
   const effortByWorkspace = useStore((s) => s.effortByWorkspace);
+  const workspaceBootstraps = useStore((s) => s.workspaceBootstraps);
 
   const sessionId = activeWorkspaceId
     ? activeSessionByWorkspace[activeWorkspaceId]
@@ -32,6 +34,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
 
   const rawMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
   const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
+  const workspaceBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
   const effectiveEffort = sessionId
     ? effortState?.sessionOverrides[sessionId] ?? effortState?.projectDefault
     : effortState?.projectDefault;
@@ -49,28 +52,35 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       const textParts = message.content.filter(
         (p): p is { type: 'text'; text: string } => p.type === 'text',
       );
-      const text = textParts.map((p) => p.text).join('\n').trim();
-      if (!text) return;
+      const rawText = textParts.map((p) => p.text).join('\n').trim();
+      if (!rawText) return;
+
+      const intent = parseComposerIntent(rawText, {
+        composerMode,
+        boot: workspaceBootstrap,
+        fallbackAgentId: selectedAgent,
+      });
+      if (!intent.text) return;
 
       // Set streaming before sending
       useStore.getState().setStreaming(true);
 
       try {
-        switch (composerMode) {
+        switch (intent.mode) {
           case 'ask':
             await api.sendChat(activeWorkspaceId, sessionId, {
-              text,
+              text: intent.text,
               providerId: selectedProvider ?? undefined,
               modelId: selectedModel ?? undefined,
-              agentId: selectedAgent ?? undefined,
+              agentId: intent.agentId ?? undefined,
               effort: effectiveEffort,
             });
             break;
           case 'command':
-            await api.sendCommand(activeWorkspaceId, sessionId, { command: text });
+            await api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text });
             break;
           case 'shell':
-            await api.sendShell(activeWorkspaceId, sessionId, { command: text });
+            await api.sendShell(activeWorkspaceId, sessionId, { command: intent.text });
             break;
         }
       } catch {

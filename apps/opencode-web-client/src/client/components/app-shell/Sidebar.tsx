@@ -2,7 +2,7 @@ import React from 'react';
 import { useStore } from '../../runtime/store.js';
 import { SessionList } from '../sessions/SessionList.js';
 import { api } from '../../lib/api-client.js';
-import { PlusIcon } from '../common/Icons.js';
+import { PanelLeftIcon, PlusIcon } from '../common/Icons.js';
 
 export function Sidebar() {
   const {
@@ -10,9 +10,11 @@ export function Sidebar() {
     selectedProvider,
     selectedModel,
     selectedAgent,
+    sidebarOpen,
     setSessions,
     setActiveSession,
     setWorkspaceDialogOpen,
+    toggleSidebar,
   } = useStore();
 
   const handleNewSession = async () => {
@@ -31,29 +33,48 @@ export function Sidebar() {
     }
   };
 
+  if (!sidebarOpen) {
+    return (
+      <aside className="sidebar sidebar--collapsed" aria-label="Chats sidebar collapsed">
+        <button type="button" onClick={toggleSidebar} className="oc-icon-button oc-icon-button--soft" title="Show chats">
+          <PanelLeftIcon size={16} className="oc-icon--flipped" />
+        </button>
+      </aside>
+    );
+  }
+
   if (!activeWorkspaceId) {
     return (
-      <div className="sidebar oc-sidebar-shell">
-        <div className="oc-sidebar-title">Chats</div>
+      <aside className="sidebar sidebar--open oc-sidebar-shell">
+        <div className="oc-sidebar-header">
+          <button type="button" onClick={toggleSidebar} className="oc-icon-button" title="Hide chats">
+            <PanelLeftIcon size={16} />
+          </button>
+          <div className="oc-sidebar-title">Chats</div>
+          <div className="oc-sidebar-header__spacer" />
+        </div>
         <div className="oc-sidebar-empty">
           Open a workspace first, then each repo gets its own chat history here.
         </div>
         <button type="button" onClick={() => setWorkspaceDialogOpen(true)} className="oc-primary-button oc-primary-button--full">
           Open workspace
         </button>
-      </div>
+      </aside>
     );
   }
 
   return (
-    <div className="sidebar oc-sidebar-shell">
+    <aside className="sidebar sidebar--open oc-sidebar-shell">
       <div className="oc-sidebar-header">
+        <button type="button" onClick={toggleSidebar} className="oc-icon-button" title="Hide chats">
+          <PanelLeftIcon size={16} />
+        </button>
         <span className="oc-sidebar-title">Chats</span>
         <button type="button" onClick={handleNewSession} className="oc-icon-button oc-icon-button--soft" title="New chat">
           <PlusIcon size={16} />
         </button>
       </div>
       <SessionList />
-    </div>
+    </aside>
   );
 }
