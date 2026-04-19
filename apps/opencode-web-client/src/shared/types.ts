@@ -22,9 +22,59 @@ export interface WorkspaceProfile {
   addedAt: string;
 }
 
+export interface WorkspaceServerStatus {
+  state: 'starting' | 'ready' | 'unhealthy' | 'stopped';
+  port?: number;
+  baseUrl?: string;
+  startedAt?: string;
+  lastHealthAt?: string;
+}
+
+export interface ProviderSummary {
+  id: string;
+  name: string;
+  connected: boolean;
+  defaultModelId?: string;
+  modelCount: number;
+}
+
+export interface ModelSummary {
+  id: string;
+  providerId: string;
+  name: string;
+  connected: boolean;
+  isDefault: boolean;
+}
+
+export interface AgentSummary {
+  id: string;
+  name: string;
+  mode?: string;
+  description?: string;
+}
+
+export interface CommandSummary {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface OpenCodeBootstrap {
+  health: { healthy: boolean; version?: string };
+  project?: { id?: string; path?: string; name?: string };
+  providers: ProviderSummary[];
+  models: ModelSummary[];
+  agents: AgentSummary[];
+  commands: CommandSummary[];
+  connectedProviderIds: string[];
+}
+
 export interface WorkspaceBootstrap {
   workspace: WorkspaceProfile;
+  server?: WorkspaceServerStatus;
+  opencode?: OpenCodeBootstrap;
   sessions: SessionSummary[];
+  effort?: EffortStateSummary;
 }
 
 // ── Sessions ──

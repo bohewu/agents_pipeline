@@ -5,14 +5,14 @@ function StatusDot({ ok }: { ok: boolean }) {
   return (
     <span style={{
       display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-      background: ok ? '#4caf50' : '#f44336', marginRight: 6,
+      background: ok ? 'var(--success)' : 'var(--error)', marginRight: 6,
     }} />
   );
 }
 
 export function DiagnosticsView({ compact }: { compact?: boolean }) {
   const { install } = useStore();
-  if (!install) return <div style={{ color: '#666', fontSize: 12 }}>Loading...</div>;
+  if (!install) return <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading...</div>;
 
   const rows: { label: string; ok: boolean; detail?: string }[] = [
     { label: 'App installed', ok: install.app.installed, detail: `v${install.app.version}` },
@@ -35,12 +35,12 @@ export function DiagnosticsView({ compact }: { compact?: boolean }) {
           display: 'flex', alignItems: 'center', padding: '3px 0', fontSize: 12,
         }}>
           <StatusDot ok={r.ok} />
-          <span style={{ color: '#ccc', flex: 1 }}>{r.label}</span>
-          {r.detail && <span style={{ color: '#888', fontFamily: 'monospace', fontSize: 11 }}>{r.detail}</span>}
+          <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{r.label}</span>
+          {r.detail && <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: 11 }}>{r.detail}</span>}
         </div>
       ))}
       {!compact && (
-        <div style={{ marginTop: 12, fontSize: 11, color: '#666' }}>
+        <div style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
           <div>Data: {install.app.dataDir}</div>
           <div>Config: {install.app.configDir}</div>
           <div>OpenCode config: {install.opencode.configDir} ({install.opencode.configDirSource})</div>

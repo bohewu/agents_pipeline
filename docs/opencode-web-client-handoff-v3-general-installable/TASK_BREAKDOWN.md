@@ -149,7 +149,7 @@ Acceptance:
 
 Implement:
 
-- onboarding screen。
+- chat-first empty thread state。
 - diagnostics panel。
 - workspace selector/add dialog。
 - top bar selectors。
@@ -160,8 +160,10 @@ Implement:
 
 Acceptance:
 
-- no workspace state shows add screen。
+- no workspace state still lands in the main shell。
+- no workspace state shows inline CTA inside thread/composer area。
 - selecting workspace loads sessions。
+- selecting a workspace with no history creates a new chat session automatically。
 - chat UI sends through BFF。
 
 ## Phase 9 — Tool cards / permissions / diff / files
@@ -242,4 +244,3 @@ Add user docs:
 - security model。
 
 Docs must not instruct users to set `OPENCODE_CONFIG_DIR` to source repo.
-

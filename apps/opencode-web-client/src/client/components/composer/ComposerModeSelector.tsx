@@ -1,29 +1,28 @@
 import React from 'react';
 import { useStore, type ComposerMode } from '../../runtime/store.js';
 
-const MODES: { key: ComposerMode; label: string; icon: string }[] = [
-  { key: 'ask', label: 'Ask', icon: '💬' },
-  { key: 'command', label: 'Command', icon: '/' },
-  { key: 'shell', label: 'Shell', icon: '$' },
+const MODES: { key: ComposerMode; label: string; prefix?: string }[] = [
+  { key: 'ask', label: 'Ask' },
+  { key: 'command', label: 'Command', prefix: '/' },
+  { key: 'shell', label: 'Shell', prefix: '$' },
 ];
 
 export function ComposerModeSelector() {
   const { composerMode, setComposerMode } = useStore();
 
   return (
-    <div style={{ display: 'flex', gap: 0, background: '#1a1a2e', borderRadius: 4, overflow: 'hidden' }}>
-      {MODES.map((m) => (
+    <div className="oc-mode-selector" role="tablist" aria-label="Composer mode">
+      {MODES.map((mode) => (
         <button
-          key={m.key}
-          onClick={() => setComposerMode(m.key)}
-          style={{
-            padding: '4px 12px', fontSize: 12, cursor: 'pointer', border: 'none',
-            background: composerMode === m.key ? '#2a2a4a' : 'transparent',
-            color: composerMode === m.key ? '#4c9eff' : '#888',
-            fontWeight: composerMode === m.key ? 600 : 400,
-          }}
+          key={mode.key}
+          type="button"
+          role="tab"
+          aria-selected={composerMode === mode.key}
+          onClick={() => setComposerMode(mode.key)}
+          className={`oc-mode-button ${composerMode === mode.key ? 'is-active' : ''}`}
         >
-          <span style={{ marginRight: 4 }}>{m.icon}</span>{m.label}
+          {mode.prefix && <span className="oc-mode-button__prefix">{mode.prefix}</span>}
+          <span>{mode.label}</span>
         </button>
       ))}
     </div>

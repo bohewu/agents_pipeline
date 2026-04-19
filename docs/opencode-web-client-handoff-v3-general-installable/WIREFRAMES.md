@@ -1,37 +1,26 @@
 # WIREFRAMES — Desktop-first ASCII UI
 
-## 1. First launch / diagnostics
+## 1. First launch / chat-first empty state
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────┐
-│ OpenCode Codex Web                                                              Diagnostics │
+│ Workspace: Open workspace ▾ │ + Repo │ Provider: openai ▾ │ Model: gpt-5.1-codex ▾ ...   │
 ├────────────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                            │
-│   Welcome. Select a repo folder to start.                                                   │
-│                                                                                            │
-│   Install diagnostics                                                                       │
-│   ┌────────────────────────────────────────────────────────────────────────────────────┐   │
-│   │ Web client          installed      ~/.local/share/opencode-codex-web                │   │
-│   │ Source repo needed   no                                                              │   │
-│   │ OpenCode CLI         found          /usr/local/bin/opencode                          │   │
-│   │ OpenCode config      ~/.config/opencode                                               │   │
-│   │ Effort plugin        installed      ~/.config/opencode/plugins/effort-control.js     │   │
-│   │ Usage tool           installed      ~/.local/share/opencode-codex-web/tools/...      │   │
-│   │ Python 3             found          /usr/bin/python3                                  │   │
-│   └────────────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                            │
-│   Workspace                                                                                 │
-│   ┌────────────────────────────────────────────────────────────────────────────────────┐   │
-│   │ Path  /Users/me/dev/my-project                                         [Validate]  │   │
-│   │ Name  my-project                                                       [Add/Open]  │   │
-│   └────────────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                            │
-│   Recent                                                                                    │
-│   ┌────────────────────────────────────────────────────────────────────────────────────┐   │
-│   │ project-a     /Users/me/dev/project-a                                  [Open]      │   │
-│   │ backend       /Users/me/work/backend                                    [Open]      │   │
-│   └────────────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                            │
+│ Sessions              │ Thread                                               │ Right Panel │
+│                       │                                                      │             │
+│ Open a workspace to   │ ┌──────────────────────────────────────────────────┐ │ Diagnostics │
+│ start seeing chats.   │ │ Start in chat, attach a repo when you're ready. │ │             │
+│                       │ │                                                  │ │ App         │
+│ [Open workspace]      │ │ OpenCode needs a workspace before it can edit,   │ │ OpenCode    │
+│                       │ │ diff, or run tools inside a project.             │ │ Node/Python │
+│                       │ │                                                  │ │ Plugins     │
+│                       │ │ [Open workspace]                                 │ │             │
+│                       │ │                                                  │ │             │
+│                       │ │ Quick system check                               │ │             │
+│                       │ │ - OpenCode CLI found                             │ │             │
+│                       │ │ - Usage tool installed                           │ │             │
+│                       │ │ - Python found                                   │ │             │
+│                       │ └──────────────────────────────────────────────────┘ │             │
 └────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -211,4 +200,3 @@
 │   Provider usage tool: installed                               │
 └───────────────────────────────────────────────────────────────┘
 ```
-

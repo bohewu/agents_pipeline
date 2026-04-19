@@ -4,16 +4,21 @@ import type { WorkspaceRegistry } from '../services/workspace-registry.js'
 import type { ManagedServerManager } from '../services/managed-server-manager.js'
 import type { OpenCodeClientFactory } from '../services/opencode-client-factory.js'
 import type { WorkspaceBootstrap } from '../../shared/types.js'
+import type { ConfigService, NormalizedConfig } from '../services/config-service.js'
+import type { EffortService } from '../services/effort-service.js'
 import { execSync } from 'node:child_process'
+import path from 'node:path'
 
 export interface WorkspacesRouteDeps {
   registry: WorkspaceRegistry
   serverManager: ManagedServerManager
   clientFactory: OpenCodeClientFactory
+  configService: ConfigService
+  effortService: EffortService
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory } = deps
+  const { registry, serverManager, clientFactory, configService, effortService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -185,18 +190,57 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       runtime = await serverManager.start(workspaceId, rootPath, opencodeConfigDir)
     }
 
+    try {
+      runtime = await serverManager.waitUntilReady(workspaceId)
+    } catch {
+      // Keep the latest runtime state; the UI can surface startup problems.
+    }
+
     // Try to get sessions
     let sessions: WorkspaceBootstrap['sessions'] = []
+    let healthy = runtime.state === 'ready'
+    let version: string | undefined
+    let config: NormalizedConfig = {
+      providers: [],
+      models: [],
+      agents: [],
+      commands: [],
+      connectedProviderIds: [],
+    }
     try {
       if (runtime.state === 'ready') {
         const client = clientFactory.forWorkspace(workspaceId)
+        const health = await client.health().catch(() => ({ ok: false }))
+        healthy = !!health.ok
+        version = typeof (health as { version?: unknown }).version === 'string'
+          ? (health as { version?: string }).version
+          : undefined
         sessions = await client.listSessions()
+        config = await configService.getConfig(workspaceId)
       }
     } catch {
       // Server may still be starting
     }
 
-    return { workspace, sessions }
+    return {
+      workspace,
+      server: serverManager.toJSON(runtime),
+      opencode: {
+        health: { healthy, version },
+        project: {
+          id: workspace.id,
+          path: rootPath,
+          name: workspace.name || path.basename(rootPath),
+        },
+        providers: config.providers,
+        models: config.models,
+        agents: config.agents,
+        commands: config.commands,
+        connectedProviderIds: config.connectedProviderIds,
+      },
+      sessions,
+      effort: effortService.getEffortSummary(rootPath),
+    }
   }
 
   return route

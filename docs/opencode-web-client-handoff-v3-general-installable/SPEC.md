@@ -163,7 +163,8 @@ local app 必須：
 1. 啟動 BFF + static server。
 2. 選擇可用 port。
 3. 開 browser 到 local URL。
-4. 顯示 onboarding / workspace selector。
+4. 直接顯示主 chat shell。
+5. 若尚未選定 workspace，thread/composer 區顯示 inline CTA 與 diagnostics，而不是先進 full-screen workspace gate。
 
 ### 5.3 First run diagnostics
 
@@ -178,7 +179,7 @@ local app 必須：
 
 ### 5.4 Add workspace
 
-使用者輸入或選擇 repo path：
+使用者可從 chat landing state 或 top bar 輸入/選擇 repo path：
 
 1. BFF canonicalize path。
 2. 若 path 在 git repo 子目錄，預設解析到 git root。
@@ -186,6 +187,7 @@ local app 必須：
 4. 寫入 local workspace registry。
 5. 建立 / 啟動 managed upstream server。
 6. 載入 OpenCode bootstrap 資料。
+7. 若該 workspace 尚無 session，建立一個新 chat session 並直接進入 thread。
 
 ### 5.5 Switch workspace
 
@@ -209,6 +211,13 @@ Desktop-first UI，包含：
 - 中央 assistant thread。
 - 下方 composer。
 - 右側 drawer tabs。
+
+初始進場規則：
+
+- App 一開啟就進主 chat shell。
+- 沒有 active workspace 時，不可把使用者卡在獨立 onboarding page。
+- 中央 thread 可顯示 workspace CTA / diagnostics empty state，但 shell 結構要先出現。
+- 一旦選定 workspace，若沒有既有 session，直接建立新 session 進入 chat。
 
 Top bar 必須包含：
 
@@ -489,4 +498,3 @@ A build is acceptable when：
 9. Effort state writes into selected workspace `.opencode`。
 10. Usage drawer executes installed tool and returns JSON。
 11. No `status-runtime` routes/components/imports exist。
-

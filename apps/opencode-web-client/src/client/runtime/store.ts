@@ -17,6 +17,7 @@ export interface UIStore {
   install: InstallDiagnostics | null;
   workspaces: WorkspaceProfile[];
   activeWorkspaceId: string | null;
+  workspaceDialogOpen: boolean;
   workspaceBootstraps: Record<string, WorkspaceBootstrap>;
   sessionsByWorkspace: Record<string, SessionSummary[]>;
   activeSessionByWorkspace: Record<string, string | undefined>;
@@ -37,6 +38,7 @@ export interface UIStore {
   setInstall: (install: InstallDiagnostics) => void;
   setWorkspaces: (workspaces: WorkspaceProfile[]) => void;
   setActiveWorkspace: (id: string | null) => void;
+  setWorkspaceDialogOpen: (open: boolean) => void;
   setWorkspaceBootstrap: (workspaceId: string, bootstrap: WorkspaceBootstrap) => void;
   setSessions: (workspaceId: string, sessions: SessionSummary[]) => void;
   setActiveSession: (workspaceId: string, sessionId: string | undefined) => void;
@@ -61,6 +63,7 @@ export const useStore = create<UIStore>((set) => ({
   install: null,
   workspaces: [],
   activeWorkspaceId: null,
+  workspaceDialogOpen: false,
   workspaceBootstraps: {},
   sessionsByWorkspace: {},
   activeSessionByWorkspace: {},
@@ -71,7 +74,7 @@ export const useStore = create<UIStore>((set) => ({
   selectedAgent: null,
   effortByWorkspace: {},
   usageByWorkspace: {},
-  rightPanel: 'diff',
+  rightPanel: 'diagnostics',
   composerMode: 'ask',
   sidebarOpen: true,
   rightDrawerOpen: false,
@@ -81,6 +84,7 @@ export const useStore = create<UIStore>((set) => ({
   setInstall: (install) => set({ install }),
   setWorkspaces: (workspaces) => set({ workspaces }),
   setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
+  setWorkspaceDialogOpen: (open) => set({ workspaceDialogOpen: open }),
   setWorkspaceBootstrap: (workspaceId, bootstrap) =>
     set((s) => ({ workspaceBootstraps: { ...s.workspaceBootstraps, [workspaceId]: bootstrap } })),
   setSessions: (workspaceId, sessions) =>

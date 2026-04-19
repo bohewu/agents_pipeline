@@ -10,13 +10,13 @@ export function SessionList() {
   const activeSessionId = activeSessionByWorkspace[activeWorkspaceId];
 
   if (sessions.length === 0) {
-    return <div style={{ color: '#666', fontSize: 12, padding: 8 }}>No sessions yet</div>;
+    return <div className="oc-session-list__empty">No chats yet</div>;
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {sessions.map((s) => (
-        <SessionItem key={s.id} session={s} active={s.id === activeSessionId} />
+    <div className="oc-session-list">
+      {sessions.map((session) => (
+        <SessionItem key={session.id} session={session} active={session.id === activeSessionId} />
       ))}
     </div>
   );

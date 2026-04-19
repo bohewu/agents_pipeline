@@ -1,21 +1,19 @@
 /**
  * Thread.tsx
  *
- * Uses @assistant-ui/react ThreadPrimitive to render the message thread.
- * Custom message components look up the original NormalizedMessage from Zustand
- * store by ID to render with full fidelity (ToolCallCard, PermissionCard, etc.).
- * When a message ID is not found in the store (e.g. optimistic running message
- * injected by ExternalStoreRuntime), shows a "Generating..." indicator.
+ * Uses @assistant-ui/react ThreadPrimitive to render the thread shell.
+ * The normal message path now renders via MessagePrimitive.Content / ActionBarPrimitive,
+ * while only custom permission/error parts fall back to bespoke cards.
  */
 
 import React from 'react';
 import { ThreadPrimitive, MessagePrimitive, useMessage } from '@assistant-ui/react';
 import { useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
+import { ChatStartState } from './ChatStartState.js';
+import { Composer } from '../composer/Composer.js';
 
-/** Look up the original NormalizedMessage from the Zustand store by message ID */
 function useNormalizedMessage() {
-  // In @assistant-ui/react v0.12, MessageState IS the message (id/role/status are top-level)
   const messageId = useMessage((s) => s.id);
   const messageRole = useMessage((s) => s.role);
   const isRunning = useMessage((s) =>
@@ -28,48 +26,46 @@ function useNormalizedMessage() {
     ? store.activeSessionByWorkspace[store.activeWorkspaceId]
     : undefined;
   const messages = sessionId ? (store.messagesBySession[sessionId] ?? []) : [];
-  const normalized = messages.find((m) => m.id === messageId);
+  const normalized = messages.find((message) => message.id === messageId);
 
   return { normalized, messageRole, isRunning };
 }
 
-/** Custom user message component */
-function UserMessage() {
-  const { normalized } = useNormalizedMessage();
-  if (!normalized) {
-    // Optimistic message — shouldn't happen for user, but handle gracefully
-    return (
-      <MessagePrimitive.Root>
-        <div className="aui-message aui-message--user">
-          <MessagePrimitive.Content />
-        </div>
-      </MessagePrimitive.Root>
-    );
-  }
-  return (
-    <MessagePrimitive.Root>
-      <MessageCard message={normalized} />
-    </MessagePrimitive.Root>
-  );
-}
-
-/** Custom assistant message component */
-function AssistantMessage() {
-  const { normalized, isRunning } = useNormalizedMessage();
+function ThreadMessage() {
+  const { normalized, messageRole, isRunning } = useNormalizedMessage();
+  const role = normalized?.role ?? messageRole;
+  const rowClassName = `oc-message-row oc-message-row--${role}`;
+  const bodyClassName = `oc-message-row__body oc-message-row__body--${role}`;
+  const showAvatar = role !== 'user';
+  const eyebrowLabel = role === 'assistant' ? 'OpenCode' : 'System';
 
   if (!normalized) {
-    // Optimistic running message from ExternalStoreRuntime
     return (
       <MessagePrimitive.Root>
-        <div style={{
-          background: '#1a2238', borderLeft: '3px solid #7c4dff',
-          borderRadius: 6, padding: '12px 16px', marginBottom: 8,
-        }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 6, fontWeight: 600 }}>
-            Assistant
-          </div>
-          <div style={{ padding: 8, color: '#4c9eff', fontSize: 13 }}>
-            <span className="aui-pulse">● </span>Generating...
+        <div className={rowClassName}>
+          <div className={bodyClassName}>
+            <div className={`oc-message-card oc-message-card--${role}`}>
+              {showAvatar && (
+                <div className={`oc-message-card__avatar oc-message-card__avatar--${role}`}>
+                  {role === 'assistant' ? 'O' : 'S'}
+                </div>
+              )}
+
+              <div className="oc-message-card__main">
+                {showAvatar && <div className="oc-message-card__eyebrow">{eyebrowLabel}</div>}
+                <div className={`oc-message-card__bubble oc-message-card__bubble--${role}`}>
+                  <div className="oc-message-card__content">
+                    <MessagePrimitive.Content />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {role !== 'user' && (
+              <div className="oc-message-running">
+                <span className="aui-pulse">● </span>Generating...
+              </div>
+            )}
           </div>
         </div>
       </MessagePrimitive.Root>
@@ -78,57 +74,67 @@ function AssistantMessage() {
 
   return (
     <MessagePrimitive.Root>
-      <MessageCard message={normalized} />
-      {isRunning && (
-        <div style={{ padding: '4px 16px', color: '#4c9eff', fontSize: 13 }}>
-          <span className="aui-pulse">● </span>Generating...
+      <div className={rowClassName}>
+        <div className={bodyClassName}>
+          <MessageCard message={normalized} />
+          {role !== 'user' && isRunning && (
+            <div className="oc-message-running">
+              <span className="aui-pulse">● </span>Generating...
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </MessagePrimitive.Root>
   );
 }
 
-/** Thread component using ThreadPrimitive */
 export function Thread() {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
 
+  if (!activeWorkspaceId) {
+    return <ChatStartState />;
+  }
+
   if (!sessionId) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#555' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
-          <div>Select or create a session to start</div>
-        </div>
+      <div className="oc-thread-placeholder">
+        <div className="oc-thread-placeholder__glyph">...</div>
+        <div className="oc-thread-placeholder__text">Preparing chat...</div>
       </div>
     );
   }
 
   return (
     <ThreadPrimitive.Root
+      className="oc-thread"
       style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
     >
       <ThreadPrimitive.Viewport
+        className="oc-thread-viewport"
         style={{ flex: 1, overflow: 'auto' }}
       >
         <ThreadPrimitive.Empty>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#555' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>✨</div>
-              <div>Start a conversation</div>
-            </div>
+          <div className="oc-empty-thread-state">
+            <div className="oc-empty-thread-state__avatar">O</div>
+            <h1 className="oc-empty-thread-state__title">How can I help you today?</h1>
+            <p className="oc-empty-thread-state__subtitle">Ask about this repo, request edits, or run a command.</p>
           </div>
         </ThreadPrimitive.Empty>
 
-        <div style={{ padding: '16px 24px', maxWidth: 800, margin: '0 auto' }}>
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage,
-              AssistantMessage,
-            }}
-          />
+        <div className="oc-thread-messages">
+          <ThreadPrimitive.Messages components={{ UserMessage: ThreadMessage, AssistantMessage: ThreadMessage }} />
         </div>
+
+        <ThreadPrimitive.ViewportFooter className="oc-thread-footer">
+          <div className="oc-thread-footer__scroll">
+            <ThreadPrimitive.ScrollToBottom className="oc-scroll-to-bottom">
+              Jump to latest
+            </ThreadPrimitive.ScrollToBottom>
+          </div>
+          <Composer />
+        </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
   );

@@ -22,34 +22,39 @@ export function DiffPanel() {
 
   useEffect(() => { loadDiffs(); }, [activeWorkspaceId, sessionId]);
 
-  if (loading) return <div style={{ color: '#888', fontSize: 12, padding: 8 }}>Loading diffs...</div>;
-  if (diffs.length === 0) return <div style={{ color: '#666', fontSize: 12, padding: 8 }}>No changes</div>;
+  if (loading) return <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 8 }}>Loading diffs...</div>;
+  if (diffs.length === 0) return <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 8 }}>No changes</div>;
 
   return (
     <div>
-      {diffs.map((d, i) => (
-        <div key={i} style={{ marginBottom: 12 }}>
-          <div style={{
-            fontSize: 12, fontFamily: 'monospace', color: '#4c9eff', padding: '4px 0',
-            borderBottom: '1px solid #2a2a4a', marginBottom: 4,
-          }}>
-            {d.path}
+      {diffs.map((d, i) => {
+        const diffText = typeof d.diff === 'string' ? d.diff : '';
+        const lines = diffText.length > 0 ? diffText.split('\n') : [];
+
+        return (
+          <div key={i} style={{ marginBottom: 12 }}>
+            <div style={{
+              fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)', padding: '4px 0',
+              borderBottom: '1px solid var(--border)', marginBottom: 4,
+            }}>
+              {d.path}
+            </div>
+            <pre style={{
+              fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap',
+              background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: 8, overflow: 'auto', maxHeight: 300,
+            }}>
+              {lines.length > 0 ? lines.map((line, j) => (
+                <div key={j} style={{
+                  color: line.startsWith('+') ? 'var(--success)' : line.startsWith('-') ? 'var(--error)' : 'var(--text-muted)',
+                  background: line.startsWith('+') ? 'rgba(31,143,95,0.08)' : line.startsWith('-') ? 'rgba(196,66,47,0.08)' : 'transparent',
+                }}>
+                  {line}
+                </div>
+              )) : <div style={{ color: 'var(--text-muted)' }}>No unified diff available</div>}
+            </pre>
           </div>
-          <pre style={{
-            fontSize: 11, fontFamily: 'monospace', color: '#aaa', whiteSpace: 'pre-wrap',
-            background: '#0d1117', borderRadius: 4, padding: 8, overflow: 'auto', maxHeight: 300,
-          }}>
-            {d.diff.split('\n').map((line, j) => (
-              <div key={j} style={{
-                color: line.startsWith('+') ? '#4caf50' : line.startsWith('-') ? '#f44336' : '#888',
-                background: line.startsWith('+') ? 'rgba(76,175,80,0.08)' : line.startsWith('-') ? 'rgba(244,67,54,0.08)' : 'transparent',
-              }}>
-                {line}
-              </div>
-            ))}
-          </pre>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

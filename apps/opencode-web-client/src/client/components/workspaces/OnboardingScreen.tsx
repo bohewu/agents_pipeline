@@ -10,7 +10,7 @@ export function OnboardingScreen() {
 
   const handleDiscover = async () => {
     try {
-      const discovered = await api.discoverWorkspaces({ basePath: '~' });
+      const discovered = await api.discoverWorkspaces({ path: '~' });
       if (discovered.length > 0) {
         const ws = await api.listWorkspaces();
         setWorkspaces(ws);

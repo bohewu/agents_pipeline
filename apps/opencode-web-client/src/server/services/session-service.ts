@@ -13,9 +13,12 @@ export class SessionService {
     return client.listSessions()
   }
 
-  async createSession(workspaceId: string, _options?: { title?: string }): Promise<SessionSummary> {
+  async createSession(
+    workspaceId: string,
+    options?: { title?: string; providerId?: string; modelId?: string; agentId?: string },
+  ): Promise<SessionSummary> {
     const client = this.clientFactory.forWorkspace(workspaceId)
-    return client.createSession()
+    return client.createSession(options)
   }
 
   async getSession(workspaceId: string, sessionId: string): Promise<SessionSummary> {

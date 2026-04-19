@@ -10,6 +10,7 @@ import { OpenCodeClientFactory } from '../server/services/opencode-client-factor
 import { SessionService } from '../server/services/session-service.js';
 import { EffortService } from '../server/services/effort-service.js';
 import { UsageService } from '../server/services/usage-service.js';
+import { ConfigService } from '../server/services/config-service.js';
 import { DiffService } from '../server/services/diff-service.js';
 import { FileService } from '../server/services/file-service.js';
 import { PermissionRegistry } from '../server/services/permission-registry.js';
@@ -49,6 +50,7 @@ async function main() {
   const sessionService = new SessionService(clientFactory);
   const effortService = new EffortService();
   const usageService = new UsageService(appPaths.installManifestFile);
+  const configService = new ConfigService(clientFactory);
   const diffService = new DiffService(clientFactory);
   const fileService = new FileService();
   const permissionRegistry = new PermissionRegistry(clientFactory);
@@ -69,6 +71,7 @@ async function main() {
     sessionService,
     effortService,
     usageService,
+    configService,
     diffService,
     fileService,
     permissionRegistry,

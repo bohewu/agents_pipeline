@@ -10,10 +10,37 @@ import type {
   UsageDetails,
   InstallDiagnostics,
   BffEvent,
+  BffEventType,
   SetEffortRequest,
 } from '../../shared/types.js';
 
 const BASE = '';
+
+interface WorkspaceStateResponse {
+  workspaces: WorkspaceProfile[];
+  activeWorkspaceId?: string;
+}
+
+const EVENT_TYPES: BffEventType[] = [
+  'session.created',
+  'session.updated',
+  'message.created',
+  'message.delta',
+  'message.completed',
+  'permission.requested',
+  'permission.resolved',
+  'effort.changed',
+  'workspace.changed',
+  'connection.ping',
+];
+
+function normalizeEvent(value: any): BffEvent {
+  return {
+    type: value.type,
+    timestamp: value.timestamp ?? value.time ?? new Date().toISOString(),
+    payload: value.payload ?? {},
+  };
+}
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: { Accept: 'application/json' } });
@@ -65,14 +92,18 @@ export const api = {
     }>('/api/fs/browse', { path }),
 
   // Workspaces
-  listWorkspaces: () => get<WorkspaceProfile[]>('/api/workspaces'),
-  addWorkspace: (data: { rootPath: string; name?: string }) =>
+  listWorkspaceState: () => get<WorkspaceStateResponse>('/api/workspaces'),
+  listWorkspaces: () => api.listWorkspaceState().then((state) => state.workspaces),
+  addWorkspace: (data: { path: string; name?: string; opencodeConfigDir?: string }) =>
     post<WorkspaceProfile>('/api/workspaces', data),
-  validateWorkspace: (data: { rootPath: string }) =>
-    post<{ valid: boolean; error?: string }>('/api/workspaces/validate', data),
-  discoverWorkspaces: (data: { basePath: string }) =>
-    post<WorkspaceProfile[]>('/api/workspaces/discover', data),
-  selectWorkspace: (id: string) => post<void>(`/api/workspaces/${id}/select`),
+  validateWorkspace: (data: { path: string; useExactPath?: boolean; confirmed?: boolean }) =>
+    post<{ valid: boolean; resolvedPath?: string; gitRoot?: string; error?: string }>(
+      '/api/workspaces/validate',
+      data,
+    ),
+  discoverWorkspaces: (data: { path: string; maxDepth?: number }) =>
+    post<{ repos: string[] }>('/api/workspaces/discover', data).then((result) => result.repos),
+  selectWorkspace: (id: string) => post<WorkspaceBootstrap>(`/api/workspaces/${id}/select`),
   updateWorkspace: (id: string, data: Partial<WorkspaceProfile>) =>
     patch<WorkspaceProfile>(`/api/workspaces/${id}`, data),
   deleteWorkspace: (id: string) => del<void>(`/api/workspaces/${id}`),
@@ -84,7 +115,7 @@ export const api = {
   // Sessions
   listSessions: (wsId: string) =>
     get<SessionSummary[]>(`/api/workspaces/${wsId}/sessions`),
-  createSession: (wsId: string, data?: { title?: string }) =>
+  createSession: (wsId: string, data?: { title?: string; providerId?: string; modelId?: string; agentId?: string }) =>
     post<SessionSummary>(`/api/workspaces/${wsId}/sessions`, data ?? {}),
   updateSession: (wsId: string, sid: string, data: { title: string }) =>
     patch<SessionSummary>(`/api/workspaces/${wsId}/sessions/${sid}`, data),
@@ -96,7 +127,11 @@ export const api = {
   // Messages
   listMessages: (wsId: string, sid: string) =>
     get<NormalizedMessage[]>(`/api/workspaces/${wsId}/sessions/${sid}/messages`),
-  sendChat: (wsId: string, sid: string, data: { content: string }) =>
+  sendChat: (
+    wsId: string,
+    sid: string,
+    data: { text: string; providerId?: string; modelId?: string; agentId?: string; effort?: string },
+  ) =>
     post<void>(`/api/workspaces/${wsId}/sessions/${sid}/chat`, data),
   sendCommand: (wsId: string, sid: string, data: { command: string }) =>
     post<void>(`/api/workspaces/${wsId}/sessions/${sid}/command`, data),
@@ -108,7 +143,12 @@ export const api = {
   // Permissions
   listPermissions: (wsId: string, sid: string) =>
     get<PermissionRequest[]>(`/api/workspaces/${wsId}/sessions/${sid}/permissions`),
-  resolvePermission: (wsId: string, sid: string, pid: string, data: { action: 'approve' | 'deny' }) =>
+  resolvePermission: (
+    wsId: string,
+    sid: string,
+    pid: string,
+    data: { decision: 'allow' | 'allow_remember' | 'deny' },
+  ) =>
     post<void>(`/api/workspaces/${wsId}/sessions/${sid}/permissions/${pid}`, data),
 
   // Files
@@ -125,7 +165,12 @@ export const api = {
   getEffort: (wsId: string, sessionId?: string) =>
     get<EffortStateSummary>(`/api/workspaces/${wsId}/effort${sessionId ? `?sessionId=${sessionId}` : ''}`),
   setEffort: (wsId: string, data: SetEffortRequest) =>
-    post<void>(`/api/workspaces/${wsId}/effort`, data),
+    post<void>(`/api/workspaces/${wsId}/effort`, {
+      scope: data.scope,
+      action: 'set',
+      effort: data.level,
+      sessionId: data.sessionId,
+    }),
 
   // Usage
   getUsage: (wsId: string, provider?: string, copilotReportPath?: string) => {
@@ -142,13 +187,16 @@ export const api = {
     onEvent: (event: BffEvent) => void,
     onError?: (err: Event) => void,
   ): (() => void) => {
-    const es = new EventSource(`/api/workspaces/${wsId}/events`);
-    es.onmessage = (e) => {
+    const es = new EventSource(`/api/events?workspaceId=${encodeURIComponent(wsId)}`);
+    const handleMessage = (e: MessageEvent<string>) => {
       try {
-        const parsed = JSON.parse(e.data) as BffEvent;
-        onEvent(parsed);
+        onEvent(normalizeEvent(JSON.parse(e.data)));
       } catch { /* ignore parse errors */ }
     };
+    es.onmessage = handleMessage;
+    for (const type of EVENT_TYPES) {
+      es.addEventListener(type, handleMessage as EventListener);
+    }
     es.onerror = (e) => onError?.(e);
     return () => es.close();
   },

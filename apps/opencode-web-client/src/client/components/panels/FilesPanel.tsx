@@ -4,7 +4,7 @@ import { api } from '../../lib/api-client.js';
 import type { FileStatusResponse } from '../../../shared/types.js';
 
 const STATUS_COLORS: Record<string, string> = {
-  added: '#4caf50', modified: '#ff9800', deleted: '#f44336', unchanged: '#666',
+  added: 'var(--success)', modified: 'var(--warning)', deleted: 'var(--error)', unchanged: 'var(--text-muted)',
 };
 
 export function FilesPanel() {
@@ -35,30 +35,30 @@ export function FilesPanel() {
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder="Search files..."
           style={{
-            flex: 1, background: '#1a1a2e', color: '#e0e0e0', border: '1px solid #2a2a4a',
-            borderRadius: 4, padding: '4px 8px', fontSize: 12, outline: 'none',
+            flex: 1, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '6px 10px', fontSize: 12, outline: 'none',
           }}
         />
         <button onClick={handleSearch} style={{
-          background: '#2a2a4a', color: '#aaa', border: 'none', borderRadius: 4,
-          padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+          background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 999,
+          padding: '4px 10px', fontSize: 11, cursor: 'pointer',
         }}>Find</button>
       </div>
 
       {searchResults.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Search results:</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Search results:</div>
           {searchResults.map((f, i) => (
-            <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: '#4c9eff', padding: '2px 0' }}>
+            <div key={i} style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)', padding: '2px 0' }}>
               {f}
             </div>
           ))}
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Changed files:</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Changed files:</div>
       {files.length === 0 ? (
-        <div style={{ color: '#666', fontSize: 12 }}>No file changes</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No file changes</div>
       ) : (
         files.map((f, i) => (
           <div key={i} style={{
@@ -66,12 +66,12 @@ export function FilesPanel() {
           }}>
             <span style={{
               width: 6, height: 6, borderRadius: '50%',
-              background: STATUS_COLORS[f.status] ?? '#666', flexShrink: 0,
+              background: STATUS_COLORS[f.status] ?? 'var(--text-muted)', flexShrink: 0,
             }} />
-            <span style={{ fontFamily: 'monospace', color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {f.path}
             </span>
-            <span style={{ marginLeft: 'auto', fontSize: 10, color: STATUS_COLORS[f.status] ?? '#666' }}>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: STATUS_COLORS[f.status] ?? 'var(--text-muted)' }}>
               {f.status}
             </span>
           </div>

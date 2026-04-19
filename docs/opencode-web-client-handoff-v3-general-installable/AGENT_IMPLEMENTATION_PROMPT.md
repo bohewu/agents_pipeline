@@ -116,13 +116,15 @@ Do not inject source repo config.
 
 Implement desktop-first UI:
 
-- onboarding / diagnostics。
+- chat-first landing state / diagnostics。
 - workspace selector / add workspace。
 - session sidebar。
 - top bar provider/model/agent/effort/usage/status controls。
 - assistant-ui thread。
 - composer modes: Ask / Command / Shell。
 - right drawer: Diff / Files / Usage / Permissions / Diagnostics。
+
+Do not gate first launch behind a dedicated workspace-picker page. The shell should open first, then guide the user to attach a workspace inline and drop into a new chat immediately after selection.
 
 ## Required BFF API
 
@@ -177,4 +179,3 @@ Include:
 - How source repo independence was verified。
 - Known limitations。
 - Test results。
-

@@ -8,11 +8,8 @@ export function UsageBadge() {
   if (!usage) return null;
 
   return (
-    <div style={{
-      background: '#1a1a2e', border: '1px solid #2a2a4a', borderRadius: 4,
-      padding: '2px 8px', fontSize: 11, color: '#aaa', display: 'flex', alignItems: 'center', gap: 4,
-    }}>
-      <span style={{ color: usage.status === 'ok' ? '#4caf50' : '#ff9800' }}>●</span>
+    <div className="oc-status-pill">
+      <span className="oc-status-pill__dot" style={{ backgroundColor: usage.status === 'ok' ? 'var(--success)' : 'var(--warning)' }} />
       <span>{usage.provider}</span>
     </div>
   );

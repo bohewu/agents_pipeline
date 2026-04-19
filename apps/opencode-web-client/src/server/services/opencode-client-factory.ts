@@ -8,9 +8,13 @@ export interface OpenCodeClient {
   health(): Promise<{ ok: boolean }>
   listSessions(): Promise<SessionSummary[]>
   getSession(sessionId: string): Promise<SessionSummary>
-  createSession(): Promise<SessionSummary>
+  createSession(options?: { title?: string; providerId?: string; modelId?: string; agentId?: string }): Promise<SessionSummary>
   listMessages(sessionId: string): Promise<NormalizedMessage[]>
-  chat(sessionId: string, content: string): Promise<{ messageId: string }>
+  chat(
+    sessionId: string,
+    content: string,
+    options?: { providerId?: string; modelId?: string; agentId?: string; effort?: string },
+  ): Promise<{ messageId: string }>
   command(sessionId: string, command: string, args?: Record<string, unknown>): Promise<unknown>
   shell(sessionId: string, command: string): Promise<unknown>
   abort(sessionId: string): Promise<void>
@@ -70,6 +74,31 @@ export class OpenCodeClientFactory {
     const post = (path: string, body?: unknown) => request('POST', path, body)
     const del = (path: string) => request('DELETE', path)
 
+    const withSelections = <T extends Record<string, unknown>>(
+      body: T,
+      options?: { providerId?: string; modelId?: string; agentId?: string; effort?: string },
+    ) => {
+      if (!options) return body
+
+      const nextBody: Record<string, unknown> = { ...body }
+      if (options.providerId) {
+        nextBody.providerId = options.providerId
+        nextBody.providerID = options.providerId
+      }
+      if (options.modelId) {
+        nextBody.modelId = options.modelId
+        nextBody.modelID = options.modelId
+      }
+      if (options.agentId) {
+        nextBody.agentId = options.agentId
+        nextBody.agent = options.agentId
+      }
+      if (options.effort) {
+        nextBody.effort = options.effort
+      }
+      return nextBody as T
+    }
+
     return {
       health: () => get('/global/health'),
 
@@ -83,8 +112,12 @@ export class OpenCodeClientFactory {
         return normalizeSession(data)
       },
 
-      createSession: async () => {
-        const data = await post('/session')
+      createSession: async (options) => {
+        const payload: Record<string, unknown> = withSelections({}, options)
+        if (options?.title) {
+          payload.title = options.title
+        }
+        const data = await post('/session', Object.keys(payload).length > 0 ? payload : undefined)
         return normalizeSession(data)
       },
 
@@ -93,8 +126,8 @@ export class OpenCodeClientFactory {
         return normalizeMessages(data)
       },
 
-      chat: async (sessionId: string, content: string) => {
-        return post(`/session/${sessionId}/message`, { content })
+      chat: async (sessionId: string, content: string, options) => {
+        return post(`/session/${sessionId}/message`, withSelections({ content }, options))
       },
 
       command: async (sessionId: string, command: string, args?: Record<string, unknown>) => {

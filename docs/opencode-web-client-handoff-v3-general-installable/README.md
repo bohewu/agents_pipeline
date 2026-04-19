@@ -64,7 +64,7 @@ v3 必須改成：
    BFF API、SSE 事件、request/response shape、normalized model。
 
 9. `WIREFRAMES.md`  
-   Desktop-first ASCII wireframes，包含 onboarding、installer diagnostics、workspace selector、thread、diff、usage。
+   Desktop-first ASCII wireframes，包含 chat-first landing state、installer diagnostics、workspace selector、thread、diff、usage。
 
 10. `TASK_BREAKDOWN.md`  
     實作順序與拆解。
@@ -224,4 +224,3 @@ opencode-codex-web --open
 - 以 `agents_pipeline` 為 cwd 啟動 web。
 - 設定 `OPENCODE_CONFIG_DIR=<agents_pipeline>/opencode`。
 - 手動複製 plugin/tool 檔案。
-

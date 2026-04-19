@@ -6,16 +6,15 @@
  *
  * Mapping:
  *   NormalizedPart.text          → { type: 'text', text }
- *   NormalizedPart.tool-call     → { type: 'tool-call', toolCallId, toolName, args }
- *   NormalizedPart.tool-result   → { type: 'tool-result', toolCallId, result }
- *   NormalizedPart.error         → { type: 'text', text: '[Error] ...' }  (rendered via custom component)
- *   NormalizedPart.permission-request → { type: 'text', text: '[Permission] ...' } (rendered via custom component)
+ *   NormalizedPart.tool-call     → { type: 'tool-call', toolCallId, toolName, args, result? }
+ *   NormalizedPart.tool-result   → merged back into the matching tool-call part
+ *   NormalizedPart.error         → omitted from assistant-ui content; rendered as custom extras
+ *   NormalizedPart.permission-request → omitted from assistant-ui content; rendered as custom extras
  *
- * NOTE: assistant-ui ThreadMessageLike content parts only support:
- *   TextContentPart, ImageContentPart, AudioContentPart, ToolCallContentPart, ToolResultContentPart, UIContentPart
- * For error and permission-request, we encode them as text parts with a prefix marker
- * so the custom MessageCard renderer (which reads from the original NormalizedMessage
- * via Zustand store lookup) handles the full fidelity rendering.
+ * NOTE: assistant-ui ThreadMessageLike assistant content only supports tool-call parts
+ * with an optional inline result. It does not accept our standalone `tool-result`
+ * normalized part, so we merge results into the prior tool-call before handing the
+ * message to assistant-ui.
  */
 
 import type { ThreadMessageLike } from '@assistant-ui/react';
@@ -25,44 +24,76 @@ import type { NormalizedMessage, NormalizedPart } from '../../shared/types.js';
 // The final output is cast to ThreadMessageLike['content'] at the return site
 type ContentPart =
   | { type: 'text'; text: string }
-  | { type: 'tool-call'; toolCallId: string; toolName: string; args: Record<string, unknown>; result?: string }
-  | { type: 'tool-result'; toolCallId: string; toolName: string; result: string };
+  | {
+      type: 'tool-call';
+      toolCallId: string;
+      toolName: string;
+      args: Record<string, unknown>;
+      argsText: string;
+      result?: unknown;
+      isError?: boolean;
+    };
 
-function convertPart(part: NormalizedPart): ContentPart {
-  switch (part.type) {
-    case 'text':
-      return { type: 'text', text: part.text ?? '' };
+function convertParts(parts: NormalizedPart[]): ContentPart[] {
+  const content: ContentPart[] = [];
 
-    case 'tool-call':
-      return {
-        type: 'tool-call',
-        toolCallId: part.toolCallId ?? part.id ?? 'unknown',
-        toolName: part.toolName ?? 'unknown',
-        args: (part.args ?? {}) as Record<string, unknown>,
-        ...(part.result !== undefined ? { result: String(part.result) } : {}),
-      };
+  for (const part of parts) {
+    switch (part.type) {
+      case 'text': {
+        content.push({ type: 'text', text: part.text ?? '' });
+        break;
+      }
 
-    case 'tool-result':
-      return {
-        type: 'tool-result',
-        toolCallId: part.toolCallId ?? part.id ?? 'unknown',
-        toolName: part.toolName ?? 'unknown',
-        result: part.result != null ? String(part.result) : '',
-      };
+      case 'tool-call': {
+        const args = (part.args ?? {}) as Record<string, unknown>;
+        content.push({
+          type: 'tool-call',
+          toolCallId: part.toolCallId ?? part.id ?? 'unknown',
+          toolName: part.toolName ?? 'unknown',
+          args,
+          argsText: JSON.stringify(args, null, 2),
+          ...(part.result !== undefined ? { result: part.result } : {}),
+        });
+        break;
+      }
 
-    case 'error':
-      // Encode as text — the custom renderer will use the original NormalizedMessage
-      return { type: 'text', text: `[Error] ${part.error ?? part.text ?? 'Unknown error'}` };
+      case 'tool-result': {
+        const toolCallId = part.toolCallId ?? part.id;
+        const target = [...content].reverse().find(
+          (entry): entry is Extract<ContentPart, { type: 'tool-call' }> =>
+            entry.type === 'tool-call' && entry.toolCallId === toolCallId,
+        );
 
-    case 'permission-request':
-      return {
-        type: 'text',
-        text: `[Permission] ${part.toolName ?? 'unknown'}: ${part.status ?? 'pending'}`,
-      };
+        if (target) {
+          target.result = part.result;
+          if (part.error) {
+            target.isError = true;
+          }
+        } else {
+          content.push({
+            type: 'tool-call',
+            toolCallId: toolCallId ?? 'unknown',
+            toolName: part.toolName ?? 'unknown',
+            args: {},
+            argsText: '{}',
+            result: part.result,
+            ...(part.error ? { isError: true } : {}),
+          });
+        }
+        break;
+      }
 
-    default:
-      return { type: 'text', text: '' };
+      case 'error':
+      case 'permission-request':
+        break;
+
+      default:
+        content.push({ type: 'text', text: part.text ?? '' });
+        break;
+    }
   }
+
+  return content;
 }
 
 /**
@@ -70,7 +101,7 @@ function convertPart(part: NormalizedPart): ContentPart {
  * for assistant-ui's ExternalStoreRuntime.
  */
 export function convertMessage(msg: NormalizedMessage): ThreadMessageLike {
-  const content = msg.parts.map(convertPart);
+  const content = convertParts(msg.parts);
 
   // Ensure there's at least one content part (assistant-ui requires non-empty content)
   if (content.length === 0) {

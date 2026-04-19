@@ -108,7 +108,7 @@ Check:
 
 Check:
 
-- onboarding。
+- chat-first empty state when no workspace is active。
 - diagnostics。
 - workspace selector。
 - provider/model/agent selectors。
@@ -116,6 +116,11 @@ Check:
 - permissions flow。
 - diff/files panels。
 - usage drawer。
+
+Also verify:
+
+- app lands in shell before workspace selection。
+- opening a workspace with no history creates/opens a chat session automatically。
 
 ## Final reviewer output
 
@@ -126,4 +131,3 @@ Produce:
 - Non-blocking issues。
 - Evidence with command outputs。
 - Required fixes.
-

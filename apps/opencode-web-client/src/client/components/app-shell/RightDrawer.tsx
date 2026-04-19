@@ -5,43 +5,60 @@ import { FilesPanel } from '../panels/FilesPanel.js';
 import { UsagePanel } from '../panels/UsagePanel.js';
 import { PermissionsPanel } from '../panels/PermissionsPanel.js';
 import { DiagnosticsPanel } from '../panels/DiagnosticsPanel.js';
+import { ActivityIcon, DiffIcon, FilesIcon, PanelRightIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
 
-const TABS: { key: RightPanel; label: string }[] = [
-  { key: 'diff', label: 'Diff' },
-  { key: 'files', label: 'Files' },
-  { key: 'usage', label: 'Usage' },
-  { key: 'permissions', label: 'Perms' },
-  { key: 'diagnostics', label: 'Diag' },
+const TABS: { key: RightPanel; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+  { key: 'diff', label: 'Diff', icon: DiffIcon },
+  { key: 'files', label: 'Files', icon: FilesIcon },
+  { key: 'usage', label: 'Usage', icon: UsageIcon },
+  { key: 'permissions', label: 'Permissions', icon: ShieldIcon },
+  { key: 'diagnostics', label: 'Diagnostics', icon: ActivityIcon },
 ];
 
 export function RightDrawer() {
-  const { rightPanel, setRightPanel } = useStore();
+  const { rightPanel, rightDrawerOpen, setRightPanel, toggleRightDrawer } = useStore();
+  const activeTab = TABS.find((tab) => tab.key === rightPanel) ?? TABS[0];
+
+  const renderPanel = () => {
+    if (rightPanel === 'diff') return <DiffPanel />;
+    if (rightPanel === 'files') return <FilesPanel />;
+    if (rightPanel === 'usage') return <UsagePanel />;
+    if (rightPanel === 'permissions') return <PermissionsPanel />;
+    return <DiagnosticsPanel />;
+  };
 
   return (
-    <div className="right-drawer">
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #2a2a4a', marginBottom: 8 }}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setRightPanel(tab.key)}
-            style={{
-              flex: 1, padding: '6px 4px', fontSize: 11, cursor: 'pointer',
-              background: rightPanel === tab.key ? '#2a2a4a' : 'transparent',
-              color: rightPanel === tab.key ? '#4c9eff' : '#888',
-              border: 'none', borderBottom: rightPanel === tab.key ? '2px solid #4c9eff' : '2px solid transparent',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ overflow: 'auto', flex: 1 }}>
-        {rightPanel === 'diff' && <DiffPanel />}
-        {rightPanel === 'files' && <FilesPanel />}
-        {rightPanel === 'usage' && <UsagePanel />}
-        {rightPanel === 'permissions' && <PermissionsPanel />}
-        {rightPanel === 'diagnostics' && <DiagnosticsPanel />}
-      </div>
-    </div>
+    <aside className={`right-drawer-shell ${rightDrawerOpen ? 'is-open' : 'is-closed'}`} aria-hidden={!rightDrawerOpen}>
+      {rightDrawerOpen && (
+        <div className="right-drawer">
+          <div className="right-drawer__header">
+            <div className="right-drawer__toolbar" role="tablist" aria-label="Inspector panels">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setRightPanel(tab.key)}
+                  role="tab"
+                  aria-selected={rightPanel === tab.key}
+                  className={`right-drawer__tab ${rightPanel === tab.key ? 'is-active' : ''}`}
+                  title={tab.label}
+                >
+                  <tab.icon size={16} />
+                </button>
+              ))}
+            </div>
+
+            <button type="button" onClick={toggleRightDrawer} className="right-drawer__close" title="Hide inspector">
+              <PanelRightIcon size={16} />
+            </button>
+          </div>
+
+          <div className="right-drawer__title">{activeTab.label}</div>
+          <div key={rightPanel} className="right-drawer__content">
+            {renderPanel()}
+          </div>
+        </div>
+      )}
+    </aside>
   );
 }

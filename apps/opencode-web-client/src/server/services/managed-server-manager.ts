@@ -133,6 +133,30 @@ export class ManagedServerManager {
     return this.start(workspaceId, workspaceRoot, opencodeConfigDir)
   }
 
+  async waitUntilReady(workspaceId: string, timeoutMs = 15000): Promise<ManagedRuntime> {
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const runtime = this.runtimes.get(workspaceId)
+      if (!runtime) {
+        throw new Error(`No runtime found for workspace ${workspaceId}`)
+      }
+      if (runtime.state === 'ready') {
+        return runtime
+      }
+      if (runtime.state === 'stopped') {
+        throw new Error(`OpenCode server stopped while starting for workspace ${workspaceId}`)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+
+    const runtime = this.runtimes.get(workspaceId)
+    if (runtime?.state === 'ready') {
+      return runtime
+    }
+    throw new Error(`Timed out waiting for OpenCode server for workspace ${workspaceId}`)
+  }
+
   async stopAll(): Promise<void> {
     const ids = Array.from(this.runtimes.keys())
     await Promise.all(ids.map(id => this.stop(id)))

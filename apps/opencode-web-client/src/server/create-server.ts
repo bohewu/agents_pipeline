@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ApiEnvelope } from '../shared/types.js';
 import { API_PREFIX } from '../shared/constants.js';
 import { healthRoute } from './routes/health.js';
@@ -8,9 +11,7 @@ import { diagnosticsRoute } from './routes/diagnostics.js';
 import { fsBrowseRoute } from './routes/fs-browse.js';
 import { WorkspacesRoute } from './routes/workspaces.js';
 import { SessionsRoute } from './routes/sessions.js';
-import { MessagesRoute } from './routes/messages.js';
-import { PermissionsRoute } from './routes/permissions.js';
-import { FilesRoute, DiffRoute } from './routes/files.js';
+import { FilesRoute } from './routes/files.js';
 import { EffortRoute } from './routes/effort.js';
 import { UsageRoute } from './routes/usage.js';
 import { EventsRoute } from './routes/events.js';
@@ -23,6 +24,7 @@ import type { OpenCodeClientFactory } from './services/opencode-client-factory.j
 import type { SessionService } from './services/session-service.js';
 import type { EffortService } from './services/effort-service.js';
 import type { UsageService } from './services/usage-service.js';
+import type { ConfigService } from './services/config-service.js';
 import type { DiffService } from './services/diff-service.js';
 import type { FileService } from './services/file-service.js';
 import type { PermissionRegistry } from './services/permission-registry.js';
@@ -43,14 +45,78 @@ export interface ServerDeps {
   sessionService: SessionService;
   effortService: EffortService;
   usageService: UsageService;
+  configService: ConfigService;
   diffService: DiffService;
   fileService: FileService;
   permissionRegistry: PermissionRegistry;
   eventBroker: EventBroker;
 }
 
+interface ClientBundleResolution {
+  staticDir?: string;
+  indexHtml?: string;
+  viteOrigin?: string;
+}
+
+function resolveClientBundle(appPaths: AppPaths): ClientBundleResolution {
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const staticCandidates = [
+    appPaths.clientStaticDir,
+    path.resolve(moduleDir, '../client'),
+    path.resolve(moduleDir, '../../dist/client'),
+  ];
+
+  for (const candidate of staticCandidates) {
+    const indexPath = path.join(candidate, 'index.html');
+    if (existsSync(indexPath)) {
+      return {
+        staticDir: candidate,
+        indexHtml: readFileSync(indexPath, 'utf-8'),
+      };
+    }
+  }
+
+  const sourceEntry = path.resolve(moduleDir, '../../src/client/main.tsx');
+  if (existsSync(sourceEntry)) {
+    return {
+      viteOrigin: process.env.OPENCODE_WEB_VITE_ORIGIN ?? 'http://127.0.0.1:5173',
+    };
+  }
+
+  return {};
+}
+
+function renderClientFallback(bundle: ClientBundleResolution): string {
+  if (bundle.indexHtml) {
+    return bundle.indexHtml;
+  }
+
+  if (bundle.viteOrigin) {
+    return [
+      '<!doctype html>',
+      '<html>',
+      '<body>',
+      '<div id="root"></div>',
+      `<script type="module" src="${bundle.viteOrigin}/@vite/client"></script>`,
+      `<script type="module" src="${bundle.viteOrigin}/src/client/main.tsx"></script>`,
+      '</body>',
+      '</html>',
+    ].join('');
+  }
+
+  return [
+    '<!doctype html>',
+    '<html>',
+    '<body>',
+    '<div id="root">OpenCode Web client assets are missing. Rebuild or reinstall the web client.</div>',
+    '</body>',
+    '</html>',
+  ].join('');
+}
+
 export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
   const app = new Hono();
+  const clientBundle = resolveClientBundle(options.appPaths);
 
   // Global error handler
   app.onError(errorHandler);
@@ -63,10 +129,10 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
   // Mount workspace routes (if deps provided)
   if (deps) {
-    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, diffService, fileService, permissionRegistry, eventBroker } = deps;
+    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker } = deps;
 
     // Workspace CRUD (no workspace scope middleware needed)
-    api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory }));
+    api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService }));
 
     // SSE events (workspace via query param, no middleware)
     api.route('/events', EventsRoute({ eventBroker }));
@@ -78,17 +144,6 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
     // Sessions
     wsScoped.route('/sessions', SessionsRoute({ sessionService }));
 
-    // Session-scoped routes (messages, permissions, diff)
-    const sessionScoped = new Hono<any>();
-
-    // Messages
-    sessionScoped.get('/messages', async (c) => {
-      const messagesRoute = MessagesRoute({ clientFactory });
-      return messagesRoute.fetch(c.req.raw, c.env);
-    });
-
-    // Mount message actions under sessions/:sessionId/
-    const msgRoute = MessagesRoute({ clientFactory });
     wsScoped.get('/sessions/:sessionId/messages', async (c) => {
       const workspaceId = c.get('workspaceId') as string;
       const sessionId = c.req.param('sessionId');
@@ -104,13 +159,24 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
     wsScoped.post('/sessions/:sessionId/chat', async (c) => {
       const workspaceId = c.get('workspaceId') as string;
       const sessionId = c.req.param('sessionId');
-      const body = await c.req.json<{ text: string }>().catch(() => ({ text: '' }));
+      const body = await c.req.json<{
+        text: string;
+        providerId?: string;
+        modelId?: string;
+        agentId?: string;
+        effort?: string;
+      }>().catch(() => ({ text: '', providerId: undefined, modelId: undefined, agentId: undefined, effort: undefined }));
       if (!body.text) {
         return c.json(fail('INVALID_INPUT', 'text is required'), 400);
       }
       try {
         const client = clientFactory.forWorkspace(workspaceId);
-        await client.chat(sessionId, body.text);
+        await client.chat(sessionId, body.text, {
+          providerId: body.providerId,
+          modelId: body.modelId,
+          agentId: body.agentId,
+          effort: body.effort,
+        });
         return c.json(ok({ accepted: true, sessionId }));
       } catch (err: any) {
         return c.json(fail('CHAT_FAILED', err.message), 500);
@@ -212,15 +278,16 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
   // Mount API
   app.route(API_PREFIX, api);
 
-  // Serve static client assets (production)
-  app.use(
-    '/*',
-    serveStatic({ root: options.appPaths.clientStaticDir })
-  );
+  if (clientBundle.staticDir) {
+    app.use(
+      '/*',
+      serveStatic({ root: clientBundle.staticDir })
+    );
+  }
 
   // SPA fallback
   app.get('*', (c) => {
-    return c.html('<!doctype html><html><body><div id="root"></div><script type="module" src="/src/client/main.tsx"></script></body></html>');
+    return c.html(renderClientFallback(clientBundle));
   });
 
   return app;

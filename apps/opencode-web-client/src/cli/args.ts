@@ -12,6 +12,7 @@ export interface CliArgs {
 }
 
 export function parseArgs(argv: string[]): CliArgs {
+  const normalizedArgv = argv.filter((arg, index) => !(arg === '--' && index > 1));
   const program = new Command();
 
   program
@@ -25,7 +26,7 @@ export function parseArgs(argv: string[]): CliArgs {
     .option('--debug', 'Enable debug logging', false)
     .option('--no-managed-autostart', 'Disable managed server autostart')
     .option('--opencode-config-dir <path>', 'OpenCode config directory override')
-    .parse(argv);
+    .parse(normalizedArgv);
 
   const opts = program.opts();
 

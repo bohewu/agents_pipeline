@@ -35,7 +35,7 @@ export function EventsRoute(deps: EventsRouteDeps): Hono {
               id,
               type: event.type,
               workspaceId,
-              time: event.timestamp,
+              timestamp: event.timestamp,
               payload: event.payload,
             }),
           })
@@ -51,7 +51,7 @@ export function EventsRoute(deps: EventsRouteDeps): Hono {
         data: JSON.stringify({
           type: 'connection.ping',
           workspaceId,
-          time: new Date().toISOString(),
+          timestamp: new Date().toISOString(),
           payload: { reconnected: !!lastEventId },
         }),
       })

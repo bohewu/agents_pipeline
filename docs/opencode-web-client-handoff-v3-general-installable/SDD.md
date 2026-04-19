@@ -290,7 +290,8 @@ Timeout:
 
 Default:
 
-- Start on workspace selection。
+- App shell opens immediately, even with no active workspace。
+- Start managed OpenCode on workspace activation or first chat session bootstrap。
 - Keep alive while app is open。
 - Stop all managed processes on app exit。
 
@@ -346,6 +347,7 @@ type UIStore = {
   install: InstallDiagnostics | null
   workspaces: WorkspaceProfile[]
   activeWorkspaceId?: string
+  workspaceDialogOpen: boolean
   workspaceBootstraps: Record<string, WorkspaceBootstrap>
   sessionsByWorkspace: Record<string, SessionSummary[]>
   activeSessionByWorkspace: Record<string, string | undefined>
@@ -360,6 +362,12 @@ type UIStore = {
   connection: Record<string, ConnectionState>
 }
 ```
+
+Chat-first note:
+
+- `activeWorkspaceId` may be empty on first launch while the shell is already visible。
+- The thread area owns the empty-state CTA for opening a workspace。
+- Workspace selection should transition the user directly into a live/new chat, not a second setup screen。
 
 ## 10. assistant-ui integration
 
@@ -520,4 +528,3 @@ dist/
 ```
 
 Installer copies `dist/*` to app data dir and creates executable shim.
-

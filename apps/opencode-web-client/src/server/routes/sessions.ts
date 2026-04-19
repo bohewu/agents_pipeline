@@ -24,7 +24,12 @@ export function SessionsRoute(deps: SessionsRouteDeps): Hono {
   // POST / — create session
   route.post('/', async (c) => {
     const workspaceId = c.get('workspaceId') as string
-    const body = await c.req.json().catch(() => ({}))
+    const body = await c.req.json<{
+      title?: string
+      providerId?: string
+      modelId?: string
+      agentId?: string
+    }>().catch(() => ({}))
     try {
       const session = await sessionService.createSession(workspaceId, body)
       return c.json(ok(session), 201)

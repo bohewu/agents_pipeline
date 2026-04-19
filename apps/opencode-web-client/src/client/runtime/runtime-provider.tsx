@@ -21,18 +21,26 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const messagesBySession = useStore((s) => s.messagesBySession);
   const streaming = useStore((s) => s.streaming);
   const composerMode = useStore((s) => s.composerMode);
+  const selectedProvider = useStore((s) => s.selectedProvider);
+  const selectedModel = useStore((s) => s.selectedModel);
+  const selectedAgent = useStore((s) => s.selectedAgent);
+  const effortByWorkspace = useStore((s) => s.effortByWorkspace);
 
   const sessionId = activeWorkspaceId
     ? activeSessionByWorkspace[activeWorkspaceId]
     : undefined;
 
   const rawMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
+  const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
+  const effectiveEffort = sessionId
+    ? effortState?.sessionOverrides[sessionId] ?? effortState?.projectDefault
+    : effortState?.projectDefault;
 
   const runtime = useExternalStoreRuntime({
-    messages: rawMessages.map(convertMessage),
+    messages: rawMessages,
     isRunning: streaming,
     isDisabled: !sessionId,
-    convertMessage: convertMessage as any,
+    convertMessage,
 
     onNew: async (message) => {
       if (!activeWorkspaceId || !sessionId) return;
@@ -50,7 +58,13 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       try {
         switch (composerMode) {
           case 'ask':
-            await api.sendChat(activeWorkspaceId, sessionId, { content: text });
+            await api.sendChat(activeWorkspaceId, sessionId, {
+              text,
+              providerId: selectedProvider ?? undefined,
+              modelId: selectedModel ?? undefined,
+              agentId: selectedAgent ?? undefined,
+              effort: effectiveEffort,
+            });
             break;
           case 'command':
             await api.sendCommand(activeWorkspaceId, sessionId, { command: text });

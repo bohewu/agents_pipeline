@@ -41,17 +41,17 @@ export function EffortPopover({ onClose }: { onClose: () => void }) {
   return (
     <div ref={ref} style={{
       position: 'absolute', top: '100%', right: 0, marginTop: 4,
-      background: '#16213e', border: '1px solid #2a2a4a', borderRadius: 6,
-      padding: 12, minWidth: 180, zIndex: 100, boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+      background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 18,
+      padding: 12, minWidth: 180, zIndex: 100, boxShadow: 'var(--shadow-soft)',
     }}>
-      <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>Effort Level</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Effort Level</div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['project', 'session'] as const).map((s) => (
           <button key={s} onClick={() => setScope(s)} style={{
             flex: 1, padding: '3px 0', fontSize: 11, cursor: 'pointer', border: 'none',
-            background: scope === s ? '#2a2a4a' : 'transparent',
-            color: scope === s ? '#4c9eff' : '#888', borderRadius: 3,
+            background: scope === s ? 'var(--bg-active)' : 'transparent',
+            color: scope === s ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 999,
           }}>{s}</button>
         ))}
       </div>
@@ -59,10 +59,10 @@ export function EffortPopover({ onClose }: { onClose: () => void }) {
       {LEVELS.map((l) => (
         <button key={l.value} onClick={() => handleSet(l.value)} style={{
           display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px',
-          background: 'transparent', color: '#ccc', border: 'none', cursor: 'pointer',
-          fontSize: 13, borderRadius: 3,
+          background: 'transparent', color: 'var(--text-primary)', border: 'none', cursor: 'pointer',
+          fontSize: 13, borderRadius: 12,
         }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = '#2a2a4a')}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-primary)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
           {l.display}
