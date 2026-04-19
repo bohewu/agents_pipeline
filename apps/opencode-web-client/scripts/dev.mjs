@@ -11,17 +11,22 @@ const backendUrl = `http://127.0.0.1:${backendPort}`;
 
 console.log(`[dev] backend target ${backendUrl}`);
 
-const children = [
-  spawnWithPrefix(resolveBin('vite'), [], {
-    env: {
-      ...process.env,
-      OPENCODE_WEB_DEV_BACKEND_URL: backendUrl,
-    },
-  }, '[0]'),
-  spawnWithPrefix(resolveBin('tsx'), ['watch', 'src/cli/main.ts', '--port', String(backendPort), '--no-open'], {
+const children = [];
+
+const backendChild = spawnWithPrefix(resolveBin('tsx'), ['watch', 'src/cli/main.ts', '--port', String(backendPort), '--no-open'], {
     env: process.env,
-  }, '[1]'),
-];
+  }, '[1]');
+
+children.push(backendChild);
+
+await waitForBackendReady(backendUrl, backendChild);
+
+children.push(spawnWithPrefix(resolveBin('vite'), [], {
+  env: {
+    ...process.env,
+    OPENCODE_WEB_DEV_BACKEND_URL: backendUrl,
+  },
+}, '[0]'));
 
 let shuttingDown = false;
 
@@ -81,4 +86,27 @@ function prefixChunk(prefix, chunk) {
       return `${prefix} ${line}`;
     })
     .join('\n');
+}
+
+async function waitForBackendReady(url, child) {
+  const deadline = Date.now() + 30000;
+
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(`[dev] backend exited before becoming ready (${child.exitCode})`);
+    }
+
+    try {
+      const response = await fetch(`${url}/api/health`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Backend not ready yet.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  throw new Error(`[dev] backend did not become ready within 30s (${url})`);
 }

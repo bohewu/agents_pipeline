@@ -93,10 +93,15 @@ export function Thread() {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const connectionByWorkspace = useStore((s) => s.connectionByWorkspace);
+  const messagesBySession = useStore((s) => s.messagesBySession);
+  const streaming = useStore((s) => s.streaming);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const connectionState = activeWorkspaceId
     ? (connectionByWorkspace[activeWorkspaceId] ?? 'disconnected')
     : 'disconnected';
+  const sessionMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
+  const latestMessage = sessionMessages[sessionMessages.length - 1];
+  const showPendingAssistant = streaming && latestMessage?.role !== 'assistant';
 
   if (!activeWorkspaceId) {
     return <ChatStartState />;
@@ -131,6 +136,23 @@ export function Thread() {
 
         <div className="oc-thread-messages">
           <ThreadPrimitive.Messages components={{ UserMessage: ThreadMessage, AssistantMessage: ThreadMessage }} />
+
+          {showPendingAssistant && (
+            <div className="oc-message-row oc-message-row--assistant oc-message-row--pending">
+              <div className="oc-message-row__body oc-message-row__body--assistant">
+                <div className="oc-message-card oc-message-card--assistant">
+                  <div className="oc-message-card__avatar oc-message-card__avatar--assistant">O</div>
+                  <div className="oc-message-card__main">
+                    <div className="oc-message-card__eyebrow">
+                      <span className="oc-message-card__label">OpenCode</span>
+                      <span>Thinking...</span>
+                    </div>
+                    <div className="oc-message-pending">Waiting for the first streamed update.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <ThreadPrimitive.ViewportFooter className="oc-thread-footer">

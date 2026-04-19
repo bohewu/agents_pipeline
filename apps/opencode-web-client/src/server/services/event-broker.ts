@@ -281,7 +281,7 @@ export class EventBroker {
         const partId = properties ? readString(properties, 'partID', 'partId') : undefined
         const field = properties ? readString(properties, 'field') : undefined
         const delta = properties ? readString(properties, 'delta') : undefined
-        if (!properties || !sessionId || !messageId || !partId || field !== 'text' || delta === undefined) return true
+        if (!properties || !sessionId || !messageId || !partId || !isRenderableDeltaField(field) || delta === undefined) return true
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         appendPartDelta(message, partId, delta)
@@ -525,10 +525,17 @@ function appendPartDelta(message: LiveMessage, partId: string, delta: string): v
   }
 }
 
+function isRenderableDeltaField(field: string | undefined): boolean {
+  return field === 'text' || field === 'summary' || field === 'content'
+}
+
 function isRenderablePart(part: Record<string, unknown>): boolean {
   const type = readString(part, 'type')
   return type === 'text'
     || type === 'reasoning'
+    || type === 'thinking'
+    || type === 'reasoning_summary'
+    || type === 'summary_text'
     || type === 'tool-call'
     || type === 'tool_use'
     || type === 'tool-result'
@@ -538,12 +545,41 @@ function isRenderablePart(part: Record<string, unknown>): boolean {
 }
 
 function extractRenderablePartText(part: Record<string, unknown>): string | undefined {
-  const text = part.text
-  return typeof text === 'string' && text.trim().length > 0 ? text : undefined
+  const directText = readString(part, 'text', 'content')
+  if (directText) return directText
+
+  const summaryText = collectTextSegments(part.summary)
+  if (summaryText) return summaryText
+
+  const contentText = collectTextSegments(part.content)
+  if (contentText) return contentText
+
+  return undefined
 }
 
 function hasRenderableParts(message: LiveMessage): boolean {
-  return message.parts.some((part) => isRenderablePart(part) && (readString(part, 'text') || readString(part, 'toolName') || part.result !== undefined))
+  return message.parts.some((part) => isRenderablePart(part) && (extractRenderablePartText(part) || readString(part, 'toolName') || part.result !== undefined))
+}
+
+function collectTextSegments(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined
+
+  const text = value
+    .flatMap((entry) => {
+      if (typeof entry === 'string') return [entry]
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+
+      const directText = readString(entry as Record<string, unknown>, 'text', 'content')
+      if (directText) return [directText]
+
+      const nestedSummary = collectTextSegments((entry as Record<string, unknown>).summary)
+      return nestedSummary ? [nestedSummary] : []
+    })
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  return text || undefined
 }
 
 function isMessageFinished(info: Record<string, unknown>): boolean {

@@ -103,7 +103,9 @@ function mapPartType(type: string | undefined): NormalizedPartType | null {
   switch (type) {
     case 'text': return 'text'
     case 'reasoning':
-    case 'thinking': return 'reasoning'
+    case 'thinking':
+    case 'reasoning_summary':
+    case 'summary_text': return 'reasoning'
     case 'tool-call':
     case 'tool_use': return 'tool-call'
     case 'tool-result':

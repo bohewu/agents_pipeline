@@ -73,33 +73,34 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       const requestController = new AbortController();
       inFlightRequestRef.current = requestController;
 
-      try {
+      const sendPromise = (() => {
         switch (intent.mode) {
           case 'ask':
-            await api.sendChat(activeWorkspaceId, sessionId, {
+            return api.sendChat(activeWorkspaceId, sessionId, {
               text: intent.text,
               providerId: selectedProvider ?? undefined,
               modelId: selectedModel ?? undefined,
               agentId: intent.agentId ?? undefined,
               effort: effectiveEffort,
             }, requestController.signal);
-            break;
           case 'command':
-            await api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
-            break;
+            return api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
           case 'shell':
-            await api.sendShell(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
-            break;
+            return api.sendShell(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
         }
-      } catch {
-        if (inFlightRequestRef.current === requestController) {
-          useStore.getState().setStreaming(false);
-        }
-      } finally {
-        if (inFlightRequestRef.current === requestController) {
-          inFlightRequestRef.current = null;
-        }
-      }
+      })();
+
+      void sendPromise
+        .catch(() => {
+          if (inFlightRequestRef.current === requestController) {
+            useStore.getState().setStreaming(false);
+          }
+        })
+        .finally(() => {
+          if (inFlightRequestRef.current === requestController) {
+            inFlightRequestRef.current = null;
+          }
+        });
     },
 
     onCancel: async () => {
