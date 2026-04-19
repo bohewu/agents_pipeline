@@ -10,10 +10,16 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
-      if (sessionId && message) store.addMessage(sessionId, message);
+      const existing = sessionId && message?.id
+        ? (store.messagesBySession[sessionId] ?? []).some((entry) => entry.id === message.id)
+        : false;
+      if (sessionId && message) {
+        reconcileOptimisticUserMessage(store, sessionId, message);
+        store.addMessage(sessionId, message);
+      }
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
-        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, 1)));
+        store.setSessions(workspaceId, sortSessionsForSidebar(mergeSessionMessageEvent(sessions, sessionId, message, existing ? 0 : 1)));
       }
       break;
     }
@@ -105,4 +111,25 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       break;
     }
   }
+}
+
+function reconcileOptimisticUserMessage(store: UIStore, sessionId: string, message: any): void {
+  if (message?.role !== 'user') return;
+  const createdText = extractText(message);
+  if (!createdText) return;
+
+  const existing = store.messagesBySession[sessionId] ?? [];
+  const optimistic = existing.find((entry) => entry.id.startsWith('local-user-') && extractText(entry) === createdText);
+  if (!optimistic) return;
+
+  store.setMessages(sessionId, existing.filter((entry) => entry.id !== optimistic.id));
+}
+
+function extractText(message: any): string {
+  const parts = Array.isArray(message?.parts) ? message.parts : [];
+  return parts
+    .filter((part: any) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part: any) => part.text.trim())
+    .filter(Boolean)
+    .join('\n');
 }

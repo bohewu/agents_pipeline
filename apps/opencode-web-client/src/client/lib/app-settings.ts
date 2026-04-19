@@ -8,6 +8,7 @@ export interface AppSettings {
   workspaceIndicatorStyle: WorkspaceIndicatorStyle;
   sessionsDefaultView: SessionsDefaultView;
   composerDensity: ComposerDensity;
+  showReasoningSummaries: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -16,6 +17,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   workspaceIndicatorStyle: 'dot-label',
   sessionsDefaultView: 'all',
   composerDensity: 'comfortable',
+  showReasoningSummaries: false,
 };
 
 export const POLL_INTERVAL_OPTIONS: Array<{ value: AppSettings['inactiveWorkspacePollIntervalMs']; label: string }> = [
@@ -70,5 +72,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     composerDensity: COMPOSER_DENSITY_OPTIONS.some((option) => option.value === candidate.composerDensity)
       ? candidate.composerDensity!
       : DEFAULT_APP_SETTINGS.composerDensity,
+    showReasoningSummaries: typeof candidate.showReasoningSummaries === 'boolean'
+      ? candidate.showReasoningSummaries
+      : DEFAULT_APP_SETTINGS.showReasoningSummaries,
   };
 }

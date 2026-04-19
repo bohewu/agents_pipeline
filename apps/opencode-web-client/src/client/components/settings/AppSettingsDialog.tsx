@@ -126,6 +126,20 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </SettingsRow>
+
+            <SettingsRow
+              label="Show reasoning summaries"
+              help="Display provider-supplied reasoning summaries when a model exposes them. Raw hidden chain-of-thought is not available."
+            >
+              <label className="oc-settings-checkbox">
+                <input
+                  type="checkbox"
+                  checked={settings.showReasoningSummaries}
+                  onChange={(event) => updateSettings({ showReasoningSummaries: event.target.checked })}
+                />
+                <span>{settings.showReasoningSummaries ? 'On' : 'Off'}</span>
+              </label>
+            </SettingsRow>
           </section>
 
           <section className="oc-settings-section">
@@ -177,13 +191,13 @@ function SettingsRow({
   children,
 }: React.PropsWithChildren<{ label: string; help: string }>) {
   return (
-    <label className="oc-settings-row">
+    <div className="oc-settings-row">
       <div className="oc-settings-row__copy">
         <span className="oc-settings-row__label">{label}</span>
         <span className="oc-settings-row__help">{help}</span>
       </div>
       <div className="oc-settings-row__control">{children}</div>
-    </label>
+    </div>
   );
 }
 

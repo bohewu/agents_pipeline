@@ -1,21 +1,23 @@
 import type { SessionSummary } from '../../shared/types.js'
 
 export function normalizeSession(data: any): SessionSummary {
-  const createdAt = normalizeTimestamp(data.time?.created ?? data.createdAt ?? data.created_at)
-  const updatedAt = normalizeTimestamp(data.time?.updated ?? data.updatedAt ?? data.updated_at)
+  const info = readNestedRecord(data, 'info') ?? data
+  const summary = readNestedRecord(info, 'summary')
+  const createdAt = normalizeTimestamp(info.time?.created ?? data.time?.created ?? info.createdAt ?? info.created_at)
+  const updatedAt = normalizeTimestamp(info.time?.updated ?? data.time?.updated ?? info.updatedAt ?? info.updated_at)
   return {
-    id: data.id ?? data.sessionId ?? '',
-    title: data.title ?? data.name,
+    id: info.id ?? data.id ?? info.sessionId ?? data.sessionId ?? '',
+    title: info.title ?? data.title ?? info.name ?? data.name,
     createdAt: createdAt ?? new Date().toISOString(),
     updatedAt: updatedAt ?? createdAt ?? new Date().toISOString(),
-    messageCount: data.messageCount ?? data.message_count ?? data.summary?.messages ?? 0,
-    parentId: data.parentId ?? data.parentID,
-    state: normalizeSessionState(data.state ?? data.status),
-    changeSummary: data.summary && typeof data.summary === 'object'
+    messageCount: info.messageCount ?? data.messageCount ?? info.message_count ?? data.message_count ?? summary?.messages ?? 0,
+    parentId: info.parentId ?? data.parentId ?? info.parentID ?? data.parentID,
+    state: normalizeSessionState(info.state ?? data.state ?? info.status ?? data.status),
+    changeSummary: summary
       ? {
-          files: toNumber(data.summary.files),
-          additions: toNumber(data.summary.additions),
-          deletions: toNumber(data.summary.deletions),
+          files: toNumber(summary.files),
+          additions: toNumber(summary.additions),
+          deletions: toNumber(summary.deletions),
         }
       : undefined,
   }
@@ -59,4 +61,11 @@ function normalizeSessionState(value: unknown): SessionSummary['state'] | undefi
   if (normalized === 'error' || normalized === 'failed') return 'error'
   if (normalized === 'idle' || normalized === 'completed' || normalized === 'ready') return 'idle'
   return undefined
+}
+
+function readNestedRecord(source: unknown, key: string): Record<string, any> | null {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return null
+  const value = (source as Record<string, unknown>)[key]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, any>
 }

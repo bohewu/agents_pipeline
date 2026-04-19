@@ -185,7 +185,7 @@ export function AppShell() {
   return (
     <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
       <Sidebar />
-      <RuntimeProvider key={`${activeWorkspaceId ?? 'no-workspace'}:${activeSessionId ?? 'no-session'}:${selectedModel ?? 'no-model'}:${selectedModelVariant ?? 'no-variant'}`}>
+      <RuntimeProvider key={`${activeWorkspaceId ?? 'no-workspace'}:${activeSessionId ?? 'no-session'}`}>
         <div className="main-content">
           <Thread />
         </div>

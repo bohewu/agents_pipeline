@@ -416,6 +416,13 @@ body {
   white-space: nowrap;
 }
 
+.oc-workspace-selector__hint {
+  margin-top: 6px;
+  padding-left: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .oc-workspace-status-dot {
   width: 8px;
   height: 8px;
@@ -475,6 +482,10 @@ body {
   background: var(--bg-active);
 }
 
+.oc-workspace-menu__item.is-pending {
+  opacity: 0.72;
+}
+
 .oc-workspace-menu__row {
   display: flex;
   align-items: center;
@@ -493,6 +504,15 @@ body {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.oc-workspace-menu__pending {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .oc-modal-backdrop {
@@ -603,6 +623,24 @@ body {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 12px;
+}
+
+.oc-settings-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 110px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.oc-settings-checkbox input {
+  margin: 0;
 }
 
 .oc-settings-dialog__footer {
@@ -1245,6 +1283,10 @@ select:focus {
   padding-top: 10px;
 }
 
+.oc-message-card__supplement {
+  margin-top: 8px;
+}
+
 .oc-message-copy {
   display: inline-flex;
   align-items: center;
@@ -1841,6 +1883,14 @@ select:focus {
 }
 
 .oc-tool-part__summary::marker {
+  content: '';
+}
+
+.oc-reasoning-part summary::-webkit-details-marker {
+  display: none;
+}
+
+.oc-reasoning-part__summary::marker {
   content: '';
 }
 

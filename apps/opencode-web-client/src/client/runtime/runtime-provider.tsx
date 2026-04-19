@@ -15,6 +15,7 @@ import { useStore } from './store.js';
 import { convertMessage } from './assistant-ui-mapper.js';
 import { api } from '../lib/api-client.js';
 import { parseComposerIntent } from '../lib/opencode-controls.js';
+import type { NormalizedMessage } from '../../shared/types.js';
 
 export function RuntimeProvider({ children }: { children: ReactNode }) {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
@@ -35,6 +36,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const rawMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
   const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
   const workspaceBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
+  const inFlightRequestRef = React.useRef<AbortController | null>(null);
   const effectiveEffort = sessionId
     ? effortState?.sessionOverrides[sessionId] ?? effortState?.projectDefault
     : effortState?.projectDefault;
@@ -62,8 +64,14 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       });
       if (!intent.text) return;
 
+      const optimisticMessage = createOptimisticUserMessage(intent.text);
+      useStore.getState().addMessage(sessionId, optimisticMessage);
+
       // Set streaming before sending
       useStore.getState().setStreaming(true);
+      inFlightRequestRef.current?.abort();
+      const requestController = new AbortController();
+      inFlightRequestRef.current = requestController;
 
       try {
         switch (intent.mode) {
@@ -74,22 +82,32 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
               modelId: selectedModel ?? undefined,
               agentId: intent.agentId ?? undefined,
               effort: effectiveEffort,
-            });
+            }, requestController.signal);
             break;
           case 'command':
-            await api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text });
+            await api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
             break;
           case 'shell':
-            await api.sendShell(activeWorkspaceId, sessionId, { command: intent.text });
+            await api.sendShell(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
             break;
         }
       } catch {
-        useStore.getState().setStreaming(false);
+        if (inFlightRequestRef.current === requestController) {
+          useStore.getState().setStreaming(false);
+        }
+      } finally {
+        if (inFlightRequestRef.current === requestController) {
+          inFlightRequestRef.current = null;
+        }
       }
     },
 
     onCancel: async () => {
       if (!activeWorkspaceId || !sessionId) return;
+      const inFlightRequest = inFlightRequestRef.current;
+      inFlightRequestRef.current = null;
+      inFlightRequest?.abort();
+      useStore.getState().setStreaming(false);
       try {
         await api.abort(activeWorkspaceId, sessionId);
       } catch {
@@ -103,4 +121,13 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       {children}
     </AssistantRuntimeProvider>
   );
+}
+
+function createOptimisticUserMessage(text: string): NormalizedMessage {
+  return {
+    id: `local-user-${crypto.randomUUID()}`,
+    role: 'user',
+    createdAt: new Date().toISOString(),
+    parts: [{ type: 'text', text }],
+  };
 }

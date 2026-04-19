@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { NormalizedMessage, NormalizedPart } from '../../../shared/types.js';
+import { useStore } from '../../runtime/store.js';
 import { PermissionCard } from './PermissionCard.js';
 import { ErrorCard } from './ErrorCard.js';
 import { CheckIcon, CopyIcon } from '../common/Icons.js';
@@ -12,16 +13,24 @@ const ROLE_LABELS: Record<string, string> = {
   system: 'System',
 };
 
-export function MessageCard({ message }: { message: NormalizedMessage }) {
+export function MessageCard({ message, isRunning = false }: { message: NormalizedMessage; isRunning?: boolean }) {
   const [copied, setCopied] = useState(false);
+  const showReasoningSummaries = useStore((s) => s.settings.showReasoningSummaries);
   const textParts = useMemo(
     () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
     [message.parts],
   );
+  const reasoningParts = useMemo(() => getRenderableReasoningParts(message.parts), [message.parts]);
   const toolParts = useMemo(() => getRenderableToolParts(message.parts), [message.parts]);
   const copyText = useMemo(() => getCopyText(message.parts, toolParts), [message.parts, toolParts]);
   const extraParts = message.parts.filter((part) => part.type === 'error' || part.type === 'permission-request');
   const showAvatar = message.role !== 'user';
+  const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0;
+  const visibleReasoningParts = showReasoningSummaries && !isRunning && hasPrimaryContent ? reasoningParts : [];
+
+  if (!hasPrimaryContent && visibleReasoningParts.length === 0) {
+    return null;
+  }
 
   useEffect(() => {
     if (!copied) return;
@@ -87,6 +96,14 @@ export function MessageCard({ message }: { message: NormalizedMessage }) {
             >
               {copied ? <CheckIcon size={18} /> : <CopyIcon size={18} />}
             </button>
+          </div>
+        )}
+
+        {visibleReasoningParts.length > 0 && (
+          <div className="oc-message-card__supplement">
+            {visibleReasoningParts.map((part) => (
+              <AssistantReasoningPart key={part.key} part={part} />
+            ))}
           </div>
         )}
       </div>
@@ -170,6 +187,41 @@ interface RenderableToolPart {
   hasResult: boolean;
   statusLabel: string;
   isError: boolean;
+}
+
+interface RenderableReasoningPart {
+  key: string;
+  text: string;
+}
+
+function AssistantReasoningPart({ part }: { part: RenderableReasoningPart }) {
+  return (
+    <details
+      className="oc-reasoning-part"
+      style={{
+        border: '1px solid rgba(148, 163, 184, 0.22)',
+        background: 'rgba(248, 250, 252, 0.92)',
+        borderRadius: 14,
+        padding: '10px 12px',
+      }}
+    >
+      <summary className="oc-reasoning-part__summary" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', listStyle: 'none' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Summary</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Reasoning</span>
+      </summary>
+      <div
+        style={{
+          marginTop: 10,
+          color: 'var(--text-secondary)',
+          fontSize: 12,
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {part.text}
+      </div>
+    </details>
+  );
 }
 
 function AssistantToolPart({ part }: { part: RenderableToolPart }) {
@@ -305,6 +357,29 @@ function getRenderableToolParts(parts: NormalizedPart[]): RenderableToolPart[] {
   }
 
   return toolCalls;
+}
+
+function getRenderableReasoningParts(parts: NormalizedPart[]): RenderableReasoningPart[] {
+  const groupedText = new Map<string, string[]>();
+  const orderedKeys: string[] = [];
+  let anonymousIndex = 0;
+
+  for (const part of parts) {
+    if (part.type !== 'reasoning') continue;
+    const text = part.text?.trim();
+    if (!text) continue;
+
+    const key = part.parentId ?? part.id ?? `reasoning-${anonymousIndex++}`;
+    if (!groupedText.has(key)) {
+      groupedText.set(key, []);
+      orderedKeys.push(key);
+    }
+    groupedText.get(key)?.push(text);
+  }
+
+  return orderedKeys
+    .map((key) => ({ key, text: (groupedText.get(key) ?? []).join('\n\n').trim() }))
+    .filter((part) => part.text.length > 0);
 }
 
 function getCopyText(parts: NormalizedPart[], toolParts: RenderableToolPart[]): string {

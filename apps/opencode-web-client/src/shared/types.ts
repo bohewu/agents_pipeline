@@ -108,6 +108,7 @@ export interface SessionSummary {
 
 export type NormalizedPartType =
   | 'text'
+  | 'reasoning'
   | 'tool-call'
   | 'tool-result'
   | 'error'
@@ -116,6 +117,7 @@ export type NormalizedPartType =
 export interface NormalizedPart {
   type: NormalizedPartType;
   id?: string;
+  parentId?: string;
   text?: string;
   toolName?: string;
   toolCallId?: string;

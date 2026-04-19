@@ -246,7 +246,7 @@ export function Composer() {
                   onChange={(event) => handleModelChange(event.target.value)}
                   className="oc-topbar-select oc-topbar-select--compact oc-composer-control oc-topbar-select--model"
                   aria-label="Model"
-                  title="Select a model. GPT-5 family models expose an extra thinking control."
+                  title="Select a model. GPT-5 family models expose an extra reasoning-effort control."
                   disabled={groupedModelOptions.length === 0}
                 >
                   <option value="">Model</option>

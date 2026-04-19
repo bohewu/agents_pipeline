@@ -51,11 +51,12 @@ async function get<T>(path: string): Promise<T> {
   return envelope.data as T;
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
+async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal,
   });
   const envelope = await res.json();
   if (!envelope.ok) throw new Error(envelope.error?.message ?? 'API error');
@@ -133,12 +134,13 @@ export const api = {
     wsId: string,
     sid: string,
     data: { text: string; providerId?: string; modelId?: string; agentId?: string; effort?: string },
+    signal?: AbortSignal,
   ) =>
-    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/chat`, data),
-  sendCommand: (wsId: string, sid: string, data: { command: string }) =>
-    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/command`, data),
-  sendShell: (wsId: string, sid: string, data: { command: string }) =>
-    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/shell`, data),
+    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/chat`, data, signal),
+  sendCommand: (wsId: string, sid: string, data: { command: string }, signal?: AbortSignal) =>
+    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/command`, data, signal),
+  sendShell: (wsId: string, sid: string, data: { command: string }, signal?: AbortSignal) =>
+    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/shell`, data, signal),
   abort: (wsId: string, sid: string) =>
     post<void>(`/api/workspaces/${wsId}/sessions/${sid}/abort`),
 

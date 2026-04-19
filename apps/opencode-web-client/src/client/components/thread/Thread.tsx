@@ -62,7 +62,7 @@ function ThreadMessage() {
               </div>
             </div>
 
-            {role !== 'user' && (
+            {role !== 'user' && isRunning && (
               <div className="oc-message-running">
                 <span className="aui-pulse">● </span>Generating...
               </div>
@@ -75,9 +75,9 @@ function ThreadMessage() {
 
   return (
     <MessagePrimitive.Root>
-      <div className={rowClassName}>
-        <div className={bodyClassName}>
-          <MessageCard message={normalized} />
+        <div className={rowClassName}>
+          <div className={bodyClassName}>
+          <MessageCard message={normalized} isRunning={isRunning} />
           {role !== 'user' && isRunning && (
             <div className="oc-message-running">
               <span className="aui-pulse">● </span>Generating...

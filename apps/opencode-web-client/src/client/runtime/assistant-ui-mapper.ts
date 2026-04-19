@@ -24,6 +24,7 @@ import type { NormalizedMessage, NormalizedPart } from '../../shared/types.js';
 // The final output is cast to ThreadMessageLike['content'] at the return site
 type ContentPart =
   | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string; parentId?: string }
   | {
       type: 'tool-call';
       toolCallId: string;
@@ -41,6 +42,15 @@ function convertParts(parts: NormalizedPart[]): ContentPart[] {
     switch (part.type) {
       case 'text': {
         content.push({ type: 'text', text: part.text ?? '' });
+        break;
+      }
+
+      case 'reasoning': {
+        content.push({
+          type: 'reasoning',
+          text: part.text ?? '',
+          ...(part.parentId ? { parentId: part.parentId } : {}),
+        });
         break;
       }
 

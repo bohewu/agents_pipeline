@@ -15,9 +15,11 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
     setWorkspaceDialogOpen,
   } = useStore();
   const [open, setOpen] = useState(false);
+  const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const active = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const pendingWorkspace = workspaces.find((workspace) => workspace.id === pendingWorkspaceId) ?? null;
   const hasInactiveActivity = workspaces.some((workspace) => {
     return workspace.id !== activeWorkspaceId && hasRunningSession(sessionsByWorkspace[workspace.id] ?? []);
   });
@@ -39,12 +41,21 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
   }, []);
 
   const handleSelect = async (id: string) => {
+    if (id === activeWorkspaceId || pendingWorkspaceId) {
+      setOpen(false);
+      return;
+    }
+
+    setPendingWorkspaceId(id);
+    setOpen(false);
+
     try {
       await api.selectWorkspace(id);
       setActiveWorkspace(id);
-      setOpen(false);
     } catch {
       /* ignore */
+    } finally {
+      setPendingWorkspaceId(null);
     }
   };
 
@@ -59,10 +70,16 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
         type="button"
         onClick={() => (workspaces.length === 0 ? handleOpenWorkspaceDialog() : setOpen(!open))}
         className={`oc-pill-button oc-pill-button--workspace ${fullWidth ? 'oc-pill-button--full' : ''}`.trim()}
+        aria-busy={pendingWorkspaceId ? 'true' : 'false'}
+        disabled={!!pendingWorkspaceId}
       >
         <FolderIcon size={15} />
         <span className="oc-workspace-selector__label">
-          {active ? active.name || shortenPath(active.rootPath) : 'Open workspace'}
+          {pendingWorkspace
+            ? `Switching to ${pendingWorkspace.name || shortenPath(pendingWorkspace.rootPath)}`
+            : active
+              ? active.name || shortenPath(active.rootPath)
+              : 'Open workspace'}
         </span>
         {selectorIndicator && (
           <span
@@ -73,6 +90,12 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
         )}
         {workspaces.length > 0 && <ChevronDownIcon size={14} className={`oc-workspace-selector__chevron ${open ? 'is-open' : ''}`} />}
       </button>
+
+      {pendingWorkspace && (
+        <div className="oc-workspace-selector__hint" role="status" aria-live="polite">
+          Starting the workspace runtime and loading chats...
+        </div>
+      )}
 
       {open && (
         <div className="oc-workspace-menu">
@@ -88,11 +111,13 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
                 key={workspace.id}
                 type="button"
                 onClick={() => handleSelect(workspace.id)}
-                className={`oc-workspace-menu__item ${workspace.id === activeWorkspaceId ? 'is-active' : ''}`}
+                className={`oc-workspace-menu__item ${workspace.id === activeWorkspaceId ? 'is-active' : ''} ${workspace.id === pendingWorkspaceId ? 'is-pending' : ''}`}
                 title={indicator?.label}
+                disabled={!!pendingWorkspaceId}
               >
                 <div className="oc-workspace-menu__row">
                   <div className="oc-workspace-menu__name">{workspace.name || shortenPath(workspace.rootPath)}</div>
+                  {workspace.id === pendingWorkspaceId && <span className="oc-workspace-menu__pending">Switching...</span>}
                   {indicator && (
                     <span className="oc-workspace-menu__status">
                       <span

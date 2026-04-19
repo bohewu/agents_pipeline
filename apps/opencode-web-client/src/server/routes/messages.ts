@@ -43,7 +43,12 @@ export function MessagesRoute(deps: MessagesRouteDeps): Hono {
 
     try {
       const client = clientFactory.forWorkspace(workspaceId)
-      await client.chat(sessionId, body.text)
+      await client.chat(sessionId, body.text, {
+        providerId: body.providerId,
+        modelId: body.modelId,
+        agentId: body.agentId,
+        effort: body.effort,
+      })
       return c.json(ok({ accepted: true, sessionId }))
     } catch (err: any) {
       return c.json(fail('CHAT_FAILED', err.message), 500)

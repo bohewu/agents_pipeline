@@ -9,7 +9,6 @@ const UPSTREAM_EVENT_MAP: Record<string, BffEventType> = {
   'session.created': 'session.created',
   'session.updated': 'session.updated',
   'message.created': 'message.created',
-  'message.updated': 'message.delta',
   'message.delta': 'message.delta',
   'message.completed': 'message.completed',
   'permission.requested': 'permission.requested',
@@ -36,10 +35,18 @@ type UpstreamConnection = {
   reconnectTimer?: ReturnType<typeof setTimeout>
 }
 
+type LiveMessage = {
+  info: Record<string, unknown>
+  parts: Array<Record<string, unknown>>
+}
+
 export class EventBroker {
   private serverManager: ManagedServerManager
   private clients = new Map<string, BrowserClient>()
   private upstreamConnections = new Map<string, UpstreamConnection>()
+  private liveMessages = new Map<string, LiveMessage>()
+  private activeAssistantBySession = new Map<string, string>()
+  private completedMessages = new Set<string>()
   private keepaliveTimer?: ReturnType<typeof setInterval>
 
   constructor(serverManager: ManagedServerManager) {
@@ -138,26 +145,25 @@ export class EventBroker {
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
+      let eventType = ''
+      let eventData = ''
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
+        const lines = buffer.split(/\r?\n/)
         buffer = lines.pop() ?? ''
-
-        let eventType = ''
-        let eventData = ''
 
         for (const line of lines) {
           if (line.startsWith('event:')) {
             eventType = line.slice(6).trim()
           } else if (line.startsWith('data:')) {
             eventData += line.slice(5).trim()
-          } else if (line === '') {
+          } else if (line.trim() === '') {
             // End of event
-            if (eventType && eventData) {
+            if (eventData) {
               this.handleUpstreamEvent(workspaceId, eventType, eventData)
             }
             eventType = ''
@@ -174,28 +180,189 @@ export class EventBroker {
   }
 
   private handleUpstreamEvent(workspaceId: string, eventType: string, eventData: string): void {
-    // Exclude forbidden event types
-    if (EXCLUDED_PREFIXES.some((p) => eventType.startsWith(p))) return
-
-    const bffType = UPSTREAM_EVENT_MAP[eventType]
-    if (!bffType) return // Unknown event type, skip
-
-    let payload: Record<string, unknown> = {}
+    let envelope: Record<string, unknown> = {}
     try {
-      payload = toRecord(JSON.parse(eventData))
+      envelope = toRecord(JSON.parse(eventData))
     } catch {
-      payload = { raw: eventData }
+      return
     }
 
-    payload = normalizeEventPayload(bffType, workspaceId, payload)
+    const payload = readNestedRecord(envelope, 'payload') ?? envelope
+    const effectiveType = eventType || readString(payload, 'type') || readString(envelope, 'type')
+    if (!effectiveType) return
+
+    // Exclude forbidden event types
+    if (EXCLUDED_PREFIXES.some((p) => effectiveType.startsWith(p))) return
+    if (effectiveType === 'sync' || effectiveType === 'server.connected' || effectiveType === 'server.heartbeat' || effectiveType === 'session.diff') return
+
+    if (this.handleLiveMessageEvent(workspaceId, effectiveType, payload)) {
+      return
+    }
+
+    const bffType = UPSTREAM_EVENT_MAP[effectiveType]
+    if (!bffType) return // Unknown event type, skip
+
+    const properties = readNestedRecord(payload, 'properties') ?? payload
+    const normalizedPayload = normalizeEventPayload(bffType, workspaceId, properties)
 
     const event: BffEvent = {
       type: bffType,
       timestamp: new Date().toISOString(),
-      payload,
+      payload: normalizedPayload,
     }
 
     this.broadcast(workspaceId, event)
+  }
+
+  private handleLiveMessageEvent(
+    workspaceId: string,
+    eventType: string,
+    payload: Record<string, unknown>,
+  ): boolean {
+    switch (eventType) {
+      case 'message.updated': {
+        const properties = readNestedRecord(payload, 'properties')
+        const info = properties ? readNestedRecord(properties, 'info') : null
+        const sessionId = properties ? readString(properties, 'sessionID', 'sessionId') : undefined
+        const messageId = info ? readString(info, 'id') : undefined
+        if (!properties || !info || !sessionId || !messageId) return true
+
+        const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
+        message.info = mergeInfo(message.info, info)
+
+        if (message.info.role === 'assistant') {
+          this.activeAssistantBySession.set(this.sessionKey(workspaceId, sessionId), messageId)
+        }
+
+        if (message.info.role === 'user' && hasRenderableParts(message)) {
+          this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.created')
+          return true
+        }
+
+        if (isMessageFinished(message.info)) {
+          this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.completed')
+        }
+        return true
+      }
+
+      case 'message.part.updated': {
+        const properties = readNestedRecord(payload, 'properties')
+        const part = properties ? readNestedRecord(properties, 'part') : null
+        const sessionId = properties ? readString(properties, 'sessionID', 'sessionId') : undefined
+        const messageId = part ? readString(part, 'messageID', 'messageId') : undefined
+        if (!properties || !part || !sessionId || !messageId) return true
+
+        const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
+        upsertPart(message, part)
+
+        if (part.type === 'step-finish') {
+          this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.completed')
+          return true
+        }
+
+        if (!isRenderablePart(part)) {
+          return true
+        }
+
+        const text = extractRenderablePartText(part)
+        if (!text) {
+          return true
+        }
+
+        const bffType = message.info.role === 'user' ? 'message.created' : 'message.delta'
+        this.broadcastLiveMessage(workspaceId, sessionId, messageId, bffType)
+        return true
+      }
+
+      case 'message.part.delta': {
+        const properties = readNestedRecord(payload, 'properties')
+        const sessionId = properties ? readString(properties, 'sessionID', 'sessionId') : undefined
+        const messageId = properties ? readString(properties, 'messageID', 'messageId') : undefined
+        const partId = properties ? readString(properties, 'partID', 'partId') : undefined
+        const field = properties ? readString(properties, 'field') : undefined
+        const delta = properties ? readString(properties, 'delta') : undefined
+        if (!properties || !sessionId || !messageId || !partId || field !== 'text' || delta === undefined) return true
+
+        const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
+        appendPartDelta(message, partId, delta)
+        this.broadcastLiveMessage(workspaceId, sessionId, messageId, message.info.role === 'user' ? 'message.created' : 'message.delta')
+        return true
+      }
+
+      case 'session.status':
+      case 'session.idle': {
+        const properties = readNestedRecord(payload, 'properties') ?? payload
+        const sessionId = readString(properties, 'sessionID', 'sessionId')
+        const status = readNestedRecord(properties, 'status')
+        const statusType = readString(status ?? {}, 'type')
+        if (sessionId && (eventType === 'session.idle' || statusType === 'idle')) {
+          const assistantId = this.activeAssistantBySession.get(this.sessionKey(workspaceId, sessionId))
+          if (assistantId) {
+            this.broadcastLiveMessage(workspaceId, sessionId, assistantId, 'message.completed')
+          }
+        }
+        return true
+      }
+
+      default:
+        return false
+    }
+  }
+
+  private broadcastLiveMessage(
+    workspaceId: string,
+    sessionId: string,
+    messageId: string,
+    type: Extract<BffEventType, 'message.created' | 'message.delta' | 'message.completed'>,
+  ): void {
+    const messageKey = this.messageKey(workspaceId, messageId)
+    if (type === 'message.completed') {
+      if (this.completedMessages.has(messageKey)) return
+      this.completedMessages.add(messageKey)
+    }
+
+    const message = this.liveMessages.get(messageKey)
+    if (!message || !hasRenderableParts(message)) return
+
+    const normalized = normalizeMessage({
+      info: message.info,
+      parts: message.parts.filter(isRenderablePart),
+    })
+    if (!normalized.id) return
+
+    this.broadcast(workspaceId, {
+      type,
+      timestamp: new Date().toISOString(),
+      payload: {
+        workspaceId,
+        sessionId,
+        message: normalized,
+      },
+    })
+  }
+
+  private getOrCreateLiveMessage(workspaceId: string, sessionId: string, messageId: string): LiveMessage {
+    const key = this.messageKey(workspaceId, messageId)
+    const existing = this.liveMessages.get(key)
+    if (existing) return existing
+
+    const created: LiveMessage = {
+      info: {
+        id: messageId,
+        sessionID: sessionId,
+      },
+      parts: [],
+    }
+    this.liveMessages.set(key, created)
+    return created
+  }
+
+  private messageKey(workspaceId: string, messageId: string): string {
+    return `${workspaceId}:${messageId}`
+  }
+
+  private sessionKey(workspaceId: string, sessionId: string): string {
+    return `${workspaceId}:${sessionId}`
   }
 
   private scheduleReconnect(workspaceId: string): void {
@@ -313,4 +480,73 @@ function readString(source: Record<string, unknown>, ...keys: string[]): string 
     }
   }
   return undefined
+}
+
+function mergeInfo(
+  existing: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> {
+  const existingTime = readNestedRecord(existing, 'time') ?? {}
+  const incomingTime = readNestedRecord(incoming, 'time') ?? {}
+
+  return {
+    ...existing,
+    ...incoming,
+    ...(Object.keys(existingTime).length > 0 || Object.keys(incomingTime).length > 0
+      ? { time: { ...existingTime, ...incomingTime } }
+      : {}),
+  }
+}
+
+function upsertPart(message: LiveMessage, part: Record<string, unknown>): void {
+  const partId = readString(part, 'id')
+  if (!partId) return
+
+  const existingIndex = message.parts.findIndex((entry) => readString(entry, 'id') === partId)
+  const existing = existingIndex >= 0 ? message.parts[existingIndex] ?? {} : {}
+  const merged = mergeInfo(existing, part)
+
+  if (existingIndex >= 0) {
+    message.parts[existingIndex] = merged
+  } else {
+    message.parts.push(merged)
+  }
+}
+
+function appendPartDelta(message: LiveMessage, partId: string, delta: string): void {
+  const index = message.parts.findIndex((entry) => readString(entry, 'id') === partId)
+  if (index < 0) return
+
+  const part = message.parts[index] ?? {}
+  const currentText = typeof part.text === 'string' ? part.text : ''
+  message.parts[index] = {
+    ...part,
+    text: `${currentText}${delta}`,
+  }
+}
+
+function isRenderablePart(part: Record<string, unknown>): boolean {
+  const type = readString(part, 'type')
+  return type === 'text'
+    || type === 'reasoning'
+    || type === 'tool-call'
+    || type === 'tool_use'
+    || type === 'tool-result'
+    || type === 'tool_result'
+    || type === 'error'
+    || type === 'permission-request'
+}
+
+function extractRenderablePartText(part: Record<string, unknown>): string | undefined {
+  const text = part.text
+  return typeof text === 'string' && text.trim().length > 0 ? text : undefined
+}
+
+function hasRenderableParts(message: LiveMessage): boolean {
+  return message.parts.some((part) => isRenderablePart(part) && (readString(part, 'text') || readString(part, 'toolName') || part.result !== undefined))
+}
+
+function isMessageFinished(info: Record<string, unknown>): boolean {
+  const time = readNestedRecord(info, 'time')
+  return !!time?.['completed'] || typeof info['finish'] === 'string'
 }
