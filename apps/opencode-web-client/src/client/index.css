@@ -1285,6 +1285,8 @@ select:focus {
 
 .oc-message-card__supplement {
   margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
 }
 
 .oc-message-copy {
@@ -1892,6 +1894,68 @@ select:focus {
 
 .oc-reasoning-part__summary::marker {
   content: '';
+}
+
+.oc-reasoning-part {
+  display: inline-block;
+  max-width: min(100%, 22rem);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.86);
+  border-radius: 999px;
+  padding: 7px 12px;
+}
+
+.oc-reasoning-part[open] {
+  max-width: min(100%, 34rem);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+.oc-reasoning-part__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.oc-reasoning-part__summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  flex-shrink: 0;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.16s ease;
+}
+
+.oc-reasoning-part[open] .oc-reasoning-part__summary::before {
+  transform: rotate(45deg);
+}
+
+.oc-reasoning-part__eyebrow {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.oc-reasoning-part__label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.oc-reasoning-part__body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .oc-surface-card {

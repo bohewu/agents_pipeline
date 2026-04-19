@@ -196,30 +196,12 @@ interface RenderableReasoningPart {
 
 function AssistantReasoningPart({ part }: { part: RenderableReasoningPart }) {
   return (
-    <details
-      className="oc-reasoning-part"
-      style={{
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        background: 'rgba(248, 250, 252, 0.92)',
-        borderRadius: 14,
-        padding: '10px 12px',
-      }}
-    >
-      <summary className="oc-reasoning-part__summary" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', listStyle: 'none' }}>
-        <span style={{ color: 'var(--text-muted)', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Summary</span>
-        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Reasoning</span>
+    <details className="oc-reasoning-part">
+      <summary className="oc-reasoning-part__summary">
+        <span className="oc-reasoning-part__eyebrow">Summary</span>
+        <span className="oc-reasoning-part__label">Reasoning</span>
       </summary>
-      <div
-        style={{
-          marginTop: 10,
-          color: 'var(--text-secondary)',
-          fontSize: 12,
-          lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
-        }}
-      >
-        {part.text}
-      </div>
+      <div className="oc-reasoning-part__body">{part.text}</div>
     </details>
   );
 }
