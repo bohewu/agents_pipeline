@@ -41,12 +41,15 @@ If you need detailed background or want the repo-level source document, read `..
 ## Browser Cleanup And Recovery
 
 - Prefer one Chrome DevTools session per audit task. Reuse the existing browser session/page when possible instead of starting a second MCP/browser instance.
-- Treat browser teardown like server teardown: if this workflow started the DevTools browser or MCP session, cleanup is not complete until the session is no longer attached.
+- If multiple `chrome-devtools-mcp` processes are present, treat that as a recovery issue; stop duplicates before retrying browser evidence collection.
+- Treat browser teardown like server teardown: if this workflow started the DevTools browser or MCP session, cleanup is not complete until the DevTools-owned browser process is gone and the session it started is no longer attached.
 - If browser tools fail with `Not connected`, report that exact failure and stop evidence collection rather than guessing.
+- Do not treat `Not connected` by itself as proof that cleanup succeeded; it can also mean the MCP is still running but has lost or failed to initialize its browser session.
 - If browser tools fail with a shared-profile error such as `The browser is already running for ...chrome-profile`, treat it as stale-session cleanup work before retrying.
 - Before deleting Chrome singleton lock files, first verify that no live DevTools-owned Chrome process is still using the shared profile.
 - On Linux/macOS, a safe recovery sequence is: stop `chrome-devtools-mcp`, stop Chrome processes using the DevTools profile, remove `SingletonLock`, `SingletonSocket`, and `SingletonCookie`, then retry once.
 - After cleanup, verify recovery with a lightweight browser-tool call before resuming the audit. If recovery still fails, report the exact failure and proceed with limited confidence.
+- If `chrome-devtools-mcp` is running but browser-tool calls still return `Not connected`, treat that as a broken MCP/browser session and restart the MCP/browser pair rather than reporting cleanup success.
 
 ## Profile First
 
