@@ -12,7 +12,26 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist/client',
-    emptyDirFirst: true,
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 650,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/@assistant-ui/')) {
+            return 'assistant-ui';
+          }
+
+          if (
+            id.includes('/node_modules/react-markdown/') ||
+            id.includes('/node_modules/remark-gfm/')
+          ) {
+            return 'markdown';
+          }
+
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     proxy: {

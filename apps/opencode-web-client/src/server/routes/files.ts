@@ -18,11 +18,9 @@ export function FilesRoute(deps: FilesRouteDeps): Hono<any> {
 
   // GET /files/status — git file status
   route.get('/status', async (c) => {
-    const workspaceId = c.get('workspaceId') as string
     const workspace = c.get('workspace') as WorkspaceProfile
     try {
-      // Use diff service with a default session or workspace-level status
-      const files = fileService.listFiles(workspace.rootPath)
+      const files = fileService.listFileStatus(workspace.rootPath)
       return c.json(ok(files))
     } catch (err: any) {
       return c.json(fail('FILE_STATUS_FAILED', err.message), 500)

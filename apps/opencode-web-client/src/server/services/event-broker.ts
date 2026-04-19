@@ -1,6 +1,8 @@
 import type { BffEvent, BffEventType } from '../../shared/types.js'
 import type { ManagedServerManager } from './managed-server-manager.js'
 import { randomUUID } from 'node:crypto'
+import { normalizeMessage } from './message-normalizer.js'
+import { normalizeSession } from './session-normalizer.js'
 
 // Upstream event types we care about (NO run/stage/task/status-runtime events)
 const UPSTREAM_EVENT_MAP: Record<string, BffEventType> = {
@@ -180,10 +182,12 @@ export class EventBroker {
 
     let payload: Record<string, unknown> = {}
     try {
-      payload = JSON.parse(eventData)
+      payload = toRecord(JSON.parse(eventData))
     } catch {
       payload = { raw: eventData }
     }
+
+    payload = normalizeEventPayload(bffType, workspaceId, payload)
 
     const event: BffEvent = {
       type: bffType,
@@ -252,4 +256,61 @@ export class EventBroker {
     this.upstreamConnections.clear()
     this.clients.clear()
   }
+}
+
+function normalizeEventPayload(
+  type: BffEventType,
+  workspaceId: string,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (type === 'message.created' || type === 'message.delta' || type === 'message.completed') {
+    const messageSource = readNestedRecord(payload, 'message') ?? payload
+    const sessionId = readString(payload, 'sessionId', 'sessionID')
+      ?? readString(messageSource, 'sessionId', 'sessionID')
+    return {
+      ...payload,
+      workspaceId,
+      ...(sessionId ? { sessionId } : {}),
+      message: normalizeMessage(messageSource),
+    }
+  }
+
+  if (type === 'session.created' || type === 'session.updated') {
+    const sessionSource = readNestedRecord(payload, 'session') ?? payload
+    return {
+      ...payload,
+      workspaceId,
+      session: normalizeSession(sessionSource),
+    }
+  }
+
+  return { ...payload, workspaceId }
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+function readNestedRecord(
+  source: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  const value = source[key]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  return value as Record<string, unknown>
+}
+
+function readString(source: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.length > 0) {
+      return value
+    }
+  }
+  return undefined
 }

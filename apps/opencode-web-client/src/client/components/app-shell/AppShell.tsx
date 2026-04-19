@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
@@ -56,7 +56,11 @@ export function AppShell() {
         }
 
         let sessions = boot.sessions;
-        let session = sessions[0];
+        const previousSessionId = useStore.getState().activeSessionByWorkspace[activeWorkspaceId];
+        let session = sessions.find((entry) => entry.id === previousSessionId)
+          ?? [...sessions].sort((left, right) => {
+            return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+          })[0];
 
         if (!session) {
           session = await api.createSession(activeWorkspaceId, {
@@ -127,55 +131,13 @@ export function AppShell() {
   return (
     <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
       <Sidebar />
-      <Suspense fallback={<ChatShellFallback />}>
-        <RuntimeProvider>
-          <div className="main-content">
-            <Thread />
-          </div>
-        </RuntimeProvider>
-      </Suspense>
+      <RuntimeProvider>
+        <div className="main-content">
+          <Thread />
+        </div>
+      </RuntimeProvider>
       <RightDrawer />
       {workspaceDialogOpen && <AddWorkspaceDialog onClose={() => setWorkspaceDialogOpen(false)} />}
-    </div>
-  );
-}
-
-function ChatShellFallback() {
-  return (
-    <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, padding: '28px 24px 12px' }}>
-        <div style={{
-          maxWidth: 880,
-          margin: '0 auto',
-          minHeight: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'grid', gap: 14 }}>
-            <div style={{ maxWidth: 720 }}>
-              <div className="oc-message-card" style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border)', minHeight: 88 }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <div className="oc-message-card" style={{ background: 'var(--accent-soft)', border: '1px solid rgba(37, 99, 235, 0.12)', minHeight: 56, width: 'min(420px, 72%)' }} />
-            </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13, paddingLeft: 4 }}>
-              Connecting chat runtime...
-            </div>
-          </div>
-          <div className="oc-composer-shell" style={{ paddingLeft: 0, paddingRight: 0 }}>
-            <div className="oc-composer-root" style={{ opacity: 0.88 }}>
-              <div className="oc-composer-toolbar">
-                <div style={{ width: 180, height: 32, borderRadius: 999, background: 'var(--bg-primary)', border: '1px solid var(--border)' }} />
-              </div>
-              <div className="oc-composer-main">
-                <div style={{ flex: 1, height: 92, borderRadius: 22, background: 'var(--bg-primary)', border: '1px solid var(--border)' }} />
-                <div style={{ width: 84, height: 42, borderRadius: 999, background: 'var(--bg-hover)' }} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

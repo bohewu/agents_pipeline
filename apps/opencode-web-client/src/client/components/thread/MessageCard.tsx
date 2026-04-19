@@ -1,9 +1,10 @@
-import React from 'react';
-import type { ToolCallMessagePartProps } from '@assistant-ui/react';
-import { ActionBarPrimitive, MessagePrimitive } from '@assistant-ui/react';
-import type { NormalizedMessage } from '../../../shared/types.js';
+import React, { useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { NormalizedMessage, NormalizedPart } from '../../../shared/types.js';
 import { PermissionCard } from './PermissionCard.js';
 import { ErrorCard } from './ErrorCard.js';
+import { CheckIcon, CopyIcon } from '../common/Icons.js';
 
 const ROLE_LABELS: Record<string, string> = {
   user: 'You',
@@ -12,8 +13,31 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function MessageCard({ message }: { message: NormalizedMessage }) {
+  const [copied, setCopied] = useState(false);
+  const textParts = useMemo(
+    () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
+    [message.parts],
+  );
+  const toolParts = useMemo(() => getRenderableToolParts(message.parts), [message.parts]);
+  const copyText = useMemo(() => getCopyText(message.parts, toolParts), [message.parts, toolParts]);
   const extraParts = message.parts.filter((part) => part.type === 'error' || part.type === 'permission-request');
   const showAvatar = message.role !== 'user';
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    if (!copyText) return;
+    try {
+      await navigator.clipboard.writeText(copyText);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <div className={`oc-message-card oc-message-card--${message.role}`}>
@@ -33,7 +57,15 @@ export function MessageCard({ message }: { message: NormalizedMessage }) {
 
         <div className={`oc-message-card__bubble oc-message-card__bubble--${message.role}`} title={new Date(message.createdAt).toLocaleString()}>
           <div className="oc-message-card__content">
-            <MessagePrimitive.Content components={MESSAGE_CONTENT_COMPONENTS} />
+            {textParts.map((part, index) => (
+              <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                {part.text ?? ''}
+              </ReactMarkdown>
+            ))}
+
+            {toolParts.map((part) => (
+              <AssistantToolPart key={part.key} part={part} />
+            ))}
           </div>
 
           {extraParts.map((part, index) =>
@@ -44,46 +76,45 @@ export function MessageCard({ message }: { message: NormalizedMessage }) {
         </div>
 
         {message.role === 'assistant' && (
-          <ActionBarPrimitive.Root
-            hideWhenRunning
-            autohide="always"
-            autohideFloat="single-branch"
-            className="oc-message-card__actions"
-          >
-            <ActionBarPrimitive.Copy asChild copiedDuration={1500}>
-              <button className="oc-message-copy">Copy</button>
-            </ActionBarPrimitive.Copy>
-          </ActionBarPrimitive.Root>
+          <div className="oc-message-card__actions">
+            <button
+              type="button"
+              className="oc-message-copy"
+              onClick={() => void handleCopy()}
+              disabled={!copyText}
+              aria-label={copied ? 'Copied message' : 'Copy message'}
+              title={copied ? 'Copied' : 'Copy message'}
+            >
+              {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+            </button>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-const MESSAGE_CONTENT_COMPONENTS = {
-  tools: {
-    Fallback: AssistantToolPart,
-  },
+const MARKDOWN_COMPONENTS = {
+  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} target="_blank" rel="noreferrer" />
+  ),
 };
 
-function AssistantToolPart({ toolName, argsText, result, status, isError }: ToolCallMessagePartProps) {
-  const resultText = result == null
-    ? ''
-    : typeof result === 'string'
-      ? result
-      : JSON.stringify(result, null, 2);
-  const hasArgs = !!argsText && argsText !== '{}';
-  const hasResult = resultText.length > 0;
-  const statusLabel = status.type === 'running'
-    ? 'Running'
-    : status.type === 'requires-action'
-      ? 'Needs input'
-      : hasResult
-        ? isError ? 'Errored' : 'Completed'
-        : 'Queued';
-  const tone = isError
+interface RenderableToolPart {
+  key: string;
+  toolName: string;
+  argsText: string;
+  resultText: string;
+  hasArgs: boolean;
+  hasResult: boolean;
+  statusLabel: string;
+  isError: boolean;
+}
+
+function AssistantToolPart({ part }: { part: RenderableToolPart }) {
+  const tone = part.isError
     ? { border: 'rgba(220, 38, 38, 0.16)', background: 'var(--error-soft)', color: 'var(--error)' }
-    : hasResult
+    : part.hasResult
       ? { border: 'rgba(16, 163, 127, 0.16)', background: 'var(--success-soft)', color: 'var(--success)' }
       : { border: 'rgba(183, 121, 31, 0.18)', background: 'var(--warning-soft)', color: 'var(--warning)' };
 
@@ -99,8 +130,8 @@ function AssistantToolPart({ toolName, argsText, result, status, isError }: Tool
       }}
     >
       <summary className="oc-tool-part__summary" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', listStyle: 'none' }}>
-        <span style={{ color: tone.color, fontSize: 12 }}>{hasResult ? '✓' : '⚙'}</span>
-        <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{toolName}</span>
+        <span style={{ color: tone.color, fontSize: 12 }}>{part.hasResult ? '✓' : '⚙'}</span>
+        <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>{part.toolName}</span>
         <span
           style={{
             marginLeft: 'auto',
@@ -111,13 +142,13 @@ function AssistantToolPart({ toolName, argsText, result, status, isError }: Tool
             padding: '2px 8px',
           }}
         >
-          {statusLabel}
+          {part.statusLabel}
         </span>
       </summary>
 
-      {(hasArgs || hasResult) && (
+      {(part.hasArgs || part.hasResult) && (
         <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-          {hasArgs && (
+          {part.hasArgs && (
             <pre
               style={{
                 margin: 0,
@@ -131,11 +162,11 @@ function AssistantToolPart({ toolName, argsText, result, status, isError }: Tool
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              {argsText}
+              {part.argsText}
             </pre>
           )}
 
-          {hasResult && (
+          {part.hasResult && (
             <pre
               style={{
                 margin: 0,
@@ -150,11 +181,103 @@ function AssistantToolPart({ toolName, argsText, result, status, isError }: Tool
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              {resultText}
+              {part.resultText}
             </pre>
           )}
         </div>
       )}
     </details>
   );
+}
+
+function getRenderableToolParts(parts: NormalizedPart[]): RenderableToolPart[] {
+  const toolCalls: RenderableToolPart[] = [];
+  const resultsById = new Map<string, NormalizedPart>();
+
+  for (const part of parts) {
+    if (part.type === 'tool-result') {
+      const key = part.toolCallId ?? part.id;
+      if (key) {
+        resultsById.set(key, part);
+      }
+    }
+  }
+
+  for (const part of parts) {
+    if (part.type !== 'tool-call') continue;
+    const toolCallId = part.toolCallId ?? part.id ?? `tool-${toolCalls.length}`;
+    const resultPart = resultsById.get(toolCallId);
+    const result = resultPart?.result ?? part.result;
+    const resultText = formatStructuredValue(result);
+    const argsText = formatStructuredValue(part.args ?? {});
+    const isError = !!part.error || !!resultPart?.error;
+    const hasResult = resultText.length > 0;
+
+    toolCalls.push({
+      key: toolCallId,
+      toolName: part.toolName ?? 'unknown',
+      argsText,
+      resultText,
+      hasArgs: argsText !== '{}' && argsText.length > 0,
+      hasResult,
+      statusLabel: resolveToolStatusLabel(part.status, hasResult, isError),
+      isError,
+    });
+  }
+
+  for (const part of parts) {
+    if (part.type !== 'tool-result') continue;
+    const toolCallId = part.toolCallId ?? part.id;
+    if (!toolCallId || toolCalls.some((entry) => entry.key === toolCallId)) continue;
+
+    const resultText = formatStructuredValue(part.result);
+    toolCalls.push({
+      key: toolCallId,
+      toolName: part.toolName ?? 'unknown',
+      argsText: '{}',
+      resultText,
+      hasArgs: false,
+      hasResult: resultText.length > 0,
+      statusLabel: resolveToolStatusLabel(part.status, resultText.length > 0, !!part.error),
+      isError: !!part.error,
+    });
+  }
+
+  return toolCalls;
+}
+
+function getCopyText(parts: NormalizedPart[], toolParts: RenderableToolPart[]): string {
+  const text = parts
+    .filter((part) => part.type === 'text' && !!part.text?.trim())
+    .map((part) => part.text?.trim() ?? '')
+    .join('\n\n')
+    .trim();
+
+  if (text) {
+    return text;
+  }
+
+  return toolParts
+    .map((part) => `${part.toolName}\n${part.resultText || part.argsText}`.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function formatStructuredValue(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function resolveToolStatusLabel(status: string | undefined, hasResult: boolean, isError: boolean): string {
+  if (status === 'running') return 'Running';
+  if (status === 'requires-action') return 'Needs input';
+  if (status === 'queued' || status === 'pending') return 'Queued';
+  if (isError) return 'Errored';
+  if (hasResult) return 'Completed';
+  return 'Queued';
 }

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { getInstalledToolPath } from './install-manifest.js'
 
@@ -29,9 +30,11 @@ export interface UsageResult {
 
 export class UsageService {
   private installManifestPath: string
+  private fallbackToolPath?: string
 
-  constructor(installManifestPath: string) {
+  constructor(installManifestPath: string, fallbackToolPath?: string) {
     this.installManifestPath = installManifestPath
+    this.fallbackToolPath = fallbackToolPath
   }
 
   async getUsage(params: {
@@ -40,19 +43,20 @@ export class UsageService {
     copilotReportPath?: string
     refresh?: boolean
   }): Promise<UsageResult> {
-    const toolPath = getInstalledToolPath(this.installManifestPath, 'provider-usage.py')
+    const provider = normalizeUsageProvider(params.provider)
+    const toolPath = this.resolveToolPath()
     if (!toolPath) {
       return {
-        provider: params.provider,
+        provider,
         status: 'unavailable',
         data: {},
-        error: 'provider-usage.py not found in install manifest',
+        error: 'provider-usage.py not found in install manifest or packaged assets',
       }
     }
 
     const args = [
       toolPath,
-      '--provider', params.provider,
+      '--provider', provider,
       '--format', 'json',
       '--project-root', params.workspaceRoot,
     ]
@@ -74,10 +78,10 @@ export class UsageService {
       try {
         const parsed = JSON.parse(stdout)
         const data = redactSensitive(typeof parsed === 'object' ? parsed : { raw: parsed })
-        return { provider: params.provider, status: 'ok', data }
+        return { provider, status: 'ok', data }
       } catch {
         return {
-          provider: params.provider,
+          provider,
           status: 'error',
           data: {},
           error: 'Failed to parse usage output as JSON',
@@ -87,18 +91,38 @@ export class UsageService {
       // Handle missing python3
       if (err.code === 'ENOENT') {
         return {
-          provider: params.provider,
+          provider,
           status: 'unavailable',
           data: {},
           error: 'python3 not found',
         }
       }
       return {
-        provider: params.provider,
+        provider,
         status: 'error',
         data: {},
         error: err.message ?? 'Unknown error executing provider-usage.py',
       }
     }
   }
+
+  private resolveToolPath(): string | null {
+    const installedPath = getInstalledToolPath(this.installManifestPath, 'provider-usage.py')
+    if (installedPath && existsSync(installedPath)) {
+      return installedPath
+    }
+
+    if (this.fallbackToolPath && existsSync(this.fallbackToolPath)) {
+      return this.fallbackToolPath
+    }
+
+    return null
+  }
+}
+
+function normalizeUsageProvider(provider: string): string {
+  const normalized = provider.trim().toLowerCase()
+  if (normalized === 'codex' || normalized.includes('codex')) return 'codex'
+  if (normalized === 'copilot' || normalized.includes('copilot')) return 'copilot'
+  return 'auto'
 }

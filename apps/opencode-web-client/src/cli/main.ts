@@ -1,6 +1,7 @@
 import { parseArgs } from './args.js';
 import { openBrowser } from './open-browser.js';
 import { setupShutdown } from './shutdown.js';
+import { fileURLToPath } from 'node:url';
 import { createApp, startServer } from '../server/create-server.js';
 import { resolveAppPaths } from '../server/services/app-paths.js';
 import { discoverOpenCodeBinary } from '../server/services/opencode-binary.js';
@@ -37,6 +38,7 @@ async function main() {
   // Discover opencode binary
   const binaryInfo = discoverOpenCodeBinary();
   const binaryPath = binaryInfo.binaryPath ?? 'opencode';
+  const packagedProviderUsagePath = fileURLToPath(new URL('../../assets/tools/provider-usage.py', import.meta.url));
 
   if (args.debug) {
     console.log(`[${APP_NAME}] opencode binary: ${binaryInfo.found ? binaryPath : 'NOT FOUND'}`);
@@ -49,7 +51,7 @@ async function main() {
   const clientFactory = new OpenCodeClientFactory(serverManager);
   const sessionService = new SessionService(clientFactory);
   const effortService = new EffortService();
-  const usageService = new UsageService(appPaths.installManifestFile);
+  const usageService = new UsageService(appPaths.installManifestFile, packagedProviderUsagePath);
   const configService = new ConfigService(clientFactory);
   const diffService = new DiffService(clientFactory);
   const fileService = new FileService();

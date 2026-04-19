@@ -1,11 +1,17 @@
 import { readFileSync, existsSync } from 'node:fs'
+import path from 'node:path'
 
 export interface InstallManifest {
-  version: number
-  installedAt: string
-  dataDir: string
-  toolsDir: string
-  paths: Record<string, string>
+  version?: number
+  installedAt?: string
+  dataDir?: string
+  toolsDir?: string
+  paths?: Record<string, string>
+  assets?: {
+    tools?: {
+      providerUsagePy?: string
+    }
+  }
 }
 
 let cached: InstallManifest | null = null
@@ -25,12 +31,22 @@ export function loadInstallManifest(manifestPath: string): InstallManifest | nul
 export function getInstalledToolPath(manifestPath: string, toolName: string): string | null {
   const manifest = loadInstallManifest(manifestPath)
   if (!manifest) return null
-  // Check paths map first
-  if (manifest.paths?.[toolName]) return manifest.paths[toolName]
-  // Fallback to toolsDir
-  if (manifest.toolsDir) {
-    const { join } = require('node:path')
-    return join(manifest.toolsDir, toolName)
+
+  if (toolName === 'provider-usage.py' && manifest.assets?.tools?.providerUsagePy) {
+    return manifest.assets.tools.providerUsagePy
   }
+
+  if (manifest.paths?.[toolName]) {
+    return manifest.paths[toolName]
+  }
+
+  if (manifest.toolsDir) {
+    return path.join(manifest.toolsDir, toolName)
+  }
+
+  if (manifest.paths?.dataDir) {
+    return path.join(manifest.paths.dataDir, 'tools', toolName)
+  }
+
   return null
 }

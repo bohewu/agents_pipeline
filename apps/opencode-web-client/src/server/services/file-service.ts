@@ -1,11 +1,32 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { resolveWorkspacePath } from './workspace-paths.js'
+import type { FileStatusResponse } from '../../shared/types.js'
 
 export class FileService {
   readFile(workspaceRoot: string, relativePath: string): string {
     const resolved = resolveWorkspacePath(workspaceRoot, relativePath)
     return readFileSync(resolved, 'utf-8')
+  }
+
+  listFileStatus(workspaceRoot: string): FileStatusResponse[] {
+    try {
+      const output = execFileSync(
+        'git',
+        ['-C', workspaceRoot, 'status', '--short', '--untracked-files=all'],
+        { encoding: 'utf-8', timeout: 5000 },
+      )
+      return output
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .filter((line) => line.length > 0)
+        .map(parseGitStatusLine)
+        .filter((entry): entry is FileStatusResponse => !!entry)
+        .sort((left, right) => left.path.localeCompare(right.path))
+    } catch {
+      return []
+    }
   }
 
   listFiles(workspaceRoot: string, subPath?: string): string[] {
@@ -52,4 +73,24 @@ export class FileService {
       // Permission denied or similar
     }
   }
+}
+
+function parseGitStatusLine(line: string): FileStatusResponse | null {
+  const statusToken = line.slice(0, 2)
+  const rawPath = line.slice(3).trim()
+  if (!rawPath) return null
+
+  const path = rawPath.includes(' -> ')
+    ? rawPath.split(' -> ').at(-1) ?? rawPath
+    : rawPath
+  const condensedStatus = statusToken.replace(/\s/g, '')
+
+  let status: FileStatusResponse['status'] = 'modified'
+  if (statusToken === '??' || condensedStatus.includes('A')) {
+    status = 'added'
+  } else if (condensedStatus.includes('D')) {
+    status = 'deleted'
+  }
+
+  return { path, status }
 }

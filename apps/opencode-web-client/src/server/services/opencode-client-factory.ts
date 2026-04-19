@@ -3,6 +3,8 @@ import type {
   SessionSummary, NormalizedMessage, DiffResponse,
   FileStatusResponse,
 } from '../../shared/types.js'
+import { normalizeMessages } from './message-normalizer.js'
+import { normalizeSession, normalizeSessions } from './session-normalizer.js'
 
 export interface OpenCodeClient {
   health(): Promise<{ ok: boolean }>
@@ -164,42 +166,5 @@ export class OpenCodeClientFactory {
       listCommands: () => get('/command'),
       permissions: () => get('/permission'),
     }
-  }
-}
-
-// ── Normalizers ──
-
-function normalizeSessions(data: any): SessionSummary[] {
-  if (Array.isArray(data)) return data.map(normalizeSession)
-  if (data && typeof data === 'object' && Array.isArray(data.sessions)) {
-    return data.sessions.map(normalizeSession)
-  }
-  return []
-}
-
-function normalizeSession(data: any): SessionSummary {
-  return {
-    id: data.id ?? data.sessionId ?? '',
-    title: data.title ?? data.name,
-    createdAt: data.createdAt ?? data.created_at ?? new Date().toISOString(),
-    updatedAt: data.updatedAt ?? data.updated_at ?? data.createdAt ?? new Date().toISOString(),
-    messageCount: data.messageCount ?? data.message_count ?? 0,
-  }
-}
-
-function normalizeMessages(data: any): NormalizedMessage[] {
-  if (Array.isArray(data)) return data.map(normalizeMessage)
-  if (data && typeof data === 'object' && Array.isArray(data.messages)) {
-    return data.messages.map(normalizeMessage)
-  }
-  return []
-}
-
-function normalizeMessage(data: any): NormalizedMessage {
-  return {
-    id: data.id ?? data.messageId ?? '',
-    role: data.role ?? 'assistant',
-    parts: Array.isArray(data.parts) ? data.parts : [{ type: 'text', text: data.content ?? data.text ?? '' }],
-    createdAt: data.createdAt ?? data.created_at ?? new Date().toISOString(),
   }
 }

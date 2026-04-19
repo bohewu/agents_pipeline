@@ -133,3 +133,20 @@ export function SquareIcon(props: IconProps) {
     </SvgIcon>
   );
 }
+
+export function CopyIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <rect x="9" y="9" width="10" height="10" rx="2" />
+      <path d="M6 15V7a2 2 0 0 1 2-2h8" />
+    </SvgIcon>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="m5 12 4 4 10-10" />
+    </SvgIcon>
+  );
+}

@@ -92,20 +92,21 @@ function ThreadMessage() {
 export function Thread() {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
+  const connectionByWorkspace = useStore((s) => s.connectionByWorkspace);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const connectionState = activeWorkspaceId
+    ? (connectionByWorkspace[activeWorkspaceId] ?? 'disconnected')
+    : 'disconnected';
 
   if (!activeWorkspaceId) {
     return <ChatStartState />;
   }
 
-  if (!sessionId) {
-    return (
-      <div className="oc-thread-placeholder">
-        <div className="oc-thread-placeholder__glyph">...</div>
-        <div className="oc-thread-placeholder__text">Preparing chat...</div>
-      </div>
-    );
-  }
+  const emptySubtitle = sessionId
+    ? 'Ask about this repo, request edits, or use the + menu for commands and shell.'
+    : connectionState === 'error'
+      ? 'The workspace connection needs attention. Retry from the sidebar or pick another repo.'
+      : 'Connecting this workspace. The composer stays visible and unlocks as soon as the chat session is ready.';
 
   return (
     <ThreadPrimitive.Root
@@ -123,8 +124,8 @@ export function Thread() {
         <ThreadPrimitive.Empty>
           <div className="oc-empty-thread-state">
             <div className="oc-empty-thread-state__avatar">O</div>
-            <h1 className="oc-empty-thread-state__title">Let's start building</h1>
-            <p className="oc-empty-thread-state__subtitle">Ask about this repo, request edits, or type /command, @agent, or $shell directly in the composer.</p>
+            <h1 className="oc-empty-thread-state__title">{sessionId ? "Let's start building" : 'Preparing chat shell'}</h1>
+            <p className="oc-empty-thread-state__subtitle">{emptySubtitle}</p>
           </div>
         </ThreadPrimitive.Empty>
 

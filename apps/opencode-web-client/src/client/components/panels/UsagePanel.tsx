@@ -58,14 +58,76 @@ export function UsagePanel() {
             <span style={{ color: 'var(--text-muted)' }}>Status: </span>
             <span style={{ color: usage.status === 'ok' ? 'var(--success)' : 'var(--warning)' }}>{usage.status}</span>
           </div>
-          {Object.entries(usage.data).map(([key, val]) => (
-            <div key={key} style={{ fontSize: 12, padding: '2px 0', display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{key}</span>
-              <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{String(val)}</span>
-            </div>
-          ))}
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {Object.entries(usage.data).map(([key, val]) => (
+              <UsageValueRow key={key} label={key} value={val} depth={0} />
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+function UsageValueRow({
+  label,
+  value,
+  depth,
+}: {
+  label: string;
+  value: unknown;
+  depth: number;
+}) {
+  const isNested = isRecord(value) || Array.isArray(value);
+
+  if (!isNested) {
+    return (
+      <div style={{ fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+        <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', textAlign: 'right', wordBreak: 'break-word' }}>
+          {formatPrimitive(value)}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <details open={depth === 0} style={{ border: '1px solid var(--border)', borderRadius: 14, background: 'var(--bg-primary)' }}>
+      <summary style={{ cursor: 'pointer', listStyle: 'none', padding: '10px 12px', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
+        {label}
+      </summary>
+      <div style={{ padding: '0 12px 12px', display: 'grid', gap: 8 }}>
+        {Array.isArray(value)
+          ? value.length === 0
+            ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No entries</div>
+            : value.map((entry, index) => (
+                <UsageValueRow key={`${label}-${index}`} label={`${index + 1}`} value={entry} depth={depth + 1} />
+              ))
+          : Object.keys(value).length === 0
+            ? <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No fields</div>
+            : Object.entries(value).map(([childKey, childValue]) => (
+                <UsageValueRow key={childKey} label={childKey} value={childValue} depth={depth + 1} />
+              ))}
+      </div>
+    </details>
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function formatPrimitive(value: unknown): string {
+  if (value == null) return '-';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }

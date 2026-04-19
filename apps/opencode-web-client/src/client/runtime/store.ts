@@ -97,18 +97,35 @@ export const useStore = create<UIStore>((set) => ({
     set((s) => {
       const msgs = s.messagesBySession[sessionId] ?? [];
       const idx = msgs.findIndex((m) => m.id === message.id);
-      if (idx === -1) return s;
+      if (idx === -1) {
+        return {
+          messagesBySession: {
+            ...s.messagesBySession,
+            [sessionId]: [...msgs, message],
+          },
+        };
+      }
       const next = [...msgs];
       next[idx] = message;
       return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
     }),
   addMessage: (sessionId, message) =>
-    set((s) => ({
-      messagesBySession: {
-        ...s.messagesBySession,
-        [sessionId]: [...(s.messagesBySession[sessionId] ?? []), message],
-      },
-    })),
+    set((s) => {
+      const existing = s.messagesBySession[sessionId] ?? [];
+      const idx = existing.findIndex((entry) => entry.id === message.id);
+      if (idx >= 0) {
+        const next = [...existing];
+        next[idx] = message;
+        return { messagesBySession: { ...s.messagesBySession, [sessionId]: next } };
+      }
+
+      return {
+        messagesBySession: {
+          ...s.messagesBySession,
+          [sessionId]: [...existing, message],
+        },
+      };
+    }),
   setPendingPermissions: (key, permissions) =>
     set((s) => ({ pendingPermissions: { ...s.pendingPermissions, [key]: permissions } })),
   setSelectedProvider: (id) => set({ selectedProvider: id }),

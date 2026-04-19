@@ -53,12 +53,12 @@ export function Composer() {
   if (activeWorkspaceId && !sessionId) {
     placeholder = 'Preparing chat...';
   } else if (sessionId) {
-    placeholder =
-      composerMode === 'ask'
-        ? 'Ask anything. @ for agents, / for commands or skills, $ for shell.'
+      placeholder =
+        composerMode === 'ask'
+        ? 'Ask for changes, questions, or a plan. Use + for command and shell.'
         : composerMode === 'command'
-          ? 'Type a command, or switch back to Ask and start with /'
-          : 'Run a shell command. Start with $ from Ask mode if you prefer.';
+          ? 'Run a command. Use + to switch back to Ask or Shell.'
+          : 'Run a shell command. Use + to switch back when you are done.';
   }
 
   const handleModelChange = (value: string) => {
@@ -184,12 +184,15 @@ export function Composer() {
         <div className="oc-composer-main">
           <ComposerPrimitive.Input
             ref={inputRef}
-            autoFocus
+            autoFocus={false}
             disabled={disabled}
             name="message"
             placeholder={placeholder}
             rows={3}
             className={`aui-composer-input ${composerMode === 'shell' ? 'aui-composer-input--mono' : ''}`}
+            unstable_focusOnRunStart={false}
+            unstable_focusOnScrollToBottom={false}
+            unstable_focusOnThreadSwitched={false}
             onInput={(event) => syncDraft(event.currentTarget)}
             onClick={(event) => syncDraft(event.currentTarget)}
             onKeyUp={(event) => syncDraft(event.currentTarget)}
@@ -245,7 +248,9 @@ export function Composer() {
 
       <p className="oc-composer-note">
         {disabled
-          ? 'Not sure? Choose a folder from the left, then describe your goal in plain language.'
+          ? activeWorkspaceId
+            ? 'Connecting workspace chat. You can start typing now and send once the composer unlocks.'
+            : 'Not sure? Choose a folder from the left, then describe your goal in plain language.'
           : 'Review important changes before applying them.'}
       </p>
     </div>
