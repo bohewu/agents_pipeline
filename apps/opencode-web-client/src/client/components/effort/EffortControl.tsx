@@ -28,16 +28,18 @@ export function EffortControl({ className = '' }: { className?: string }) {
 
   return (
     <select
-      name="effort"
+      name="thinking-effort"
       value={currentLevel}
       onChange={(event) => handleChange(event.target.value)}
       className={`oc-topbar-select oc-topbar-select--compact ${className}`.trim()}
-      aria-label="Effort"
+      aria-label="Thinking effort"
+      title="Current session thinking effort. Child and subagent sessions can inherit it on supported GPT-5 models."
       disabled={!activeWorkspaceId}
     >
-      <option value="medium">Medium</option>
-      <option value="high">High</option>
-      <option value="xhigh">Max</option>
+      <option value="low">low</option>
+      <option value="medium">medium</option>
+      <option value="high">high</option>
+      <option value="xhigh">xhigh</option>
     </select>
   );
 }

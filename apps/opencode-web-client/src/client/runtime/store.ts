@@ -31,6 +31,7 @@ export interface UIStore {
   pendingPermissions: Record<string, PermissionRequest[]>;
   selectedProvider: string | null;
   selectedModel: string | null;
+  selectedModelVariant: string | null;
   selectedAgent: string | null;
   effortByWorkspace: Record<string, EffortStateSummary>;
   usageByWorkspace: Record<string, UsageDetails>;
@@ -60,6 +61,7 @@ export interface UIStore {
   setPendingPermissions: (key: string, permissions: PermissionRequest[]) => void;
   setSelectedProvider: (id: string | null) => void;
   setSelectedModel: (id: string | null) => void;
+  setSelectedModelVariant: (id: string | null) => void;
   setSelectedAgent: (id: string | null) => void;
   setEffort: (workspaceId: string, effort: EffortStateSummary) => void;
   setUsage: (workspaceId: string, usage: UsageDetails, provider?: string | null) => void;
@@ -87,6 +89,7 @@ export const useStore = create<UIStore>((set) => ({
   pendingPermissions: {},
   selectedProvider: null,
   selectedModel: null,
+  selectedModelVariant: null,
   selectedAgent: null,
   effortByWorkspace: {},
   usageByWorkspace: loadUsageCache(),
@@ -164,6 +167,7 @@ export const useStore = create<UIStore>((set) => ({
     set((s) => ({ pendingPermissions: { ...s.pendingPermissions, [key]: permissions } })),
   setSelectedProvider: (id) => set({ selectedProvider: id }),
   setSelectedModel: (id) => set({ selectedModel: id }),
+  setSelectedModelVariant: (id) => set({ selectedModelVariant: id }),
   setSelectedAgent: (id) => set({ selectedAgent: id }),
   setEffort: (workspaceId, effort) =>
     set((s) => ({ effortByWorkspace: { ...s.effortByWorkspace, [workspaceId]: effort } })),

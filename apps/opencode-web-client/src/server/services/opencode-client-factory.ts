@@ -129,7 +129,9 @@ export class OpenCodeClientFactory {
       },
 
       chat: async (sessionId: string, content: string, options) => {
-        return post(`/session/${sessionId}/message`, withSelections({ content }, options))
+        return post(`/session/${sessionId}/message`, withSelections({
+          parts: [{ type: 'text', text: content }],
+        }, options))
       },
 
       command: async (sessionId: string, command: string, args?: Record<string, unknown>) => {

@@ -3,6 +3,7 @@ import type {
   AgentSummary,
   CommandSummary,
   ModelSummary,
+  ModelVariantSummary,
   ProviderSummary,
 } from '../../shared/types.js'
 
@@ -99,6 +100,7 @@ function normalizeProviders(providerPayload: any, modelPayload: any): Pick<Norma
         name: typeof rawModel.name === 'string' ? rawModel.name : rawModel.id,
         connected: connectedSet.has(providerId),
         isDefault: defaultModelId === rawModel.id,
+        variants: normalizeModelVariants(rawModel.variants),
       })
     }
   }
@@ -117,6 +119,7 @@ function normalizeProviders(providerPayload: any, modelPayload: any): Pick<Norma
         name: typeof rawModel.name === 'string' ? rawModel.name : rawModel.id,
         connected: connectedSet.has(providerId),
         isDefault: defaultModels[providerId] === rawModel.id,
+        variants: normalizeModelVariants(rawModel.variants),
       })
     }
   }
@@ -150,6 +153,42 @@ function normalizeProviders(providerPayload: any, modelPayload: any): Pick<Norma
   })
 
   return { providers, models, connectedProviderIds }
+}
+
+function normalizeModelVariants(value: unknown): ModelVariantSummary[] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+
+  const variants = Object.entries(value as Record<string, Record<string, unknown>>)
+    .map(([id, raw]) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+          id,
+          name: formatVariantName(id),
+          hasAdditionalOptions: false,
+        } satisfies ModelVariantSummary
+      }
+
+      const reasoningEffort = typeof raw.reasoningEffort === 'string' ? raw.reasoningEffort : undefined
+      const keys = Object.keys(raw)
+      const hasAdditionalOptions = keys.some((key) => key !== 'reasoningEffort')
+      return {
+        id,
+        name: formatVariantName(id),
+        reasoningEffort,
+        hasAdditionalOptions,
+      } satisfies ModelVariantSummary
+    })
+    .sort((left, right) => left.name.localeCompare(right.name))
+
+  return variants.length > 0 ? variants : undefined
+}
+
+function formatVariantName(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ')
 }
 
 function normalizeAgents(value: unknown): AgentSummary[] {

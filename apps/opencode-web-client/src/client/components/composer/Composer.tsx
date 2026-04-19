@@ -10,7 +10,8 @@ import { useStore } from '../../runtime/store.js';
 import { ComposerModeSelector } from './ComposerModeSelector.js';
 import { ArrowUpIcon, FolderIcon, GitBranchIcon, SquareIcon } from '../common/Icons.js';
 import { EffortControl } from '../effort/EffortControl.js';
-import { getGroupedModelOptions, getVisibleAgents, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
+import { ConnectionStatus } from '../common/ConnectionStatus.js';
+import { getGroupedModelOptions, getVisibleAgents, isVariantEligibleModelId, resolveModelId, resolveProviderId } from '../../lib/opencode-controls.js';
 
 type SuggestionKind = 'agent' | 'command';
 
@@ -46,6 +47,7 @@ export function Composer() {
   const modelId = resolveModelId(boot, providerId, selectedModel);
   const groupedModelOptions = getGroupedModelOptions(boot);
   const allModelOptions = groupedModelOptions.flatMap((group) => group.models);
+  const showThinkingControl = isVariantEligibleModelId(modelId);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [draftValue, setDraftValue] = useState('');
   const [cursor, setCursor] = useState(0);
@@ -244,38 +246,42 @@ export function Composer() {
                   onChange={(event) => handleModelChange(event.target.value)}
                   className="oc-topbar-select oc-topbar-select--compact oc-composer-control oc-topbar-select--model"
                   aria-label="Model"
+                  title="Select a model. GPT-5 family models expose an extra thinking control."
                   disabled={groupedModelOptions.length === 0}
                 >
                   <option value="">Model</option>
                   {groupedModelOptions.map((group) => (
                     <optgroup key={group.provider.id} label={group.provider.name}>
                       {group.models.map((model) => (
-                        <option key={model.id} value={model.id}>{`${group.provider.name} · ${model.name}`}</option>
+                        <option key={model.id} value={model.id}>{model.name}</option>
                       ))}
                     </optgroup>
                   ))}
                 </select>
-                <EffortControl className="oc-composer-control" />
+                {activeWorkspaceId && showThinkingControl && <EffortControl className="oc-composer-control" />}
               </>
             )}
           </div>
         </div>
       </ComposerPrimitive.Root>
 
-      {(projectName || projectBranch) && (
+      {(projectName || projectBranch || activeWorkspaceId) && (
         <div className="oc-composer-context">
-          {projectName && (
-            <div className="oc-composer-meta-pill">
-              <FolderIcon size={13} />
-              <span>{projectName}</span>
-            </div>
-          )}
-          {projectBranch && (
-            <div className="oc-composer-meta-pill">
-              <GitBranchIcon size={13} />
-              <span>{projectBranch}</span>
-            </div>
-          )}
+          <div className="oc-composer-context__meta">
+            {projectName && (
+              <div className="oc-composer-meta-pill">
+                <FolderIcon size={13} />
+                <span>{projectName}</span>
+              </div>
+            )}
+            {projectBranch && (
+              <div className="oc-composer-meta-pill">
+                <GitBranchIcon size={13} />
+                <span>{projectBranch}</span>
+              </div>
+            )}
+          </div>
+          {activeWorkspaceId && <ConnectionStatus className="oc-status-pill--composer" />}
         </div>
       )}
 

@@ -10,17 +10,71 @@ import { useStore } from '../../runtime/store.js';
 
 export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
   const { settings, updateSettings, resetSettings } = useStore();
+  const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const titleId = React.useId();
+
+  React.useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeButtonRef.current?.focus();
+
+    return () => {
+      previousFocus?.focus();
+    };
+  }, []);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const focusable = getFocusableElements(dialogRef.current);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+
+    if (event.shiftKey) {
+      if (active === first || active === dialogRef.current) {
+        event.preventDefault();
+        last.focus();
+      }
+      return;
+    }
+
+    if (active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
     <div className="oc-modal-backdrop" onClick={onClose}>
-      <div className="oc-settings-dialog" onClick={(event) => event.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="oc-settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
         <div className="oc-settings-dialog__header">
           <div>
             <div className="oc-settings-dialog__eyebrow">Settings</div>
-            <h2 className="oc-settings-dialog__title">App preferences</h2>
+            <h2 id={titleId} className="oc-settings-dialog__title">App preferences</h2>
             <p className="oc-settings-dialog__subtitle">Changes save automatically for this browser.</p>
           </div>
-          <button type="button" onClick={onClose} className="oc-icon-button oc-icon-button--soft" aria-label="Close settings">
+          <button ref={closeButtonRef} type="button" onClick={onClose} className="oc-icon-button oc-icon-button--soft" aria-label="Close settings">
             <span aria-hidden="true">×</span>
           </button>
         </div>
@@ -131,4 +185,14 @@ function SettingsRow({
       <div className="oc-settings-row__control">{children}</div>
     </label>
   );
+}
+
+function getFocusableElements(container: HTMLDivElement | null): HTMLElement[] {
+  if (!container) return [];
+
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hasAttribute('hidden') && element.tabIndex !== -1);
 }

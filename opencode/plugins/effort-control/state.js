@@ -3,7 +3,7 @@ import path from "path";
 
 const STATE_FILE = "effort-control.sessions.json";
 const TRACE_FILE = "effort-control.trace.jsonl";
-const EFFORT_ORDER = ["medium", "high", "xhigh"];
+const EFFORT_ORDER = ["low", "medium", "high", "xhigh"];
 const EXCLUDED_BASELINE_AGENTS = new Set([
   "codex-account-manager",
   "compressor",
@@ -22,7 +22,7 @@ const EXCLUDED_BASELINE_AGENTS = new Set([
   "test-runner",
   "usage-inspector"
 ]);
-const SUPPORTED_PROVIDERS = new Set(["openai", "github-copilot"]);
+const SUPPORTED_PROVIDERS = new Set(["openai", "github-copilot", "opencode"]);
 
 function stateDirPath(projectRoot) {
   return path.join(projectRoot || process.cwd(), ".opencode");
@@ -250,11 +250,11 @@ function resolveDesiredEffort({ providerId, modelId, agent, sessionEffort, proje
   const existing = normalizeEffort(existingEffort);
 
   if (explicit) {
-    return maxDefinedEffort(existing, baseline, explicit);
+    return explicit;
   }
 
   if (projectDefault) {
-    return maxDefinedEffort(existing, baseline, projectDefault);
+    return projectDefault;
   }
 
   return maxDefinedEffort(existing, baseline);

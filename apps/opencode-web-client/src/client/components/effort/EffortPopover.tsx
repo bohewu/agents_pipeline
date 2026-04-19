@@ -4,9 +4,10 @@ import { api } from '../../lib/api-client.js';
 import { EFFORT_LEVELS } from '../../../shared/constants.js';
 
 const LEVELS = [
+  { display: 'low', value: 'low' },
   { display: 'medium', value: 'medium' },
   { display: 'high', value: 'high' },
-  { display: 'max', value: 'xhigh' },
+  { display: 'xhigh', value: 'xhigh' },
 ];
 
 export function EffortPopover({ onClose }: { onClose: () => void }) {
@@ -44,7 +45,7 @@ export function EffortPopover({ onClose }: { onClose: () => void }) {
       background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 18,
       padding: 12, minWidth: 180, zIndex: 100, boxShadow: 'var(--shadow-soft)',
     }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Effort Level</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Thinking Effort</div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
         {(['project', 'session'] as const).map((s) => (

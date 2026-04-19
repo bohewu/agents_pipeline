@@ -46,6 +46,14 @@ export interface ModelSummary {
   name: string;
   connected: boolean;
   isDefault: boolean;
+  variants?: ModelVariantSummary[];
+}
+
+export interface ModelVariantSummary {
+  id: string;
+  name: string;
+  reasoningEffort?: string;
+  hasAdditionalOptions: boolean;
 }
 
 export interface AgentSummary {

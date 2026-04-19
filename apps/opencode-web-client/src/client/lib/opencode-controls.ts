@@ -1,5 +1,12 @@
-import type { AgentSummary, ModelSummary, ProviderSummary, WorkspaceBootstrap } from '../../shared/types.js';
+import type { AgentSummary, ModelSummary, ModelVariantSummary, ProviderSummary, WorkspaceBootstrap } from '../../shared/types.js';
 import type { ComposerMode } from '../runtime/store.js';
+
+const FIXED_GPT5_VARIANTS: ModelVariantSummary[] = [
+  { id: 'low', name: 'Low', reasoningEffort: 'low', hasAdditionalOptions: false },
+  { id: 'medium', name: 'Medium', reasoningEffort: 'medium', hasAdditionalOptions: false },
+  { id: 'high', name: 'High', reasoningEffort: 'high', hasAdditionalOptions: false },
+  { id: 'xhigh', name: 'XHigh', reasoningEffort: 'xhigh', hasAdditionalOptions: false },
+];
 
 export interface GroupedModelOptions {
   provider: ProviderSummary;
@@ -33,6 +40,29 @@ export function getGroupedModelOptions(boot?: WorkspaceBootstrap): GroupedModelO
       models: getModelOptions(boot, provider.id),
     }))
     .filter((group) => group.models.length > 0);
+}
+
+export function getModelById(boot: WorkspaceBootstrap | undefined, modelId?: string | null): ModelSummary | undefined {
+  if (!modelId) return undefined;
+  return (boot?.opencode?.models ?? []).find((model) => model.id === modelId);
+}
+
+export function getModelVariantOptions(boot?: WorkspaceBootstrap, modelId?: string | null): ModelVariantSummary[] {
+  return isVariantEligibleModelId(modelId) ? FIXED_GPT5_VARIANTS : [];
+}
+
+export function resolveModelVariantId(
+  boot?: WorkspaceBootstrap,
+  modelId?: string | null,
+  selectedVariantId?: string | null,
+): string | null {
+  const variants = getModelVariantOptions(boot, modelId);
+  if (variants.length === 0) return null;
+  return variants.some((variant) => variant.id === selectedVariantId) ? selectedVariantId ?? null : null;
+}
+
+export function isVariantEligibleModelId(modelId?: string | null): boolean {
+  return typeof modelId === 'string' && /^gpt-5(?:$|[.-])/.test(modelId);
 }
 
 export function resolveModelId(

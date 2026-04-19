@@ -27,7 +27,6 @@ export class EffortService {
    * Map internal effort level to UI level. Internal "xhigh" -> UI "max".
    */
   static toUI(internalLevel: string): string {
-    if (internalLevel === 'xhigh') return 'max'
     return internalLevel
   }
 

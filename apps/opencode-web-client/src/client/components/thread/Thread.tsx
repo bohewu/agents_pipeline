@@ -12,7 +12,6 @@ import { useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
 import { Composer } from '../composer/Composer.js';
-import { ConnectionStatus } from '../common/ConnectionStatus.js';
 import { ArrowDownIcon } from '../common/Icons.js';
 
 function useNormalizedMessage() {
@@ -122,10 +121,6 @@ export function Thread() {
         scrollToBottomOnThreadSwitch
         style={{ flex: 1, overflow: 'auto' }}
       >
-        <div className="oc-thread-statusbar">
-          <ConnectionStatus className="oc-status-pill--thread" />
-        </div>
-
         <ThreadPrimitive.Empty>
           <div className="oc-empty-thread-state">
             <div className="oc-empty-thread-state__avatar">O</div>

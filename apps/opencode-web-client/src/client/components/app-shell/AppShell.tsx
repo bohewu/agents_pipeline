@@ -14,12 +14,14 @@ import { mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-
 export function AppShell() {
   const {
     activeWorkspaceId,
+    activeSessionByWorkspace,
     sidebarOpen,
     rightDrawerOpen,
     workspaceDialogOpen,
     settingsDialogOpen,
     selectedProvider,
     selectedModel,
+    selectedModelVariant,
     selectedAgent,
     setConnection,
     setWorkspaceBootstrap,
@@ -32,13 +34,16 @@ export function AppShell() {
     setUsageLoading,
     setSelectedProvider,
     setSelectedModel,
+    setSelectedModelVariant,
     setSelectedAgent,
+    setStreaming,
     setWorkspaceDialogOpen,
     setSettingsDialogOpen,
   } = useStore();
   const compactDesktop = useViewportWidth() <= 1440;
   const sidebarWidth = compactDesktop ? '248px' : '280px';
   const drawerWidth = compactDesktop ? '300px' : '360px';
+  const activeSessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
 
   useEffect(() => {
     if (!activeWorkspaceId) return;
@@ -78,6 +83,7 @@ export function AppShell() {
     let cancelled = false;
 
     const hydrateWorkspace = async () => {
+      setStreaming(false);
       setConnection(activeWorkspaceId, 'connecting');
 
       try {
@@ -94,6 +100,7 @@ export function AppShell() {
 
         setSelectedProvider(providerId);
         setSelectedModel(modelId);
+        setSelectedModelVariant(null);
         setSelectedAgent(agentId);
 
         if (boot.effort) {
@@ -150,6 +157,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
       close();
+      setStreaming(false);
       setConnection(activeWorkspaceId, 'disconnected');
     };
   }, [
@@ -158,8 +166,10 @@ export function AppShell() {
     setMessages,
     setSelectedAgent,
     setSelectedModel,
+    setSelectedModelVariant,
     setSelectedProvider,
     setSessions,
+    setStreaming,
     setWorkspaceBootstrap,
     setWorkspaceServerStatus,
     setConnection,
@@ -175,7 +185,7 @@ export function AppShell() {
   return (
     <div className="app-shell" style={{ gridTemplateColumns: gridCols }}>
       <Sidebar />
-      <RuntimeProvider>
+      <RuntimeProvider key={`${activeWorkspaceId ?? 'no-workspace'}:${activeSessionId ?? 'no-session'}:${selectedModel ?? 'no-model'}:${selectedModelVariant ?? 'no-variant'}`}>
         <div className="main-content">
           <Thread />
         </div>

@@ -8,6 +8,7 @@ export const EFFORT_LEVELS: Record<string, string> = {
   xhigh: 'xhigh',
   high: 'high',
   medium: 'medium',
+  low: 'low',
 };
 
 export const API_PREFIX = '/api';

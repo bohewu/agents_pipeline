@@ -86,7 +86,7 @@ export function WorkspaceSelector({ fullWidth = false }: { fullWidth?: boolean }
             return (
               <button
                 key={workspace.id}
-type="button"
+                type="button"
                 onClick={() => handleSelect(workspace.id)}
                 className={`oc-workspace-menu__item ${workspace.id === activeWorkspaceId ? 'is-active' : ''}`}
                 title={indicator?.label}

@@ -1055,19 +1055,6 @@ select:focus {
   min-height: 100%;
 }
 
-.oc-thread-statusbar {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  max-width: var(--chat-shell-width);
-  margin: 0 auto;
-  padding: 12px 24px 0;
-  background: linear-gradient(180deg, rgba(247, 247, 248, 0.96) 0%, rgba(247, 247, 248, 0.72) 62%, rgba(247, 247, 248, 0) 100%);
-}
-
 .oc-thread-messages {
   flex: 1 1 auto;
   width: 100%;
@@ -1620,6 +1607,7 @@ select:focus {
 }
 
 .oc-composer-footer__secondary {
+  margin-left: auto;
   justify-content: flex-end;
 }
 
@@ -1808,10 +1796,18 @@ select:focus {
 
 .oc-composer-context {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 4px 0;
+}
+
+.oc-composer-context__meta {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 8px 4px 0;
+  min-width: 0;
 }
 
 .oc-composer-meta-pill {
@@ -1820,6 +1816,16 @@ select:focus {
   gap: 6px;
   color: var(--text-muted);
   font-size: 11.5px;
+}
+
+.oc-status-pill--composer {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+  border-color: rgba(17, 17, 17, 0.06);
+  font-size: 11px;
 }
 
 .oc-composer-note {
