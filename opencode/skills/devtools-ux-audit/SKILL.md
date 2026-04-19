@@ -34,8 +34,19 @@ If you need detailed background or want the repo-level source document, read `..
 - Keep this skill browser-focused. A paired local-server lifecycle workflow should own local server startup, readiness checks, and teardown.
 - Browser automation should begin only after the target URL has been confirmed reachable.
 - If the agent started the local server, cleanup is complete only when the URL no longer responds and the expected port is no longer listening.
+- If the agent started or attached Chrome DevTools tooling for the audit, browser cleanup is also required; do not leave a shared DevTools browser/profile running at the end of the task.
 - On Linux/Ubuntu/macOS, direct executable launch is optional, but reachability before the audit and teardown verification after the audit are still required.
 - On Windows, `npm.cmd run ...` can return a wrapper PID instead of the real listener PID, so teardown may need a listener-PID fallback.
+
+## Browser Cleanup And Recovery
+
+- Prefer one Chrome DevTools session per audit task. Reuse the existing browser session/page when possible instead of starting a second MCP/browser instance.
+- Treat browser teardown like server teardown: if this workflow started the DevTools browser or MCP session, cleanup is not complete until the session is no longer attached.
+- If browser tools fail with `Not connected`, report that exact failure and stop evidence collection rather than guessing.
+- If browser tools fail with a shared-profile error such as `The browser is already running for ...chrome-profile`, treat it as stale-session cleanup work before retrying.
+- Before deleting Chrome singleton lock files, first verify that no live DevTools-owned Chrome process is still using the shared profile.
+- On Linux/macOS, a safe recovery sequence is: stop `chrome-devtools-mcp`, stop Chrome processes using the DevTools profile, remove `SingletonLock`, `SingletonSocket`, and `SingletonCookie`, then retry once.
+- After cleanup, verify recovery with a lightweight browser-tool call before resuming the audit. If recovery still fails, report the exact failure and proceed with limited confidence.
 
 ## Profile First
 
