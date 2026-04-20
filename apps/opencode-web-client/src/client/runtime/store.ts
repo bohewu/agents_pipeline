@@ -37,6 +37,7 @@ export interface UIStore {
   usageByWorkspace: Record<string, UsageDetails>;
   usageLoadingByWorkspace: Record<string, boolean>;
   rightPanel: RightPanel;
+  selectedReasoningMessageId: string | null;
   activityFocusMessageId: string | null;
   activityFocusNonce: number;
   composerMode: ComposerMode;
@@ -69,6 +70,7 @@ export interface UIStore {
   setUsage: (workspaceId: string, usage: UsageDetails, provider?: string | null) => void;
   setUsageLoading: (workspaceId: string, loading: boolean, provider?: string | null) => void;
   setRightPanel: (panel: RightPanel) => void;
+  setSelectedReasoningMessage: (messageId: string | null) => void;
   focusActivityMessage: (messageId: string) => void;
   setComposerMode: (mode: ComposerMode) => void;
   toggleSidebar: () => void;
@@ -98,6 +100,7 @@ export const useStore = create<UIStore>((set) => ({
   usageByWorkspace: loadUsageCache(),
   usageLoadingByWorkspace: {},
   rightPanel: getItem<RightPanel>('right-panel', 'usage'),
+  selectedReasoningMessageId: null,
   activityFocusMessageId: null,
   activityFocusNonce: 0,
   composerMode: 'ask',
@@ -196,8 +199,10 @@ export const useStore = create<UIStore>((set) => ({
     setItem('right-panel', panel);
     set({ rightPanel: panel });
   },
+  setSelectedReasoningMessage: (messageId) => set({ selectedReasoningMessageId: messageId }),
   focusActivityMessage: (messageId) =>
     set((s) => ({
+      selectedReasoningMessageId: messageId,
       activityFocusMessageId: messageId,
       activityFocusNonce: s.activityFocusNonce + 1,
     })),

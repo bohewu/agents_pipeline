@@ -42,7 +42,7 @@ export function AppShell() {
   } = useStore();
   const compactDesktop = useViewportWidth() <= 1440;
   const sidebarWidth = compactDesktop ? '248px' : '280px';
-  const drawerWidth = compactDesktop ? '300px' : '360px';
+  const drawerWidth = compactDesktop ? '320px' : '384px';
   const activeSessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
 
   useEffect(() => {

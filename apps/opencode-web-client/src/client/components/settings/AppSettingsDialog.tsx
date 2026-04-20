@@ -87,6 +87,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               help="Refresh background workspace activity without keeping every repo live-subscribed."
             >
               <select
+                name="inactive-workspace-polling"
+                aria-label="Inactive workspace polling"
                 value={String(settings.inactiveWorkspacePollIntervalMs)}
                 onChange={(event) => updateSettings({ inactiveWorkspacePollIntervalMs: Number(event.target.value) as typeof settings.inactiveWorkspacePollIntervalMs })}
                 className="oc-settings-select"
@@ -102,6 +104,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               help="Stop inactive runtimes after no background activity for the selected time."
             >
               <select
+                name="inactive-workspace-auto-sleep"
+                aria-label="Inactive workspace auto-sleep"
                 value={String(settings.inactiveWorkspaceAutoSleepMinutes)}
                 onChange={(event) => updateSettings({ inactiveWorkspaceAutoSleepMinutes: Number(event.target.value) as typeof settings.inactiveWorkspaceAutoSleepMinutes })}
                 className="oc-settings-select"
@@ -117,6 +121,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               help="Used for workspaces that do not already have a saved sidebar filter."
             >
               <select
+                name="sessions-default-view"
+                aria-label="Sessions default view"
                 value={settings.sessionsDefaultView}
                 onChange={(event) => updateSettings({ sessionsDefaultView: event.target.value as typeof settings.sessionsDefaultView })}
                 className="oc-settings-select"
@@ -134,6 +140,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               <label className="oc-settings-checkbox">
                 <input
                   type="checkbox"
+                  name="show-reasoning-summaries"
+                  aria-label="Show reasoning summaries"
                   checked={settings.showReasoningSummaries}
                   onChange={(event) => updateSettings({ showReasoningSummaries: event.target.checked })}
                 />
@@ -149,6 +157,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               help="Choose whether inactive workspace activity shows as a dot only or a dot with a small label."
             >
               <select
+                name="workspace-activity-indicator"
+                aria-label="Workspace activity indicator"
                 value={settings.workspaceIndicatorStyle}
                 onChange={(event) => updateSettings({ workspaceIndicatorStyle: event.target.value as typeof settings.workspaceIndicatorStyle })}
                 className="oc-settings-select"
@@ -164,6 +174,8 @@ export function AppSettingsDialog({ onClose }: { onClose: () => void }) {
               help="Switch between a tighter composer and a more relaxed input area."
             >
               <select
+                name="composer-density"
+                aria-label="Composer density"
                 value={settings.composerDensity}
                 onChange={(event) => updateSettings({ composerDensity: event.target.value as typeof settings.composerDensity })}
                 className="oc-settings-select"

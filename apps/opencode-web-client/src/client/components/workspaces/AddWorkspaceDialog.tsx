@@ -109,6 +109,8 @@ export function AddWorkspaceDialog({ onClose }: { onClose: () => void }) {
         {/* Path input bar */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input
+            name="workspace-path"
+            aria-label="Workspace path"
             value={pathInput}
             onChange={(e) => setPathInput(e.target.value)}
             onKeyDown={handlePathInputSubmit}
@@ -220,7 +222,11 @@ export function AddWorkspaceDialog({ onClose }: { onClose: () => void }) {
           <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
             Workspace name (optional)
           </label>
-          <input value={name} onChange={(e) => setName(e.target.value)}
+          <input
+            name="workspace-name"
+            aria-label="Workspace name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder={currentPath.split('/').pop() || 'My Project'}
             style={{
               width: '100%', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)',

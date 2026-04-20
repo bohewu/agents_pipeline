@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronDownIcon } from '../common/Icons.js';
 import { useStore } from '../../runtime/store.js';
 import { getMessageTextPreview, getReasoningTextPreview, getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 
@@ -8,12 +9,14 @@ export function ActivityPanel() {
   const messagesBySession = useStore((s) => s.messagesBySession);
   const settings = useStore((s) => s.settings);
   const streaming = useStore((s) => s.streaming);
+  const selectedReasoningMessageId = useStore((s) => s.selectedReasoningMessageId);
+  const setSelectedReasoningMessage = useStore((s) => s.setSelectedReasoningMessage);
   const activityFocusMessageId = useStore((s) => s.activityFocusMessageId);
   const activityFocusNonce = useStore((s) => s.activityFocusNonce);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const messages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
-  const entryRefs = React.useRef(new Map<string, HTMLElement>());
-  const [highlightedMessageId, setHighlightedMessageId] = React.useState<string | null>(null);
+  const entryRefs = React.useRef(new Map<string, HTMLButtonElement>());
+  const [flashMessageId, setFlashMessageId] = React.useState<string | null>(null);
 
   const entries = React.useMemo(() => {
     return messages
@@ -33,6 +36,24 @@ export function ActivityPanel() {
   const liveMessageId = streaming ? entries[0]?.message.id ?? null : null;
 
   React.useEffect(() => {
+    if (entries.length === 0) {
+      if (selectedReasoningMessageId !== null) {
+        setSelectedReasoningMessage(null);
+      }
+      return;
+    }
+
+    if (selectedReasoningMessageId && entries.some((entry) => entry.message.id === selectedReasoningMessageId)) {
+      return;
+    }
+
+    const nextSelectedMessageId = liveMessageId ?? entries[0]?.message.id ?? null;
+    if (nextSelectedMessageId !== selectedReasoningMessageId) {
+      setSelectedReasoningMessage(nextSelectedMessageId);
+    }
+  }, [entries, liveMessageId, selectedReasoningMessageId, setSelectedReasoningMessage]);
+
+  React.useEffect(() => {
     if (!activityFocusMessageId || activityFocusNonce === 0) {
       return;
     }
@@ -44,16 +65,17 @@ export function ActivityPanel() {
 
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
     target.focus({ preventScroll: true });
-    setHighlightedMessageId(activityFocusMessageId);
+    setSelectedReasoningMessage(activityFocusMessageId);
+    setFlashMessageId(activityFocusMessageId);
 
     const timer = window.setTimeout(() => {
-      setHighlightedMessageId((current) => current === activityFocusMessageId ? null : current);
+      setFlashMessageId((current) => current === activityFocusMessageId ? null : current);
     }, 3000);
 
     return () => window.clearTimeout(timer);
-  }, [activityFocusMessageId, activityFocusNonce, entries.length]);
+  }, [activityFocusMessageId, activityFocusNonce, entries.length, setSelectedReasoningMessage]);
 
-  const setEntryRef = React.useCallback((messageId: string, node: HTMLElement | null) => {
+  const setEntryRef = React.useCallback((messageId: string, node: HTMLButtonElement | null) => {
     if (node) {
       entryRefs.current.set(messageId, node);
       return;
@@ -87,56 +109,63 @@ export function ActivityPanel() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: 10 }}>
-        {entries.map((entry) => (
+      <div className="oc-activity-timeline" role="list">
+        {entries.map((entry) => {
+          const isSelected = entry.message.id === selectedReasoningMessageId;
+          const isLive = liveMessageId === entry.message.id;
+          const isFlashing = flashMessageId === entry.message.id;
+          const bodyId = `activity-entry-${entry.message.id}`;
+
+          return (
           <section
             key={entry.message.id}
-            ref={(node) => setEntryRef(entry.message.id, node)}
-            className={`oc-surface-card oc-activity-entry${highlightedMessageId === entry.message.id ? ' is-focused' : ''}`}
-            aria-live={liveMessageId === entry.message.id ? 'polite' : undefined}
-            tabIndex={-1}
-            style={{ padding: 14, display: 'grid', gap: 10 }}
+            className={`oc-activity-entry${isSelected ? ' is-selected' : ''}${isLive ? ' is-live' : ''}${isFlashing ? ' is-flashing' : ''}`}
+            aria-live={isLive ? 'polite' : undefined}
+            role="listitem"
           >
-            <div style={{ display: 'grid', gap: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OpenCode</span>
-                  <span className="oc-activity-entry__badge">Thinking summary</span>
-                  {liveMessageId === entry.message.id && <span className="oc-activity-entry__badge oc-activity-entry__badge--live">Live</span>}
+            <span className="oc-activity-entry__marker" aria-hidden="true" />
+
+            <button
+              ref={(node) => setEntryRef(entry.message.id, node)}
+              type="button"
+              className="oc-activity-entry__header"
+              aria-expanded={isSelected}
+              aria-controls={bodyId}
+              onClick={() => setSelectedReasoningMessage(entry.message.id)}
+            >
+              <div className="oc-activity-entry__meta">
+                <div className="oc-activity-entry__eyebrow">
+                  <span className="oc-activity-entry__label">{isLive ? 'Live thinking' : 'Thinking summary'}</span>
+                  <span className="oc-activity-entry__count">{formatSectionCount(entry.reasoningParts.length)}</span>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {formatActivityTime(entry.message.createdAt)}
-                </span>
+                <div className="oc-activity-entry__trailing">
+                  {isFlashing && <span className="oc-activity-entry__badge">Jumped here</span>}
+                  {isLive && <span className="oc-activity-entry__badge oc-activity-entry__badge--live">Live</span>}
+                  <span className="oc-activity-entry__time">{formatActivityTime(entry.message.createdAt)}</span>
+                  <ChevronDownIcon className="oc-activity-entry__chevron" size={14} />
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              <div className="oc-activity-entry__preview">
                 {entry.preview}
               </div>
-            </div>
+            </button>
 
-            <div style={{ display: 'grid', gap: 8 }}>
-              {entry.reasoningParts.map((part, index) => (
-                <div
-                  key={part.key}
-                  style={{
-                    border: '1px solid rgba(148, 163, 184, 0.16)',
-                    borderRadius: 14,
-                    background: 'rgba(248, 250, 252, 0.92)',
-                    padding: '10px 12px',
-                    display: 'grid',
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    {entry.reasoningParts.length > 1 ? `Section ${index + 1}` : 'Summary'}
+            {isSelected && (
+              <div id={bodyId} className="oc-activity-entry__body">
+                {entry.reasoningParts.map((part, index) => (
+                  <div key={part.key} className="oc-activity-section">
+                    <div className="oc-activity-section__label">
+                      {entry.reasoningParts.length > 1 ? `Section ${index + 1}` : 'Summary'}
+                    </div>
+                    <div className="oc-activity-section__text">
+                      {part.text}
+                    </div>
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-                    {part.text}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
-        ))}
+        )})}
       </div>
     </div>
   );
@@ -144,6 +173,10 @@ export function ActivityPanel() {
 
 function formatActivityTime(value: string): string {
   return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatSectionCount(count: number): string {
+  return `${count} section${count === 1 ? '' : 's'}`;
 }
 
 function EmptyPanelState({ title, body }: { title: string; body: string }) {

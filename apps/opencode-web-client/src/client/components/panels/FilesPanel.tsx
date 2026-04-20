@@ -100,6 +100,8 @@ export function FilesPanel() {
 
       <div style={{ display: 'flex', gap: 4 }}>
         <input
+          name="files-search"
+          aria-label="Search files"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}

@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
 export function MessageCard({ message, isRunning = false }: { message: NormalizedMessage; isRunning?: boolean }) {
   const [copied, setCopied] = useState(false);
   const showReasoningSummaries = useStore((s) => s.settings.showReasoningSummaries);
+  const selectedReasoningMessageId = useStore((s) => s.selectedReasoningMessageId);
   const rightDrawerOpen = useStore((s) => s.rightDrawerOpen);
   const setRightPanel = useStore((s) => s.setRightPanel);
   const focusActivityMessage = useStore((s) => s.focusActivityMessage);
@@ -32,6 +33,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const showAvatar = message.role !== 'user';
   const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0;
   const showReasoningTrigger = showReasoningSummaries && reasoningParts.length > 0;
+  const isReasoningSelected = selectedReasoningMessageId === message.id;
 
   useEffect(() => {
     if (!copied) return;
@@ -118,13 +120,15 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
           <div className="oc-message-card__supplement">
             <button
               type="button"
-              className="oc-reasoning-trigger"
+              className={`oc-reasoning-trigger${isReasoningSelected ? ' is-selected' : ''}`}
               onClick={openReasoningActivity}
               aria-label={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
               title={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
             >
-              <ActivityIcon size={14} />
-              <span className="oc-reasoning-trigger__label">{isRunning ? 'Thinking...' : 'View thinking summary'}</span>
+              <span className="oc-reasoning-trigger__icon" aria-hidden="true">
+                <ActivityIcon size={13} />
+              </span>
+              <span className="oc-reasoning-trigger__label">{isRunning ? 'Thinking live' : 'Thinking summary'}</span>
               <span className="oc-reasoning-trigger__meta">
                 {reasoningParts.length} section{reasoningParts.length === 1 ? '' : 's'}
               </span>
