@@ -31,7 +31,6 @@ interface ActiveToken {
 
 export function Composer() {
   const composerMode = useStore((s) => s.composerMode);
-  const streaming = useStore((s) => s.streaming);
   const composerDensity = useStore((s) => s.settings.composerDensity);
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
@@ -41,6 +40,7 @@ export function Composer() {
   const setSelectedProvider = useStore((s) => s.setSelectedProvider);
   const setSelectedModel = useStore((s) => s.setSelectedModel);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
   const disabled = !sessionId;
   const boot = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
   const providerId = resolveProviderId(boot, selectedProvider);

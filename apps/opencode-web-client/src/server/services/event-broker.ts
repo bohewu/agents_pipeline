@@ -182,7 +182,7 @@ export class EventBroker {
   }
 
   private handleUpstreamEvent(workspaceId: string, eventType: string, eventData: string): void {
-    let envelope: Record<string, unknown> = {}
+    let envelope: Record<string, unknown>
     try {
       envelope = toRecord(JSON.parse(eventData))
     } catch {

@@ -211,7 +211,8 @@ export class ManagedServerManager {
    * Get a sanitized view of a runtime (without process handle).
    */
   toJSON(runtime: ManagedRuntime): Omit<ManagedRuntime, 'process'> {
-    const { process: _, ...rest } = runtime
+    const rest = { ...runtime }
+    delete rest.process
     return rest
   }
 }

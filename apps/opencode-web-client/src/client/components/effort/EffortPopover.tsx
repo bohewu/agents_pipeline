@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
-import { EFFORT_LEVELS } from '../../../shared/constants.js';
 
 const LEVELS = [
   { display: 'low', value: 'low' },

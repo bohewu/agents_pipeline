@@ -1,4 +1,4 @@
-import { resolve, relative, isAbsolute } from 'node:path'
+import { resolve, isAbsolute, relative } from 'node:path'
 import { realpathSync } from 'node:fs'
 
 /**
@@ -6,13 +6,19 @@ import { realpathSync } from 'node:fs'
  * Throws if the resolved path is outside the workspace.
  */
 export function ensureWithinWorkspace(workspaceRoot: string, relativePath: string): string {
-  const resolved = resolve(workspaceRoot, relativePath)
   const realRoot = realpathSync(workspaceRoot)
-  // Check the resolved path starts with the workspace root
-  if (!resolved.startsWith(realRoot + '/') && resolved !== realRoot) {
+  const resolved = resolve(workspaceRoot, relativePath)
+  const realTarget = realpathSync(resolved)
+  const workspaceRelativePath = relative(realRoot, realTarget)
+
+  if (
+    workspaceRelativePath.startsWith('..')
+    || isAbsolute(workspaceRelativePath)
+  ) {
     throw new Error(`Path escapes workspace: ${relativePath}`)
   }
-  return resolved
+
+  return realTarget
 }
 
 /**

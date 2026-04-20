@@ -44,7 +44,7 @@ export interface UIStore {
   sidebarOpen: boolean;
   rightDrawerOpen: boolean;
   connectionByWorkspace: Record<string, 'connecting' | 'connected' | 'disconnected' | 'error'>;
-  streaming: boolean;
+  streamingBySession: Record<string, boolean>;
 
   setInstall: (install: InstallDiagnostics) => void;
   setWorkspaces: (workspaces: WorkspaceProfile[]) => void;
@@ -76,7 +76,8 @@ export interface UIStore {
   toggleSidebar: () => void;
   toggleRightDrawer: () => void;
   setConnection: (workspaceId: string, state: 'connecting' | 'connected' | 'disconnected' | 'error') => void;
-  setStreaming: (streaming: boolean) => void;
+  setSessionStreaming: (sessionId: string, streaming: boolean) => void;
+  clearWorkspaceStreaming: (workspaceId: string) => void;
 }
 
 export const useStore = create<UIStore>((set) => ({
@@ -107,7 +108,7 @@ export const useStore = create<UIStore>((set) => ({
   sidebarOpen: true,
   rightDrawerOpen: getItem<boolean>('right-drawer-open', false),
   connectionByWorkspace: {},
-  streaming: false,
+  streamingBySession: {},
 
   setInstall: (install) => set({ install }),
   setWorkspaces: (workspaces) => set({ workspaces }),
@@ -129,7 +130,14 @@ export const useStore = create<UIStore>((set) => ({
   setWorkspaceBootstrap: (workspaceId, bootstrap) =>
     set((s) => ({ workspaceBootstraps: { ...s.workspaceBootstraps, [workspaceId]: bootstrap } })),
   setSessions: (workspaceId, sessions) =>
-    set((s) => ({ sessionsByWorkspace: { ...s.sessionsByWorkspace, [workspaceId]: sessions } })),
+    set((s) => ({
+      sessionsByWorkspace: { ...s.sessionsByWorkspace, [workspaceId]: sessions },
+      streamingBySession: syncWorkspaceStreamingState(
+        s.streamingBySession,
+        s.sessionsByWorkspace[workspaceId] ?? [],
+        sessions,
+      ),
+    })),
   setActiveSession: (workspaceId, sessionId) =>
     set((s) => {
       const next = { ...s.activeSessionByWorkspace, [workspaceId]: sessionId };
@@ -215,8 +223,68 @@ export const useStore = create<UIStore>((set) => ({
   }),
   setConnection: (workspaceId, state) =>
     set((s) => ({ connectionByWorkspace: { ...s.connectionByWorkspace, [workspaceId]: state } })),
-  setStreaming: (streaming) => set({ streaming }),
+  setSessionStreaming: (sessionId, streaming) =>
+    set((s) => {
+      if (streaming) {
+        if (s.streamingBySession[sessionId]) return s;
+        return { streamingBySession: { ...s.streamingBySession, [sessionId]: true } };
+      }
+
+      if (!s.streamingBySession[sessionId]) return s;
+
+      const next = { ...s.streamingBySession };
+      delete next[sessionId];
+      return { streamingBySession: next };
+    }),
+  clearWorkspaceStreaming: (workspaceId) =>
+    set((s) => ({
+      streamingBySession: clearWorkspaceStreamingState(
+        s.streamingBySession,
+        s.sessionsByWorkspace[workspaceId] ?? [],
+      ),
+    })),
 }));
+
+function syncWorkspaceStreamingState(
+  streamingBySession: Record<string, boolean>,
+  previousSessions: SessionSummary[],
+  nextSessions: SessionSummary[],
+): Record<string, boolean> {
+  const nextStreaming = { ...streamingBySession };
+  const previousIds = new Set(previousSessions.map((session) => session.id));
+
+  for (const session of nextSessions) {
+    previousIds.delete(session.id);
+
+    if (session.state === 'running') {
+      nextStreaming[session.id] = true;
+      continue;
+    }
+
+    if (session.state === 'idle' || session.state === 'error') {
+      delete nextStreaming[session.id];
+    }
+  }
+
+  for (const sessionId of previousIds) {
+    delete nextStreaming[sessionId];
+  }
+
+  return nextStreaming;
+}
+
+function clearWorkspaceStreamingState(
+  streamingBySession: Record<string, boolean>,
+  sessions: SessionSummary[],
+): Record<string, boolean> {
+  if (sessions.length === 0) return streamingBySession;
+
+  const nextStreaming = { ...streamingBySession };
+  for (const session of sessions) {
+    delete nextStreaming[session.id];
+  }
+  return nextStreaming;
+}
 
 const USAGE_CACHE_KEY = 'opencode-web-client:usage-cache';
 

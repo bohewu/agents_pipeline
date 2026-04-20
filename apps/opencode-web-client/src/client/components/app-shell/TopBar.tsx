@@ -35,7 +35,6 @@ export function TopBar() {
     setSelectedModel,
     setSelectedAgent,
     setWorkspaceDialogOpen,
-    setRightPanel,
     toggleSidebar,
     toggleRightDrawer,
     sidebarOpen,
@@ -95,7 +94,13 @@ export function TopBar() {
   return (
     <div className="top-bar">
       <div className="oc-topbar-group">
-        <button type="button" onClick={toggleSidebar} className="oc-icon-button" title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="oc-icon-button"
+          title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+          aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+        >
           <PanelLeftIcon size={16} className={!sidebarOpen ? 'oc-icon--flipped' : undefined} />
         </button>
         <WorkspaceSelector />
@@ -148,6 +153,7 @@ export function TopBar() {
             onClick={toggleRightDrawer}
             className="oc-icon-button"
             title="Hide side panel"
+            aria-label="Hide side panel"
           >
             <PanelRightIcon size={16} />
           </button>

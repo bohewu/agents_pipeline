@@ -25,6 +25,7 @@ Thumbs.db
 # Node / Vite
 node_modules/
 dist/
+apps/opencode-web-client/coverage/
 npm-debug.log*
 pnpm-debug.log*
 yarn-error.log*

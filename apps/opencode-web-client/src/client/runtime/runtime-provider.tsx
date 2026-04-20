@@ -21,7 +21,6 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const messagesBySession = useStore((s) => s.messagesBySession);
-  const streaming = useStore((s) => s.streaming);
   const composerMode = useStore((s) => s.composerMode);
   const selectedProvider = useStore((s) => s.selectedProvider);
   const selectedModel = useStore((s) => s.selectedModel);
@@ -32,6 +31,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const sessionId = activeWorkspaceId
     ? activeSessionByWorkspace[activeWorkspaceId]
     : undefined;
+  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
 
   const rawMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
   const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
@@ -68,7 +68,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       useStore.getState().addMessage(sessionId, optimisticMessage);
 
       // Set streaming before sending
-      useStore.getState().setStreaming(true);
+      useStore.getState().setSessionStreaming(sessionId, true);
       inFlightRequestRef.current?.abort();
       const requestController = new AbortController();
       inFlightRequestRef.current = requestController;
@@ -93,7 +93,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       void sendPromise
         .catch(() => {
           if (inFlightRequestRef.current === requestController) {
-            useStore.getState().setStreaming(false);
+            useStore.getState().setSessionStreaming(sessionId, false);
           }
         })
         .finally(() => {
@@ -108,7 +108,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       const inFlightRequest = inFlightRequestRef.current;
       inFlightRequestRef.current = null;
       inFlightRequest?.abort();
-      useStore.getState().setStreaming(false);
+      useStore.getState().setSessionStreaming(sessionId, false);
       try {
         await api.abort(activeWorkspaceId, sessionId);
       } catch {

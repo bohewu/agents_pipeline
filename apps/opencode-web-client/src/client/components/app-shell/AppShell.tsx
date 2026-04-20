@@ -21,7 +21,6 @@ export function AppShell() {
     settingsDialogOpen,
     selectedProvider,
     selectedModel,
-    selectedModelVariant,
     selectedAgent,
     setConnection,
     setWorkspaceBootstrap,
@@ -36,7 +35,7 @@ export function AppShell() {
     setSelectedModel,
     setSelectedModelVariant,
     setSelectedAgent,
-    setStreaming,
+    clearWorkspaceStreaming,
     setWorkspaceDialogOpen,
     setSettingsDialogOpen,
   } = useStore();
@@ -83,7 +82,7 @@ export function AppShell() {
     let cancelled = false;
 
     const hydrateWorkspace = async () => {
-      setStreaming(false);
+      clearWorkspaceStreaming(activeWorkspaceId);
       setConnection(activeWorkspaceId, 'connecting');
 
       try {
@@ -157,7 +156,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
       close();
-      setStreaming(false);
+      clearWorkspaceStreaming(activeWorkspaceId);
       setConnection(activeWorkspaceId, 'disconnected');
     };
   }, [
@@ -169,7 +168,7 @@ export function AppShell() {
     setSelectedModelVariant,
     setSelectedProvider,
     setSessions,
-    setStreaming,
+    clearWorkspaceStreaming,
     setWorkspaceBootstrap,
     setWorkspaceServerStatus,
     setConnection,

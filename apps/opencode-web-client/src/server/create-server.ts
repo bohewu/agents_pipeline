@@ -263,7 +263,7 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
     });
 
     // Files
-    wsScoped.route('/files', FilesRoute({ diffService, fileService }));
+    wsScoped.route('/files', FilesRoute({ fileService }));
 
     // Effort
     wsScoped.route('/effort', EffortRoute({ effortService }));

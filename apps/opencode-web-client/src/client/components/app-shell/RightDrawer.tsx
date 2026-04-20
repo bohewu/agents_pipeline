@@ -41,12 +41,14 @@ export function RightDrawer() {
     <aside className={`right-drawer-shell ${rightDrawerOpen ? 'is-open' : 'is-closed'}`}>
       {!rightDrawerOpen ? (
         <div className="right-drawer right-drawer--collapsed">
-          <div className="right-drawer__collapsed-rail" role="tablist" aria-label="Quick panels">
+          <div className="right-drawer__collapsed-rail">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 className={`right-drawer__collapsed-tab ${rightPanel === tab.key ? 'is-active' : ''}`}
+                aria-label={`Open ${tab.label} side panel`}
+                aria-pressed={rightPanel === tab.key}
                 title={`Open ${tab.label}`}
                 onClick={() => openPanel(tab.key)}
               >
@@ -79,7 +81,7 @@ export function RightDrawer() {
               </div>
             </div>
 
-            <button type="button" onClick={toggleRightDrawer} className="right-drawer__close" title="Hide side panel">
+            <button type="button" onClick={toggleRightDrawer} className="right-drawer__close" title="Hide side panel" aria-label="Hide side panel">
               <PanelRightIcon size={16} />
             </button>
           </div>

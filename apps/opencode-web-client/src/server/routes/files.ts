@@ -5,12 +5,11 @@ import type { FileService } from '../services/file-service.js'
 import type { WorkspaceProfile } from '../../shared/types.js'
 
 export interface FilesRouteDeps {
-  diffService: DiffService
   fileService: FileService
 }
 
 export function FilesRoute(deps: FilesRouteDeps): Hono<any> {
-  const { diffService, fileService } = deps
+  const { fileService } = deps
   const route = new Hono<any>()
 
   // GET /sessions/:sessionId/diff — get diff for session (mounted at session level)

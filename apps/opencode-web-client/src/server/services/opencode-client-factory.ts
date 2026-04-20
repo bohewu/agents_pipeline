@@ -74,7 +74,6 @@ export class OpenCodeClientFactory {
 
     const get = (path: string) => request('GET', path)
     const post = (path: string, body?: unknown) => request('POST', path, body)
-    const del = (path: string) => request('DELETE', path)
 
     const withSelections = <T extends Record<string, unknown>>(
       body: T,

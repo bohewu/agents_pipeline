@@ -1,5 +1,3 @@
-import type { Server } from 'node:http';
-
 export function setupShutdown(
   server: { close: () => void },
   label: string,

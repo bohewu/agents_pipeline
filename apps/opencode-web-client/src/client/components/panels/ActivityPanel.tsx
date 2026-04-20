@@ -8,15 +8,26 @@ export function ActivityPanel() {
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const messagesBySession = useStore((s) => s.messagesBySession);
   const settings = useStore((s) => s.settings);
-  const streaming = useStore((s) => s.streaming);
   const selectedReasoningMessageId = useStore((s) => s.selectedReasoningMessageId);
   const setSelectedReasoningMessage = useStore((s) => s.setSelectedReasoningMessage);
   const activityFocusMessageId = useStore((s) => s.activityFocusMessageId);
   const activityFocusNonce = useStore((s) => s.activityFocusNonce);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
   const messages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
   const entryRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const [flashMessageId, setFlashMessageId] = React.useState<string | null>(null);
+  const latestAssistantReasoningMessageId = React.useMemo(() => {
+    if (!streaming) return null;
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (message?.role !== 'assistant') continue;
+      return getRenderableReasoningParts(message.parts).length > 0 ? message.id : null;
+    }
+
+    return null;
+  }, [messages, streaming]);
 
   const entries = React.useMemo(() => {
     return messages
@@ -25,7 +36,7 @@ export function ActivityPanel() {
         const reasoningParts = getRenderableReasoningParts(message.parts);
         return {
           message,
-          preview: getMessageTextPreview(message) ?? getReasoningTextPreview(reasoningParts) ?? 'Thinking update',
+          preview: getReasoningTextPreview(reasoningParts) ?? getMessageTextPreview(message) ?? 'Thinking update',
           reasoningParts,
         };
       })
@@ -33,7 +44,7 @@ export function ActivityPanel() {
       .reverse();
   }, [messages]);
 
-  const liveMessageId = streaming ? entries[0]?.message.id ?? null : null;
+  const liveMessageId = latestAssistantReasoningMessageId;
 
   React.useEffect(() => {
     if (entries.length === 0) {
@@ -47,7 +58,7 @@ export function ActivityPanel() {
       return;
     }
 
-    const nextSelectedMessageId = liveMessageId ?? entries[0]?.message.id ?? null;
+    const nextSelectedMessageId = liveMessageId ?? (streaming ? null : entries[0]?.message.id ?? null);
     if (nextSelectedMessageId !== selectedReasoningMessageId) {
       setSelectedReasoningMessage(nextSelectedMessageId);
     }

@@ -46,7 +46,7 @@ export class SessionService {
     }
   }
 
-  async forkSession(workspaceId: string, sessionId: string, _messageId?: string): Promise<SessionSummary> {
+  async forkSession(workspaceId: string, _sessionId: string, _messageId?: string): Promise<SessionSummary> {
     // Fork = create new session (upstream may not support fork natively)
     const client = this.clientFactory.forWorkspace(workspaceId)
     const newSession = await client.createSession()

@@ -18,6 +18,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const [copied, setCopied] = useState(false);
   const showReasoningSummaries = useStore((s) => s.settings.showReasoningSummaries);
   const selectedReasoningMessageId = useStore((s) => s.selectedReasoningMessageId);
+  const rightPanel = useStore((s) => s.rightPanel);
   const rightDrawerOpen = useStore((s) => s.rightDrawerOpen);
   const setRightPanel = useStore((s) => s.setRightPanel);
   const focusActivityMessage = useStore((s) => s.focusActivityMessage);
@@ -33,7 +34,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const showAvatar = message.role !== 'user';
   const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0;
   const showReasoningTrigger = showReasoningSummaries && reasoningParts.length > 0;
-  const isReasoningSelected = selectedReasoningMessageId === message.id;
+  const isReasoningSelected = rightDrawerOpen && rightPanel === 'activity' && selectedReasoningMessageId === message.id;
 
   useEffect(() => {
     if (!copied) return;
@@ -122,6 +123,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
               type="button"
               className={`oc-reasoning-trigger${isReasoningSelected ? ' is-selected' : ''}`}
               onClick={openReasoningActivity}
+              aria-pressed={isReasoningSelected}
               aria-label={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
               title={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
             >

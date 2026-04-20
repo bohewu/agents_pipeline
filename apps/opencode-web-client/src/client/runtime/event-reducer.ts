@@ -39,7 +39,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
           store.setSessions(workspaceId, next);
         }
       }
-      store.setStreaming(true);
+      if (sessionId) store.setSessionStreaming(sessionId, true);
       break;
     }
     case 'message.completed': {
@@ -55,7 +55,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
         });
         store.setSessions(workspaceId, sortSessionsForSidebar(merged));
       }
-      store.setStreaming(false);
+      if (sessionId) store.setSessionStreaming(sessionId, false);
       break;
     }
     case 'session.created': {

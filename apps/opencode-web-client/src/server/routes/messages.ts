@@ -1,7 +1,6 @@
 import { Hono } from 'hono'
 import { ok, fail } from '../create-server.js'
 import type { OpenCodeClientFactory } from '../services/opencode-client-factory.js'
-import { normalizeMessages } from '../services/message-normalizer.js'
 
 export interface MessagesRouteDeps {
   clientFactory: OpenCodeClientFactory
