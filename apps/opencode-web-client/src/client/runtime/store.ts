@@ -37,6 +37,8 @@ export interface UIStore {
   usageByWorkspace: Record<string, UsageDetails>;
   usageLoadingByWorkspace: Record<string, boolean>;
   rightPanel: RightPanel;
+  activityFocusMessageId: string | null;
+  activityFocusNonce: number;
   composerMode: ComposerMode;
   sidebarOpen: boolean;
   rightDrawerOpen: boolean;
@@ -67,6 +69,7 @@ export interface UIStore {
   setUsage: (workspaceId: string, usage: UsageDetails, provider?: string | null) => void;
   setUsageLoading: (workspaceId: string, loading: boolean, provider?: string | null) => void;
   setRightPanel: (panel: RightPanel) => void;
+  focusActivityMessage: (messageId: string) => void;
   setComposerMode: (mode: ComposerMode) => void;
   toggleSidebar: () => void;
   toggleRightDrawer: () => void;
@@ -95,6 +98,8 @@ export const useStore = create<UIStore>((set) => ({
   usageByWorkspace: loadUsageCache(),
   usageLoadingByWorkspace: {},
   rightPanel: getItem<RightPanel>('right-panel', 'usage'),
+  activityFocusMessageId: null,
+  activityFocusNonce: 0,
   composerMode: 'ask',
   sidebarOpen: true,
   rightDrawerOpen: getItem<boolean>('right-drawer-open', false),
@@ -191,6 +196,11 @@ export const useStore = create<UIStore>((set) => ({
     setItem('right-panel', panel);
     set({ rightPanel: panel });
   },
+  focusActivityMessage: (messageId) =>
+    set((s) => ({
+      activityFocusMessageId: messageId,
+      activityFocusNonce: s.activityFocusNonce + 1,
+    })),
   setComposerMode: (mode) => set({ composerMode: mode }),
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   toggleRightDrawer: () => set((s) => {

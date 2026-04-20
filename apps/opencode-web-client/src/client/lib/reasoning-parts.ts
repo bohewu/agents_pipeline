@@ -5,6 +5,8 @@ export interface RenderableReasoningPart {
   text: string;
 }
 
+const PREVIEW_MAX_LENGTH = 140;
+
 export function getRenderableReasoningParts(parts: NormalizedPart[]): RenderableReasoningPart[] {
   const groupedText = new Map<string, string[]>();
   const orderedKeys: string[] = [];
@@ -36,5 +38,21 @@ export function getMessageTextPreview(message: NormalizedMessage): string | null
     .replace(/\s+/g, ' ')
     .trim();
 
-  return preview ? preview : null;
+  return formatPreview(preview);
+}
+
+export function getReasoningTextPreview(reasoningParts: RenderableReasoningPart[]): string | null {
+  const preview = reasoningParts
+    .flatMap((part) => part.text.split(/\n+/))
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  return formatPreview(preview);
+}
+
+function formatPreview(value: string | undefined): string | null {
+  const preview = value?.replace(/\s+/g, ' ').trim();
+  if (!preview) return null;
+  if (preview.length <= PREVIEW_MAX_LENGTH) return preview;
+  return `${preview.slice(0, PREVIEW_MAX_LENGTH - 3).trimEnd()}...`;
 }

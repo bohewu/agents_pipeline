@@ -9,6 +9,7 @@
 import React from 'react';
 import { ThreadPrimitive, MessagePrimitive, useMessage } from '@assistant-ui/react';
 import type { NormalizedMessage } from '../../../shared/types.js';
+import { getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 import { useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
@@ -29,6 +30,7 @@ function useNormalizedMessage() {
       ? store.activeSessionByWorkspace[store.activeWorkspaceId]
       : undefined;
   });
+  const showReasoningSummaries = useStore((store) => store.settings.showReasoningSummaries);
   const messages = useStore((store) => {
     return sessionId ? (store.messagesBySession[sessionId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
   });
@@ -39,9 +41,9 @@ function useNormalizedMessage() {
 
     return {
       normalized,
-      suppressInThread: index >= 0 ? shouldSuppressAssistantBurstMessage(messages, index) : false,
+      suppressInThread: index >= 0 ? shouldSuppressAssistantBurstMessage(messages, index, showReasoningSummaries) : false,
     };
-  }, [messages, messageId]);
+  }, [messages, messageId, showReasoningSummaries]);
 
   return { normalized, messageRole, isRunning, suppressInThread };
 }
@@ -164,13 +166,13 @@ export function Thread() {
   );
 }
 
-function shouldSuppressAssistantBurstMessage(messages: NormalizedMessage[], index: number): boolean {
+function shouldSuppressAssistantBurstMessage(messages: NormalizedMessage[], index: number, showReasoningSummaries: boolean): boolean {
   const current = messages[index];
   if (!current || current.role !== 'assistant') {
     return false;
   }
 
-  if (hasStickyAssistantParts(current)) {
+  if (hasStickyAssistantParts(current, showReasoningSummaries)) {
     return false;
   }
 
@@ -188,7 +190,11 @@ function shouldSuppressAssistantBurstMessage(messages: NormalizedMessage[], inde
   return false;
 }
 
-function hasStickyAssistantParts(message: NormalizedMessage): boolean {
+function hasStickyAssistantParts(message: NormalizedMessage, showReasoningSummaries: boolean): boolean {
+  if (showReasoningSummaries && getRenderableReasoningParts(message.parts).length > 0) {
+    return true;
+  }
+
   return message.parts.some((part) => {
     return part.type === 'tool-call'
       || part.type === 'tool-result'

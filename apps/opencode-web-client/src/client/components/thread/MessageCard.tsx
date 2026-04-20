@@ -19,6 +19,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const showReasoningSummaries = useStore((s) => s.settings.showReasoningSummaries);
   const rightDrawerOpen = useStore((s) => s.rightDrawerOpen);
   const setRightPanel = useStore((s) => s.setRightPanel);
+  const focusActivityMessage = useStore((s) => s.focusActivityMessage);
   const toggleRightDrawer = useStore((s) => s.toggleRightDrawer);
   const textParts = useMemo(
     () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
@@ -54,6 +55,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
 
   const openReasoningActivity = () => {
     setRightPanel('activity');
+    focusActivityMessage(message.id);
     if (!rightDrawerOpen) {
       toggleRightDrawer();
     }
@@ -124,7 +126,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
               <ActivityIcon size={14} />
               <span className="oc-reasoning-trigger__label">{isRunning ? 'Thinking...' : 'View thinking summary'}</span>
               <span className="oc-reasoning-trigger__meta">
-                {reasoningParts.length} update{reasoningParts.length === 1 ? '' : 's'}
+                {reasoningParts.length} section{reasoningParts.length === 1 ? '' : 's'}
               </span>
             </button>
           </div>

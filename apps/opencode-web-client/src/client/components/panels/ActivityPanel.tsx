@@ -1,11 +1,65 @@
 import React from 'react';
 import { useStore } from '../../runtime/store.js';
-import { getMessageTextPreview, getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
+import { getMessageTextPreview, getReasoningTextPreview, getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 
 export function ActivityPanel() {
-  const { activeWorkspaceId, activeSessionByWorkspace, messagesBySession, settings } = useStore();
+  const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
+  const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
+  const messagesBySession = useStore((s) => s.messagesBySession);
+  const settings = useStore((s) => s.settings);
+  const streaming = useStore((s) => s.streaming);
+  const activityFocusMessageId = useStore((s) => s.activityFocusMessageId);
+  const activityFocusNonce = useStore((s) => s.activityFocusNonce);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const messages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
+  const entryRefs = React.useRef(new Map<string, HTMLElement>());
+  const [highlightedMessageId, setHighlightedMessageId] = React.useState<string | null>(null);
+
+  const entries = React.useMemo(() => {
+    return messages
+      .filter((message) => message.role === 'assistant')
+      .map((message) => {
+        const reasoningParts = getRenderableReasoningParts(message.parts);
+        return {
+          message,
+          preview: getMessageTextPreview(message) ?? getReasoningTextPreview(reasoningParts) ?? 'Thinking update',
+          reasoningParts,
+        };
+      })
+      .filter((entry) => entry.reasoningParts.length > 0)
+      .reverse();
+  }, [messages]);
+
+  const liveMessageId = streaming ? entries[0]?.message.id ?? null : null;
+
+  React.useEffect(() => {
+    if (!activityFocusMessageId || activityFocusNonce === 0) {
+      return;
+    }
+
+    const target = entryRefs.current.get(activityFocusMessageId);
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    target.focus({ preventScroll: true });
+    setHighlightedMessageId(activityFocusMessageId);
+
+    const timer = window.setTimeout(() => {
+      setHighlightedMessageId((current) => current === activityFocusMessageId ? null : current);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [activityFocusMessageId, activityFocusNonce, entries.length]);
+
+  const setEntryRef = React.useCallback((messageId: string, node: HTMLElement | null) => {
+    if (node) {
+      entryRefs.current.set(messageId, node);
+      return;
+    }
+    entryRefs.current.delete(messageId);
+  }, []);
 
   if (!activeWorkspaceId || !sessionId) {
     return <EmptyPanelState title="No active chat" body="Start or select a chat to inspect thinking summaries." />;
@@ -20,16 +74,6 @@ export function ActivityPanel() {
     );
   }
 
-  const entries = messages
-    .filter((message) => message.role === 'assistant')
-    .map((message) => ({
-      message,
-      preview: getMessageTextPreview(message),
-      reasoningParts: getRenderableReasoningParts(message.parts),
-    }))
-    .filter((entry) => entry.reasoningParts.length > 0)
-    .reverse();
-
   if (entries.length === 0) {
     return <EmptyPanelState title="No thinking summaries yet" body="When a supported model returns provider-supplied summaries, they will appear here without interrupting the chat flow." />;
   }
@@ -37,9 +81,9 @@ export function ActivityPanel() {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 4 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>Activity</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>Thinking activity</div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          Thinking summaries stay in the side panel so the conversation remains easy to scan.
+          Provider-supplied summaries stay here as a lightweight timeline so the conversation remains easy to scan.
         </div>
       </div>
 
@@ -47,18 +91,25 @@ export function ActivityPanel() {
         {entries.map((entry) => (
           <section
             key={entry.message.id}
-            className="oc-surface-card"
+            ref={(node) => setEntryRef(entry.message.id, node)}
+            className={`oc-surface-card oc-activity-entry${highlightedMessageId === entry.message.id ? ' is-focused' : ''}`}
+            aria-live={liveMessageId === entry.message.id ? 'polite' : undefined}
+            tabIndex={-1}
             style={{ padding: 14, display: 'grid', gap: 10 }}
           >
             <div style={{ display: 'grid', gap: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OpenCode</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>OpenCode</span>
+                  <span className="oc-activity-entry__badge">Thinking summary</span>
+                  {liveMessageId === entry.message.id && <span className="oc-activity-entry__badge oc-activity-entry__badge--live">Live</span>}
+                </div>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  {new Date(entry.message.createdAt).toLocaleTimeString()}
+                  {formatActivityTime(entry.message.createdAt)}
                 </span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                {entry.preview ?? 'Thinking update'}
+                {entry.preview}
               </div>
             </div>
 
@@ -76,7 +127,7 @@ export function ActivityPanel() {
                   }}
                 >
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                    Summary {entry.reasoningParts.length > 1 ? index + 1 : ''}
+                    {entry.reasoningParts.length > 1 ? `Section ${index + 1}` : 'Summary'}
                   </div>
                   <div style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
                     {part.text}
@@ -89,6 +140,10 @@ export function ActivityPanel() {
       </div>
     </div>
   );
+}
+
+function formatActivityTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
 function EmptyPanelState({ title, body }: { title: string; body: string }) {
