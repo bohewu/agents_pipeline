@@ -41,3 +41,6 @@ obj/
 # Playwright artifacts
 playwright-report/
 test-results/
+
+# Root-local scratch space
+/.tmp/
