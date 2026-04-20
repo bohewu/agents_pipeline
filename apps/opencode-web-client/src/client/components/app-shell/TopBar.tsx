@@ -7,6 +7,7 @@ import { ConnectionStatus } from '../common/ConnectionStatus.js';
 import { ActivityIcon, DiffIcon, FilesIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
 
 const PANEL_ICONS = {
+  activity: ActivityIcon,
   diff: DiffIcon,
   files: FilesIcon,
   usage: UsageIcon,
@@ -15,6 +16,7 @@ const PANEL_ICONS = {
 };
 
 const PANEL_LABELS = {
+  activity: 'Activity',
   diff: 'Diff',
   files: 'Files',
   usage: 'Usage',

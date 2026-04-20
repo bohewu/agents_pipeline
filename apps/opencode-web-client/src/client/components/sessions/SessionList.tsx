@@ -19,6 +19,7 @@ export function SessionList() {
   const [query, setQuery] = React.useState('');
   const [filter, setFilterState] = React.useState<SessionFilter>('all');
   const [expandedRoots, setExpandedRoots] = React.useState<Record<string, boolean>>({});
+  const searchInputId = React.useId();
 
   React.useEffect(() => {
     if (!activeWorkspaceId) return;
@@ -95,7 +96,9 @@ export function SessionList() {
         <label className="oc-session-search">
           <SearchIcon size={14} />
           <input
+            id={searchInputId}
             type="search"
+            name="session-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search conversations"

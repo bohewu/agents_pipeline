@@ -48,10 +48,12 @@ export function Composer() {
   const groupedModelOptions = getGroupedModelOptions(boot);
   const allModelOptions = groupedModelOptions.flatMap((group) => group.models);
   const showThinkingControl = isVariantEligibleModelId(modelId);
+  const composerRootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [draftValue, setDraftValue] = useState('');
   const [cursor, setCursor] = useState(0);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+  const composerInputId = React.useId();
   const projectName = boot?.opencode?.project?.name;
   const projectBranch = boot?.opencode?.project?.branch;
 
@@ -110,6 +112,21 @@ export function Composer() {
   useEffect(() => {
     setActiveSuggestionIndex(0);
   }, [activeToken?.trigger, activeToken?.query]);
+
+  useEffect(() => {
+    const targets = composerRootRef.current?.querySelectorAll('textarea') ?? [];
+    targets.forEach((node, index) => {
+      node.setAttribute('name', 'message');
+      node.setAttribute('aria-label', 'Message');
+      node.id = index === 0 ? composerInputId : `${composerInputId}-${index}`;
+    });
+
+    const hiddenMeasureTargets = document.querySelectorAll('textarea[aria-hidden="true"][tabindex="-1"]');
+    hiddenMeasureTargets.forEach((node, index) => {
+      node.setAttribute('name', 'message-measure');
+      node.id = `${composerInputId}-measure-${index}`;
+    });
+  }, [composerInputId, sessionId]);
 
   const syncDraft = (target: HTMLTextAreaElement) => {
     setDraftValue(target.value);
@@ -200,12 +217,14 @@ export function Composer() {
           </div>
         )}
 
-        <div className="oc-composer-main">
+        <div ref={composerRootRef} className="oc-composer-main">
           <ComposerPrimitive.Input
+            id={composerInputId}
             ref={inputRef}
             autoFocus={false}
             disabled={disabled}
             name="message"
+            aria-label="Message"
             placeholder={placeholder}
             rows={4}
             className={`aui-composer-input ${composerMode === 'shell' ? 'aui-composer-input--mono' : ''}`}

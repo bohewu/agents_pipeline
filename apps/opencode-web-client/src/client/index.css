@@ -1292,6 +1292,34 @@ select:focus {
   align-items: flex-start;
 }
 
+.oc-reasoning-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.82);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.oc-reasoning-trigger:hover {
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text-primary);
+}
+
+.oc-reasoning-trigger__label {
+  font-weight: 600;
+}
+
+.oc-reasoning-trigger__meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .oc-message-copy {
   display: inline-flex;
   align-items: center;

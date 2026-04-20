@@ -1,18 +1,20 @@
 import React from 'react';
 import { useStore, type RightPanel } from '../../runtime/store.js';
+import { ActivityPanel } from '../panels/ActivityPanel.js';
 import { DiffPanel } from '../panels/DiffPanel.js';
 import { FilesPanel } from '../panels/FilesPanel.js';
 import { UsagePanel } from '../panels/UsagePanel.js';
 import { PermissionsPanel } from '../panels/PermissionsPanel.js';
 import { DiagnosticsPanel } from '../panels/DiagnosticsPanel.js';
-import { ActivityIcon, DiffIcon, FilesIcon, PanelRightIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
+import { ActivityIcon, DiffIcon, FilesIcon, PanelRightIcon, SettingsIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
 
 const TABS: { key: RightPanel; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+  { key: 'activity', label: 'Activity', icon: ActivityIcon },
   { key: 'diff', label: 'Diff', icon: DiffIcon },
   { key: 'files', label: 'Files', icon: FilesIcon },
   { key: 'usage', label: 'Usage', icon: UsageIcon },
   { key: 'permissions', label: 'Permissions', icon: ShieldIcon },
-  { key: 'diagnostics', label: 'Diagnostics', icon: ActivityIcon },
+  { key: 'diagnostics', label: 'Diagnostics', icon: SettingsIcon },
 ];
 
 export function RightDrawer() {
@@ -27,6 +29,7 @@ export function RightDrawer() {
   };
 
   const renderPanel = () => {
+    if (rightPanel === 'activity') return <ActivityPanel />;
     if (rightPanel === 'diff') return <DiffPanel />;
     if (rightPanel === 'files') return <FilesPanel />;
     if (rightPanel === 'usage') return <UsagePanel />;

@@ -8,11 +8,14 @@
 
 import React from 'react';
 import { ThreadPrimitive, MessagePrimitive, useMessage } from '@assistant-ui/react';
+import type { NormalizedMessage } from '../../../shared/types.js';
 import { useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
 import { Composer } from '../composer/Composer.js';
 import { ArrowDownIcon } from '../common/Icons.js';
+
+const EMPTY_MESSAGES: NormalizedMessage[] = [];
 
 function useNormalizedMessage() {
   const messageId = useMessage((s) => s.id);
@@ -21,25 +24,39 @@ function useNormalizedMessage() {
     s.role === 'assistant' &&
     (s.status?.type === 'running' || s.status?.type === 'requires-action')
   );
-
-  const normalized = useStore((store) => {
-    const sessionId = store.activeWorkspaceId
+  const sessionId = useStore((store) => {
+    return store.activeWorkspaceId
       ? store.activeSessionByWorkspace[store.activeWorkspaceId]
       : undefined;
-    const messages = sessionId ? (store.messagesBySession[sessionId] ?? []) : [];
-    return messages.find((message) => message.id === messageId);
+  });
+  const messages = useStore((store) => {
+    return sessionId ? (store.messagesBySession[sessionId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
   });
 
-  return { normalized, messageRole, isRunning };
+  const { normalized, suppressInThread } = React.useMemo(() => {
+    const index = messages.findIndex((message) => message.id === messageId);
+    const normalized = index >= 0 ? messages[index] : undefined;
+
+    return {
+      normalized,
+      suppressInThread: index >= 0 ? shouldSuppressAssistantBurstMessage(messages, index) : false,
+    };
+  }, [messages, messageId]);
+
+  return { normalized, messageRole, isRunning, suppressInThread };
 }
 
 function ThreadMessage() {
-  const { normalized, messageRole, isRunning } = useNormalizedMessage();
+  const { normalized, messageRole, isRunning, suppressInThread } = useNormalizedMessage();
   const role = normalized?.role ?? messageRole;
   const rowClassName = `oc-message-row oc-message-row--${role}`;
   const bodyClassName = `oc-message-row__body oc-message-row__body--${role}`;
   const showAvatar = role !== 'user';
   const eyebrowLabel = role === 'assistant' ? 'OpenCode' : 'System';
+
+  if (suppressInThread) {
+    return null;
+  }
 
   if (!normalized) {
     return (
@@ -145,4 +162,37 @@ export function Thread() {
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
   );
+}
+
+function shouldSuppressAssistantBurstMessage(messages: NormalizedMessage[], index: number): boolean {
+  const current = messages[index];
+  if (!current || current.role !== 'assistant') {
+    return false;
+  }
+
+  if (hasStickyAssistantParts(current)) {
+    return false;
+  }
+
+  for (let cursor = index + 1; cursor < messages.length; cursor += 1) {
+    const next = messages[cursor];
+    if (!next) {
+      break;
+    }
+    if (next.role !== 'assistant') {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function hasStickyAssistantParts(message: NormalizedMessage): boolean {
+  return message.parts.some((part) => {
+    return part.type === 'tool-call'
+      || part.type === 'tool-result'
+      || part.type === 'error'
+      || part.type === 'permission-request';
+  });
 }

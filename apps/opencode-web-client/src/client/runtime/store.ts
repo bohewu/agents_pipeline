@@ -13,7 +13,7 @@ import type {
   InstallDiagnostics,
 } from '../../shared/types.js';
 
-export type RightPanel = 'diff' | 'files' | 'usage' | 'permissions' | 'diagnostics';
+export type RightPanel = 'activity' | 'diff' | 'files' | 'usage' | 'permissions' | 'diagnostics';
 export type ComposerMode = 'ask' | 'command' | 'shell';
 
 export interface UIStore {

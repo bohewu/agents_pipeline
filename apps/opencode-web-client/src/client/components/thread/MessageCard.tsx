@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { NormalizedMessage, NormalizedPart } from '../../../shared/types.js';
+import { getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 import { useStore } from '../../runtime/store.js';
 import { PermissionCard } from './PermissionCard.js';
 import { ErrorCard } from './ErrorCard.js';
-import { CheckIcon, CopyIcon } from '../common/Icons.js';
+import { ActivityIcon, CheckIcon, CopyIcon } from '../common/Icons.js';
 
 const ROLE_LABELS: Record<string, string> = {
   user: 'You',
@@ -16,6 +17,9 @@ const ROLE_LABELS: Record<string, string> = {
 export function MessageCard({ message, isRunning = false }: { message: NormalizedMessage; isRunning?: boolean }) {
   const [copied, setCopied] = useState(false);
   const showReasoningSummaries = useStore((s) => s.settings.showReasoningSummaries);
+  const rightDrawerOpen = useStore((s) => s.rightDrawerOpen);
+  const setRightPanel = useStore((s) => s.setRightPanel);
+  const toggleRightDrawer = useStore((s) => s.toggleRightDrawer);
   const textParts = useMemo(
     () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
     [message.parts],
@@ -26,7 +30,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const extraParts = message.parts.filter((part) => part.type === 'error' || part.type === 'permission-request');
   const showAvatar = message.role !== 'user';
   const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0;
-  const visibleReasoningParts = showReasoningSummaries && !isRunning ? reasoningParts : [];
+  const showReasoningTrigger = showReasoningSummaries && reasoningParts.length > 0;
 
   useEffect(() => {
     if (!copied) return;
@@ -34,7 +38,7 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
     return () => window.clearTimeout(timer);
   }, [copied]);
 
-  if (!hasPrimaryContent && visibleReasoningParts.length === 0) {
+  if (!hasPrimaryContent && !showReasoningTrigger) {
     return null;
   }
 
@@ -45,6 +49,13 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
       setCopied(true);
     } catch {
       setCopied(false);
+    }
+  };
+
+  const openReasoningActivity = () => {
+    setRightPanel('activity');
+    if (!rightDrawerOpen) {
+      toggleRightDrawer();
     }
   };
 
@@ -101,11 +112,21 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
           </div>
         )}
 
-        {visibleReasoningParts.length > 0 && (
+        {showReasoningTrigger && (
           <div className="oc-message-card__supplement">
-            {visibleReasoningParts.map((part) => (
-              <AssistantReasoningPart key={part.key} part={part} />
-            ))}
+            <button
+              type="button"
+              className="oc-reasoning-trigger"
+              onClick={openReasoningActivity}
+              aria-label={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
+              title={isRunning ? 'Open live thinking activity' : 'Open thinking summary in side panel'}
+            >
+              <ActivityIcon size={14} />
+              <span className="oc-reasoning-trigger__label">{isRunning ? 'Thinking...' : 'View thinking summary'}</span>
+              <span className="oc-reasoning-trigger__meta">
+                {reasoningParts.length} update{reasoningParts.length === 1 ? '' : 's'}
+              </span>
+            </button>
           </div>
         )}
       </div>
@@ -189,23 +210,6 @@ interface RenderableToolPart {
   hasResult: boolean;
   statusLabel: string;
   isError: boolean;
-}
-
-interface RenderableReasoningPart {
-  key: string;
-  text: string;
-}
-
-function AssistantReasoningPart({ part }: { part: RenderableReasoningPart }) {
-  return (
-    <details className="oc-reasoning-part">
-      <summary className="oc-reasoning-part__summary">
-        <span className="oc-reasoning-part__eyebrow">Summary</span>
-        <span className="oc-reasoning-part__label">Reasoning</span>
-      </summary>
-      <div className="oc-reasoning-part__body">{part.text}</div>
-    </details>
-  );
 }
 
 function AssistantToolPart({ part }: { part: RenderableToolPart }) {
@@ -341,29 +345,6 @@ function getRenderableToolParts(parts: NormalizedPart[]): RenderableToolPart[] {
   }
 
   return toolCalls;
-}
-
-function getRenderableReasoningParts(parts: NormalizedPart[]): RenderableReasoningPart[] {
-  const groupedText = new Map<string, string[]>();
-  const orderedKeys: string[] = [];
-  let anonymousIndex = 0;
-
-  for (const part of parts) {
-    if (part.type !== 'reasoning') continue;
-    const text = part.text?.trim();
-    if (!text) continue;
-
-    const key = part.parentId ?? part.id ?? `reasoning-${anonymousIndex++}`;
-    if (!groupedText.has(key)) {
-      groupedText.set(key, []);
-      orderedKeys.push(key);
-    }
-    groupedText.get(key)?.push(text);
-  }
-
-  return orderedKeys
-    .map((key) => ({ key, text: (groupedText.get(key) ?? []).join('\n\n').trim() }))
-    .filter((part) => part.text.length > 0);
 }
 
 function getCopyText(parts: NormalizedPart[], toolParts: RenderableToolPart[]): string {

@@ -63,7 +63,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const session = p.session as any;
       if (workspaceId && session) {
         const existing = store.sessionsByWorkspace[workspaceId] ?? [];
-        store.setSessions(workspaceId, sortSessionsForSidebar([session, ...existing]));
+        store.setSessions(workspaceId, sortSessionsForSidebar(upsertSession(existing, session)));
       }
       break;
     }
@@ -72,12 +72,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const session = p.session as any;
       if (workspaceId && session) {
         const existing = store.sessionsByWorkspace[workspaceId] ?? [];
-        const idx = existing.findIndex((s) => s.id === session.id);
-        if (idx >= 0) {
-          const next = [...existing];
-          next[idx] = session;
-          store.setSessions(workspaceId, sortSessionsForSidebar(next));
-        }
+        store.setSessions(workspaceId, sortSessionsForSidebar(upsertSession(existing, session)));
       }
       break;
     }
@@ -135,4 +130,18 @@ function extractText(message: any): string {
     .map((part: any) => part.text.trim())
     .filter(Boolean)
     .join('\n');
+}
+
+function upsertSession<T extends { id: string }>(sessions: T[], session: T): T[] {
+  const idx = sessions.findIndex((entry) => entry.id === session.id);
+  if (idx === -1) {
+    return [session, ...sessions];
+  }
+
+  const next = [...sessions];
+  next[idx] = {
+    ...next[idx],
+    ...session,
+  };
+  return next;
 }

@@ -9,11 +9,14 @@ import { sortSessionsForSidebar } from '../../lib/session-meta.js';
 export function Sidebar() {
   const {
     activeWorkspaceId,
+    activeSessionByWorkspace,
     selectedProvider,
     selectedModel,
     selectedAgent,
+    effortByWorkspace,
     workspaceBootstraps,
     sidebarOpen,
+    setEffort,
     setSessions,
     setActiveSession,
     setWorkspaceDialogOpen,
@@ -23,6 +26,9 @@ export function Sidebar() {
   const activeBranch = activeWorkspaceId
     ? workspaceBootstraps[activeWorkspaceId]?.opencode?.project?.branch
     : undefined;
+  const activeSessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
+  const currentSessionOverride = activeSessionId ? effortState?.sessionOverrides[activeSessionId] : undefined;
 
   const handleNewSession = async () => {
     if (!activeWorkspaceId) return;
@@ -33,7 +39,25 @@ export function Sidebar() {
         agentId: selectedAgent ?? undefined,
       });
       const existingSessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
-      setSessions(activeWorkspaceId, sortSessionsForSidebar([session, ...existingSessions]));
+      const mergedSessions = existingSessions.some((entry) => entry.id === session.id)
+        ? existingSessions.map((entry) => entry.id === session.id ? { ...entry, ...session } : entry)
+        : [session, ...existingSessions];
+
+      if (currentSessionOverride) {
+        try {
+          await api.setEffort(activeWorkspaceId, {
+            level: currentSessionOverride,
+            scope: 'session',
+            sessionId: session.id,
+          });
+          const nextEffort = await api.getEffort(activeWorkspaceId);
+          setEffort(activeWorkspaceId, nextEffort);
+        } catch {
+          /* ignore effort sync failures */
+        }
+      }
+
+      setSessions(activeWorkspaceId, sortSessionsForSidebar(mergedSessions));
       setActiveSession(activeWorkspaceId, session.id);
       useStore.getState().setMessages(session.id, []);
     } catch {
