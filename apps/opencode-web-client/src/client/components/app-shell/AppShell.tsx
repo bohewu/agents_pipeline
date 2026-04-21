@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect } from 'react';
-import { getCachedUsage, readUsageCacheSnapshot, selectActiveWorkspaceCapabilityGaps, useStore } from '../../runtime/store.js';
+import { deriveWorkspaceCapabilityGaps, getCachedUsage, readUsageCacheSnapshot, selectActiveWorkspaceCapabilities, type WorkspaceCapabilityGap, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
 import { RuntimeProvider } from '../../runtime/runtime-provider.js';
@@ -40,7 +40,11 @@ export function AppShell() {
     setWorkspaceDialogOpen,
     setSettingsDialogOpen,
   } = useStore();
-  const capabilityGaps = useStore(selectActiveWorkspaceCapabilityGaps);
+  const activeWorkspaceCapabilities = useStore(selectActiveWorkspaceCapabilities);
+  const capabilityGaps = React.useMemo(
+    () => deriveWorkspaceCapabilityGaps(activeWorkspaceCapabilities),
+    [activeWorkspaceCapabilities],
+  );
   const compactDesktop = useViewportWidth() <= 1440;
   const sidebarWidth = compactDesktop ? '248px' : '280px';
   const drawerWidth = compactDesktop ? '320px' : '384px';
@@ -223,7 +227,7 @@ function useViewportWidth() {
   return width;
 }
 
-function WorkspaceCapabilityBanner({ gaps }: { gaps: ReturnType<typeof selectActiveWorkspaceCapabilityGaps> }) {
+function WorkspaceCapabilityBanner({ gaps }: { gaps: WorkspaceCapabilityGap[] }) {
   const hasErrors = gaps.some((gap) => gap.status === 'error');
 
   return (

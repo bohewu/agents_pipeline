@@ -13,6 +13,31 @@
 2. **一個 tranche 一個 prompt**。
 3. 每一包都必須有明確 out-of-scope。
 4. 每一包都必須自己做完驗證。
+5. **凡是碰到 app shell / store / thread / panel / hydration / reconnect UX 的 tranche，除了 npm 驗證外，都必須真的把 app 跑起來，並至少用 `playwright-cli` skill 或 Chrome DevTools MCP 做一次 browser validation。**
+
+補充：
+
+- 這裡說的 browser validation，是開發驗證要求，不是要提早實作 productized browser evidence。
+- 也就是說，Phase A/B/C/D 雖然仍然不做 browser screenshot automation feature，本地開發驗證還是要真的打開 app 看它有沒有炸。
+
+## 1.1 Browser validation baseline
+
+如果 tranche 會改到前端主要使用路徑，prompt 應明確要求至少做這些：
+
+1. 啟動 `apps/opencode-web-client` 本地 app。
+2. 用 `playwright-cli` skill 或 Chrome DevTools MCP 打開真實頁面，而不是只看測試輸出。
+3. 確認沒有出現 app-level render fallback，例如 `Render Error` 或 React minified runtime exception。
+4. 確認這一包新增的主要 UI surface 至少能 render 並可進入。
+5. 檢查 browser console 沒有 uncaught error。
+
+原因：
+
+- `npm run lint`
+- `npm run typecheck`
+- `npm run test -- --coverage`
+- `npm run build`
+
+都可能通過，但 React / Zustand 這類 runtime render loop 仍然會在真瀏覽器才暴露。
 
 ## 2. 建議執行順序
 
@@ -49,6 +74,13 @@ Verification required:
 - npm run typecheck
 - npm run test -- --coverage
 - npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm the app shell loads for a real workspace without the `Render Error` fallback.
+- Confirm the verification side panel and result-level verification UI render without crashing the page.
+- Confirm browser console has no uncaught error.
 ```
 
 ### 3.1 這一包做完應該得到什麼
@@ -64,6 +96,10 @@ Verification required:
 - GitHub checks / review comments / autofix
 - parallel lanes
 - 深的 context / MCP / extension inventory
+
+註：
+
+- 這一包**不要做 browser evidence product feature**，但**要做真實 browser validation**。
 
 ## 4. Tranche 2 Prompt
 
@@ -86,6 +122,13 @@ Verification required:
 - npm run typecheck
 - npm run test -- --coverage
 - npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm the git status / commit / push / capability-gated PR surfaces render for a real workspace without crashing the shell.
+- Confirm degraded capability messaging is visible when `gh` is unavailable or unauthenticated.
+- Confirm browser console has no uncaught error.
 ```
 
 ### 4.1 這一包做完應該得到什麼
@@ -122,6 +165,13 @@ Verification required:
 - npm run typecheck
 - npm run test -- --coverage
 - npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm task UI renders before and after a real browser refresh for the same workspace.
+- Confirm active / completed / blocked task surfaces are visible without app-shell fallback.
+- Confirm browser console has no uncaught error.
 ```
 
 ### 5.1 這一包做完應該得到什麼

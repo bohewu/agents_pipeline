@@ -126,6 +126,7 @@ export interface UIStore {
 }
 
 const EMPTY_MESSAGES: NormalizedMessage[] = [];
+const EMPTY_CAPABILITY_GAPS: WorkspaceCapabilityGap[] = [];
 const WORKSPACE_SCOPE_SESSION_KEY = '__workspace__';
 const VERIFY_KIND_ORDER: VerificationCommandKind[] = ['lint', 'build', 'test'];
 const WORKSPACE_CAPABILITY_KEYS: WorkspaceCapabilityKey[] = ['localGit', 'ghCli', 'ghAuth', 'previewTarget', 'browserEvidence'];
@@ -532,10 +533,15 @@ export function selectActiveWorkspaceCapabilities(
 export function selectActiveWorkspaceCapabilityGaps(
   store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceCapabilitiesByWorkspace'>,
 ): WorkspaceCapabilityGap[] {
-  const capabilities = selectActiveWorkspaceCapabilities(store);
-  if (!capabilities) return [];
+  return deriveWorkspaceCapabilityGaps(selectActiveWorkspaceCapabilities(store));
+}
 
-  return WORKSPACE_CAPABILITY_KEYS.flatMap((key) => {
+export function deriveWorkspaceCapabilityGaps(
+  capabilities?: WorkspaceCapabilityProbe,
+): WorkspaceCapabilityGap[] {
+  if (!capabilities) return EMPTY_CAPABILITY_GAPS;
+
+  const gaps = WORKSPACE_CAPABILITY_KEYS.flatMap((key) => {
     const probe = capabilities[key];
     if (!probe || probe.status === 'available') {
       return [];
@@ -549,6 +555,8 @@ export function selectActiveWorkspaceCapabilityGaps(
       detail: probe.detail,
     }];
   });
+
+  return gaps.length > 0 ? gaps : EMPTY_CAPABILITY_GAPS;
 }
 
 export function selectWorkspaceVerificationRuns(
@@ -565,7 +573,10 @@ export function selectActiveWorkspaceVerificationRuns(
   return selectWorkspaceVerificationRuns(store, store.activeWorkspaceId);
 }
 
-export function selectMessageResultTrace(store: UIStore, message: NormalizedMessage): ResolvedMessageResultTrace | undefined {
+export function selectMessageResultTrace(
+  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'taskEntriesByWorkspace' | 'workspaceBootstraps'>,
+  message: NormalizedMessage,
+): ResolvedMessageResultTrace | undefined {
   const workspaceId = message.trace?.workspaceId
     ?? message.resultAnnotation?.workspaceId
     ?? message.taskEntry?.workspaceId;

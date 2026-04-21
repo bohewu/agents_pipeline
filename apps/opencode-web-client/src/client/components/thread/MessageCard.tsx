@@ -24,7 +24,14 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const setRightPanel = useStore((s) => s.setRightPanel);
   const focusActivityMessage = useStore((s) => s.focusActivityMessage);
   const toggleRightDrawer = useStore((s) => s.toggleRightDrawer);
-  const resultTrace = useStore(React.useCallback((s) => selectMessageResultTrace(s, message), [message]));
+  const resultAnnotationsByWorkspace = useStore((s) => s.resultAnnotationsByWorkspace);
+  const taskEntriesByWorkspace = useStore((s) => s.taskEntriesByWorkspace);
+  const workspaceBootstraps = useStore((s) => s.workspaceBootstraps);
+  const resultTrace = useMemo(() => selectMessageResultTrace({
+    resultAnnotationsByWorkspace,
+    taskEntriesByWorkspace,
+    workspaceBootstraps,
+  }, message), [message, resultAnnotationsByWorkspace, taskEntriesByWorkspace, workspaceBootstraps]);
   const textParts = useMemo(
     () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
     [message.parts],
