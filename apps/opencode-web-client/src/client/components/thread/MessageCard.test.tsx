@@ -79,7 +79,28 @@ vi.mock('../../lib/api-client.js', () => ({
 }))
 
 vi.mock('react-markdown', () => ({
-  default: ({ children }: { children?: unknown }) => children,
+  default: ({
+    children,
+    components,
+  }: {
+    children?: unknown
+    components?: {
+      code?: (props: { className?: string; children?: unknown }) => unknown
+    }
+  }) => {
+    const text = typeof children === 'string' ? children : ''
+    const fencedBlock = text.match(/^```([\w-]+)?\n([\s\S]*?)\n```$/)
+
+    if (fencedBlock && components?.code) {
+      const [, language, code] = fencedBlock
+      return components.code({
+        className: language ? `language-${language}` : undefined,
+        children: code,
+      } as any)
+    }
+
+    return children
+  },
 }))
 
 vi.mock('remark-gfm', () => ({ default: [] }))
@@ -106,7 +127,7 @@ import { MessageCard } from './MessageCard.js'
 import { selectSessionMessages, useStore } from '../../runtime/store.js'
 import type { NormalizedMessage, ResultAnnotation, VerificationRun } from '../../../shared/types.js'
 
-describe('MessageCard verification actions', () => {
+describe('MessageCard', () => {
   let container: HTMLDivElement
   let root: Root | null
 
@@ -126,6 +147,62 @@ describe('MessageCard verification actions', () => {
       })
     }
     container.remove()
+  })
+
+  it('softens plain-text code blocks without rendering a duplicate block copy button', async () => {
+    const message = makeAssistantMessage(
+      'workspace-plain',
+      'session-plain',
+      'message-plain',
+      'task-plain',
+      ['```', 'apps/opencode-web-client/src/client/components/thread/MessageCard.tsx', 'apps/opencode-web-client/src/client/components/thread/MessageCard.test.tsx', '```'].join('\n'),
+      'unverified',
+    )
+
+    await renderCard(message)
+
+    const plainTextBlock = container.querySelector('.oc-code-block--plain')
+    expect(plainTextBlock).not.toBeNull()
+    expect(plainTextBlock?.querySelector('.oc-code-block__header')).toBeNull()
+    expect(container.querySelector('.oc-code-block__body--plain')).not.toBeNull()
+    expect(getButtonByAriaLabel('Copy message')).not.toBeNull()
+    expect(getButtonByAriaLabel('Copy code block')).toBeNull()
+  })
+
+  it('keeps code-block copy and linked result actions usable on the same card', async () => {
+    const workspaceId = 'workspace-code'
+    const sessionId = 'session-code'
+    const message = makeAssistantMessage(
+      workspaceId,
+      sessionId,
+      'message-code',
+      'task-code',
+      ['```ts', 'const answer = 42', '```'].join('\n'),
+      'unverified',
+    )
+    const latestRun = makeRun('verify-lint-code', 'lint', 'failed', 'Lint verification failed.', {
+      workspaceId,
+      sessionId,
+      sourceMessageId: message.id,
+      taskId: 'task-code',
+    })
+
+    apiMocks.runVerification.mockResolvedValue(latestRun)
+    configureMessageContext(workspaceId, sessionId, message, makeTrace(message, latestRun, 'unverified'))
+
+    await renderCard(message)
+
+    expect(getButtonByAriaLabel('Copy code block')).not.toBeNull()
+    expect(getButton('Retry lint')).toBeDefined()
+
+    await clickButton('Retry lint')
+
+    expect(apiMocks.runVerification).toHaveBeenCalledWith(workspaceId, {
+      sessionId,
+      commandKind: 'lint',
+      sourceMessageId: message.id,
+      taskId: 'task-code',
+    })
   })
 
   it('retries the latest linked verification from the same session context', async () => {
@@ -232,6 +309,14 @@ describe('MessageCard verification actions', () => {
       throw new Error(`Unable to find button: ${label}`)
     }
     return button as HTMLButtonElement
+  }
+
+  function getButtonByAriaLabel(label: string): HTMLButtonElement | null {
+    const button = Array.from(container.querySelectorAll('button')).find((candidate) => {
+      return candidate.getAttribute('aria-label') === label
+    })
+
+    return (button as HTMLButtonElement | undefined) ?? null
   }
 })
 

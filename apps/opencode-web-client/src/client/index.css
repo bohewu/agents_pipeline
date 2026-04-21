@@ -1858,6 +1858,11 @@ select:focus {
   background: #f8fafc;
 }
 
+.oc-code-block--plain {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.48);
+}
+
 .oc-code-block__header {
   display: flex;
   align-items: center;
@@ -1902,12 +1907,21 @@ select:focus {
   line-height: 1.65;
 }
 
+.oc-message-card__content .oc-code-block__body--plain {
+  padding: 12px 14px;
+}
+
 .oc-message-card__content .oc-code-block__body code {
   display: block;
   font-family: var(--font-mono);
   white-space: pre;
   background: transparent;
   padding: 0;
+}
+
+.oc-message-card__content .oc-code-block__body--plain code {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .oc-composer-footer__secondary {

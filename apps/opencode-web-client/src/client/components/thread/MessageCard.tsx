@@ -178,10 +178,10 @@ function MarkdownCode({ className, children, ...props }: React.HTMLAttributes<HT
     return <code className="oc-markdown-inline-code" {...props}>{children}</code>;
   }
 
-  return <CodeBlockPreview language={language ?? 'text'} code={codeText} />;
+  return <CodeBlockPreview language={language ?? 'text'} code={codeText} isPlainText={!language} />;
 }
 
-function CodeBlockPreview({ language, code }: { language: string; code: string }) {
+function CodeBlockPreview({ language, code, isPlainText = false }: { language: string; code: string; isPlainText?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -200,20 +200,22 @@ function CodeBlockPreview({ language, code }: { language: string; code: string }
   };
 
   return (
-    <div className="oc-code-block">
-      <div className="oc-code-block__header">
-        <span className="oc-code-block__label">{language}</span>
-        <button
-          type="button"
-          className="oc-code-block__copy"
-          onClick={() => void handleCopy()}
-          aria-label={copied ? 'Copied code block' : 'Copy code block'}
-          title={copied ? 'Copied' : 'Copy code block'}
-        >
-          {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
-        </button>
-      </div>
-      <pre className="oc-code-block__body">
+    <div className={`oc-code-block${isPlainText ? ' oc-code-block--plain' : ''}`}>
+      {!isPlainText && (
+        <div className="oc-code-block__header">
+          <span className="oc-code-block__label">{language}</span>
+          <button
+            type="button"
+            className="oc-code-block__copy"
+            onClick={() => void handleCopy()}
+            aria-label={copied ? 'Copied code block' : 'Copy code block'}
+            title={copied ? 'Copied' : 'Copy code block'}
+          >
+            {copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
+          </button>
+        </div>
+      )}
+      <pre className={`oc-code-block__body${isPlainText ? ' oc-code-block__body--plain' : ''}`}>
         <code>{code}</code>
       </pre>
     </div>
