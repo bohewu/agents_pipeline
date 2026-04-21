@@ -30,7 +30,7 @@ export function SessionItem({
     setActiveSession(activeWorkspaceId, session.id);
     try {
       const messages = await api.listMessages(activeWorkspaceId, session.id);
-      setMessages(session.id, messages);
+      setMessages(activeWorkspaceId, session.id, messages);
       const currentSessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
       setSessions(activeWorkspaceId, sortSessionsForSidebar(mergeSessionMessages(currentSessions, session.id, messages)));
     } catch {

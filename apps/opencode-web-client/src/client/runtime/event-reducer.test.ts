@@ -17,7 +17,13 @@ describe('handleBffEvent session streaming updates', () => {
       },
     }, store);
 
-    expect(store.setSessionStreaming).toHaveBeenCalledWith('session-1', true);
+    expect(store.updateMessage).toHaveBeenCalledWith('workspace-1', 'session-1', {
+      id: 'message-1',
+      role: 'assistant',
+      createdAt: '2026-04-20T00:00:00.000Z',
+      parts: [],
+    });
+    expect(store.setSessionStreaming).toHaveBeenCalledWith('workspace-1', 'session-1', true);
     expect(store.setSessions).toHaveBeenCalledWith('workspace-1', [
       { ...makeSession({ id: 'session-1', state: 'running' }), state: 'running' },
       makeSession({ id: 'session-2', state: 'idle' }),
@@ -37,7 +43,39 @@ describe('handleBffEvent session streaming updates', () => {
       },
     }, store);
 
-    expect(store.setSessionStreaming).toHaveBeenCalledWith('session-1', false);
+    expect(store.updateMessage).toHaveBeenCalledWith('workspace-1', 'session-1', {
+      id: 'message-1',
+      role: 'assistant',
+      createdAt: '2026-04-20T00:00:01.000Z',
+      parts: [],
+    });
+    expect(store.setSessionStreaming).toHaveBeenCalledWith('workspace-1', 'session-1', false);
+  });
+
+  it('applies verification run updates to workspace-scoped store state', () => {
+    const store = createStoreMock();
+
+    handleBffEvent({
+      type: 'verification.updated',
+      timestamp: '2026-04-20T00:00:02.000Z',
+      payload: {
+        workspaceId: 'workspace-1',
+        sessionId: 'session-1',
+        sourceMessageId: 'message-1',
+        run: { id: 'verify-1', commandKind: 'lint', status: 'passed' },
+        taskEntry: { taskId: 'task-1', workspaceId: 'workspace-1', sessionId: 'session-1', sourceMessageId: 'message-1', state: 'completed' },
+        resultAnnotation: { sourceMessageId: 'message-1', workspaceId: 'workspace-1', sessionId: 'session-1', taskId: 'task-1', verification: 'verified' },
+      },
+    }, store);
+
+    expect(store.upsertVerificationRun).toHaveBeenCalledWith('workspace-1', { id: 'verify-1', commandKind: 'lint', status: 'passed' });
+    expect(store.applyVerificationProjection).toHaveBeenCalledWith(
+      'workspace-1',
+      'session-1',
+      'message-1',
+      { taskId: 'task-1', workspaceId: 'workspace-1', sessionId: 'session-1', sourceMessageId: 'message-1', state: 'completed' },
+      { sourceMessageId: 'message-1', workspaceId: 'workspace-1', sessionId: 'session-1', taskId: 'task-1', verification: 'verified' },
+    );
   });
 });
 
@@ -46,6 +84,8 @@ function createStoreMock(): UIStore {
   const store = {
     sessionsByWorkspace: { 'workspace-1': sessions },
     messagesBySession: {},
+    taskEntriesByWorkspace: {},
+    resultAnnotationsByWorkspace: {},
     pendingPermissions: {},
     setSessions: vi.fn((workspaceId: string, nextSessions: SessionSummary[]) => {
       store.sessionsByWorkspace[workspaceId] = nextSessions;
@@ -56,6 +96,8 @@ function createStoreMock(): UIStore {
     setPendingPermissions: vi.fn(),
     setEffort: vi.fn(),
     setSessionStreaming: vi.fn(),
+    upsertVerificationRun: vi.fn(),
+    applyVerificationProjection: vi.fn(),
   } as unknown as UIStore;
 
   return store;

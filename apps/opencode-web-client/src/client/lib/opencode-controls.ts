@@ -1,4 +1,11 @@
-import type { AgentSummary, ModelSummary, ModelVariantSummary, ProviderSummary, WorkspaceBootstrap } from '../../shared/types.js';
+import type {
+  AgentSummary,
+  ModelSummary,
+  ModelVariantSummary,
+  ProviderSummary,
+  VerificationCommandKind,
+  WorkspaceBootstrap,
+} from '../../shared/types.js';
 import type { ComposerMode } from '../runtime/store.js';
 
 const FIXED_GPT5_VARIANTS: ModelVariantSummary[] = [
@@ -109,7 +116,7 @@ export function parseComposerIntent(
     boot?: WorkspaceBootstrap;
     fallbackAgentId?: string | null;
   },
-): { mode: ComposerMode; text: string; agentId?: string } {
+): { mode: ComposerMode; text: string; agentId?: string; verificationCommandKind?: VerificationCommandKind } {
   let text = rawText.trim();
   let mode: ComposerMode = composerMode;
   let agentId = fallbackAgentId ?? undefined;
@@ -141,7 +148,29 @@ export function parseComposerIntent(
     text = text.slice(1).trim();
   }
 
-  return { mode, text, agentId };
+  return {
+    mode,
+    text,
+    agentId,
+    ...(mode === 'command' ? { verificationCommandKind: parseVerificationCommandKind(text) } : {}),
+  };
+}
+
+export function parseVerificationCommandKind(text: string): VerificationCommandKind | undefined {
+  const normalized = text.trim().toLowerCase();
+  switch (normalized) {
+    case 'lint':
+    case 'verify lint':
+      return 'lint';
+    case 'build':
+    case 'verify build':
+      return 'build';
+    case 'test':
+    case 'verify test':
+      return 'test';
+    default:
+      return undefined;
+  }
 }
 
 function findAgentByToken(boot: WorkspaceBootstrap | undefined, token: string): AgentSummary | undefined {

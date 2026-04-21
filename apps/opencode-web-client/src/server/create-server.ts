@@ -29,6 +29,8 @@ import type { DiffService } from './services/diff-service.js';
 import type { FileService } from './services/file-service.js';
 import type { PermissionRegistry } from './services/permission-registry.js';
 import type { EventBroker } from './services/event-broker.js';
+import type { WorkspaceCapabilityProbeService } from './services/workspace-capability-probe.js';
+import type { VerificationService } from './services/verification-service.js';
 
 export interface ServerOptions {
   host: string;
@@ -50,6 +52,8 @@ export interface ServerDeps {
   fileService: FileService;
   permissionRegistry: PermissionRegistry;
   eventBroker: EventBroker;
+  capabilityProbeService: WorkspaceCapabilityProbeService;
+  verificationService: VerificationService;
 }
 
 interface ClientBundleResolution {
@@ -129,10 +133,10 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
   // Mount workspace routes (if deps provided)
   if (deps) {
-    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker } = deps;
+      const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, verificationService } = deps;
 
-    // Workspace CRUD (no workspace scope middleware needed)
-    api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService }));
+      // Workspace CRUD (no workspace scope middleware needed)
+      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, verificationService }));
 
     // SSE events (workspace via query param, no middleware)
     api.route('/events', EventsRoute({ eventBroker }));
@@ -147,17 +151,65 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
     wsScoped.get('/sessions/:sessionId/messages', async (c) => {
       const workspaceId = c.get('workspaceId') as string;
       const sessionId = c.req.param('sessionId');
-      try {
-        const client = clientFactory.forWorkspace(workspaceId);
-        const messages = await client.listMessages(sessionId);
-        return c.json(ok(messages));
-      } catch (err: any) {
-        return c.json(fail('LIST_MESSAGES_FAILED', err.message), 500);
-      }
-    });
+        try {
+          const client = clientFactory.forWorkspace(workspaceId);
+          const messages = verificationService.decorateMessages(
+            workspaceId,
+            sessionId,
+            await client.listMessages(sessionId),
+          );
+          return c.json(ok(messages));
+        } catch (err: any) {
+          return c.json(fail('LIST_MESSAGES_FAILED', err.message), 500);
+        }
+      });
 
-    wsScoped.post('/sessions/:sessionId/chat', async (c) => {
-      const workspaceId = c.get('workspaceId') as string;
+      wsScoped.get('/verify/runs', async (c) => {
+        const workspaceId = c.get('workspaceId') as string;
+        return c.json(ok(verificationService.listRuns(workspaceId)));
+      });
+
+      wsScoped.post('/verify/run', async (c) => {
+        const workspaceId = c.get('workspaceId') as string;
+        const workspace = c.get('workspace') as { rootPath: string } | undefined;
+        const body = await c.req.json<{
+          sessionId?: string;
+          commandKind?: 'lint' | 'build' | 'test';
+          sourceMessageId?: string;
+          taskId?: string;
+        }>().catch(() => ({
+          sessionId: undefined,
+          commandKind: undefined,
+          sourceMessageId: undefined,
+          taskId: undefined,
+        }));
+        if (!workspace?.rootPath) {
+          return c.json(fail('WORKSPACE_NOT_FOUND', `Workspace ${workspaceId} not found`), 404);
+        }
+        if (!body.sessionId) {
+          return c.json(fail('INVALID_INPUT', 'sessionId is required'), 400);
+        }
+        if (!body.commandKind || !['lint', 'build', 'test'].includes(body.commandKind)) {
+          return c.json(fail('INVALID_INPUT', 'commandKind must be lint, build, or test'), 400);
+        }
+
+        try {
+          const run = await verificationService.runPreset({
+            workspaceId,
+            workspaceRoot: workspace.rootPath,
+            sessionId: body.sessionId,
+            commandKind: body.commandKind,
+            sourceMessageId: body.sourceMessageId,
+            taskId: body.taskId,
+          });
+          return c.json(ok(run));
+        } catch (err: any) {
+          return c.json(fail('VERIFY_RUN_FAILED', err.message), 500);
+        }
+      });
+
+      wsScoped.post('/sessions/:sessionId/chat', async (c) => {
+        const workspaceId = c.get('workspaceId') as string;
       const sessionId = c.req.param('sessionId');
       const body = await c.req.json<{
         text: string;

@@ -1,5 +1,6 @@
 import type { BffEvent } from '../../shared/types.js';
 import type { UIStore } from './store.js';
+import { selectSessionMessages } from './store.js';
 import { mergeSessionMessageEvent, sortSessionsForSidebar } from '../lib/session-meta.js';
 
 export function handleBffEvent(event: BffEvent, store: UIStore): void {
@@ -10,12 +11,12 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
-      const existing = sessionId && message?.id
-        ? (store.messagesBySession[sessionId] ?? []).some((entry) => entry.id === message.id)
+      const existing = workspaceId && sessionId && message?.id
+        ? selectSessionMessages(store, workspaceId, sessionId).some((entry) => entry.id === message.id)
         : false;
-      if (sessionId && message) {
-        reconcileOptimisticUserMessage(store, sessionId, message);
-        store.addMessage(sessionId, message);
+      if (workspaceId && sessionId && message) {
+        reconcileOptimisticUserMessage(store, workspaceId, sessionId, message);
+        store.addMessage(workspaceId, sessionId, message);
       }
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
@@ -27,7 +28,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
-      if (sessionId && message) store.updateMessage(sessionId, message);
+      if (workspaceId && sessionId && message) store.updateMessage(workspaceId, sessionId, message);
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
         const current = sessions.find((session) => session.id === sessionId);
@@ -39,14 +40,14 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
           store.setSessions(workspaceId, next);
         }
       }
-      if (sessionId) store.setSessionStreaming(sessionId, true);
+      if (workspaceId && sessionId) store.setSessionStreaming(workspaceId, sessionId, true);
       break;
     }
     case 'message.completed': {
       const workspaceId = p.workspaceId as string;
       const sessionId = p.sessionId as string;
       const message = p.message as any;
-      if (sessionId && message) store.updateMessage(sessionId, message);
+      if (workspaceId && sessionId && message) store.updateMessage(workspaceId, sessionId, message);
       if (workspaceId && sessionId && message) {
         const sessions = store.sessionsByWorkspace[workspaceId] ?? [];
         const merged = mergeSessionMessageEvent(sessions, sessionId, message, 0).map((session) => {
@@ -55,7 +56,22 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
         });
         store.setSessions(workspaceId, sortSessionsForSidebar(merged));
       }
-      if (sessionId) store.setSessionStreaming(sessionId, false);
+      if (workspaceId && sessionId) store.setSessionStreaming(workspaceId, sessionId, false);
+      break;
+    }
+    case 'verification.updated': {
+      const workspaceId = p.workspaceId as string;
+      const sessionId = p.sessionId as string | undefined;
+      const sourceMessageId = p.sourceMessageId as string | undefined;
+      const run = p.run as any;
+      const taskEntry = p.taskEntry as any;
+      const resultAnnotation = p.resultAnnotation as any;
+      if (workspaceId && run) {
+        store.upsertVerificationRun(workspaceId, run);
+      }
+      if (workspaceId && sessionId && sourceMessageId) {
+        store.applyVerificationProjection(workspaceId, sessionId, sourceMessageId, taskEntry, resultAnnotation);
+      }
       break;
     }
     case 'session.created': {
@@ -111,16 +127,16 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
   }
 }
 
-function reconcileOptimisticUserMessage(store: UIStore, sessionId: string, message: any): void {
+function reconcileOptimisticUserMessage(store: UIStore, workspaceId: string, sessionId: string, message: any): void {
   if (message?.role !== 'user') return;
   const createdText = extractText(message);
   if (!createdText) return;
 
-  const existing = store.messagesBySession[sessionId] ?? [];
+  const existing = selectSessionMessages(store, workspaceId, sessionId);
   const optimistic = existing.find((entry) => entry.id.startsWith('local-user-') && extractText(entry) === createdText);
   if (!optimistic) return;
 
-  store.setMessages(sessionId, existing.filter((entry) => entry.id !== optimistic.id));
+  store.setMessages(workspaceId, sessionId, existing.filter((entry) => entry.id !== optimistic.id));
 }
 
 function extractText(message: any): string {

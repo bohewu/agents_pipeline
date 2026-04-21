@@ -1,20 +1,19 @@
 import React from 'react';
 import { ChevronDownIcon } from '../common/Icons.js';
-import { useStore } from '../../runtime/store.js';
+import { selectSessionMessages, selectSessionStreaming, useStore } from '../../runtime/store.js';
 import { getMessageTextPreview, getReasoningTextPreview, getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 
 export function ActivityPanel() {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
-  const messagesBySession = useStore((s) => s.messagesBySession);
   const settings = useStore((s) => s.settings);
   const selectedReasoningMessageId = useStore((s) => s.selectedReasoningMessageId);
   const setSelectedReasoningMessage = useStore((s) => s.setSelectedReasoningMessage);
   const activityFocusMessageId = useStore((s) => s.activityFocusMessageId);
   const activityFocusNonce = useStore((s) => s.activityFocusNonce);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
-  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
-  const messages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
+  const streaming = useStore((s) => selectSessionStreaming(s, activeWorkspaceId, sessionId));
+  const messages = useStore((s) => selectSessionMessages(s, activeWorkspaceId, sessionId));
   const entryRefs = React.useRef(new Map<string, HTMLButtonElement>());
   const [flashMessageId, setFlashMessageId] = React.useState<string | null>(null);
   const latestAssistantReasoningMessageId = React.useMemo(() => {

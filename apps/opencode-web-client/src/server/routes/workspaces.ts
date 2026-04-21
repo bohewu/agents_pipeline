@@ -3,9 +3,11 @@ import { ok, fail } from '../create-server.js'
 import type { WorkspaceRegistry } from '../services/workspace-registry.js'
 import type { ManagedServerManager } from '../services/managed-server-manager.js'
 import type { OpenCodeClientFactory } from '../services/opencode-client-factory.js'
-import type { WorkspaceBootstrap } from '../../shared/types.js'
+import type { WorkspaceBootstrap, WorkspaceTraceabilitySummary } from '../../shared/types.js'
 import type { ConfigService, NormalizedConfig } from '../services/config-service.js'
 import type { EffortService } from '../services/effort-service.js'
+import type { WorkspaceCapabilityProbeService } from '../services/workspace-capability-probe.js'
+import type { VerificationService } from '../services/verification-service.js'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -15,10 +17,12 @@ export interface WorkspacesRouteDeps {
   clientFactory: OpenCodeClientFactory
   configService: ConfigService
   effortService: EffortService
+  capabilityProbeService: WorkspaceCapabilityProbeService
+  verificationService: VerificationService
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory, configService, effortService } = deps
+  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, verificationService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -143,6 +147,18 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
     return c.json(ok(bootstrap))
   })
 
+  // GET /api/workspaces/:workspaceId/capabilities — get workspace capability probe
+  route.get('/:workspaceId/capabilities', async (c) => {
+    const workspaceId = c.req.param('workspaceId')
+    const workspace = registry.get(workspaceId)
+    if (!workspace) {
+      return c.json(fail('NOT_FOUND', `Workspace ${workspaceId} not found`), 404)
+    }
+
+    const capabilities = await capabilityProbeService.probeWorkspace(workspaceId, workspace.rootPath)
+    return c.json(ok(capabilities))
+  })
+
   // POST /api/workspaces/:workspaceId/server/start
   route.post('/:workspaceId/server/start', async (c) => {
     const workspaceId = c.req.param('workspaceId')
@@ -187,6 +203,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
   async function getBootstrap(workspaceId: string, rootPath: string, opencodeConfigDir?: string): Promise<WorkspaceBootstrap> {
     const workspace = registry.get(workspaceId)!
     const gitBranch = resolveGitBranch(rootPath)
+    const capabilitiesPromise = capabilityProbeService.probeWorkspace(workspaceId, rootPath)
 
     // Ensure server is running
     let runtime = serverManager.get(workspaceId)
@@ -226,6 +243,9 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       // Server may still be starting
     }
 
+    const capabilities = await capabilitiesPromise
+    const verificationSummary = verificationService.getWorkspaceSummary(workspaceId)
+
     return {
       workspace,
       server: serverManager.toJSON(runtime),
@@ -245,10 +265,30 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       },
       sessions,
       effort: effortService.getEffortSummary(rootPath),
+      capabilities,
+      traceability: mergeTraceabilitySummaries(createEmptyTraceabilitySummary(), verificationSummary.traceability),
+      verificationRuns: verificationSummary.runs,
     }
   }
 
   return route
+}
+
+function createEmptyTraceabilitySummary(): WorkspaceTraceabilitySummary {
+  return {
+    taskEntries: [],
+    resultAnnotations: [],
+  }
+}
+
+function mergeTraceabilitySummaries(
+  base: WorkspaceTraceabilitySummary,
+  extra: WorkspaceTraceabilitySummary,
+): WorkspaceTraceabilitySummary {
+  return {
+    taskEntries: [...base.taskEntries, ...extra.taskEntries],
+    resultAnnotations: [...base.resultAnnotations, ...extra.resultAnnotations],
+  }
 }
 
 function resolveGitBranch(rootPath: string): string | undefined {

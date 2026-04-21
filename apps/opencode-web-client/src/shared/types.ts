@@ -79,12 +79,54 @@ export interface OpenCodeBootstrap {
   connectedProviderIds: string[];
 }
 
+export type CapabilityProbeStatus = 'available' | 'unavailable' | 'error';
+
+export type WorkspaceCapabilityKey = 'localGit' | 'ghCli' | 'ghAuth' | 'previewTarget' | 'browserEvidence';
+
+export interface CapabilityProbeCheck {
+  status: CapabilityProbeStatus;
+  summary: string;
+  detail?: string;
+}
+
+export interface WorkspaceCapabilityProbe {
+  workspaceId: string;
+  checkedAt: string;
+  localGit: CapabilityProbeCheck;
+  ghCli: CapabilityProbeCheck;
+  ghAuth: CapabilityProbeCheck;
+  previewTarget: CapabilityProbeCheck;
+  browserEvidence: CapabilityProbeCheck;
+}
+
+export type VerificationCommandKind = 'lint' | 'build' | 'test';
+
+export type VerificationRunStatus = 'running' | 'passed' | 'failed' | 'cancelled';
+
+export interface VerificationRun {
+  id: string;
+  workspaceId: string;
+  sessionId?: string;
+  sourceMessageId?: string;
+  taskId: string;
+  commandKind: VerificationCommandKind;
+  status: VerificationRunStatus;
+  startedAt: string;
+  finishedAt?: string;
+  summary: string;
+  exitCode?: number;
+  terminalLogRef?: string;
+}
+
 export interface WorkspaceBootstrap {
   workspace: WorkspaceProfile;
   server?: WorkspaceServerStatus;
   opencode?: OpenCodeBootstrap;
   sessions: SessionSummary[];
   effort?: EffortStateSummary;
+  capabilities?: WorkspaceCapabilityProbe;
+  traceability?: WorkspaceTraceabilitySummary;
+  verificationRuns?: VerificationRun[];
 }
 
 // ── Sessions ──
@@ -127,11 +169,61 @@ export interface NormalizedPart {
   status?: string;
 }
 
+export type TaskEntryState =
+  | 'queued'
+  | 'running'
+  | 'blocked'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type ResultVerificationState = 'verified' | 'partially verified' | 'unverified';
+
+export type ResultReviewState = 'ready' | 'approval-needed' | 'needs-retry';
+
+export type ResultShipState = 'not-ready' | 'local-ready' | 'pr-ready';
+
+export interface MessageTraceLink {
+  sourceMessageId: string;
+  workspaceId?: string;
+  sessionId?: string;
+  taskId?: string;
+}
+
+export interface TaskEntry {
+  taskId: string;
+  workspaceId: string;
+  sessionId?: string;
+  sourceMessageId?: string;
+  title?: string;
+  state: TaskEntryState;
+  latestSummary?: string;
+}
+
+export interface ResultAnnotation {
+  sourceMessageId: string;
+  workspaceId: string;
+  sessionId: string;
+  taskId?: string;
+  summary?: string;
+  verification: ResultVerificationState;
+  reviewState?: ResultReviewState;
+  shipState?: ResultShipState;
+}
+
+export interface WorkspaceTraceabilitySummary {
+  taskEntries: TaskEntry[];
+  resultAnnotations: ResultAnnotation[];
+}
+
 export interface NormalizedMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   parts: NormalizedPart[];
   createdAt: string;
+  trace?: MessageTraceLink;
+  taskEntry?: TaskEntry;
+  resultAnnotation?: ResultAnnotation;
 }
 
 // ── Permissions ──
@@ -188,6 +280,7 @@ export type BffEventType =
   | 'message.created'
   | 'message.delta'
   | 'message.completed'
+  | 'verification.updated'
   | 'permission.requested'
   | 'permission.resolved'
   | 'effort.changed'

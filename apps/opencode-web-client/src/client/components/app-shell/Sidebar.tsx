@@ -59,7 +59,7 @@ export function Sidebar() {
 
       setSessions(activeWorkspaceId, sortSessionsForSidebar(mergedSessions));
       setActiveSession(activeWorkspaceId, session.id);
-      useStore.getState().setMessages(session.id, []);
+      useStore.getState().setMessages(activeWorkspaceId, session.id, []);
     } catch {
       /* ignore */
     }

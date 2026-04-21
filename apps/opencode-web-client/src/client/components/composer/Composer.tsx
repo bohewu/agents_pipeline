@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ComposerPrimitive } from '@assistant-ui/react';
-import { useStore } from '../../runtime/store.js';
+import { selectSessionStreaming, useStore } from '../../runtime/store.js';
 import { ComposerModeSelector } from './ComposerModeSelector.js';
 import { ArrowUpIcon, FolderIcon, GitBranchIcon, SquareIcon } from '../common/Icons.js';
 import { EffortControl } from '../effort/EffortControl.js';
@@ -40,7 +40,7 @@ export function Composer() {
   const setSelectedProvider = useStore((s) => s.setSelectedProvider);
   const setSelectedModel = useStore((s) => s.setSelectedModel);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
-  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
+  const streaming = useStore((s) => selectSessionStreaming(s, activeWorkspaceId, sessionId));
   const disabled = !sessionId;
   const boot = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
   const providerId = resolveProviderId(boot, selectedProvider);

@@ -2,6 +2,7 @@ import type {
   WorkspaceProfile,
   WorkspaceServerStatus,
   WorkspaceBootstrap,
+  WorkspaceCapabilityProbe,
   SessionSummary,
   NormalizedMessage,
   PermissionRequest,
@@ -13,6 +14,8 @@ import type {
   BffEvent,
   BffEventType,
   SetEffortRequest,
+  VerificationCommandKind,
+  VerificationRun,
 } from '../../shared/types.js';
 
 const BASE = '';
@@ -29,6 +32,7 @@ const EVENT_TYPES: BffEventType[] = [
   'message.created',
   'message.delta',
   'message.completed',
+  'verification.updated',
   'permission.requested',
   'permission.resolved',
   'effort.changed',
@@ -114,6 +118,15 @@ export const api = {
   stopServer: (id: string) => post<void>(`/api/workspaces/${id}/server/stop`),
   restartServer: (id: string) => post<void>(`/api/workspaces/${id}/server/restart`),
   getBootstrap: (id: string) => get<WorkspaceBootstrap>(`/api/workspaces/${id}/bootstrap`),
+  getWorkspaceCapabilities: (id: string) => get<WorkspaceCapabilityProbe>(`/api/workspaces/${id}/capabilities`),
+  listVerificationRuns: (wsId: string) =>
+    get<VerificationRun[]>(`/api/workspaces/${wsId}/verify/runs`),
+  runVerification: (
+    wsId: string,
+    data: { sessionId: string; commandKind: VerificationCommandKind; sourceMessageId?: string; taskId?: string },
+    signal?: AbortSignal,
+  ) =>
+    post<VerificationRun>(`/api/workspaces/${wsId}/verify/run`, data, signal),
 
   // Sessions
   listSessions: (wsId: string) =>

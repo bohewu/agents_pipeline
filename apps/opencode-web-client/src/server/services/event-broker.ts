@@ -329,7 +329,7 @@ export class EventBroker {
     const normalized = normalizeMessage({
       info: message.info,
       parts: message.parts.filter(isRenderablePart),
-    })
+    }, { workspaceId, sessionId })
     if (!normalized.id) return
 
     this.broadcast(workspaceId, {
@@ -483,12 +483,12 @@ function normalizeEventPayload(
     const messageSource = readNestedRecord(payload, 'message') ?? payload
     const sessionId = readString(payload, 'sessionId', 'sessionID')
       ?? readString(messageSource, 'sessionId', 'sessionID')
-    return {
-      ...payload,
-      workspaceId,
-      ...(sessionId ? { sessionId } : {}),
-      message: normalizeMessage(messageSource),
-    }
+      return {
+        ...payload,
+        workspaceId,
+        ...(sessionId ? { sessionId } : {}),
+        message: normalizeMessage(messageSource, { workspaceId, sessionId }),
+      }
   }
 
   if (type === 'session.created' || type === 'session.updated') {

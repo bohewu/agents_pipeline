@@ -10,29 +10,28 @@ import React from 'react';
 import { ThreadPrimitive, MessagePrimitive, useMessage } from '@assistant-ui/react';
 import type { NormalizedMessage } from '../../../shared/types.js';
 import { getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
-import { useStore } from '../../runtime/store.js';
+import { selectSessionMessages, useStore } from '../../runtime/store.js';
 import { MessageCard } from './MessageCard.js';
 import { ChatStartState } from './ChatStartState.js';
 import { Composer } from '../composer/Composer.js';
 import { ArrowDownIcon } from '../common/Icons.js';
-
-const EMPTY_MESSAGES: NormalizedMessage[] = [];
 
 function useNormalizedMessage() {
   const messageId = useMessage((s) => s.id);
   const messageRole = useMessage((s) => s.role);
   const isRunning = useMessage((s) =>
     s.role === 'assistant' &&
-    (s.status?.type === 'running' || s.status?.type === 'requires-action')
+      (s.status?.type === 'running' || s.status?.type === 'requires-action')
   );
+  const activeWorkspaceId = useStore((store) => store.activeWorkspaceId);
   const sessionId = useStore((store) => {
-    return store.activeWorkspaceId
-      ? store.activeSessionByWorkspace[store.activeWorkspaceId]
+    return activeWorkspaceId
+      ? store.activeSessionByWorkspace[activeWorkspaceId]
       : undefined;
   });
   const showReasoningSummaries = useStore((store) => store.settings.showReasoningSummaries);
   const messages = useStore((store) => {
-    return sessionId ? (store.messagesBySession[sessionId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES;
+    return selectSessionMessages(store, activeWorkspaceId, sessionId);
   });
 
   const { normalized, suppressInThread } = React.useMemo(() => {
@@ -200,5 +199,5 @@ function hasStickyAssistantParts(message: NormalizedMessage, showReasoningSummar
       || part.type === 'tool-result'
       || part.type === 'error'
       || part.type === 'permission-request';
-  });
+  }) || !!message.resultAnnotation || !!message.taskEntry || !!message.trace?.taskId;
 }

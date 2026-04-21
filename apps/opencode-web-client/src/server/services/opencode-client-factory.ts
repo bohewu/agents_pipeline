@@ -17,8 +17,8 @@ export interface OpenCodeClient {
     content: string,
     options?: { providerId?: string; modelId?: string; agentId?: string; effort?: string },
   ): Promise<{ messageId: string }>
-  command(sessionId: string, command: string, args?: Record<string, unknown>): Promise<unknown>
-  shell(sessionId: string, command: string): Promise<unknown>
+  command(sessionId: string, command: string, args?: Record<string, unknown>): Promise<OpenCodeExecutionResult>
+  shell(sessionId: string, command: string): Promise<OpenCodeExecutionResult>
   abort(sessionId: string): Promise<void>
   diff(sessionId: string): Promise<DiffResponse[]>
   fileStatus(sessionId: string): Promise<FileStatusResponse[]>
@@ -29,6 +29,19 @@ export interface OpenCodeClient {
   listAgents(): Promise<unknown[]>
   listCommands(): Promise<unknown[]>
   permissions(): Promise<unknown[]>
+}
+
+export interface OpenCodeExecutionResult {
+  raw: unknown
+  status?: string
+  summary?: string
+  exitCode?: number
+  terminalLogRef?: string
+  messageId?: string
+  taskId?: string
+  sessionId?: string
+  stdout?: string
+  stderr?: string
 }
 
 export class OpenCodeClientFactory {
@@ -124,7 +137,7 @@ export class OpenCodeClientFactory {
 
       listMessages: async (sessionId: string) => {
         const data = await get(`/session/${sessionId}/message`)
-        return normalizeMessages(data)
+        return normalizeMessages(data, { workspaceId, sessionId })
       },
 
       chat: async (sessionId: string, content: string, options) => {
@@ -134,11 +147,11 @@ export class OpenCodeClientFactory {
       },
 
       command: async (sessionId: string, command: string, args?: Record<string, unknown>) => {
-        return post(`/session/${sessionId}/command`, { command, args })
+        return normalizeExecutionResult(await post(`/session/${sessionId}/command`, { command, args }))
       },
 
       shell: async (sessionId: string, command: string) => {
-        return post(`/session/${sessionId}/shell`, { command })
+        return normalizeExecutionResult(await post(`/session/${sessionId}/shell`, { command }))
       },
 
       abort: async (sessionId: string) => {
@@ -168,4 +181,97 @@ export class OpenCodeClientFactory {
       permissions: () => get('/permission'),
     }
   }
+}
+
+function normalizeExecutionResult(raw: unknown): OpenCodeExecutionResult {
+  if (typeof raw === 'string') {
+    const summary = raw.trim()
+    return {
+      raw,
+      ...(summary ? { summary } : {}),
+      ...(summary ? { stdout: raw } : {}),
+    }
+  }
+
+  const root = toRecord(raw)
+  const nestedResult = readNestedRecord(root, 'result')
+  const nestedStatus = readNestedRecord(root, 'status')
+  const nestedMessage = readNestedRecord(root, 'message')
+
+  const messageId = readString(root, 'messageId', 'messageID', 'message_id')
+    ?? readString(nestedMessage ?? {}, 'id', 'messageId', 'messageID', 'message_id')
+  const taskId = readString(root, 'taskId', 'taskID', 'task_id')
+    ?? readString(nestedResult ?? {}, 'taskId', 'taskID', 'task_id')
+    ?? readString(nestedStatus ?? {}, 'taskId', 'taskID', 'task_id')
+  const sessionId = readString(root, 'sessionId', 'sessionID', 'session_id')
+    ?? readString(nestedMessage ?? {}, 'sessionId', 'sessionID', 'session_id')
+  const status = readString(root, 'status', 'state', 'result', 'outcome')
+    ?? readString(nestedStatus ?? {}, 'type', 'status', 'state', 'result', 'outcome')
+    ?? readString(nestedResult ?? {}, 'status', 'state', 'result', 'outcome')
+  const summary = readString(root, 'summary', 'message', 'detail')
+    ?? readString(nestedResult ?? {}, 'summary', 'message', 'detail')
+    ?? readString(nestedStatus ?? {}, 'summary', 'message', 'detail')
+  const exitCode = readNumber(root, 'exitCode', 'exit_code', 'code')
+    ?? readNumber(nestedResult ?? {}, 'exitCode', 'exit_code', 'code')
+    ?? readNumber(nestedStatus ?? {}, 'exitCode', 'exit_code', 'code')
+  const terminalLogRef = readString(root, 'terminalLogRef', 'terminal_log_ref', 'logRef', 'logPath', 'log_path')
+    ?? readString(nestedResult ?? {}, 'terminalLogRef', 'terminal_log_ref', 'logRef', 'logPath', 'log_path')
+  const stdout = readString(root, 'stdout', 'output')
+    ?? readString(nestedResult ?? {}, 'stdout', 'output')
+  const stderr = readString(root, 'stderr')
+    ?? readString(nestedResult ?? {}, 'stderr')
+
+  return {
+    raw,
+    ...(status ? { status } : {}),
+    ...(summary ? { summary } : {}),
+    ...(exitCode !== undefined ? { exitCode } : {}),
+    ...(terminalLogRef ? { terminalLogRef } : {}),
+    ...(messageId ? { messageId } : {}),
+    ...(taskId ? { taskId } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    ...(stdout ? { stdout } : {}),
+    ...(stderr ? { stderr } : {}),
+  }
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+function readNestedRecord(source: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = source[key]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  return value as Record<string, unknown>
+}
+
+function readString(source: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.length > 0) {
+      return value
+    }
+  }
+  return undefined
+}
+
+function readNumber(source: Record<string, unknown>, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number(value)
+      if (Number.isFinite(parsed)) {
+        return parsed
+      }
+    }
+  }
+  return undefined
 }

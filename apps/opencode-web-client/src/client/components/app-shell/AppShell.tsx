@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect } from 'react';
-import { getCachedUsage, readUsageCacheSnapshot, useStore } from '../../runtime/store.js';
+import { getCachedUsage, readUsageCacheSnapshot, selectActiveWorkspaceCapabilityGaps, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
 import { RuntimeProvider } from '../../runtime/runtime-provider.js';
@@ -24,6 +24,7 @@ export function AppShell() {
     selectedAgent,
     setConnection,
     setWorkspaceBootstrap,
+    setWorkspaceCapabilities,
     setWorkspaceServerStatus,
     setSessions,
     setActiveSession,
@@ -39,6 +40,7 @@ export function AppShell() {
     setWorkspaceDialogOpen,
     setSettingsDialogOpen,
   } = useStore();
+  const capabilityGaps = useStore(selectActiveWorkspaceCapabilityGaps);
   const compactDesktop = useViewportWidth() <= 1440;
   const sidebarWidth = compactDesktop ? '248px' : '280px';
   const drawerWidth = compactDesktop ? '320px' : '384px';
@@ -131,11 +133,20 @@ export function AppShell() {
         const messages = await api.listMessages(activeWorkspaceId, session.id).catch(() => []);
         if (cancelled) return;
 
-        setMessages(session.id, messages);
+        setMessages(activeWorkspaceId, session.id, messages);
         setSessions(activeWorkspaceId, mergeSessionMessages(sessions, session.id, messages));
         setConnection(activeWorkspaceId, 'connected');
       } catch {
         if (!cancelled) {
+          await api.getWorkspaceCapabilities(activeWorkspaceId)
+            .then((capabilities) => {
+              if (!cancelled) {
+                setWorkspaceCapabilities(activeWorkspaceId, capabilities);
+              }
+            })
+            .catch(() => {
+              /* ignore capability fallback errors */
+            });
           setConnection(activeWorkspaceId, 'error');
         }
       }
@@ -167,6 +178,7 @@ export function AppShell() {
     setSelectedModel,
     setSelectedModelVariant,
     setSelectedProvider,
+    setWorkspaceCapabilities,
     setSessions,
     clearWorkspaceStreaming,
     setWorkspaceBootstrap,
@@ -186,7 +198,10 @@ export function AppShell() {
       <Sidebar />
       <RuntimeProvider key={`${activeWorkspaceId ?? 'no-workspace'}:${activeSessionId ?? 'no-session'}`}>
         <div className="main-content">
-          <Thread />
+          {capabilityGaps.length > 0 && <WorkspaceCapabilityBanner gaps={capabilityGaps} />}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <Thread />
+          </div>
         </div>
       </RuntimeProvider>
       <RightDrawer />
@@ -206,4 +221,40 @@ function useViewportWidth() {
   }, []);
 
   return width;
+}
+
+function WorkspaceCapabilityBanner({ gaps }: { gaps: ReturnType<typeof selectActiveWorkspaceCapabilityGaps> }) {
+  const hasErrors = gaps.some((gap) => gap.status === 'error');
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        margin: '16px 16px 0',
+        padding: '12px 14px',
+        borderRadius: 18,
+        border: `1px solid ${hasErrors ? 'var(--error)' : 'var(--warning)'}`,
+        background: hasErrors ? 'var(--error-soft)' : 'rgba(245, 158, 11, 0.12)',
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 700, color: hasErrors ? 'var(--error)' : 'var(--warning)', marginBottom: 6 }}>
+        {hasErrors ? 'Workspace capability probe needs attention' : 'Workspace capability gaps'}
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        {hasErrors
+          ? 'Some capability checks failed. Core chat flows still work, but the workspace needs manual attention before those extras are shown as ready.'
+          : 'Core chat flows still work. These optional workspace capabilities are currently unavailable.'}
+      </div>
+      <ul style={{ margin: '10px 0 0 18px', padding: 0, color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.6 }}>
+        {gaps.map((gap) => (
+          <li key={gap.key}>
+            <strong style={{ color: 'var(--text-primary)' }}>{gap.label}:</strong>{' '}
+            {gap.summary}
+            {gap.detail ? ` — ${gap.detail}` : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

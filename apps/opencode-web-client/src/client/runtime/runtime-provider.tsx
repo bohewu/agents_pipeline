@@ -11,7 +11,7 @@ import {
   useExternalStoreRuntime,
   AssistantRuntimeProvider,
 } from '@assistant-ui/react';
-import { useStore } from './store.js';
+import { selectSessionMessages, selectSessionStreaming, useStore } from './store.js';
 import { convertMessage } from './assistant-ui-mapper.js';
 import { api } from '../lib/api-client.js';
 import { parseComposerIntent } from '../lib/opencode-controls.js';
@@ -31,9 +31,9 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   const sessionId = activeWorkspaceId
     ? activeSessionByWorkspace[activeWorkspaceId]
     : undefined;
-  const streaming = useStore((s) => sessionId ? !!s.streamingBySession[sessionId] : false);
+  const streaming = useStore((s) => selectSessionStreaming(s, activeWorkspaceId, sessionId));
 
-  const rawMessages = sessionId ? (messagesBySession[sessionId] ?? []) : [];
+  const rawMessages = selectSessionMessages({ messagesBySession }, activeWorkspaceId, sessionId);
   const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
   const workspaceBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
   const inFlightRequestRef = React.useRef<AbortController | null>(null);
@@ -64,16 +64,19 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       });
       if (!intent.text) return;
 
-      const optimisticMessage = createOptimisticUserMessage(intent.text);
-      useStore.getState().addMessage(sessionId, optimisticMessage);
+      const optimisticMessage = createOptimisticUserMessage(activeWorkspaceId, sessionId, intent.text);
+      useStore.getState().addMessage(activeWorkspaceId, sessionId, optimisticMessage);
 
       // Set streaming before sending
-      useStore.getState().setSessionStreaming(sessionId, true);
+      useStore.getState().setSessionStreaming(activeWorkspaceId, sessionId, true);
       inFlightRequestRef.current?.abort();
       const requestController = new AbortController();
       inFlightRequestRef.current = requestController;
 
       const sendPromise = (() => {
+        const verificationLink = intent.verificationCommandKind
+          ? resolveLatestAssistantLink(rawMessages)
+          : undefined;
         switch (intent.mode) {
           case 'ask':
             return api.sendChat(activeWorkspaceId, sessionId, {
@@ -84,16 +87,30 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
               effort: effectiveEffort,
             }, requestController.signal);
           case 'command':
+            if (intent.verificationCommandKind) {
+              return api.runVerification(activeWorkspaceId, {
+                sessionId,
+                commandKind: intent.verificationCommandKind,
+                sourceMessageId: verificationLink?.sourceMessageId,
+                taskId: verificationLink?.taskId,
+              }, requestController.signal);
+            }
             return api.sendCommand(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
           case 'shell':
             return api.sendShell(activeWorkspaceId, sessionId, { command: intent.text }, requestController.signal);
         }
       })();
+      const shouldAutoClearStreaming = !!intent.verificationCommandKind;
 
       void sendPromise
+        .then(() => {
+          if (shouldAutoClearStreaming && inFlightRequestRef.current === requestController) {
+            useStore.getState().setSessionStreaming(activeWorkspaceId, sessionId, false);
+          }
+        })
         .catch(() => {
           if (inFlightRequestRef.current === requestController) {
-            useStore.getState().setSessionStreaming(sessionId, false);
+            useStore.getState().setSessionStreaming(activeWorkspaceId, sessionId, false);
           }
         })
         .finally(() => {
@@ -108,7 +125,7 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
       const inFlightRequest = inFlightRequestRef.current;
       inFlightRequestRef.current = null;
       inFlightRequest?.abort();
-      useStore.getState().setSessionStreaming(sessionId, false);
+      useStore.getState().setSessionStreaming(activeWorkspaceId, sessionId, false);
       try {
         await api.abort(activeWorkspaceId, sessionId);
       } catch {
@@ -124,11 +141,41 @@ export function RuntimeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function createOptimisticUserMessage(text: string): NormalizedMessage {
+function createOptimisticUserMessage(workspaceId: string, sessionId: string, text: string): NormalizedMessage {
+  const id = `local-user-${crypto.randomUUID()}`;
   return {
-    id: `local-user-${crypto.randomUUID()}`,
+    id,
     role: 'user',
     createdAt: new Date().toISOString(),
     parts: [{ type: 'text', text }],
+    trace: {
+      sourceMessageId: id,
+      workspaceId,
+      sessionId,
+    },
+  };
+}
+
+function resolveLatestAssistantLink(messages: NormalizedMessage[]): {
+  sourceMessageId: string;
+  taskId?: string;
+} | undefined {
+  const assistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
+  if (!assistantMessage) return undefined;
+
+  return {
+    sourceMessageId: assistantMessage.resultAnnotation?.sourceMessageId
+      ?? assistantMessage.taskEntry?.sourceMessageId
+      ?? assistantMessage.trace?.sourceMessageId
+      ?? assistantMessage.id,
+    ...(assistantMessage.resultAnnotation?.taskId
+      ?? assistantMessage.taskEntry?.taskId
+      ?? assistantMessage.trace?.taskId
+      ? {
+          taskId: assistantMessage.resultAnnotation?.taskId
+            ?? assistantMessage.taskEntry?.taskId
+            ?? assistantMessage.trace?.taskId,
+        }
+      : {}),
   };
 }
