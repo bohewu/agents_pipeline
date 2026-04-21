@@ -30,19 +30,24 @@
 5. `TASK_BREAKDOWN.md`  
    實作順序與切片，將 roadmap/spec/design 轉成可執行的 phase/task list。
 
+6. `RUN_PIPELINE_PROMPTS.md`  
+   可直接使用的 tranche prompts，對應 `TASK_BREAKDOWN.md` 的前幾包實作。
+
 ## 3. 文件優先序
 
 若文件之間出現衝突，請依以下順序解讀：
 
 1. `README.md`
-2. `TASK_BREAKDOWN.md`
-3. `SDD.md`
-4. `SPEC.md`
-5. `MILESTONES.md`
+2. `RUN_PIPELINE_PROMPTS.md`
+3. `TASK_BREAKDOWN.md`
+4. `SDD.md`
+5. `SPEC.md`
+6. `MILESTONES.md`
 
 原因：
 
 - `README.md` 鎖定 bundle scope
+- `RUN_PIPELINE_PROMPTS.md` 鎖定 tranche 執行 prompt
 - `TASK_BREAKDOWN.md` 鎖定近期實作切片
 - `SDD.md` 鎖定技術與 ownership boundary
 - `SPEC.md` 鎖定產品需求
@@ -100,10 +105,11 @@
 順序：
 
 1. 先讀 `README.md`
-2. 再讀 `TASK_BREAKDOWN.md`
-3. 實作時以 `SDD.md` 為主要技術邊界依據
-4. 需求不清時回查 `SPEC.md`
-5. milestone framing 與 deferred items 看 `MILESTONES.md`
+2. 若要直接開工，先看 `RUN_PIPELINE_PROMPTS.md`
+3. 再讀 `TASK_BREAKDOWN.md`
+4. 實作時以 `SDD.md` 為主要技術邊界依據
+5. 需求不清時回查 `SPEC.md`
+6. milestone framing 與 deferred items 看 `MILESTONES.md`
 
 ### 如果要 review 方向
 
