@@ -1,4 +1,5 @@
 import type {
+  ApiEnvelope,
   WorkspaceProfile,
   WorkspaceServerStatus,
   WorkspaceBootstrap,
@@ -16,6 +17,15 @@ import type {
   SetEffortRequest,
   VerificationCommandKind,
   VerificationRun,
+  WorkspaceGitStatusResult,
+  CommitPreviewRequest,
+  CommitPreviewResult,
+  CommitExecuteRequest,
+  CommitExecuteResult,
+  PushRequest,
+  PushResult,
+  PullRequestCreateRequest,
+  PullRequestCreateResult,
 } from '../../shared/types.js';
 
 const BASE = '';
@@ -48,11 +58,38 @@ function normalizeEvent(value: any): BffEvent {
   };
 }
 
+export class ApiClientError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly envelope?: ApiEnvelope<unknown>;
+
+  constructor(message: string, options: { code: string; status: number; envelope?: ApiEnvelope<unknown> }) {
+    super(message);
+    this.name = 'ApiClientError';
+    this.code = options.code;
+    this.status = options.status;
+    this.envelope = options.envelope;
+  }
+}
+
+async function parseEnvelope<T>(res: Response): Promise<T> {
+  const envelope = await res.json() as ApiEnvelope<T>;
+  if (!res.ok || !envelope.ok) {
+    throw new ApiClientError(
+      !envelope.ok ? envelope.error?.message ?? 'API error' : `HTTP ${res.status}`,
+      {
+        code: !envelope.ok ? envelope.error?.code ?? 'API_ERROR' : 'HTTP_ERROR',
+        status: res.status,
+        envelope,
+      },
+    );
+  }
+  return envelope.data as T;
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { headers: { Accept: 'application/json' } });
-  const envelope = await res.json();
-  if (!envelope.ok) throw new Error(envelope.error?.message ?? 'API error');
-  return envelope.data as T;
+  return parseEnvelope<T>(res);
 }
 
 async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
@@ -62,9 +99,7 @@ async function post<T>(path: string, body?: unknown, signal?: AbortSignal): Prom
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal,
   });
-  const envelope = await res.json();
-  if (!envelope.ok) throw new Error(envelope.error?.message ?? 'API error');
-  return envelope.data as T;
+  return parseEnvelope<T>(res);
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
@@ -73,16 +108,12 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const envelope = await res.json();
-  if (!envelope.ok) throw new Error(envelope.error?.message ?? 'API error');
-  return envelope.data as T;
+  return parseEnvelope<T>(res);
 }
 
 async function del<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: 'DELETE' });
-  const envelope = await res.json();
-  if (!envelope.ok) throw new Error(envelope.error?.message ?? 'API error');
-  return envelope.data as T;
+  return parseEnvelope<T>(res);
 }
 
 export const api = {
@@ -119,6 +150,15 @@ export const api = {
   restartServer: (id: string) => post<void>(`/api/workspaces/${id}/server/restart`),
   getBootstrap: (id: string) => get<WorkspaceBootstrap>(`/api/workspaces/${id}/bootstrap`),
   getWorkspaceCapabilities: (id: string) => get<WorkspaceCapabilityProbe>(`/api/workspaces/${id}/capabilities`),
+  getGitStatus: (id: string) => get<WorkspaceGitStatusResult>(`/api/workspaces/${id}/git/status`),
+  previewCommit: (id: string, data?: CommitPreviewRequest) =>
+    post<CommitPreviewResult>(`/api/workspaces/${id}/git/commit/preview`, data ?? {}),
+  executeCommit: (id: string, data: CommitExecuteRequest, signal?: AbortSignal) =>
+    post<CommitExecuteResult>(`/api/workspaces/${id}/git/commit`, data, signal),
+  push: (id: string, data: PushRequest, signal?: AbortSignal) =>
+    post<PushResult>(`/api/workspaces/${id}/git/push`, data, signal),
+  createPullRequest: (id: string, data: PullRequestCreateRequest, signal?: AbortSignal) =>
+    post<PullRequestCreateResult>(`/api/workspaces/${id}/git/pr`, data, signal),
   listVerificationRuns: (wsId: string) =>
     get<VerificationRun[]>(`/api/workspaces/${wsId}/verify/runs`),
   runVerification: (

@@ -7,6 +7,7 @@ import type { WorkspaceBootstrap, WorkspaceTraceabilitySummary } from '../../sha
 import type { ConfigService, NormalizedConfig } from '../services/config-service.js'
 import type { EffortService } from '../services/effort-service.js'
 import type { WorkspaceCapabilityProbeService } from '../services/workspace-capability-probe.js'
+import type { WorkspaceShipService } from '../services/workspace-ship-service.js'
 import type { VerificationService } from '../services/verification-service.js'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
@@ -18,11 +19,12 @@ export interface WorkspacesRouteDeps {
   configService: ConfigService
   effortService: EffortService
   capabilityProbeService: WorkspaceCapabilityProbeService
+  workspaceShipService: WorkspaceShipService
   verificationService: VerificationService
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, verificationService } = deps
+  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, verificationService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -202,8 +204,8 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
 
   async function getBootstrap(workspaceId: string, rootPath: string, opencodeConfigDir?: string): Promise<WorkspaceBootstrap> {
     const workspace = registry.get(workspaceId)!
-    const gitBranch = resolveGitBranch(rootPath)
     const capabilitiesPromise = capabilityProbeService.probeWorkspace(workspaceId, rootPath)
+    const gitStatusPromise = workspaceShipService.getStatus(workspaceId, rootPath)
 
     // Ensure server is running
     let runtime = serverManager.get(workspaceId)
@@ -244,6 +246,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
     }
 
     const capabilities = await capabilitiesPromise
+    const git = await gitStatusPromise
     const verificationSummary = verificationService.getWorkspaceSummary(workspaceId)
 
     return {
@@ -255,7 +258,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
           id: workspace.id,
           path: rootPath,
           name: workspace.name || path.basename(rootPath),
-          branch: gitBranch,
+          branch: git.data?.branch.detached ? undefined : git.data?.branch.name,
         },
         providers: config.providers,
         models: config.models,
@@ -263,6 +266,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
         commands: config.commands,
         connectedProviderIds: config.connectedProviderIds,
       },
+      git,
       sessions,
       effort: effortService.getEffortSummary(rootPath),
       capabilities,
@@ -288,24 +292,5 @@ function mergeTraceabilitySummaries(
   return {
     taskEntries: [...base.taskEntries, ...extra.taskEntries],
     resultAnnotations: [...base.resultAnnotations, ...extra.resultAnnotations],
-  }
-}
-
-function resolveGitBranch(rootPath: string): string | undefined {
-  try {
-    const branch = execSync('git rev-parse --abbrev-ref HEAD', {
-      cwd: rootPath,
-      encoding: 'utf-8',
-      timeout: 3000,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim()
-
-    if (!branch || branch === 'HEAD') {
-      return undefined
-    }
-
-    return branch
-  } catch {
-    return undefined
   }
 }

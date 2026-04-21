@@ -12,6 +12,7 @@ import { fsBrowseRoute } from './routes/fs-browse.js';
 import { WorkspacesRoute } from './routes/workspaces.js';
 import { SessionsRoute } from './routes/sessions.js';
 import { FilesRoute } from './routes/files.js';
+import { GitRoute } from './routes/git.js';
 import { EffortRoute } from './routes/effort.js';
 import { UsageRoute } from './routes/usage.js';
 import { EventsRoute } from './routes/events.js';
@@ -30,6 +31,7 @@ import type { FileService } from './services/file-service.js';
 import type { PermissionRegistry } from './services/permission-registry.js';
 import type { EventBroker } from './services/event-broker.js';
 import type { WorkspaceCapabilityProbeService } from './services/workspace-capability-probe.js';
+import type { WorkspaceShipService } from './services/workspace-ship-service.js';
 import type { VerificationService } from './services/verification-service.js';
 
 export interface ServerOptions {
@@ -53,6 +55,7 @@ export interface ServerDeps {
   permissionRegistry: PermissionRegistry;
   eventBroker: EventBroker;
   capabilityProbeService: WorkspaceCapabilityProbeService;
+  workspaceShipService: WorkspaceShipService;
   verificationService: VerificationService;
 }
 
@@ -133,10 +136,10 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
   // Mount workspace routes (if deps provided)
   if (deps) {
-      const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, verificationService } = deps;
+      const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, workspaceShipService, verificationService } = deps;
 
       // Workspace CRUD (no workspace scope middleware needed)
-      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, verificationService }));
+      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, verificationService }));
 
     // SSE events (workspace via query param, no middleware)
     api.route('/events', EventsRoute({ eventBroker }));
@@ -316,6 +319,9 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
     // Files
     wsScoped.route('/files', FilesRoute({ fileService }));
+
+    // Git / ship contracts
+    wsScoped.route('/git', GitRoute({ workspaceShipService }));
 
     // Effort
     wsScoped.route('/effort', EffortRoute({ effortService }));

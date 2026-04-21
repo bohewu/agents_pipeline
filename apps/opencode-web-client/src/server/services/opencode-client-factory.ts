@@ -18,7 +18,11 @@ export interface OpenCodeClient {
     options?: { providerId?: string; modelId?: string; agentId?: string; effort?: string },
   ): Promise<{ messageId: string }>
   command(sessionId: string, command: string, args?: Record<string, unknown>): Promise<OpenCodeExecutionResult>
-  shell(sessionId: string, command: string): Promise<OpenCodeExecutionResult>
+  shell(
+    sessionId: string,
+    command: string,
+    options?: { providerId?: string; modelId?: string; agentId?: string; effort?: string },
+  ): Promise<OpenCodeExecutionResult>
   abort(sessionId: string): Promise<void>
   diff(sessionId: string): Promise<DiffResponse[]>
   fileStatus(sessionId: string): Promise<FileStatusResponse[]>
@@ -150,8 +154,8 @@ export class OpenCodeClientFactory {
         return normalizeExecutionResult(await post(`/session/${sessionId}/command`, { command, args }))
       },
 
-      shell: async (sessionId: string, command: string) => {
-        return normalizeExecutionResult(await post(`/session/${sessionId}/shell`, { command }))
+      shell: async (sessionId: string, command: string, options) => {
+        return normalizeExecutionResult(await post(`/session/${sessionId}/shell`, withSelections({ command }, options)))
       },
 
       abort: async (sessionId: string) => {

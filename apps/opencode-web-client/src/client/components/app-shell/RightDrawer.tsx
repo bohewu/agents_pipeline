@@ -3,16 +3,18 @@ import { useStore, type RightPanel } from '../../runtime/store.js';
 import { ActivityPanel } from '../panels/ActivityPanel.js';
 import { DiffPanel } from '../panels/DiffPanel.js';
 import { FilesPanel } from '../panels/FilesPanel.js';
+import { ShipPanel } from '../panels/ShipPanel.js';
 import { UsagePanel } from '../panels/UsagePanel.js';
 import { VerificationPanel } from '../panels/VerificationPanel.js';
 import { PermissionsPanel } from '../panels/PermissionsPanel.js';
 import { DiagnosticsPanel } from '../panels/DiagnosticsPanel.js';
-import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, PanelRightIcon, SettingsIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
+import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, GitBranchIcon, PanelRightIcon, SettingsIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
 
 const TABS: { key: RightPanel; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { key: 'activity', label: 'Activity', icon: ActivityIcon },
   { key: 'diff', label: 'Diff', icon: DiffIcon },
   { key: 'files', label: 'Files', icon: FilesIcon },
+  { key: 'ship', label: 'Ship', icon: GitBranchIcon },
   { key: 'usage', label: 'Usage', icon: UsageIcon },
   { key: 'verification', label: 'Verification', icon: CheckIcon },
   { key: 'permissions', label: 'Permissions', icon: ShieldIcon },
@@ -34,6 +36,7 @@ export function RightDrawer() {
     if (rightPanel === 'activity') return <ActivityPanel />;
     if (rightPanel === 'diff') return <DiffPanel />;
     if (rightPanel === 'files') return <FilesPanel />;
+    if (rightPanel === 'ship') return <ShipPanel />;
     if (rightPanel === 'usage') return <UsagePanel />;
     if (rightPanel === 'verification') return <VerificationPanel />;
     if (rightPanel === 'permissions') return <PermissionsPanel />;

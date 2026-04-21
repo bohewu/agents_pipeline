@@ -99,6 +99,150 @@ export interface WorkspaceCapabilityProbe {
   browserEvidence: CapabilityProbeCheck;
 }
 
+export type ShipStatusOutcome = 'success' | 'degraded' | 'failure';
+
+export type ShipActionOutcome = 'success' | 'degraded' | 'blocked' | 'failure';
+
+export type GitRemoteProvider = 'github' | 'gitlab' | 'bitbucket' | 'unknown';
+
+export interface ShipIssue {
+  code: string;
+  message: string;
+  detail?: string;
+  remediation?: string;
+  source?: 'git' | 'gh' | 'opencode' | 'bff';
+}
+
+export interface GitStatusPathBucket {
+  count: number;
+  paths: string[];
+  truncated: boolean;
+}
+
+export interface WorkspaceGitChangeSummary {
+  staged: GitStatusPathBucket;
+  unstaged: GitStatusPathBucket;
+  untracked: GitStatusPathBucket;
+  conflicted: GitStatusPathBucket;
+  hasChanges: boolean;
+  hasStagedChanges: boolean;
+}
+
+export interface WorkspaceGitBranchState {
+  name?: string;
+  detached: boolean;
+  headSha?: string;
+}
+
+export interface WorkspaceGitUpstreamState {
+  status: 'tracked' | 'missing' | 'detached' | 'unknown';
+  ref?: string;
+  remote?: string;
+  branch?: string;
+  ahead: number;
+  behind: number;
+  remoteUrl?: string;
+  remoteHost?: string;
+  remoteProvider?: GitRemoteProvider;
+}
+
+export interface WorkspacePullRequestCapability {
+  outcome: ShipActionOutcome;
+  supported: boolean;
+  summary: string;
+  detail?: string;
+  remediation?: string;
+  issues: ShipIssue[];
+}
+
+export interface WorkspaceGitStatusSnapshot {
+  workspaceId: string;
+  checkedAt: string;
+  branch: WorkspaceGitBranchState;
+  upstream: WorkspaceGitUpstreamState;
+  changeSummary: WorkspaceGitChangeSummary;
+  pullRequest: WorkspacePullRequestCapability;
+}
+
+export interface WorkspaceGitStatusResult {
+  outcome: ShipStatusOutcome;
+  data?: WorkspaceGitStatusSnapshot;
+  issues: ShipIssue[];
+}
+
+export interface ShipExecutionResult {
+  sessionId: string;
+  status?: string;
+  summary?: string;
+  exitCode?: number;
+  terminalLogRef?: string;
+  messageId?: string;
+  taskId?: string;
+  stdout?: string;
+  stderr?: string;
+}
+
+export interface CommitPreviewRequest {
+  message?: string;
+}
+
+export interface CommitPreviewResult {
+  outcome: ShipActionOutcome;
+  status: WorkspaceGitStatusResult;
+  draftMessage?: string;
+  issues: ShipIssue[];
+}
+
+export interface CommitExecuteRequest {
+  sessionId: string;
+  message: string;
+  agentId?: string;
+}
+
+export interface CommitExecuteResult {
+  outcome: ShipActionOutcome;
+  status: WorkspaceGitStatusResult;
+  execution?: ShipExecutionResult;
+  commit?: {
+    sha?: string;
+    message: string;
+  };
+  issues: ShipIssue[];
+}
+
+export interface PushRequest {
+  sessionId: string;
+  agentId?: string;
+}
+
+export interface PushResult {
+  outcome: ShipActionOutcome;
+  status: WorkspaceGitStatusResult;
+  execution?: ShipExecutionResult;
+  upstream?: WorkspaceGitUpstreamState;
+  issues: ShipIssue[];
+}
+
+export interface PullRequestCreateRequest {
+  sessionId: string;
+  agentId?: string;
+  title?: string;
+  body?: string;
+  baseBranch?: string;
+  headBranch?: string;
+  draft?: boolean;
+}
+
+export interface PullRequestCreateResult {
+  outcome: ShipActionOutcome;
+  status: WorkspaceGitStatusResult;
+  execution?: ShipExecutionResult;
+  pullRequest?: {
+    url: string;
+  };
+  issues: ShipIssue[];
+}
+
 export type VerificationCommandKind = 'lint' | 'build' | 'test';
 
 export type VerificationRunStatus = 'running' | 'passed' | 'failed' | 'cancelled';
@@ -122,6 +266,7 @@ export interface WorkspaceBootstrap {
   workspace: WorkspaceProfile;
   server?: WorkspaceServerStatus;
   opencode?: OpenCodeBootstrap;
+  git?: WorkspaceGitStatusResult;
   sessions: SessionSummary[];
   effort?: EffortStateSummary;
   capabilities?: WorkspaceCapabilityProbe;

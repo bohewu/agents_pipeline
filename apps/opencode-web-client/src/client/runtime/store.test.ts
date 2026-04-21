@@ -9,6 +9,8 @@ vi.mock('../lib/local-storage.js', () => ({
 import {
   selectActiveWorkspaceCapabilityGaps,
   selectActiveWorkspaceCapabilities,
+  selectActiveWorkspaceGitStatus,
+  selectActiveWorkspaceShipActionResults,
   selectActiveWorkspaceVerificationRuns,
   resolveWorkspaceSessionStoreKey,
   selectMessageResultTrace,
@@ -40,6 +42,8 @@ describe('store session streaming state', () => {
       serverStatusByWorkspace: {},
       workspaceBootstraps: {},
       workspaceCapabilitiesByWorkspace: {},
+      workspaceGitStatusByWorkspace: {},
+      workspaceShipActionResultsByWorkspace: {},
       effortByWorkspace: {},
       usageByWorkspace: {},
       usageLoadingByWorkspace: {},
@@ -267,6 +271,44 @@ describe('store session streaming state', () => {
       },
     ]);
   });
+
+  it('hydrates git status from workspace bootstrap and keeps it workspace-scoped', () => {
+    useStore.getState().setWorkspaceBootstrap('workspace-1', makeBootstrap('workspace-1', undefined, undefined, undefined, makeGitStatus('workspace-1')));
+    useStore.getState().setWorkspaceBootstrap('workspace-2', makeBootstrap('workspace-2', undefined, undefined, undefined, {
+      ...makeGitStatus('workspace-2'),
+      data: {
+        ...makeGitStatus('workspace-2').data!,
+        branch: { name: 'feature/ship', detached: false },
+      },
+    }));
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceGitStatus(useStore.getState())?.data?.branch.name).toBe('feature/ship');
+  });
+
+  it('stores ship action results with workspace scoping intact', () => {
+    useStore.getState().setWorkspaceShipActionResult('workspace-1', 'push', {
+      outcome: 'blocked',
+      status: makeGitStatus('workspace-1'),
+      issues: [{ code: 'MISSING_UPSTREAM', message: 'Push is blocked.' }],
+    });
+    useStore.getState().setWorkspaceShipActionResult('workspace-2', 'pullRequest', {
+      outcome: 'success',
+      status: makeGitStatus('workspace-2'),
+      pullRequest: { url: 'https://github.com/example/repo/pull/123' },
+      issues: [],
+    });
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceShipActionResults(useStore.getState())).toEqual({
+      pullRequest: {
+        outcome: 'success',
+        status: makeGitStatus('workspace-2'),
+        pullRequest: { url: 'https://github.com/example/repo/pull/123' },
+        issues: [],
+      },
+    });
+  });
 });
 
 function makeSession(overrides: Partial<SessionSummary> & Pick<SessionSummary, 'id'>): SessionSummary {
@@ -287,6 +329,7 @@ function makeBootstrap(
   traceability: WorkspaceBootstrap['traceability'],
   capabilityOverrides?: Partial<WorkspaceCapabilityProbe>,
   verificationRuns?: VerificationRun[],
+  git?: WorkspaceBootstrap['git'],
 ): WorkspaceBootstrap {
   return {
     workspace: {
@@ -296,6 +339,7 @@ function makeBootstrap(
       addedAt: '2026-04-20T00:00:00.000Z',
     },
     sessions: [],
+    git,
     capabilities: makeCapabilityProbe(workspaceId, capabilityOverrides),
     traceability,
     verificationRuns,
@@ -316,6 +360,53 @@ function makeCapabilityProbe(
     previewTarget: available,
     browserEvidence: available,
     ...overrides,
+  };
+}
+
+function makeGitStatus(workspaceId: string) {
+  return {
+    outcome: 'success' as const,
+    data: {
+      workspaceId,
+      checkedAt: '2026-04-20T00:00:00.000Z',
+      branch: { name: 'main', detached: false },
+      upstream: {
+        status: 'tracked' as const,
+        ref: 'origin/main',
+        remote: 'origin',
+        branch: 'main',
+        ahead: 1,
+        behind: 0,
+        remoteProvider: 'github' as const,
+        remoteHost: 'github.com',
+        remoteUrl: 'git@github.com:example/repo.git',
+      },
+      changeSummary: {
+        staged: { count: 1, paths: ['src/index.ts'], truncated: false },
+        unstaged: { count: 1, paths: ['README.md'], truncated: false },
+        untracked: { count: 1, paths: ['notes.txt'], truncated: false },
+        conflicted: { count: 0, paths: [], truncated: false },
+        hasChanges: true,
+        hasStagedChanges: true,
+      },
+      pullRequest: {
+        outcome: 'degraded' as const,
+        supported: false,
+        summary: 'Pull request creation is currently unavailable.',
+        detail: 'The gh CLI is installed, but github.com authentication is not available.',
+        remediation: 'Run gh auth login for github.com and retry the pull request action.',
+        issues: [
+          {
+            code: 'GH_AUTH_UNAVAILABLE',
+            message: 'Pull request creation is currently unavailable.',
+            detail: 'The gh CLI is installed, but github.com authentication is not available.',
+            remediation: 'Run gh auth login for github.com and retry the pull request action.',
+            source: 'gh' as const,
+          },
+        ],
+      },
+    },
+    issues: [],
   };
 }
 

@@ -3,14 +3,19 @@ import { getItem, setItem } from '../lib/local-storage.js';
 import { DEFAULT_APP_SETTINGS, normalizeAppSettings, type AppSettings } from '../lib/app-settings.js';
 import type {
   CapabilityProbeStatus,
+  CommitExecuteResult,
+  CommitPreviewResult,
   InstallDiagnostics,
   MessageTraceLink,
   NormalizedMessage,
   PermissionRequest,
+  PullRequestCreateResult,
+  PushResult,
   ResultAnnotation,
   SessionSummary,
   TaskEntry,
   UsageDetails,
+  WorkspaceGitStatusResult,
   WorkspaceBootstrap,
   WorkspaceCapabilityKey,
   WorkspaceCapabilityProbe,
@@ -23,7 +28,7 @@ import type {
   VerificationRun,
 } from '../../shared/types.js';
 
-export type RightPanel = 'activity' | 'diff' | 'files' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
+export type RightPanel = 'activity' | 'diff' | 'files' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
 export type ComposerMode = 'ask' | 'command' | 'shell';
 
 export interface ResolvedMessageResultTrace {
@@ -45,6 +50,15 @@ export interface WorkspaceCapabilityGap {
   detail?: string;
 }
 
+export type WorkspaceShipActionKey = 'commitPreview' | 'commitExecute' | 'push' | 'pullRequest';
+
+export interface WorkspaceShipActionResults {
+  commitPreview?: CommitPreviewResult;
+  commitExecute?: CommitExecuteResult;
+  push?: PushResult;
+  pullRequest?: PullRequestCreateResult;
+}
+
 type TaskEntriesBySession = Record<string, Record<string, TaskEntry>>;
 type ResultAnnotationsBySession = Record<string, Record<string, ResultAnnotation>>;
 
@@ -58,6 +72,8 @@ export interface UIStore {
   serverStatusByWorkspace: Record<string, WorkspaceServerStatus>;
   workspaceBootstraps: Record<string, WorkspaceBootstrap>;
   workspaceCapabilitiesByWorkspace: Record<string, WorkspaceCapabilityProbe>;
+  workspaceGitStatusByWorkspace: Record<string, WorkspaceGitStatusResult>;
+  workspaceShipActionResultsByWorkspace: Record<string, WorkspaceShipActionResults>;
   sessionsByWorkspace: Record<string, SessionSummary[]>;
   activeSessionByWorkspace: Record<string, string | undefined>;
   messagesBySession: Record<string, NormalizedMessage[]>;
@@ -92,6 +108,8 @@ export interface UIStore {
   setWorkspaceServerStatus: (workspaceId: string, status: WorkspaceServerStatus) => void;
   setWorkspaceBootstrap: (workspaceId: string, bootstrap: WorkspaceBootstrap) => void;
   setWorkspaceCapabilities: (workspaceId: string, capabilities: WorkspaceCapabilityProbe) => void;
+  setWorkspaceGitStatus: (workspaceId: string, status: WorkspaceGitStatusResult) => void;
+  setWorkspaceShipActionResult: (workspaceId: string, action: WorkspaceShipActionKey, result: WorkspaceShipActionResults[WorkspaceShipActionKey]) => void;
   setVerificationRuns: (workspaceId: string, runs: VerificationRun[]) => void;
   upsertVerificationRun: (workspaceId: string, run: VerificationRun) => void;
   applyVerificationProjection: (
@@ -148,6 +166,8 @@ export const useStore = create<UIStore>((set) => ({
   serverStatusByWorkspace: {},
   workspaceBootstraps: {},
   workspaceCapabilitiesByWorkspace: {},
+  workspaceGitStatusByWorkspace: {},
+  workspaceShipActionResultsByWorkspace: {},
   sessionsByWorkspace: {},
   activeSessionByWorkspace: getItem<Record<string, string | undefined>>('active-sessions', {}),
   messagesBySession: {},
@@ -200,6 +220,9 @@ export const useStore = create<UIStore>((set) => ({
       workspaceCapabilitiesByWorkspace: bootstrap.capabilities
         ? { ...s.workspaceCapabilitiesByWorkspace, [workspaceId]: bootstrap.capabilities }
         : s.workspaceCapabilitiesByWorkspace,
+      workspaceGitStatusByWorkspace: bootstrap.git
+        ? { ...s.workspaceGitStatusByWorkspace, [workspaceId]: bootstrap.git }
+        : s.workspaceGitStatusByWorkspace,
       taskEntriesByWorkspace: {
         ...s.taskEntriesByWorkspace,
         [workspaceId]: groupTaskEntriesBySession(bootstrap.traceability),
@@ -214,6 +237,27 @@ export const useStore = create<UIStore>((set) => ({
       workspaceCapabilitiesByWorkspace: {
         ...s.workspaceCapabilitiesByWorkspace,
         [workspaceId]: capabilities,
+      },
+    })),
+  setWorkspaceGitStatus: (workspaceId, status) =>
+    set((s) => ({
+      workspaceGitStatusByWorkspace: {
+        ...s.workspaceGitStatusByWorkspace,
+        [workspaceId]: status,
+      },
+      workspaceBootstraps: updateWorkspaceBootstrap(s.workspaceBootstraps, workspaceId, (bootstrap) => ({
+        ...bootstrap,
+        git: status,
+      })),
+    })),
+  setWorkspaceShipActionResult: (workspaceId, action, result) =>
+    set((s) => ({
+      workspaceShipActionResultsByWorkspace: {
+        ...s.workspaceShipActionResultsByWorkspace,
+        [workspaceId]: {
+          ...(s.workspaceShipActionResultsByWorkspace[workspaceId] ?? {}),
+          [action]: result,
+        },
       },
     })),
   setVerificationRuns: (workspaceId, runs) =>
@@ -528,6 +572,34 @@ export function selectActiveWorkspaceCapabilities(
   store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceCapabilitiesByWorkspace'>,
 ): WorkspaceCapabilityProbe | undefined {
   return selectWorkspaceCapabilities(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceGitStatus(
+  store: Pick<UIStore, 'workspaceGitStatusByWorkspace'>,
+  workspaceId?: string | null,
+): WorkspaceGitStatusResult | undefined {
+  if (!workspaceId) return undefined;
+  return store.workspaceGitStatusByWorkspace[workspaceId];
+}
+
+export function selectActiveWorkspaceGitStatus(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceGitStatusByWorkspace'>,
+): WorkspaceGitStatusResult | undefined {
+  return selectWorkspaceGitStatus(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceShipActionResults(
+  store: Pick<UIStore, 'workspaceShipActionResultsByWorkspace'>,
+  workspaceId?: string | null,
+): WorkspaceShipActionResults | undefined {
+  if (!workspaceId) return undefined;
+  return store.workspaceShipActionResultsByWorkspace[workspaceId];
+}
+
+export function selectActiveWorkspaceShipActionResults(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceShipActionResultsByWorkspace'>,
+): WorkspaceShipActionResults | undefined {
+  return selectWorkspaceShipActionResults(store, store.activeWorkspaceId);
 }
 
 export function selectActiveWorkspaceCapabilityGaps(
