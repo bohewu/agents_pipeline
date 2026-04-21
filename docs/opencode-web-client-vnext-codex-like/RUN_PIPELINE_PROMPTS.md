@@ -39,6 +39,21 @@
 
 都可能通過，但 React / Zustand 這類 runtime render loop 仍然會在真瀏覽器才暴露。
 
+## 1.2 SoT alignment baseline
+
+所有 tranche prompt 在真正動手前，都應先讀這些 SoT 文件：
+
+1. `docs/opencode-web-client-vnext-codex-like/MILESTONES.md`
+2. `docs/opencode-web-client-vnext-codex-like/SPEC.md`
+3. `docs/opencode-web-client-vnext-codex-like/SDD.md`
+4. `docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md`
+
+規則：
+
+1. **SoT 優先於 prompt 的局部措辭**。
+2. 如果 prompt 與 SoT 存在語意差異，除非該 tranche 明確要求更新 docs，否則以 SoT 為準。
+3. 如果 tranche 處理的是 SoT 尚未納入的使用者 UX delta，必須明講是 **explicit exception**，不可默默把它併入 roadmap scope。
+
 ## 2. 建議執行順序
 
 1. Tranche 1: shared primitives + verify minimum
@@ -186,16 +201,291 @@ Browser validation required:
 - process restart 後完整接回正在跑的 upstream work
 - remote / multi-device continuation
 
-## 6. 三包做完後再做什麼
+### 5.3 Optional Mini-Tranche Prompt — Thread Text Block Polish Exception
 
-下一輪順序：
+```text
+/run-pipeline Implement a small thread-surface polish tranche for apps/opencode-web-client focused on the user-raised MessageCard text block UX delta.
 
-1. GitHub-backed ship
-2. context / extension surface
-3. browser evidence
-4. parallel execution surface
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- This tranche is an explicit exception for a newly discovered UX delta, not a silent expansion of the SoT roadmap.
+- Keep OpenCode as the backend execution engine.
+- Keep the change tightly bounded to the thread/message presentation layer; do not redesign verify, ship, task-ledger, or agent runtime behavior.
 
-## 7. 一句話策略
+Scope:
+- Audit `apps/opencode-web-client/src/client/components/thread/MessageCard.tsx` and related thread UI.
+- Soften the chrome for plain-text text block rendering where the current panel-like treatment feels too heavy.
+- Remove duplicate copy affordance for the same plain-text block when a more specific copy action already exists.
+- Preserve clear copy affordance for real code blocks and preserve existing result-trace / verification actions.
+
+Out of scope:
+- Broad thread redesign.
+- assistant-ui shell rewrite.
+- Verification, ship, or task-ledger feature work.
+- Markdown renderer replacement.
+- Browser evidence productization.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm normal assistant text messages render without app-shell fallback.
+- Confirm plain-text block presentation is lighter and no longer feels like duplicated heavy panel chrome.
+- Confirm there is no duplicate copy affordance for the same plain-text block while code blocks still have a clear copy path.
+- Confirm browser console has no uncaught error.
+```
+
+### 5.4 這一包做完應該得到什麼
+
+- thread 的 plain-text block 不再有過重的 panel-like chrome
+- 同一塊 plain text 不會同時出現重複 copy affordance
+- 這是一個 bounded polish tranche，不會污染 Tranche 4+ roadmap scope
+
+### 5.5 這一包不要碰什麼
+
+- broader thread / shell redesign
+- verify / ship / tasks feature scope
+- markdown renderer replacement
+- SoT roadmap 重定義
+
+## 6. Tranche 4 Prompt
+
+```text
+/run-pipeline Implement Phase E from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Extend the existing ShipPanel, workspace ship service, task ledger, and result-annotation model; do not redesign agent-core, provider/runtime ownership, or the main app shell.
+- Capability-gate all GitHub-backed behavior. Do not assume GitHub remotes, gh installation, or gh auth.
+- Keep the existing local status / commit / push / PR path working.
+
+Scope:
+- Add PR-linked checks summary.
+- Add PR review comments / requested-changes summary.
+- Add a fix handoff path from failing checks and review conditions into the existing workspace/session chat loop.
+- Project ship/review state back into task/result surfaces where that closes the current Tranche 3 gap.
+- Preserve clear degraded behavior and remediation when GitHub-backed capability is unavailable.
+
+Out of scope:
+- GitHub project management.
+- Issue tracker features.
+- Rebase UI.
+- Browser evidence productization.
+- Parallel lanes.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm the existing ship surface still renders for a GitHub-backed workspace without shell fallback.
+- Confirm checks/review summaries render in both happy and degraded states.
+- Confirm a fix handoff can be launched from a failing check or review condition.
+- Confirm browser console has no uncaught error.
+```
+
+### 6.1 這一包做完應該得到什麼
+
+- PR 不再只是建立完 URL 就結束，而是能回來看 check / review 狀態
+- ship surface 開始具備 review-driven follow-up loop
+- task / result surface 與 ship 後續狀態的關聯更完整
+
+### 6.2 這一包不要碰什麼
+
+- GitHub project / issue 管理
+- advanced rebase / branch surgery UI
+- browser evidence feature
+- parallel execution lanes
+
+## 7. Tranche 5 Prompt
+
+```text
+/run-pipeline Implement Phase F from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Reuse the existing local BFF, right-drawer-first shell, workspace-scoped store, and capability model.
+- Do not build a full config editor, provider credential wizard, or MCP admin console.
+- Prefer one bounded surface over a large IA redesign.
+
+Scope:
+- Add a context/catalog service and UI surface for workspace instruction and capability visibility.
+- Surface major instruction sources such as AGENTS.md, .opencode, and relevant project-local instruction files.
+- Surface installed capabilities such as plugins, commands, tools, usage/effort assets, and cheap-to-expose skills/MCP-facing assets.
+- Label each surfaced capability by source layer: project-local, user-global, or app-bundled.
+- Add clear remediation copy for missing or degraded capability.
+
+Out of scope:
+- Full config editing.
+- Provider auth flows.
+- Marketplace-style extension management.
+- Browser evidence runtime.
+- Parallel execution lanes.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm the new context/inventory surface renders and is reachable from the existing shell without fallback.
+- Confirm source-layer labeling is visible and understandable for real capability entries.
+- Confirm missing/degraded capability remediation is visible in the UI.
+- Confirm browser console has no uncaught error.
+```
+
+### 7.1 這一包做完應該得到什麼
+
+- advanced user 能看見目前 workspace 背後的 instruction / capability 來源
+- capability missing 時，不再只看到 generic unavailable state
+- 產品黑箱感下降，SoT 的 context surface 開始成立
+
+### 7.2 這一包不要碰什麼
+
+- full config editor
+- provider credential management wizard
+- MCP admin console
+- browser evidence
+- parallel lanes
+
+## 8. Tranche 6 Prompt
+
+```text
+/run-pipeline Implement Phase G from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Introduce a dedicated preview/browser evidence boundary; do not turn the BFF into a generic browser automation platform.
+- Keep command-based verification usable when preview/browser evidence is unavailable.
+- Capability-gate all preview/browser evidence behavior.
+- Do not broaden into multi-browser matrix support.
+
+Scope:
+- Add a preview/browser runtime boundary.
+- Add preview target registration or preview URL handling.
+- Add browser evidence artifacts for console capture and screenshots.
+- Persist browser evidence metadata and project it into verification results.
+- Keep existing lint/build/test verification intact and clearly separated from browser evidence.
+
+Out of scope:
+- Arbitrary browser automation DSL.
+- Full CI pipeline editor.
+- Multi-browser support.
+- Parallel lanes.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Validate one real preview-capable workspace path if available, or a bounded local preview fixture if needed.
+- Confirm command-only verification still works when preview/browser evidence is unavailable.
+- Confirm browser evidence artifacts render from the verification surface when capability is available.
+- Confirm browser console has no uncaught error.
+```
+
+### 8.1 這一包做完應該得到什麼
+
+- verify cockpit 開始不只看 terminal evidence，也能看 browser-facing evidence
+- preview/browser evidence 明確 capability-gated，而不是假裝永遠可用
+- M1b 與 M1a 的界線仍然清楚，不會把 verify 擴成另一個 preview product
+
+### 8.2 這一包不要碰什麼
+
+- arbitrary browser automation DSL
+- CI pipeline editor
+- multi-browser matrix
+- parallel lanes
+
+## 9. Tranche 7 Prompt
+
+```text
+/run-pipeline Implement Phase H from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Do not redesign the planner/router/reviewer pipeline or build a new autonomous swarm runtime.
+- Use explicit isolated execution context for each lane, tied to branch or worktree semantics.
+- Keep the first slice intentionally small and finishable.
+
+Scope:
+- Add a minimal parallel lane UI model for at least two isolated attempts in one workspace.
+- Bind each lane to an explicit isolated branch or worktree context.
+- Add compare-and-apply for alternative lane outcomes.
+- Surface per-lane verification and ship readiness.
+- Keep lane state attributable to workspace and session context.
+
+Out of scope:
+- Agent-core redesign.
+- Cloud execution fabric.
+- Multi-user collaboration.
+- Fancy swarm visualization unless upstream metadata is already cheap to surface.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm at least two isolated lanes can be created or rendered without shell fallback.
+- Confirm lane comparison and final selection/adopt flow render end-to-end.
+- Confirm per-lane verification/ship readiness is visible.
+- Confirm browser console has no uncaught error.
+```
+
+### 9.1 這一包做完應該得到什麼
+
+- 使用者可以同時看 2 條以上 isolation-first 的 task attempt
+- 結果不只平行存在，還能 compare-and-apply
+- 產品開始出現 SoT 定義的 codex-like 高階 parallel 感
+
+### 9.2 這一包不要碰什麼
+
+- re-implement OpenCode orchestration runtime
+- cloud agent fabric
+- multi-user collaborative session model
+- 無邊界的 swarm orchestration UI
+
+## 10. Tranche 3 之後怎麼排
+
+建議順序：
+
+1. Optional mini-tranche: thread text block polish exception
+2. GitHub-backed ship
+3. context / extension surface
+4. browser evidence
+5. parallel execution surface
+
+補充：
+
+- optional mini-tranche 也應維持 bounded exception，不要趁機混入 Tranche 4-7 feature scope
+- 這四包仍然要維持一包一個 prompt，不要把 Tranche 4-7 合併成單一大包
+- 若 scope 壓力變大，優先保住 M2b 與 M4 的 finishable slice，再考慮壓縮 M1b / M5 深度
+
+## 11. 一句話策略
 
 先把產品補到：
 
