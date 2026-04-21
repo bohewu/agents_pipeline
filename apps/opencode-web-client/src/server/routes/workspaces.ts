@@ -8,6 +8,7 @@ import type { ConfigService, NormalizedConfig } from '../services/config-service
 import type { EffortService } from '../services/effort-service.js'
 import type { WorkspaceCapabilityProbeService } from '../services/workspace-capability-probe.js'
 import type { WorkspaceShipService } from '../services/workspace-ship-service.js'
+import type { TaskLedgerService } from '../services/task-ledger-service.js'
 import type { VerificationService } from '../services/verification-service.js'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
@@ -21,10 +22,11 @@ export interface WorkspacesRouteDeps {
   capabilityProbeService: WorkspaceCapabilityProbeService
   workspaceShipService: WorkspaceShipService
   verificationService: VerificationService
+  taskLedgerService: TaskLedgerService
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, verificationService } = deps
+  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, verificationService, taskLedgerService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -248,6 +250,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
     const capabilities = await capabilitiesPromise
     const git = await gitStatusPromise
     const verificationSummary = verificationService.getWorkspaceSummary(workspaceId)
+    const taskLedgerRecords = taskLedgerService.listRecords(workspaceId)
 
     return {
       workspace,
@@ -272,6 +275,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       capabilities,
       traceability: mergeTraceabilitySummaries(createEmptyTraceabilitySummary(), verificationSummary.traceability),
       verificationRuns: verificationSummary.runs,
+      taskLedgerRecords,
     }
   }
 

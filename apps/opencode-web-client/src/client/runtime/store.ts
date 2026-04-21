@@ -26,9 +26,10 @@ import type {
   ResultVerificationState,
   VerificationCommandKind,
   VerificationRun,
+  TaskLedgerRecord,
 } from '../../shared/types.js';
 
-export type RightPanel = 'activity' | 'diff' | 'files' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
+export type RightPanel = 'tasks' | 'activity' | 'diff' | 'files' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
 export type ComposerMode = 'ask' | 'command' | 'shell';
 
 export interface ResolvedMessageResultTrace {
@@ -209,29 +210,33 @@ export const useStore = create<UIStore>((set) => ({
   setWorkspaceServerStatus: (workspaceId, status) =>
     set((s) => ({ serverStatusByWorkspace: { ...s.serverStatusByWorkspace, [workspaceId]: status } })),
   setWorkspaceBootstrap: (workspaceId, bootstrap) =>
-    set((s) => ({
-      workspaceBootstraps: {
-        ...s.workspaceBootstraps,
-        [workspaceId]: {
-          ...bootstrap,
-          ...(bootstrap.verificationRuns ? { verificationRuns: sortVerificationRuns(bootstrap.verificationRuns) } : {}),
+    set((s) => {
+      const taskLedgerRecords = normalizeTaskLedgerRecords(workspaceId, bootstrap.taskLedgerRecords);
+      return {
+        workspaceBootstraps: {
+          ...s.workspaceBootstraps,
+          [workspaceId]: {
+            ...bootstrap,
+            ...(bootstrap.verificationRuns ? { verificationRuns: sortVerificationRuns(bootstrap.verificationRuns) } : {}),
+            ...(bootstrap.taskLedgerRecords !== undefined ? { taskLedgerRecords } : {}),
+          },
         },
-      },
-      workspaceCapabilitiesByWorkspace: bootstrap.capabilities
-        ? { ...s.workspaceCapabilitiesByWorkspace, [workspaceId]: bootstrap.capabilities }
-        : s.workspaceCapabilitiesByWorkspace,
-      workspaceGitStatusByWorkspace: bootstrap.git
-        ? { ...s.workspaceGitStatusByWorkspace, [workspaceId]: bootstrap.git }
-        : s.workspaceGitStatusByWorkspace,
-      taskEntriesByWorkspace: {
-        ...s.taskEntriesByWorkspace,
-        [workspaceId]: groupTaskEntriesBySession(bootstrap.traceability),
-      },
-      resultAnnotationsByWorkspace: {
-        ...s.resultAnnotationsByWorkspace,
-        [workspaceId]: groupResultAnnotationsBySession(bootstrap.traceability),
-      },
-    })),
+        workspaceCapabilitiesByWorkspace: bootstrap.capabilities
+          ? { ...s.workspaceCapabilitiesByWorkspace, [workspaceId]: bootstrap.capabilities }
+          : s.workspaceCapabilitiesByWorkspace,
+        workspaceGitStatusByWorkspace: bootstrap.git
+          ? { ...s.workspaceGitStatusByWorkspace, [workspaceId]: bootstrap.git }
+          : s.workspaceGitStatusByWorkspace,
+        taskEntriesByWorkspace: {
+          ...s.taskEntriesByWorkspace,
+          [workspaceId]: groupTaskEntriesBySession(bootstrap.traceability, taskLedgerRecords),
+        },
+        resultAnnotationsByWorkspace: {
+          ...s.resultAnnotationsByWorkspace,
+          [workspaceId]: groupResultAnnotationsBySession(bootstrap.traceability, taskLedgerRecords),
+        },
+      };
+    }),
   setWorkspaceCapabilities: (workspaceId, capabilities) =>
     set((s) => ({
       workspaceCapabilitiesByWorkspace: {
@@ -419,6 +424,7 @@ export const useStore = create<UIStore>((set) => ({
         workspaceId,
         sessionId,
         normalizedMessages,
+        s.workspaceBootstraps[workspaceId],
       );
       return {
         messagesBySession: { ...s.messagesBySession, [sessionKey]: normalizedMessages },
@@ -441,6 +447,7 @@ export const useStore = create<UIStore>((set) => ({
         workspaceId,
         sessionId,
         nextMessages,
+        s.workspaceBootstraps[workspaceId],
       );
       return {
         messagesBySession: { ...s.messagesBySession, [sessionKey]: nextMessages },
@@ -463,6 +470,7 @@ export const useStore = create<UIStore>((set) => ({
         workspaceId,
         sessionId,
         nextMessages,
+        s.workspaceBootstraps[workspaceId],
       );
       return {
         messagesBySession: { ...s.messagesBySession, [sessionKey]: nextMessages },
@@ -643,6 +651,29 @@ export function selectActiveWorkspaceVerificationRuns(
   store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps'>,
 ): VerificationRun[] {
   return selectWorkspaceVerificationRuns(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceTaskLedgerRecords(
+  store: Pick<UIStore, 'workspaceBootstraps'>,
+  workspaceId?: string | null,
+): TaskLedgerRecord[] {
+  if (!workspaceId) return [];
+  return normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords);
+}
+
+export function selectActiveWorkspaceTaskLedgerRecords(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps'>,
+): TaskLedgerRecord[] {
+  return selectWorkspaceTaskLedgerRecords(store, store.activeWorkspaceId);
+}
+
+export function selectSessionTaskLedgerRecords(
+  store: Pick<UIStore, 'workspaceBootstraps'>,
+  workspaceId?: string | null,
+  sessionId?: string,
+): TaskLedgerRecord[] {
+  if (!workspaceId || !sessionId) return [];
+  return selectWorkspaceTaskLedgerRecords(store, workspaceId).filter((record) => resolveTaskLedgerRecordSessionId(record) === sessionId);
 }
 
 export function selectMessageResultTrace(
@@ -854,21 +885,23 @@ function applyWorkspaceSessionTraceability(
   workspaceId: string,
   sessionId: string,
   messages: NormalizedMessage[],
+  bootstrap?: WorkspaceBootstrap,
 ): Pick<UIStore, 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace'> {
   const traceability = buildSessionTraceability(messages);
+  const bootstrapTraceability = buildWorkspaceSessionBootstrapTraceability(bootstrap, sessionId);
   return {
     taskEntriesByWorkspace: {
       ...taskEntriesByWorkspace,
       [workspaceId]: {
         ...(taskEntriesByWorkspace[workspaceId] ?? {}),
-        [sessionId]: traceability.taskEntries,
+        [sessionId]: mergeTaskEntryMaps(bootstrapTraceability.taskEntries, traceability.taskEntries),
       },
     },
     resultAnnotationsByWorkspace: {
       ...resultAnnotationsByWorkspace,
       [workspaceId]: {
         ...(resultAnnotationsByWorkspace[workspaceId] ?? {}),
-        [sessionId]: traceability.resultAnnotations,
+        [sessionId]: mergeResultAnnotationMaps(bootstrapTraceability.resultAnnotations, traceability.resultAnnotations),
       },
     },
   };
@@ -896,16 +929,31 @@ function buildSessionTraceability(messages: NormalizedMessage[]): {
   };
 }
 
-function groupTaskEntriesBySession(traceability?: WorkspaceTraceabilitySummary): TaskEntriesBySession {
+function groupTaskEntriesBySession(
+  traceability?: WorkspaceTraceabilitySummary,
+  taskLedgerRecords?: TaskLedgerRecord[],
+): TaskEntriesBySession {
   const grouped: TaskEntriesBySession = {};
   for (const taskEntry of traceability?.taskEntries ?? []) {
     const sessionKey = taskEntry.sessionId ?? WORKSPACE_SCOPE_SESSION_KEY;
     grouped[sessionKey] = { ...(grouped[sessionKey] ?? {}), [taskEntry.taskId]: taskEntry };
   }
+
+  for (const record of taskLedgerRecords ?? []) {
+    const sessionKey = resolveTaskLedgerRecordSessionId(record) ?? WORKSPACE_SCOPE_SESSION_KEY;
+    grouped[sessionKey] = {
+      ...(grouped[sessionKey] ?? {}),
+      [record.taskId]: taskLedgerRecordToTaskEntry(record, sessionKey),
+    };
+  }
+
   return grouped;
 }
 
-function groupResultAnnotationsBySession(traceability?: WorkspaceTraceabilitySummary): ResultAnnotationsBySession {
+function groupResultAnnotationsBySession(
+  traceability?: WorkspaceTraceabilitySummary,
+  taskLedgerRecords?: TaskLedgerRecord[],
+): ResultAnnotationsBySession {
   const grouped: ResultAnnotationsBySession = {};
   for (const resultAnnotation of traceability?.resultAnnotations ?? []) {
     grouped[resultAnnotation.sessionId] = {
@@ -913,7 +961,147 @@ function groupResultAnnotationsBySession(traceability?: WorkspaceTraceabilitySum
       [resultAnnotation.sourceMessageId]: resultAnnotation,
     };
   }
+
+  for (const record of taskLedgerRecords ?? []) {
+    const resultAnnotation = taskLedgerRecordToResultAnnotation(record);
+    if (!resultAnnotation) continue;
+
+    grouped[resultAnnotation.sessionId] = {
+      ...(grouped[resultAnnotation.sessionId] ?? {}),
+      [resultAnnotation.sourceMessageId]: resultAnnotation,
+    };
+  }
+
   return grouped;
+}
+
+function buildWorkspaceSessionBootstrapTraceability(
+  bootstrap: WorkspaceBootstrap | undefined,
+  sessionId: string,
+): {
+  taskEntries: Record<string, TaskEntry>;
+  resultAnnotations: Record<string, ResultAnnotation>;
+} {
+  const groupedTaskEntries = groupTaskEntriesBySession(bootstrap?.traceability, bootstrap?.taskLedgerRecords);
+  const groupedResultAnnotations = groupResultAnnotationsBySession(bootstrap?.traceability, bootstrap?.taskLedgerRecords);
+
+  return {
+    taskEntries: groupedTaskEntries[sessionId] ?? {},
+    resultAnnotations: groupedResultAnnotations[sessionId] ?? {},
+  };
+}
+
+function mergeTaskEntryMaps(
+  baseEntries: Record<string, TaskEntry>,
+  nextEntries: Record<string, TaskEntry>,
+): Record<string, TaskEntry> {
+  const merged: Record<string, TaskEntry> = {};
+  const taskIds = new Set([...Object.keys(baseEntries), ...Object.keys(nextEntries)]);
+
+  for (const taskId of taskIds) {
+    const taskEntry = mergeTaskEntries(baseEntries[taskId], nextEntries[taskId]);
+    if (taskEntry) {
+      merged[taskId] = taskEntry;
+    }
+  }
+
+  return merged;
+}
+
+function mergeTaskEntries(baseEntry?: TaskEntry, nextEntry?: TaskEntry): TaskEntry | undefined {
+  if (!baseEntry) return nextEntry;
+  if (!nextEntry) return baseEntry;
+
+  return {
+    taskId: nextEntry.taskId,
+    workspaceId: nextEntry.workspaceId,
+    sessionId: nextEntry.sessionId ?? baseEntry.sessionId,
+    sourceMessageId: nextEntry.sourceMessageId ?? baseEntry.sourceMessageId,
+    title: baseEntry.title ?? nextEntry.title,
+    state: baseEntry.state,
+    latestSummary: baseEntry.latestSummary ?? nextEntry.latestSummary,
+  };
+}
+
+function mergeResultAnnotationMaps(
+  baseAnnotations: Record<string, ResultAnnotation>,
+  nextAnnotations: Record<string, ResultAnnotation>,
+): Record<string, ResultAnnotation> {
+  const merged: Record<string, ResultAnnotation> = {};
+  const sourceMessageIds = new Set([...Object.keys(baseAnnotations), ...Object.keys(nextAnnotations)]);
+
+  for (const sourceMessageId of sourceMessageIds) {
+    const annotation = mergeResultAnnotations(baseAnnotations[sourceMessageId], nextAnnotations[sourceMessageId]);
+    if (annotation) {
+      merged[sourceMessageId] = annotation;
+    }
+  }
+
+  return merged;
+}
+
+function mergeResultAnnotations(
+  baseAnnotation?: ResultAnnotation,
+  nextAnnotation?: ResultAnnotation,
+): ResultAnnotation | undefined {
+  if (!baseAnnotation) return nextAnnotation;
+  if (!nextAnnotation) return baseAnnotation;
+
+  return {
+    sourceMessageId: nextAnnotation.sourceMessageId,
+    workspaceId: nextAnnotation.workspaceId,
+    sessionId: nextAnnotation.sessionId,
+    verification: nextAnnotation.verification,
+    ...(baseAnnotation.taskId ?? nextAnnotation.taskId ? { taskId: baseAnnotation.taskId ?? nextAnnotation.taskId } : {}),
+    ...(baseAnnotation.summary ?? nextAnnotation.summary ? { summary: baseAnnotation.summary ?? nextAnnotation.summary } : {}),
+    ...(baseAnnotation.reviewState ?? nextAnnotation.reviewState ? { reviewState: baseAnnotation.reviewState ?? nextAnnotation.reviewState } : {}),
+    ...(baseAnnotation.shipState ?? nextAnnotation.shipState ? { shipState: baseAnnotation.shipState ?? nextAnnotation.shipState } : {}),
+  };
+}
+
+function taskLedgerRecordToTaskEntry(record: TaskLedgerRecord, sessionKey: string): TaskEntry {
+  return {
+    taskId: record.taskId,
+    workspaceId: record.workspaceId,
+    ...(sessionKey !== WORKSPACE_SCOPE_SESSION_KEY ? { sessionId: sessionKey } : {}),
+    ...(record.sourceMessageId ? { sourceMessageId: record.sourceMessageId } : {}),
+    ...(record.title ? { title: record.title } : {}),
+    state: record.state,
+    latestSummary: record.summary,
+  };
+}
+
+function taskLedgerRecordToResultAnnotation(record: TaskLedgerRecord): ResultAnnotation | undefined {
+  const sessionId = resolveTaskLedgerRecordSessionId(record);
+  if (!record.resultAnnotation || !sessionId) return undefined;
+
+  return normalizeResultAnnotation(record.resultAnnotation, {
+    workspaceId: record.workspaceId,
+    sessionId,
+    sourceMessageId: record.resultAnnotation.sourceMessageId,
+    taskId: record.taskId,
+    summary: record.summary,
+  });
+}
+
+function normalizeTaskLedgerRecords(workspaceId: string, records?: TaskLedgerRecord[]): TaskLedgerRecord[] {
+  return sortTaskLedgerRecords((records ?? []).filter((record) => record.workspaceId === workspaceId));
+}
+
+function resolveTaskLedgerRecordSessionId(record: TaskLedgerRecord): string | undefined {
+  return record.sessionId ?? record.resultAnnotation?.sessionId;
+}
+
+function sortTaskLedgerRecords(records: TaskLedgerRecord[]): TaskLedgerRecord[] {
+  return [...records].sort((left, right) => {
+    if (left.updatedAt !== right.updatedAt) {
+      return left.updatedAt > right.updatedAt ? -1 : 1;
+    }
+    if (left.createdAt !== right.createdAt) {
+      return left.createdAt > right.createdAt ? -1 : 1;
+    }
+    return left.taskId.localeCompare(right.taskId);
+  });
 }
 
 function hydrateMessageTraceability(

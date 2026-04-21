@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import type { NormalizedMessage } from '../../shared/types.js'
+import { TaskLedgerService } from './task-ledger-service.js'
 import { VerificationService } from './verification-service.js'
 
 describe('VerificationService', () => {
@@ -126,6 +127,108 @@ describe('VerificationService', () => {
       expect(decorated[0]?.resultAnnotation).toEqual(expect.objectContaining({
         verification: 'partially verified',
         summary: 'lint passed · test failed (exit 1)',
+      }))
+    } finally {
+      rmSync(stateDir, { recursive: true, force: true })
+      rmSync(workspaceRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('writes runtime task ledger updates with recent verification refs while preserving existing ship refs', async () => {
+    const stateDir = mkdtempSync(path.join(tmpdir(), 'verify-ledger-state-'))
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'verify-ledger-workspace-'))
+    writeFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'lockfileVersion: 9', 'utf-8')
+
+    const taskLedgerService = new TaskLedgerService({ stateDir })
+    taskLedgerService.upsertRecord({
+      taskId: 'task-1',
+      workspaceId: 'ws-3',
+      sessionId: 'session-3',
+      sourceMessageId: 'message-3',
+      title: 'Task task-1',
+      summary: 'Awaiting verification.',
+      state: 'running',
+      createdAt: '2026-04-21T12:00:00.000Z',
+      updatedAt: '2026-04-21T12:00:00.000Z',
+      resultAnnotation: {
+        sourceMessageId: 'message-3',
+        workspaceId: 'ws-3',
+        sessionId: 'session-3',
+        taskId: 'task-1',
+        verification: 'unverified',
+        summary: 'Awaiting verification.',
+        shipState: 'pr-ready',
+      },
+      recentShipRef: {
+        action: 'pullRequest',
+        outcome: 'success',
+        sessionId: 'session-3',
+        messageId: 'message-3',
+        taskId: 'task-1',
+        terminalLogRef: 'ship-logs/ws-3/pr-task-1.log',
+        pullRequestUrl: 'https://github.com/example/repo/pull/73',
+      },
+    })
+
+    const shell = vi.fn(async () => ({
+      status: 'completed',
+      exitCode: 0,
+      summary: 'Lint clean.',
+      stdout: 'All files pass lint.',
+    }))
+    const service = new VerificationService(
+      { stateDir },
+      { forWorkspace: () => ({ shell }) as any },
+      undefined,
+      {
+        now: sequenceClock(
+          '2026-04-21T12:01:00.000Z',
+          '2026-04-21T12:01:01.000Z',
+          '2026-04-21T12:01:02.000Z',
+        ),
+        randomId: sequenceIds('run-3'),
+        taskLedgerService,
+      },
+    )
+
+    try {
+      const run = await service.runPreset({
+        workspaceId: 'ws-3',
+        workspaceRoot,
+        sessionId: 'session-3',
+        commandKind: 'lint',
+        sourceMessageId: 'message-3',
+        taskId: 'task-1',
+      })
+
+      const record = taskLedgerService.getRecord('ws-3', 'task-1')
+      expect(record).toEqual(expect.objectContaining({
+        workspaceId: 'ws-3',
+        sessionId: 'session-3',
+        sourceMessageId: 'message-3',
+        summary: 'Lint clean.',
+        state: 'completed',
+        resultAnnotation: expect.objectContaining({
+          sourceMessageId: 'message-3',
+          taskId: 'task-1',
+          verification: 'verified',
+          summary: 'Lint clean.',
+          shipState: 'pr-ready',
+        }),
+        recentVerificationRef: expect.objectContaining({
+          runId: run.id,
+          commandKind: 'lint',
+          status: 'passed',
+          summary: 'Lint clean.',
+          terminalLogRef: run.terminalLogRef,
+        }),
+        recentShipRef: expect.objectContaining({
+          action: 'pullRequest',
+          outcome: 'success',
+          sessionId: 'session-3',
+          taskId: 'task-1',
+          pullRequestUrl: 'https://github.com/example/repo/pull/73',
+        }),
       }))
     } finally {
       rmSync(stateDir, { recursive: true, force: true })

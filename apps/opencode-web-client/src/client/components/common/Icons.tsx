@@ -147,6 +147,19 @@ export function ActivityIcon(props: IconProps) {
   );
 }
 
+export function TasksIcon(props: IconProps) {
+  return (
+    <SvgIcon {...props}>
+      <path d="M10 6h9" />
+      <path d="M10 12h9" />
+      <path d="M10 18h9" />
+      <path d="m5.5 6 1 1 2-2" />
+      <path d="m5.5 12 1 1 2-2" />
+      <path d="m5.5 18 1 1 2-2" />
+    </SvgIcon>
+  );
+}
+
 export function ArrowUpIcon(props: IconProps) {
   return (
     <SvgIcon {...props}>

@@ -1,5 +1,6 @@
 import type { BffEvent, BffEventType } from '../../shared/types.js'
 import type { ManagedServerManager } from './managed-server-manager.js'
+import type { TaskLedgerService } from './task-ledger-service.js'
 import { randomUUID } from 'node:crypto'
 import { normalizeMessage } from './message-normalizer.js'
 import { normalizeSession } from './session-normalizer.js'
@@ -41,8 +42,14 @@ type LiveMessage = {
   parts: Array<Record<string, unknown>>
 }
 
+interface EventBrokerOptions {
+  taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
+  now?: () => Date
+}
+
 export class EventBroker {
   private serverManager: ManagedServerManager
+  private taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
   private clients = new Map<string, BrowserClient>()
   private upstreamConnections = new Map<string, UpstreamConnection>()
   private liveMessages = new Map<string, LiveMessage>()
@@ -50,9 +57,12 @@ export class EventBroker {
   private completedMessages = new Set<string>()
   private pendingMessageDeltaFlushes = new Map<string, ReturnType<typeof setTimeout>>()
   private keepaliveTimer?: ReturnType<typeof setInterval>
+  private now: () => Date
 
-  constructor(serverManager: ManagedServerManager) {
+  constructor(serverManager: ManagedServerManager, options: EventBrokerOptions = {}) {
     this.serverManager = serverManager
+    this.taskLedgerService = options.taskLedgerService
+    this.now = options.now ?? (() => new Date())
     this.startKeepalive()
   }
 
@@ -231,6 +241,7 @@ export class EventBroker {
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         message.info = mergeInfo(message.info, info)
+        this.persistTaskLedgerFromLiveMessage(workspaceId, sessionId, messageId)
 
         if (message.info.role === 'assistant') {
           this.activeAssistantBySession.set(this.sessionKey(workspaceId, sessionId), messageId)
@@ -256,6 +267,7 @@ export class EventBroker {
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         upsertPart(message, part)
+        this.persistTaskLedgerFromLiveMessage(workspaceId, sessionId, messageId)
 
         if (part.type === 'step-finish') {
           this.broadcastLiveMessage(workspaceId, sessionId, messageId, 'message.completed')
@@ -287,6 +299,7 @@ export class EventBroker {
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         appendPartDelta(message, partId, delta)
+        this.persistTaskLedgerFromLiveMessage(workspaceId, sessionId, messageId)
         this.emitLiveMessage(workspaceId, sessionId, messageId, message.info.role === 'user' ? 'message.created' : 'message.delta')
         return true
       }
@@ -334,7 +347,7 @@ export class EventBroker {
 
     this.broadcast(workspaceId, {
       type,
-      timestamp: new Date().toISOString(),
+      timestamp: this.now().toISOString(),
       payload: {
         workspaceId,
         sessionId,
@@ -409,6 +422,41 @@ export class EventBroker {
     return `${workspaceId}:${sessionId}`
   }
 
+  private persistTaskLedgerFromLiveMessage(workspaceId: string, sessionId: string, messageId: string): void {
+    if (!this.taskLedgerService) return
+
+    const message = this.liveMessages.get(this.messageKey(workspaceId, messageId))
+    if (!message) return
+
+    const normalized = normalizeMessage({
+      info: message.info,
+      parts: message.parts,
+    }, { workspaceId, sessionId })
+    const taskId = normalized.taskEntry?.taskId
+      ?? normalized.resultAnnotation?.taskId
+      ?? normalized.trace?.taskId
+    if (!taskId) return
+
+    this.taskLedgerService.upsertRuntimeRecord({
+      workspaceId,
+      taskId,
+      sessionId: normalized.taskEntry?.sessionId
+        ?? normalized.resultAnnotation?.sessionId
+        ?? normalized.trace?.sessionId
+        ?? sessionId,
+      sourceMessageId: normalized.taskEntry?.sourceMessageId
+        ?? normalized.resultAnnotation?.sourceMessageId
+        ?? normalized.trace?.sourceMessageId
+        ?? normalized.id,
+      title: normalized.taskEntry?.title,
+      summary: normalized.resultAnnotation?.summary ?? normalized.taskEntry?.latestSummary,
+      state: normalized.taskEntry?.state,
+      createdAt: normalized.createdAt,
+      updatedAt: this.now().toISOString(),
+      resultAnnotation: normalized.resultAnnotation,
+    })
+  }
+
   private scheduleReconnect(workspaceId: string): void {
     const conn = this.upstreamConnections.get(workspaceId)
     if (!conn) return
@@ -443,7 +491,7 @@ export class EventBroker {
     this.keepaliveTimer = setInterval(() => {
       const ping: BffEvent = {
         type: 'connection.ping',
-        timestamp: new Date().toISOString(),
+        timestamp: this.now().toISOString(),
         payload: {},
       }
       for (const client of this.clients.values()) {

@@ -90,6 +90,9 @@ describe('createApp Phase C local ship loop', () => {
         }),
       } as any,
       workspaceShipService,
+      taskLedgerService: {
+        listRecords: () => [],
+      } as any,
       verificationService: {
         listRuns: () => [],
         runPreset: async () => {

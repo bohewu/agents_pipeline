@@ -18,6 +18,7 @@ import { PermissionRegistry } from '../server/services/permission-registry.js';
 import { EventBroker } from '../server/services/event-broker.js';
 import { WorkspaceCapabilityProbeService } from '../server/services/workspace-capability-probe.js';
 import { WorkspaceShipService } from '../server/services/workspace-ship-service.js';
+import { TaskLedgerService } from '../server/services/task-ledger-service.js';
 import { VerificationService } from '../server/services/verification-service.js';
 import { APP_NAME } from '../shared/constants.js';
 
@@ -59,10 +60,11 @@ async function main() {
   const diffService = new DiffService(clientFactory);
   const fileService = new FileService();
   const permissionRegistry = new PermissionRegistry(clientFactory);
-  const eventBroker = new EventBroker(serverManager);
+  const taskLedgerService = new TaskLedgerService(appPaths);
+  const eventBroker = new EventBroker(serverManager, { taskLedgerService });
   const capabilityProbeService = new WorkspaceCapabilityProbeService();
   const workspaceShipService = new WorkspaceShipService(clientFactory);
-  const verificationService = new VerificationService(appPaths, clientFactory, eventBroker);
+  const verificationService = new VerificationService(appPaths, clientFactory, eventBroker, { taskLedgerService });
 
   const serverOptions = {
     host: args.host,
@@ -86,6 +88,7 @@ async function main() {
     eventBroker,
     capabilityProbeService,
     workspaceShipService,
+    taskLedgerService,
     verificationService,
   });
 

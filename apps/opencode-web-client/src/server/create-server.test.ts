@@ -82,13 +82,16 @@ describe('createApp verification routes', () => {
       diffService: {} as any,
       fileService: {} as any,
       permissionRegistry: {} as any,
-       eventBroker: { broadcast: vi.fn() } as any,
-       capabilityProbeService: {} as any,
-       workspaceShipService: {
-         getStatus: async () => gitStatus,
-       } as any,
-       verificationService: {
-         listRuns: () => [run],
+      eventBroker: { broadcast: vi.fn() } as any,
+      capabilityProbeService: {} as any,
+      workspaceShipService: {
+        getStatus: async () => gitStatus,
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+      } as any,
+      verificationService: {
+        listRuns: () => [run],
         runPreset,
         decorateMessages: (_workspaceId: string, _sessionId: string, messages: unknown[]) => messages,
       } as any,
@@ -207,13 +210,16 @@ describe('createApp verification routes', () => {
       permissionRegistry: {} as any,
       eventBroker: { broadcast: vi.fn() } as any,
       capabilityProbeService: {} as any,
-       workspaceShipService: {
-         getStatus: async () => gitStatus,
-         previewCommit,
-         executeCommit,
-         push: vi.fn(),
-         createPullRequest,
-       } as any,
+      workspaceShipService: {
+        getStatus: async () => gitStatus,
+        previewCommit,
+        executeCommit,
+        push: vi.fn(),
+        createPullRequest,
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+      } as any,
       verificationService: {
         listRuns: () => [],
         runPreset: vi.fn(),

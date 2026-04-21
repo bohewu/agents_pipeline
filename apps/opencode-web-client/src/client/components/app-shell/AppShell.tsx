@@ -86,18 +86,60 @@ export function AppShell() {
   useEffect(() => {
     if (!activeWorkspaceId) return;
     let cancelled = false;
+    let hydrateRequestId = 0;
+    const workspaceId = activeWorkspaceId;
 
-    const hydrateWorkspace = async () => {
-      clearWorkspaceStreaming(activeWorkspaceId);
-      setConnection(activeWorkspaceId, 'connecting');
+    const restoreWorkspaceSession = async (
+      boot: Awaited<ReturnType<typeof api.getBootstrap>>,
+      providerId: string | null,
+      modelId: string | null,
+      agentId: string | null,
+      requestId: number,
+    ) => {
+      let sessions = sortSessionsForSidebar(boot.sessions);
+      const previousSessionId = useStore.getState().activeSessionByWorkspace[workspaceId];
+      let session = sessions.find((entry) => entry.id === previousSessionId)
+        ?? [...sessions].sort((left, right) => {
+          return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        })[0];
+
+      if (!session) {
+        session = await api.createSession(workspaceId, {
+          title: 'New chat',
+          providerId: providerId ?? undefined,
+          modelId: modelId ?? undefined,
+          agentId: agentId ?? undefined,
+        });
+        sessions = [session];
+      }
+
+      if (cancelled || requestId !== hydrateRequestId) return;
+
+      const sortedSessions = sortSessionsForSidebar(sessions);
+      setSessions(workspaceId, sortedSessions);
+      setActiveSession(workspaceId, session.id);
+
+      const messages = await api.listMessages(workspaceId, session.id).catch(() => []);
+      if (cancelled || requestId !== hydrateRequestId) return;
+
+      setMessages(workspaceId, session.id, messages);
+      setSessions(workspaceId, mergeSessionMessages(sortedSessions, session.id, messages));
+    };
+
+    const hydrateWorkspace = async (reason: 'load' | 'reconnect' = 'load') => {
+      const requestId = ++hydrateRequestId;
+      if (reason === 'load') {
+        clearWorkspaceStreaming(workspaceId);
+      }
+      setConnection(workspaceId, 'connecting');
 
       try {
-        const boot = await api.getBootstrap(activeWorkspaceId);
-        if (cancelled) return;
+        const boot = await api.getBootstrap(workspaceId);
+        if (cancelled || requestId !== hydrateRequestId) return;
 
-        setWorkspaceBootstrap(activeWorkspaceId, boot);
+        setWorkspaceBootstrap(workspaceId, boot);
         if (boot.server) {
-          setWorkspaceServerStatus(activeWorkspaceId, boot.server);
+          setWorkspaceServerStatus(workspaceId, boot.server);
         }
         const providerId = resolveProviderId(boot, selectedProvider);
         const modelId = resolveModelId(boot, providerId, selectedModel);
@@ -109,70 +151,53 @@ export function AppShell() {
         setSelectedAgent(agentId);
 
         if (boot.effort) {
-          setEffort(activeWorkspaceId, boot.effort);
+          setEffort(workspaceId, boot.effort);
         }
 
-        let sessions = sortSessionsForSidebar(boot.sessions);
-        const previousSessionId = useStore.getState().activeSessionByWorkspace[activeWorkspaceId];
-        let session = sessions.find((entry) => entry.id === previousSessionId)
-          ?? [...sessions].sort((left, right) => {
-            return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
-          })[0];
+        await restoreWorkspaceSession(boot, providerId, modelId, agentId, requestId);
+        if (cancelled || requestId !== hydrateRequestId) return;
 
-        if (!session) {
-          session = await api.createSession(activeWorkspaceId, {
-            title: 'New chat',
-            providerId: providerId ?? undefined,
-            modelId: modelId ?? undefined,
-            agentId: agentId ?? undefined,
-          });
-          sessions = [session];
-        }
-
-        if (cancelled) return;
-
-        setSessions(activeWorkspaceId, sortSessionsForSidebar(sessions));
-        setActiveSession(activeWorkspaceId, session.id);
-
-        const messages = await api.listMessages(activeWorkspaceId, session.id).catch(() => []);
-        if (cancelled) return;
-
-        setMessages(activeWorkspaceId, session.id, messages);
-        setSessions(activeWorkspaceId, mergeSessionMessages(sessions, session.id, messages));
-        setConnection(activeWorkspaceId, 'connected');
+        setConnection(workspaceId, 'connected');
       } catch {
-        if (!cancelled) {
-          await api.getWorkspaceCapabilities(activeWorkspaceId)
+        if (!cancelled && requestId === hydrateRequestId) {
+          await api.getWorkspaceCapabilities(workspaceId)
             .then((capabilities) => {
-              if (!cancelled) {
-                setWorkspaceCapabilities(activeWorkspaceId, capabilities);
+              if (!cancelled && requestId === hydrateRequestId) {
+                setWorkspaceCapabilities(workspaceId, capabilities);
               }
             })
             .catch(() => {
               /* ignore capability fallback errors */
             });
-          setConnection(activeWorkspaceId, 'error');
+          setConnection(workspaceId, 'error');
         }
       }
     };
 
     const close = api.connectEvents(
-      activeWorkspaceId,
-      (event) => startTransition(() => handleBffEvent(event, useStore.getState())),
+      workspaceId,
+      (event) => {
+        if (event.type === 'connection.ping' && event.payload.reconnected === true) {
+          void hydrateWorkspace('reconnect');
+          return;
+        }
+
+        startTransition(() => handleBffEvent(event, useStore.getState()));
+      },
       () => {
         if (!cancelled) {
-          setConnection(activeWorkspaceId, 'error');
+          setConnection(workspaceId, 'error');
         }
       },
     );
 
-    hydrateWorkspace();
+    void hydrateWorkspace();
 
     return () => {
       cancelled = true;
       close();
-      clearWorkspaceStreaming(activeWorkspaceId);
-      setConnection(activeWorkspaceId, 'disconnected');
+      clearWorkspaceStreaming(workspaceId);
+      setConnection(workspaceId, 'disconnected');
     };
   }, [
     activeWorkspaceId,

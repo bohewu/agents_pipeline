@@ -7,6 +7,7 @@ vi.mock('../lib/local-storage.js', () => ({
 }));
 
 import {
+  selectActiveWorkspaceTaskLedgerRecords,
   selectActiveWorkspaceCapabilityGaps,
   selectActiveWorkspaceCapabilities,
   selectActiveWorkspaceGitStatus,
@@ -14,6 +15,7 @@ import {
   selectActiveWorkspaceVerificationRuns,
   resolveWorkspaceSessionStoreKey,
   selectMessageResultTrace,
+  selectSessionTaskLedgerRecords,
   selectSessionMessages,
   useStore,
 } from './store.js';
@@ -22,6 +24,7 @@ import type {
   ResultAnnotation,
   SessionSummary,
   TaskEntry,
+  TaskLedgerRecord,
   VerificationRun,
   WorkspaceCapabilityProbe,
   WorkspaceBootstrap,
@@ -100,6 +103,82 @@ describe('store session streaming state', () => {
     expect(resolved?.trace.taskId).toBe('task-bootstrap');
   });
 
+  it('preserves task ledger summaries and refs when session messages reload after bootstrap hydration', () => {
+    const workspaceId = 'workspace-ledger-bootstrap';
+    const sessionId = 'session-ledger-bootstrap';
+    const taskRecord = makeTaskLedgerRecord(workspaceId, sessionId, 'task-ledger-bootstrap', 'blocked', {
+      sourceMessageId: 'message-ledger-bootstrap',
+      summary: 'Blocked while waiting on ship review.',
+      resultAnnotation: {
+        sourceMessageId: 'message-ledger-bootstrap',
+        workspaceId,
+        sessionId,
+        taskId: 'task-ledger-bootstrap',
+        verification: 'partially verified',
+        summary: 'Blocked while waiting on ship review.',
+        shipState: 'pr-ready',
+      },
+      recentVerificationRef: {
+        runId: 'verify-ledger-bootstrap',
+        commandKind: 'test',
+        status: 'passed',
+        summary: 'Test verification passed.',
+        terminalLogRef: 'verification-logs/workspace-ledger-bootstrap/verify-ledger-bootstrap.log',
+      },
+      recentShipRef: {
+        action: 'pullRequest',
+        outcome: 'success',
+        sessionId,
+        messageId: 'message-ledger-bootstrap',
+        taskId: 'task-ledger-bootstrap',
+        terminalLogRef: 'ship-logs/workspace-ledger-bootstrap/pr.log',
+        pullRequestUrl: 'https://github.com/example/repo/pull/42',
+      },
+    });
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(
+      workspaceId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [taskRecord],
+    ));
+    useStore.getState().setMessages(workspaceId, sessionId, [
+      {
+        id: 'message-ledger-bootstrap',
+        role: 'assistant',
+        createdAt: '2026-04-20T00:00:00.000Z',
+        parts: [{ type: 'text', text: 'Message text without task metadata.' }],
+        trace: {
+          sourceMessageId: 'message-ledger-bootstrap',
+          workspaceId,
+          sessionId,
+        },
+      },
+    ]);
+
+    const message = selectSessionMessages(useStore.getState(), workspaceId, sessionId)[0]!;
+    const resolved = selectMessageResultTrace(useStore.getState(), message);
+
+    expect(resolved?.taskEntry).toEqual(expect.objectContaining({
+      taskId: 'task-ledger-bootstrap',
+      workspaceId,
+      sessionId,
+      state: 'blocked',
+      latestSummary: 'Blocked while waiting on ship review.',
+    }));
+    expect(resolved?.annotation).toEqual(expect.objectContaining({
+      sourceMessageId: 'message-ledger-bootstrap',
+      shipState: 'pr-ready',
+      verification: 'partially verified',
+    }));
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId)).toEqual([taskRecord]);
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId)[0]?.recentShipRef?.pullRequestUrl).toBe(
+      'https://github.com/example/repo/pull/42',
+    );
+  });
+
   it('keeps traceability isolated when different workspaces reuse the same session id', () => {
     const sharedSessionId = 'shared-session';
 
@@ -125,6 +204,39 @@ describe('store session streaming state', () => {
     expect(selectMessageResultTrace(useStore.getState(), workspace2Message!)?.summary).toBe('Workspace 2 unverified summary');
     expect(useStore.getState().taskEntriesByWorkspace['workspace-1'][sharedSessionId]['task-1']?.workspaceId).toBe('workspace-1');
     expect(useStore.getState().taskEntriesByWorkspace['workspace-2'][sharedSessionId]['task-2']?.workspaceId).toBe('workspace-2');
+  });
+
+  it('keeps task ledger records isolated by workspace and session selectors', () => {
+    const sharedSessionId = 'shared-session';
+    const workspaceOneRecord = makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-1', 'running', {
+      summary: 'Workspace 1 task',
+      recentVerificationRef: {
+        runId: 'verify-1',
+        commandKind: 'lint',
+        status: 'passed',
+        summary: 'Workspace 1 lint passed.',
+      },
+    });
+    const workspaceTwoRecord = makeTaskLedgerRecord('workspace-2', sharedSessionId, 'task-2', 'completed', {
+      summary: 'Workspace 2 task',
+      recentShipRef: {
+        action: 'pullRequest',
+        outcome: 'success',
+        sessionId: sharedSessionId,
+        taskId: 'task-2',
+        pullRequestUrl: 'https://github.com/example/repo/pull/84',
+      },
+    });
+
+    useStore.getState().setWorkspaceBootstrap('workspace-1', makeBootstrap('workspace-1', undefined, undefined, undefined, undefined, [workspaceOneRecord]));
+    useStore.getState().setWorkspaceBootstrap('workspace-2', makeBootstrap('workspace-2', undefined, undefined, undefined, undefined, [workspaceTwoRecord]));
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceTaskLedgerRecords(useStore.getState())).toEqual([workspaceTwoRecord]);
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), 'workspace-1', sharedSessionId)).toEqual([workspaceOneRecord]);
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), 'workspace-2', sharedSessionId)[0]?.recentShipRef?.pullRequestUrl).toBe(
+      'https://github.com/example/repo/pull/84',
+    );
   });
 
   it('applies verification projections to the matching source message and bootstrap run state', () => {
@@ -330,6 +442,7 @@ function makeBootstrap(
   capabilityOverrides?: Partial<WorkspaceCapabilityProbe>,
   verificationRuns?: VerificationRun[],
   git?: WorkspaceBootstrap['git'],
+  taskLedgerRecords?: TaskLedgerRecord[],
 ): WorkspaceBootstrap {
   return {
     workspace: {
@@ -343,6 +456,31 @@ function makeBootstrap(
     capabilities: makeCapabilityProbe(workspaceId, capabilityOverrides),
     traceability,
     verificationRuns,
+    taskLedgerRecords,
+  };
+}
+
+function makeTaskLedgerRecord(
+  workspaceId: string,
+  sessionId: string,
+  taskId: string,
+  state: TaskLedgerRecord['state'],
+  overrides: Partial<TaskLedgerRecord> = {},
+): TaskLedgerRecord {
+  return {
+    taskId,
+    workspaceId,
+    sessionId,
+    sourceMessageId: overrides.sourceMessageId ?? `${taskId}-message`,
+    title: overrides.title ?? `Task ${taskId}`,
+    summary: overrides.summary ?? `${taskId} summary`,
+    state,
+    createdAt: overrides.createdAt ?? '2026-04-20T00:00:00.000Z',
+    updatedAt: overrides.updatedAt ?? '2026-04-20T00:05:00.000Z',
+    completedAt: overrides.completedAt,
+    resultAnnotation: overrides.resultAnnotation,
+    recentVerificationRef: overrides.recentVerificationRef,
+    recentShipRef: overrides.recentShipRef,
   };
 }
 

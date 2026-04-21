@@ -262,6 +262,27 @@ export interface VerificationRun {
   terminalLogRef?: string;
 }
 
+export interface TaskLedgerVerificationReference {
+  runId: string;
+  commandKind: VerificationCommandKind;
+  status: VerificationRunStatus;
+  summary?: string;
+  terminalLogRef?: string;
+}
+
+export type TaskLedgerShipAction = 'commit' | 'push' | 'pullRequest';
+
+export interface TaskLedgerShipReference {
+  action: TaskLedgerShipAction;
+  outcome: ShipActionOutcome;
+  sessionId: string;
+  messageId?: string;
+  taskId?: string;
+  terminalLogRef?: string;
+  commitSha?: string;
+  pullRequestUrl?: string;
+}
+
 export interface WorkspaceBootstrap {
   workspace: WorkspaceProfile;
   server?: WorkspaceServerStatus;
@@ -272,6 +293,7 @@ export interface WorkspaceBootstrap {
   capabilities?: WorkspaceCapabilityProbe;
   traceability?: WorkspaceTraceabilitySummary;
   verificationRuns?: VerificationRun[];
+  taskLedgerRecords?: TaskLedgerRecord[];
 }
 
 // ── Sessions ──
@@ -354,6 +376,22 @@ export interface ResultAnnotation {
   verification: ResultVerificationState;
   reviewState?: ResultReviewState;
   shipState?: ResultShipState;
+}
+
+export interface TaskLedgerRecord {
+  taskId: string;
+  workspaceId: string;
+  sessionId?: string;
+  sourceMessageId?: string;
+  title?: string;
+  summary: string;
+  state: TaskEntryState;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  resultAnnotation?: ResultAnnotation;
+  recentVerificationRef?: TaskLedgerVerificationReference;
+  recentShipRef?: TaskLedgerShipReference;
 }
 
 export interface WorkspaceTraceabilitySummary {

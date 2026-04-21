@@ -15,6 +15,7 @@ import type {
 import type { AppPaths } from './app-paths.js'
 import type { EventBroker } from './event-broker.js'
 import type { OpenCodeClientFactory, OpenCodeExecutionResult } from './opencode-client-factory.js'
+import type { TaskLedgerService } from './task-ledger-service.js'
 
 interface VerificationStateFile {
   version: 1
@@ -31,6 +32,7 @@ interface VerificationProjection {
 export interface VerificationServiceOptions {
   now?: () => Date
   randomId?: () => string
+  taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
 }
 
 const RUN_STATE_VERSION = 1
@@ -40,6 +42,7 @@ export class VerificationService {
   private stateDir: string
   private clientFactory: Pick<OpenCodeClientFactory, 'forWorkspace'>
   private eventBroker?: Pick<EventBroker, 'broadcast'>
+  private taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
   private now: () => Date
   private randomId: () => string
 
@@ -52,6 +55,7 @@ export class VerificationService {
     this.stateDir = appPaths.stateDir
     this.clientFactory = clientFactory
     this.eventBroker = eventBroker
+    this.taskLedgerService = options.taskLedgerService
     this.now = options.now ?? (() => new Date())
     this.randomId = options.randomId ?? (() => randomUUID())
   }
@@ -188,15 +192,37 @@ export class VerificationService {
   }
 
   private emitRunUpdate(workspaceId: string, run: VerificationRun, runs: VerificationRun[]): void {
-    if (!this.eventBroker) return
-
     const projection = buildWorkspaceTraceability(runs).projections.find((entry) => {
       return entry.sessionId === run.sessionId && entry.sourceMessageId === run.sourceMessageId
     })
 
+    const timestamp = this.now().toISOString()
+    this.taskLedgerService?.upsertRuntimeRecord({
+      workspaceId,
+      taskId: run.taskId,
+      sessionId: projection?.sessionId ?? run.sessionId,
+      sourceMessageId: projection?.sourceMessageId ?? run.sourceMessageId,
+      title: projection?.taskEntry.title,
+      summary: projection?.taskEntry.latestSummary ?? run.summary,
+      state: projection?.taskEntry.state ?? mapRunStatusToTaskState(run.status),
+      createdAt: run.startedAt,
+      updatedAt: timestamp,
+      ...(run.finishedAt ? { completedAt: run.finishedAt } : {}),
+      ...(projection?.resultAnnotation ? { resultAnnotation: projection.resultAnnotation } : {}),
+      recentVerificationRef: {
+        runId: run.id,
+        commandKind: run.commandKind,
+        status: run.status,
+        ...(run.summary ? { summary: run.summary } : {}),
+        ...(run.terminalLogRef ? { terminalLogRef: run.terminalLogRef } : {}),
+      },
+    })
+
+    if (!this.eventBroker) return
+
     const event: BffEvent = {
       type: 'verification.updated',
-      timestamp: this.now().toISOString(),
+      timestamp,
       payload: {
         workspaceId,
         run,
@@ -420,6 +446,19 @@ function deriveTaskState(runs: VerificationRun[]): TaskEntryState {
   }
   if (runs.some((run) => run.status === 'passed')) return 'completed'
   return 'queued'
+}
+
+function mapRunStatusToTaskState(status: VerificationRunStatus): TaskEntryState {
+  switch (status) {
+    case 'running':
+      return 'running'
+    case 'passed':
+      return 'completed'
+    case 'failed':
+      return 'failed'
+    case 'cancelled':
+      return 'cancelled'
+  }
 }
 
 function buildProjectionSummary(runs: VerificationRun[]): string {

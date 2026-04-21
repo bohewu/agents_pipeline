@@ -4,9 +4,10 @@ import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
 import { EffortControl } from '../effort/EffortControl.js';
 import { UsageBadge } from '../usage/UsageBadge.js';
 import { ConnectionStatus } from '../common/ConnectionStatus.js';
-import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, GitBranchIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, UsageIcon } from '../common/Icons.js';
+import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, GitBranchIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, TasksIcon, UsageIcon } from '../common/Icons.js';
 
 const PANEL_ICONS = {
+  tasks: TasksIcon,
   activity: ActivityIcon,
   diff: DiffIcon,
   files: FilesIcon,
@@ -18,6 +19,7 @@ const PANEL_ICONS = {
 };
 
 const PANEL_LABELS = {
+  tasks: 'Tasks',
   activity: 'Activity',
   diff: 'Diff',
   files: 'Files',

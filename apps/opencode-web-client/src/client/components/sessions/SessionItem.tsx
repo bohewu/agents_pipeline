@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import type { SessionSummary } from '../../../shared/types.js';
-import { getSessionBadgeLabel, getSessionMetaLabel, mergeSessionMessages, sortSessionsForSidebar } from '../../lib/session-meta.js';
+import { getSessionBadgeLabel, getSessionMetaLabel } from '../../lib/session-meta.js';
+import { reopenWorkspaceSessionContext } from '../../lib/session-context.js';
 
 export function SessionItem({
   session,
@@ -19,7 +20,7 @@ export function SessionItem({
   updatedAt?: string;
   latestChildTitle?: string | null;
 }) {
-  const { activeWorkspaceId, setActiveSession, setSessions, setMessages } = useStore();
+  const { activeWorkspaceId, setActiveSession, setSessions } = useStore();
   const [showMenu, setShowMenu] = useState(false);
   const [showTitlePreview, setShowTitlePreview] = useState(false);
   const [titleOverflowing, setTitleOverflowing] = useState(false);
@@ -27,12 +28,8 @@ export function SessionItem({
 
   const handleSelect = async () => {
     if (!activeWorkspaceId) return;
-    setActiveSession(activeWorkspaceId, session.id);
     try {
-      const messages = await api.listMessages(activeWorkspaceId, session.id);
-      setMessages(activeWorkspaceId, session.id, messages);
-      const currentSessions = useStore.getState().sessionsByWorkspace[activeWorkspaceId] ?? [];
-      setSessions(activeWorkspaceId, sortSessionsForSidebar(mergeSessionMessages(currentSessions, session.id, messages)));
+      await reopenWorkspaceSessionContext(activeWorkspaceId, session.id);
     } catch {
       /* ignore */
     }
