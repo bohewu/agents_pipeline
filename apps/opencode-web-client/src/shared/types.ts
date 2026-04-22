@@ -292,7 +292,27 @@ export type VerificationCommandKind = 'lint' | 'build' | 'test';
 
 export type VerificationRunStatus = 'running' | 'passed' | 'failed' | 'cancelled';
 
-export interface VerificationRun {
+export type LaneContextKind = 'branch' | 'worktree';
+
+export interface BranchLaneContext {
+  kind: 'branch';
+  branch: string;
+}
+
+export interface WorktreeLaneContext {
+  kind: 'worktree';
+  worktreePath: string;
+  branch?: string;
+}
+
+export type LaneContext = BranchLaneContext | WorktreeLaneContext;
+
+export interface LaneAttribution {
+  laneId?: string;
+  laneContext?: LaneContext;
+}
+
+export interface VerificationRun extends LaneAttribution {
   id: string;
   workspaceId: string;
   sessionId?: string;
@@ -313,7 +333,7 @@ export interface BrowserEvidenceArtifacts {
   screenshot?: PreviewRuntimeScreenshotMetadata;
 }
 
-export interface BrowserEvidenceRecord extends BrowserEvidenceArtifacts {
+export interface BrowserEvidenceRecord extends BrowserEvidenceArtifacts, LaneAttribution {
   id: string;
   workspaceId: string;
   capturedAt: string;
@@ -467,7 +487,7 @@ export interface WorkspaceContextCatalogResponse {
 
 // ── Sessions ──
 
-export interface SessionSummary {
+export interface SessionSummary extends LaneAttribution {
   id: string;
   title?: string;
   createdAt: string;
@@ -555,14 +575,14 @@ export interface SessionChatResponse {
   taskId?: string;
 }
 
-export interface MessageTraceLink {
+export interface MessageTraceLink extends LaneAttribution {
   sourceMessageId: string;
   workspaceId?: string;
   sessionId?: string;
   taskId?: string;
 }
 
-export interface TaskEntry {
+export interface TaskEntry extends LaneAttribution {
   taskId: string;
   workspaceId: string;
   sessionId?: string;
@@ -572,7 +592,7 @@ export interface TaskEntry {
   latestSummary?: string;
 }
 
-export interface ResultAnnotation {
+export interface ResultAnnotation extends LaneAttribution {
   sourceMessageId: string;
   workspaceId: string;
   sessionId: string;
@@ -584,7 +604,7 @@ export interface ResultAnnotation {
   browserEvidenceRef?: BrowserEvidenceReference;
 }
 
-export interface TaskLedgerRecord {
+export interface TaskLedgerRecord extends LaneAttribution {
   taskId: string;
   workspaceId: string;
   sessionId?: string;

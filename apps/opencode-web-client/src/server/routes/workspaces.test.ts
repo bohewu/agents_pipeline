@@ -20,6 +20,10 @@ describe('WorkspacesRoute capability probes', () => {
     }
     const capabilities = makeCapabilityProbe(workspace.id)
     const gitStatus = makeGitStatus(workspace.id)
+    const sessions = [makeSession('session-1', {
+      laneId: 'branch:feature/lane-a',
+      laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+    })]
     const verificationRuns: VerificationRun[] = [makeVerificationRun(workspace.id)]
     const browserEvidenceRecords = [
       {
@@ -51,6 +55,8 @@ describe('WorkspacesRoute capability probes', () => {
     ]
     const taskLedgerService = new TaskLedgerService({ stateDir })
     const workspaceTaskRecord = makeTaskLedgerRecord(workspace.id, 'session-1', 'task-1', 'running', {
+      laneId: 'branch:feature/lane-a',
+      laneContext: { kind: 'branch', branch: 'feature/lane-a' },
       recentVerificationRef: {
         runId: 'verify-run-1',
         commandKind: 'lint',
@@ -90,8 +96,11 @@ describe('WorkspacesRoute capability probes', () => {
         clientFactory: {
           forWorkspace: () => ({
             health: async () => ({ ok: true, version: '1.2.3' }),
-            listSessions: async () => [],
+            listSessions: async () => sessions,
           }),
+        } as any,
+        sessionService: {
+          listSessions: async () => sessions,
         } as any,
         configService: {
           getConfig: async () => ({
@@ -134,6 +143,7 @@ describe('WorkspacesRoute capability probes', () => {
       expect(bootstrapPayload.ok).toBe(true)
       expect(bootstrapPayload.data.capabilities).toEqual(capabilities)
       expect(bootstrapPayload.data.git).toEqual(gitStatus)
+      expect(bootstrapPayload.data.sessions).toEqual(sessions)
       expect(bootstrapPayload.data.verificationRuns).toEqual(verificationRuns)
       expect(bootstrapPayload.data.browserEvidenceRecords).toEqual(browserEvidenceRecords)
       expect(bootstrapPayload.data.taskLedgerRecords).toEqual([workspaceTaskRecord])
@@ -167,6 +177,8 @@ describe('WorkspacesRoute capability probes', () => {
       workspaceId: workspace.id,
       sessionId: 'session-runtime',
       sourceMessageId: 'message-runtime',
+      laneId: 'lane-worktree-runtime',
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
       title: 'Runtime task',
       summary: 'Awaiting verification.',
       state: 'blocked',
@@ -180,6 +192,8 @@ describe('WorkspacesRoute capability probes', () => {
         verification: 'unverified',
         summary: 'Awaiting verification.',
         shipState: 'pr-ready',
+        laneId: 'lane-worktree-runtime',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
       },
       recentShipRef: {
         action: 'pullRequest',
@@ -243,6 +257,8 @@ describe('WorkspacesRoute capability probes', () => {
                 verification: 'partially verified',
                 summary: 'Waiting on ship review.',
                 shipState: 'pr-ready',
+                laneId: 'lane-worktree-runtime',
+                laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
               },
             },
           },
@@ -300,8 +316,17 @@ describe('WorkspacesRoute capability probes', () => {
         clientFactory: {
           forWorkspace: () => ({
             health: async () => ({ ok: true, version: '1.2.3' }),
-            listSessions: async () => [makeSession('session-runtime')],
+            listSessions: async () => [makeSession('session-runtime', {
+              laneId: 'lane-worktree-runtime',
+              laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
+            })],
           }),
+        } as any,
+        sessionService: {
+          listSessions: async () => [makeSession('session-runtime', {
+            laneId: 'lane-worktree-runtime',
+            laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
+          })],
         } as any,
         configService: {
           getConfig: async () => ({
@@ -341,6 +366,7 @@ describe('WorkspacesRoute capability probes', () => {
           workspaceId: workspace.id,
           sessionId: 'session-runtime',
           sourceMessageId: 'message-runtime',
+          laneId: 'lane-worktree-runtime',
           summary: 'Tests passed for runtime task.',
           state: 'completed',
           recentVerificationRef: expect.objectContaining({
@@ -357,13 +383,17 @@ describe('WorkspacesRoute capability probes', () => {
       const bootstrapResponse = await route.request(`http://localhost/${workspace.id}/bootstrap`)
       const bootstrapPayload = await bootstrapResponse.json()
       expect(bootstrapPayload.ok).toBe(true)
-      expect(bootstrapPayload.data.sessions).toEqual([makeSession('session-runtime')])
+      expect(bootstrapPayload.data.sessions).toEqual([makeSession('session-runtime', {
+        laneId: 'lane-worktree-runtime',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
+      })])
       expect(bootstrapPayload.data.taskLedgerRecords).toEqual(selectPayload.data.taskLedgerRecords)
       expect(bootstrapPayload.data.taskLedgerRecords).toHaveLength(1)
       expect(bootstrapPayload.data.taskLedgerRecords[0]).toEqual(expect.objectContaining({
         workspaceId: workspace.id,
         sessionId: 'session-runtime',
         sourceMessageId: 'message-runtime',
+        laneId: 'lane-worktree-runtime',
         summary: 'Tests passed for runtime task.',
         state: 'completed',
       }))
@@ -412,7 +442,7 @@ function makeVerificationRun(workspaceId: string): VerificationRun {
   }
 }
 
-function makeSession(sessionId: string) {
+function makeSession(sessionId: string, overrides: Record<string, unknown> = {}) {
   return {
     id: sessionId,
     title: 'Runtime session',
@@ -420,6 +450,7 @@ function makeSession(sessionId: string) {
     updatedAt: '2026-04-21T12:01:00.000Z',
     messageCount: 1,
     state: 'idle' as const,
+    ...overrides,
   }
 }
 
@@ -435,6 +466,8 @@ function makeTaskLedgerRecord(
     workspaceId,
     sessionId,
     sourceMessageId: overrides.sourceMessageId ?? `message-${taskId}`,
+    ...(overrides.laneId ? { laneId: overrides.laneId } : {}),
+    ...(overrides.laneContext ? { laneContext: overrides.laneContext } : {}),
     title: overrides.title ?? `Task ${taskId}`,
     summary: overrides.summary ?? `Summary for ${taskId}`,
     state,

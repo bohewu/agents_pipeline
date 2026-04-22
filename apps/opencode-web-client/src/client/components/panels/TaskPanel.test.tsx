@@ -106,15 +106,24 @@ describe('TaskPanel', () => {
     expect(container.textContent).not.toContain('No persisted tasks yet');
   });
 
-  it('shows only meaningful task actions and wires them to existing abort, verification, and reopen flows', async () => {
+  it('scopes task actions to the active session and routes secondary attempts back through open-session handoffs', async () => {
     const workspaceId = 'workspace-actions';
     const runningMessages = [{ id: 'message-running', role: 'assistant', createdAt: '2026-04-21T00:00:00.000Z', parts: [{ type: 'text', text: 'Running task context' }] }];
+    const failedMessages = [{ id: 'task-failed-message', role: 'assistant', createdAt: '2026-04-21T00:00:00.000Z', parts: [{ type: 'text', text: 'Failed task context' }] }];
     const completedMessages = [{ id: 'message-completed', role: 'assistant', createdAt: '2026-04-21T00:00:00.000Z', parts: [{ type: 'text', text: 'Completed task context' }] }];
 
     apiMocks.abort.mockResolvedValue(undefined);
     apiMocks.runVerification.mockResolvedValue({ id: 'verify-lint-2' });
     apiMocks.listVerificationRuns.mockResolvedValue([]);
-    apiMocks.listMessages.mockResolvedValue(completedMessages);
+    apiMocks.listMessages.mockImplementation(async (_workspaceId: string, sessionId: string) => {
+      if (sessionId === 'session-failed') {
+        return failedMessages;
+      }
+      if (sessionId === 'session-completed') {
+        return completedMessages;
+      }
+      return [];
+    });
 
     useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Actions', [
       makeTaskRecord(workspaceId, 'task-running', 'running', 'Running task summary'),
@@ -148,12 +157,19 @@ describe('TaskPanel', () => {
     await renderPanel();
 
     expect(getButtonLabels('Running task summary')).toEqual(['Cancel']);
-    expect(getButtonLabels('Failed verification task')).toEqual(['Retry lint', 'Reopen']);
-    expect(getButtonLabels('Completed task summary')).toEqual(['Reopen']);
+    expect(getButtonLabels('Failed verification task')).toEqual(['Open session']);
+    expect(findTaskCard('Failed verification task').textContent).toContain('Open session session-failed to retry this attempt from the matching workspace context.');
+    expect(getButtonLabels('Completed task summary')).toEqual(['Open session']);
 
     await clickTaskButton('Running task summary', 'Cancel');
     expect(apiMocks.abort).toHaveBeenCalledWith(workspaceId, 'session-running');
     expect(findTaskCard('Running task summary').textContent).toContain('Sent an abort request for this task session.');
+
+    await clickTaskButton('Failed verification task', 'Open session');
+    expect(apiMocks.listMessages).toHaveBeenCalledWith(workspaceId, 'session-failed');
+    expect(useStore.getState().activeSessionByWorkspace[workspaceId]).toBe('session-failed');
+    expect(findTaskCard('Failed verification task').textContent).toContain('Opened this task in session session-failed for the matching lane context.');
+    expect(getButtonLabels('Failed verification task')).toEqual(['Retry lint', 'Reopen']);
 
     await clickTaskButton('Failed verification task', 'Retry lint');
     expect(apiMocks.runVerification).toHaveBeenCalledWith(workspaceId, {
@@ -165,7 +181,7 @@ describe('TaskPanel', () => {
     expect(apiMocks.listVerificationRuns).toHaveBeenCalledWith(workspaceId);
     expect(findTaskCard('Failed verification task').textContent).toContain('Retried lint verification from this task.');
 
-    await clickTaskButton('Completed task summary', 'Reopen');
+    await clickTaskButton('Completed task summary', 'Open session');
     expect(apiMocks.listMessages).toHaveBeenCalledWith(workspaceId, 'session-completed');
     expect(useStore.getState().activeSessionByWorkspace[workspaceId]).toBe('session-completed');
     expect(useStore.getState().messagesBySession[`${workspaceId}::session-completed`]).toEqual([
@@ -178,10 +194,10 @@ describe('TaskPanel', () => {
         }),
       }),
     ]);
-    expect(findTaskCard('Completed task summary').textContent).toContain('Reopened this task in its saved workspace session.');
+    expect(findTaskCard('Completed task summary').textContent).toContain('Opened this task in session session-completed for the matching lane context.');
   });
 
-  it('keeps blocked and cancelled task actions state-specific and reopens failed task context', async () => {
+  it('keeps blocked actions in-context and directs other saved attempts back to their own sessions', async () => {
     const workspaceId = 'workspace-action-matrix';
     const failedMessages = [{ id: 'task-failed-message', role: 'assistant', createdAt: '2026-04-21T00:00:00.000Z', parts: [{ type: 'text', text: 'Failed task context' }] }];
 
@@ -226,15 +242,16 @@ describe('TaskPanel', () => {
       makeSession('session-cancelled'),
     ]);
     useStore.getState().setActiveWorkspace(workspaceId);
+    useStore.getState().setActiveSession(workspaceId, 'session-blocked');
 
     await renderPanel();
 
-    expect(getButtonLabels('Queued task summary')).toEqual(['Cancel']);
+    expect(getButtonLabels('Queued task summary')).toEqual(['Open session']);
     expect(getButtonLabels('Blocked verification task')).toEqual(['Retry build']);
-    expect(getButtonLabels('Failed task summary')).toEqual(['Retry lint', 'Reopen']);
-    expect(getButtonLabels('Cancelled verification task')).toEqual(['Retry test', 'Reopen']);
+    expect(getButtonLabels('Failed task summary')).toEqual(['Open session']);
+    expect(getButtonLabels('Cancelled verification task')).toEqual(['Open session']);
 
-    await clickTaskButton('Failed task summary', 'Reopen');
+    await clickTaskButton('Failed task summary', 'Open session');
     expect(apiMocks.listMessages).toHaveBeenCalledWith(workspaceId, 'session-failed');
     expect(useStore.getState().activeSessionByWorkspace[workspaceId]).toBe('session-failed');
     expect(useStore.getState().messagesBySession[`${workspaceId}::session-failed`]).toEqual([
@@ -247,7 +264,97 @@ describe('TaskPanel', () => {
         }),
       }),
     ]);
-    expect(findTaskCard('Failed task summary').textContent).toContain('Reopened this task in its saved workspace session.');
+    expect(findTaskCard('Failed task summary').textContent).toContain('Opened this task in session session-failed for the matching lane context.');
+    expect(getButtonLabels('Failed task summary')).toEqual(['Retry lint', 'Reopen']);
+  });
+
+  it('keeps sibling lane task records separate when attempts reuse the same task id', async () => {
+    const workspaceId = 'workspace-lane-task-isolation';
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Lane Isolation', [
+      makeTaskRecord(workspaceId, 'task-shared', 'completed', 'Branch lane summary', {
+        sessionId: 'session-lane-a',
+        sourceMessageId: 'message-shared',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+        recentVerificationRef: {
+          runId: 'verify-lane-a',
+          commandKind: 'lint',
+          status: 'failed',
+          summary: 'Lane A verification failed.',
+          terminalLogRef: 'verification-logs/lane-a.log',
+        },
+        resultAnnotation: {
+          sourceMessageId: 'message-shared',
+          workspaceId,
+          sessionId: 'session-lane-a',
+          taskId: 'task-shared',
+          verification: 'unverified',
+          summary: 'Lane A blocked by review.',
+          shipState: 'blocked-by-requested-changes',
+          laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'blocked',
+          sessionId: 'session-lane-a',
+          messageId: 'message-shared',
+          taskId: 'task-shared',
+          pullRequestUrl: 'https://example.com/pr/lane-a',
+          conditionKind: 'requested-changes',
+          conditionLabel: 'Lane A review requested changes.',
+          terminalLogRef: 'ship-logs/lane-a.log',
+        },
+      }),
+      makeTaskRecord(workspaceId, 'task-shared', 'completed', 'Worktree lane summary', {
+        sessionId: 'session-lane-b',
+        sourceMessageId: 'message-shared',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+        recentVerificationRef: {
+          runId: 'verify-lane-b',
+          commandKind: 'test',
+          status: 'passed',
+          summary: 'Lane B verification passed.',
+          terminalLogRef: 'verification-logs/lane-b.log',
+        },
+        resultAnnotation: {
+          sourceMessageId: 'message-shared',
+          workspaceId,
+          sessionId: 'session-lane-b',
+          taskId: 'task-shared',
+          verification: 'verified',
+          summary: 'Lane B ready for ship.',
+          shipState: 'pr-ready',
+          laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'success',
+          sessionId: 'session-lane-b',
+          messageId: 'message-shared',
+          taskId: 'task-shared',
+          pullRequestUrl: 'https://example.com/pr/lane-b',
+          terminalLogRef: 'ship-logs/lane-b.log',
+        },
+      }),
+    ]));
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    await renderPanel();
+
+    expect(findTaskCard('Branch lane summary').textContent).toContain('Alternative attempt');
+    expect(findTaskCard('Branch lane summary').textContent).toContain('Branch · feature/lane-a');
+    expect(findTaskCard('Branch lane summary').textContent).toContain('Workspace: workspace-lane-task-isolation · Session: session-lane-a');
+    expect(findTaskCard('Branch lane summary').textContent).not.toContain('Verification: Lane A verification failed.');
+    expect(findTaskCard('Branch lane summary').textContent).not.toContain('Blocked by requested changes');
+    expect(findTaskCard('Branch lane summary').textContent).not.toContain('Fix handoff:');
+    expect(findTaskCard('Branch lane summary').textContent).not.toContain('Pull request:');
+    expect(findTaskCard('Worktree lane summary').textContent).toContain('Alternative attempt');
+    expect(findTaskCard('Worktree lane summary').textContent).toContain('Worktree · feature/lane-b');
+    expect(findTaskCard('Worktree lane summary').textContent).toContain('Path · /tmp/worktrees/lane-b');
+    expect(findTaskCard('Worktree lane summary').textContent).toContain('Workspace: workspace-lane-task-isolation · Session: session-lane-b');
+    expect(findTaskCard('Worktree lane summary').textContent).not.toContain('Verification: Lane B verification passed.');
+    expect(findTaskCard('Worktree lane summary').textContent).not.toContain('PR ready');
+    expect(findTaskCard('Worktree lane summary').textContent).not.toContain('Pull request:');
   });
 
   it('projects linked PR ready and blocked state into task cards without cross-workspace leakage', async () => {
@@ -480,12 +587,10 @@ function makeTaskRecord(
     state,
     createdAt: '2026-04-21T00:00:00.000Z',
     updatedAt: '2026-04-21T00:05:00.000Z',
-    resultAnnotation: overrides.resultAnnotation,
-    recentVerificationRef: overrides.recentVerificationRef,
-    recentShipRef: overrides.recentShipRef,
     ...(state === 'completed' || state === 'failed' || state === 'cancelled'
       ? { completedAt: '2026-04-21T00:06:00.000Z' }
       : {}),
+    ...overrides,
   };
 }
 

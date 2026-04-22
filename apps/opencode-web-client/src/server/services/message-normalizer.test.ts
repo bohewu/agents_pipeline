@@ -96,4 +96,60 @@ describe('normalizeMessage traceability', () => {
       summary: 'Fallback structured task summary.',
     });
   });
+
+  it('threads explicit branch or worktree lane attribution through traceability records', () => {
+    const normalized = normalizeMessage({
+      info: {
+        id: 'message-lane',
+        role: 'assistant',
+        sessionID: 'session-lane',
+        lane: {
+          id: 'lane-worktree-a',
+          context: {
+            kind: 'worktree',
+            worktreePath: '/tmp/worktrees/attempt-a',
+            branch: 'feature/attempt-a',
+          },
+        },
+      },
+      task: {
+        id: 'task-lane',
+        state: 'completed',
+        summary: 'Lane-attributed task summary.',
+      },
+      parts: [{ type: 'text', text: 'Lane-aware result.' }],
+    }, { workspaceId: 'workspace-lane' });
+
+    expect(normalized.trace).toEqual(expect.objectContaining({
+      sourceMessageId: 'message-lane',
+      workspaceId: 'workspace-lane',
+      sessionId: 'session-lane',
+      taskId: 'task-lane',
+      laneId: 'lane-worktree-a',
+      laneContext: {
+        kind: 'worktree',
+        worktreePath: '/tmp/worktrees/attempt-a',
+        branch: 'feature/attempt-a',
+      },
+    }));
+    expect(normalized.taskEntry).toEqual(expect.objectContaining({
+      taskId: 'task-lane',
+      laneId: 'lane-worktree-a',
+      laneContext: {
+        kind: 'worktree',
+        worktreePath: '/tmp/worktrees/attempt-a',
+        branch: 'feature/attempt-a',
+      },
+    }));
+    expect(normalized.resultAnnotation).toEqual(expect.objectContaining({
+      sourceMessageId: 'message-lane',
+      taskId: 'task-lane',
+      laneId: 'lane-worktree-a',
+      laneContext: {
+        kind: 'worktree',
+        worktreePath: '/tmp/worktrees/attempt-a',
+        branch: 'feature/attempt-a',
+      },
+    }));
+  });
 });

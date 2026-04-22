@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { ok, fail } from '../create-server.js'
 import type { SessionService } from '../services/session-service.js'
+import type { LaneAttribution } from '../../shared/types.js'
 
 export interface SessionsRouteDeps {
   sessionService: SessionService
@@ -29,6 +30,8 @@ export function SessionsRoute(deps: SessionsRouteDeps): Hono {
       providerId?: string
       modelId?: string
       agentId?: string
+      laneId?: string
+      laneContext?: LaneAttribution['laneContext']
     }>().catch(() => ({}))
     try {
       const session = await sessionService.createSession(workspaceId, body)
@@ -67,9 +70,17 @@ export function SessionsRoute(deps: SessionsRouteDeps): Hono {
   route.post('/:sessionId/fork', async (c) => {
     const workspaceId = c.get('workspaceId') as string
     const sessionId = c.req.param('sessionId')
-    const body = await c.req.json<{ messageId?: string }>().catch(() => ({} as { messageId?: string }))
+    const body = await c.req.json<{
+      messageId?: string
+      laneId?: string
+      laneContext?: LaneAttribution['laneContext']
+    }>().catch(() => ({} as {
+      messageId?: string
+      laneId?: string
+      laneContext?: LaneAttribution['laneContext']
+    }))
     try {
-      const session = await sessionService.forkSession(workspaceId, sessionId, body.messageId)
+      const session = await sessionService.forkSession(workspaceId, sessionId, body.messageId, body)
       return c.json(ok(session), 201)
     } catch (err: any) {
       return c.json(fail('FORK_SESSION_FAILED', err.message), 500)

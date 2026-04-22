@@ -1,6 +1,7 @@
 import type {
   BffEvent,
   BffEventType,
+  LaneAttribution,
   ResultReviewState,
   ResultShipState,
   ShipFixHandoffConditionKind,
@@ -10,6 +11,7 @@ import type { TaskLedgerService } from './task-ledger-service.js'
 import { randomUUID } from 'node:crypto'
 import { normalizeMessage } from './message-normalizer.js'
 import { normalizeSession } from './session-normalizer.js'
+import { applyLaneAttributionToMessage, attachLaneAttribution } from './lane-attribution.js'
 
 // Upstream event types we care about (NO run/stage/task/status-runtime events)
 const UPSTREAM_EVENT_MAP: Record<string, BffEventType> = {
@@ -51,6 +53,7 @@ type LiveMessage = {
 interface EventBrokerOptions {
   taskLedgerService?: Pick<TaskLedgerService, 'getRecord' | 'upsertRuntimeRecord'>
   now?: () => Date
+  resolveSessionLane?: (workspaceId: string, sessionId: string) => LaneAttribution | undefined
 }
 
 interface PendingShipFixHandoff {
@@ -80,11 +83,13 @@ export class EventBroker {
   private pendingShipFixHandoffs = new Map<string, PendingShipFixHandoff[]>()
   private keepaliveTimer?: ReturnType<typeof setInterval>
   private now: () => Date
+  private resolveSessionLane?: (workspaceId: string, sessionId: string) => LaneAttribution | undefined
 
   constructor(serverManager: ManagedServerManager, options: EventBrokerOptions = {}) {
     this.serverManager = serverManager
     this.taskLedgerService = options.taskLedgerService
     this.now = options.now ?? (() => new Date())
+    this.resolveSessionLane = options.resolveSessionLane
     this.startKeepalive()
   }
 
@@ -244,7 +249,7 @@ export class EventBroker {
     if (!bffType) return // Unknown event type, skip
 
     const properties = readNestedRecord(payload, 'properties') ?? payload
-    const normalizedPayload = normalizeEventPayload(bffType, workspaceId, properties)
+    const normalizedPayload = normalizeEventPayload(bffType, workspaceId, properties, this.resolveSessionLane)
 
     const event: BffEvent = {
       type: bffType,
@@ -371,10 +376,10 @@ export class EventBroker {
     const message = this.liveMessages.get(messageKey)
     if (!message || !hasRenderableParts(message)) return
 
-    const normalized = normalizeMessage({
+    const normalized = applyLaneAttributionToMessage(normalizeMessage({
       info: message.info,
       parts: message.parts.filter(isRenderablePart),
-    }, { workspaceId, sessionId })
+    }, { workspaceId, sessionId }), this.resolveSessionLane?.(workspaceId, sessionId))
     if (!normalized.id) return
 
     this.broadcast(workspaceId, {
@@ -469,16 +474,33 @@ export class EventBroker {
     const message = this.liveMessages.get(this.messageKey(workspaceId, messageId))
     if (!message) return
 
-    const normalized = normalizeMessage({
+    const normalized = applyLaneAttributionToMessage(normalizeMessage({
       info: message.info,
       parts: message.parts,
-    }, { workspaceId, sessionId })
+    }, { workspaceId, sessionId }), this.resolveSessionLane?.(workspaceId, sessionId))
     const taskId = normalized.taskEntry?.taskId
       ?? normalized.resultAnnotation?.taskId
       ?? normalized.trace?.taskId
     if (!taskId) return
 
-    const existingRecord = this.taskLedgerService.getRecord?.(workspaceId, taskId)
+    const recordSelector = {
+      sessionId: normalized.taskEntry?.sessionId
+        ?? normalized.resultAnnotation?.sessionId
+        ?? normalized.trace?.sessionId
+        ?? sessionId,
+      sourceMessageId: normalized.taskEntry?.sourceMessageId
+        ?? normalized.resultAnnotation?.sourceMessageId
+        ?? normalized.trace?.sourceMessageId
+        ?? normalized.id,
+      laneId: normalized.trace?.laneId,
+      laneContext: normalized.trace?.laneContext,
+    }
+    const existingRecord = this.taskLedgerService.getRecord?.(workspaceId, taskId, recordSelector)
+      ?? this.taskLedgerService.getRecord?.(workspaceId, taskId, {
+        sessionId: recordSelector.sessionId,
+        laneId: recordSelector.laneId,
+        laneContext: recordSelector.laneContext,
+      })
     const existingShipRef = existingRecord?.recentShipRef
     const recentShipRef = existingShipRef
       ? {
@@ -503,6 +525,8 @@ export class EventBroker {
       state: normalized.taskEntry?.state,
       createdAt: normalized.createdAt,
       updatedAt: this.now().toISOString(),
+      ...(normalized.trace?.laneId ? { laneId: normalized.trace.laneId } : {}),
+      ...(normalized.trace?.laneContext ? { laneContext: normalized.trace.laneContext } : {}),
       resultAnnotation: normalized.resultAnnotation,
       ...(recentShipRef ? { recentShipRef } : {}),
     })
@@ -634,6 +658,7 @@ function normalizeEventPayload(
   type: BffEventType,
   workspaceId: string,
   payload: Record<string, unknown>,
+  resolveSessionLane?: (workspaceId: string, sessionId: string) => LaneAttribution | undefined,
 ): Record<string, unknown> {
   if (type === 'message.created' || type === 'message.delta' || type === 'message.completed') {
     const messageSource = readNestedRecord(payload, 'message') ?? payload
@@ -643,16 +668,22 @@ function normalizeEventPayload(
         ...payload,
         workspaceId,
         ...(sessionId ? { sessionId } : {}),
-        message: normalizeMessage(messageSource, { workspaceId, sessionId }),
+        message: applyLaneAttributionToMessage(
+          normalizeMessage(messageSource, { workspaceId, sessionId }),
+          sessionId ? resolveSessionLane?.(workspaceId, sessionId) : undefined,
+        ),
       }
   }
 
   if (type === 'session.created' || type === 'session.updated') {
     const sessionSource = readNestedRecord(payload, 'session') ?? payload
+    const normalizedSession = normalizeSession(sessionSource)
     return {
       ...payload,
       workspaceId,
-      session: normalizeSession(sessionSource),
+      session: normalizedSession.id
+        ? attachLaneAttribution(normalizedSession, resolveSessionLane?.(workspaceId, normalizedSession.id))
+        : normalizedSession,
     }
   }
 

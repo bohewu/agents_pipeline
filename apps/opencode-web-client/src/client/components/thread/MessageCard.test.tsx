@@ -351,6 +351,68 @@ describe('MessageCard', () => {
     expect(container.textContent).toContain('Ran lint verification again.')
   })
 
+  it('shows lane context and directs follow-up actions back to the saved session when another attempt is active', async () => {
+    const workspaceId = 'workspace-lane-context'
+    const messageSessionId = 'session-lane-b'
+    const activeSessionId = 'session-primary'
+    const lane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+    } as const
+    const message = makeAssistantMessage(
+      workspaceId,
+      messageSessionId,
+      'message-lane-context',
+      'task-lane-context',
+      'Worktree attempt result.',
+      'unverified',
+      lane,
+    )
+    const latestRun = makeRun('verify-test-lane-context', 'test', 'failed', 'Worktree verification failed.', {
+      workspaceId,
+      sessionId: messageSessionId,
+      sourceMessageId: message.id,
+      taskId: 'task-lane-context',
+      ...lane,
+    })
+
+    configureMessageContext(workspaceId, activeSessionId, message, {
+      ...makeTrace(message, latestRun, 'unverified'),
+      annotation: {
+        ...message.resultAnnotation!,
+        reviewState: 'needs-retry',
+        shipState: 'blocked-by-requested-changes',
+      },
+      shipReference: {
+        action: 'pullRequest',
+        outcome: 'blocked',
+        sessionId: messageSessionId,
+        messageId: message.id,
+        taskId: 'task-lane-context',
+        pullRequestUrl: 'https://github.com/example/repo/pull/91',
+        conditionKind: 'requested-changes',
+        conditionLabel: 'Worktree review requested changes.',
+      },
+    } as any)
+
+    await renderCard(message)
+
+    expect(container.textContent).toContain('Alternative attempt')
+    expect(container.textContent).toContain('Worktree · feature/lane-b')
+    expect(container.textContent).toContain('Path · /tmp/worktrees/lane-b')
+    expect(container.textContent).toContain(`Workspace: ${workspaceId} · Session: ${messageSessionId}`)
+    expect(container.textContent).toContain(`Open session ${messageSessionId} in Worktree · feature/lane-b to retry, accept, or recover from the matching attempt context.`)
+    expect(container.textContent).not.toContain('Latest verification')
+    expect(container.textContent).not.toContain('Worktree verification failed.')
+    expect(container.textContent).not.toContain('Unverified')
+    expect(container.textContent).not.toContain('Needs Retry')
+    expect(container.textContent).not.toContain('Blocked by requested changes')
+    expect(container.textContent).not.toContain('Ship handoff:')
+    expect(container.textContent).not.toContain('Recent runs')
+    expect(getButton('Retry test').disabled).toBe(true)
+    expect(getButton('Accept').disabled).toBe(true)
+    expect(getButton('Recover').disabled).toBe(true)
+  })
+
   it('sends an accept follow-up with the linked verification summary', async () => {
     const workspaceId = 'workspace-accept'
     const sessionId = 'session-accept'
@@ -516,6 +578,7 @@ function makeAssistantMessage(
   taskId: string,
   summary: string,
   verification: ResultAnnotation['verification'],
+  lane?: { laneId?: string; laneContext?: ResultAnnotation['laneContext'] },
 ): NormalizedMessage {
   return {
     id: messageId,
@@ -527,6 +590,8 @@ function makeAssistantMessage(
       workspaceId,
       sessionId,
       taskId,
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
     taskEntry: {
       taskId,
@@ -535,6 +600,8 @@ function makeAssistantMessage(
       sourceMessageId: messageId,
       state: 'completed',
       latestSummary: summary,
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
     resultAnnotation: {
       sourceMessageId: messageId,
@@ -543,6 +610,8 @@ function makeAssistantMessage(
       taskId,
       verification,
       summary,
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
   }
 }

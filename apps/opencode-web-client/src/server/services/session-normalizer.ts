@@ -1,11 +1,12 @@
 import type { SessionSummary } from '../../shared/types.js'
+import { attachLaneAttribution, extractLaneAttribution } from './lane-attribution.js'
 
 export function normalizeSession(data: any): SessionSummary {
   const info = readNestedRecord(data, 'info') ?? data
   const summary = readNestedRecord(info, 'summary')
   const createdAt = normalizeTimestamp(info.time?.created ?? data.time?.created ?? info.createdAt ?? info.created_at)
   const updatedAt = normalizeTimestamp(info.time?.updated ?? data.time?.updated ?? info.updatedAt ?? info.updated_at)
-  return {
+  return attachLaneAttribution({
     id: info.id ?? data.id ?? info.sessionId ?? data.sessionId ?? '',
     title: info.title ?? data.title ?? info.name ?? data.name,
     createdAt: createdAt ?? new Date().toISOString(),
@@ -20,7 +21,7 @@ export function normalizeSession(data: any): SessionSummary {
           deletions: toNumber(summary.deletions),
         }
       : undefined,
-  }
+  }, extractLaneAttribution(info, data))
 }
 
 export function normalizeSessions(data: any): SessionSummary[] {

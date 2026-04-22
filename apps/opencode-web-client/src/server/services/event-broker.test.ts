@@ -235,6 +235,55 @@ describe('EventBroker task ledger persistence', () => {
       rmSync(stateDir, { recursive: true, force: true })
     }
   })
+
+  it('hydrates session lane attribution onto live task ledger updates when the upstream message omits it', () => {
+    const stateDir = mkdtempSync(path.join(tmpdir(), 'event-broker-lane-'))
+    const taskLedgerService = new TaskLedgerService({ stateDir })
+    const broker = new EventBroker({ get: () => undefined } as any, {
+      taskLedgerService,
+      resolveSessionLane: () => ({
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }),
+      now: sequenceClock('2026-04-21T15:00:01.000Z'),
+    })
+
+    try {
+      ;(broker as any).handleUpstreamEvent('ws-lane', 'message.updated', JSON.stringify({
+        payload: {
+          properties: {
+            sessionID: 'session-lane',
+            info: {
+              id: 'message-lane',
+              role: 'assistant',
+              time: { created: '2026-04-21T15:00:00.000Z' },
+              task: {
+                id: 'task-lane',
+                state: 'running',
+                title: 'Lane task',
+                summary: 'Live lane-aware task.',
+              },
+            },
+          },
+        },
+      }))
+
+      expect(taskLedgerService.getRecord('ws-lane', 'task-lane', {
+        sessionId: 'session-lane',
+        sourceMessageId: 'message-lane',
+        laneId: 'lane-worktree-b',
+      })).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+        resultAnnotation: expect.objectContaining({
+          laneId: 'lane-worktree-b',
+        }),
+      }))
+    } finally {
+      broker.shutdown()
+      rmSync(stateDir, { recursive: true, force: true })
+    }
+  })
 })
 
 function sequenceClock(...values: string[]): () => Date {

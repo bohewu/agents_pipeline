@@ -1,6 +1,6 @@
 import type { BffEvent } from '../../shared/types.js';
 import type { UIStore } from './store.js';
-import { selectSessionMessages } from './store.js';
+import { findMessageIdentityIndex, selectSessionMessages } from './store.js';
 import { mergeSessionMessageEvent, sortSessionsForSidebar } from '../lib/session-meta.js';
 
 export function handleBffEvent(event: BffEvent, store: UIStore): void {
@@ -12,7 +12,7 @@ export function handleBffEvent(event: BffEvent, store: UIStore): void {
       const sessionId = p.sessionId as string;
       const message = p.message as any;
       const existing = workspaceId && sessionId && message?.id
-        ? selectSessionMessages(store, workspaceId, sessionId).some((entry) => entry.id === message.id)
+        ? findMessageIdentityIndex(selectSessionMessages(store, workspaceId, sessionId), message) >= 0
         : false;
       if (workspaceId && sessionId && message) {
         reconcileOptimisticUserMessage(store, workspaceId, sessionId, message);
@@ -131,9 +131,12 @@ function reconcileOptimisticUserMessage(store: UIStore, workspaceId: string, ses
   if (message?.role !== 'user') return;
   const createdText = extractText(message);
   if (!createdText) return;
+  const expectedLaneId = resolveLaneId(message);
 
   const existing = selectSessionMessages(store, workspaceId, sessionId);
-  const optimistic = existing.find((entry) => entry.id.startsWith('local-user-') && extractText(entry) === createdText);
+  const optimistic = existing.find((entry) => entry.id.startsWith('local-user-')
+    && extractText(entry) === createdText
+    && (!expectedLaneId || !resolveLaneId(entry) || resolveLaneId(entry) === expectedLaneId));
   if (!optimistic) return;
 
   store.setMessages(workspaceId, sessionId, existing.filter((entry) => entry.id !== optimistic.id));
@@ -146,6 +149,28 @@ function extractText(message: any): string {
     .map((part: any) => part.text.trim())
     .filter(Boolean)
     .join('\n');
+}
+
+function resolveLaneId(value: any): string | undefined {
+  const directLaneId = [
+    value?.laneId,
+    value?.trace?.laneId,
+    value?.taskEntry?.laneId,
+    value?.resultAnnotation?.laneId,
+  ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);
+  if (typeof directLaneId === 'string') {
+    return directLaneId.trim();
+  }
+
+  const laneContext = value?.laneContext ?? value?.trace?.laneContext ?? value?.taskEntry?.laneContext ?? value?.resultAnnotation?.laneContext;
+  if (!laneContext || typeof laneContext !== 'object') return undefined;
+  if (laneContext.kind === 'branch' && typeof laneContext.branch === 'string' && laneContext.branch.trim().length > 0) {
+    return `branch:${laneContext.branch.trim()}`;
+  }
+  if (laneContext.kind === 'worktree' && typeof laneContext.worktreePath === 'string' && laneContext.worktreePath.trim().length > 0) {
+    return `worktree:${laneContext.worktreePath.trim()}`;
+  }
+  return undefined;
 }
 
 function upsertSession<T extends { id: string }>(sessions: T[], session: T): T[] {

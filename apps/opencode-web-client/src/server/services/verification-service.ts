@@ -5,6 +5,7 @@ import type {
   BffEvent,
   BrowserEvidenceRecord,
   BrowserEvidenceReference,
+  LaneAttribution,
   NormalizedMessage,
   PreviewRuntimeCaptureResult,
   PreviewRuntimeConsoleCaptureMetadata,
@@ -21,6 +22,7 @@ import type { AppPaths } from './app-paths.js'
 import type { EventBroker } from './event-broker.js'
 import type { OpenCodeClientFactory, OpenCodeExecutionResult } from './opencode-client-factory.js'
 import type { TaskLedgerService } from './task-ledger-service.js'
+import { applyLaneAttributionToMessage, attachLaneAttribution, mergeLaneAttribution, resolveLaneId, validateLaneAttributionRecord } from './lane-attribution.js'
 
 interface VerificationStateFile {
   version: 1
@@ -39,6 +41,7 @@ export interface VerificationServiceOptions {
   now?: () => Date
   randomId?: () => string
   taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
+  resolveSessionLane?: (workspaceId: string, sessionId: string) => LaneAttribution | undefined
 }
 
 const RUN_STATE_VERSION = 1
@@ -51,6 +54,7 @@ export class VerificationService {
   private taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
   private now: () => Date
   private randomId: () => string
+  private resolveSessionLane?: (workspaceId: string, sessionId: string) => LaneAttribution | undefined
 
   constructor(
     appPaths: Pick<AppPaths, 'stateDir'>,
@@ -64,6 +68,7 @@ export class VerificationService {
     this.taskLedgerService = options.taskLedgerService
     this.now = options.now ?? (() => new Date())
     this.randomId = options.randomId ?? (() => randomUUID())
+    this.resolveSessionLane = options.resolveSessionLane
   }
 
   listRuns(workspaceId: string): VerificationRun[] {
@@ -97,21 +102,26 @@ export class VerificationService {
     const projectionMap = new Map(
       projections
         .filter((projection) => projection.sessionId === sessionId)
-        .map((projection) => [projection.sourceMessageId, projection]),
+        .map((projection) => [buildTraceabilityKey(projection.sessionId, projection.sourceMessageId, projection.taskEntry), projection]),
     )
     const browserEvidenceMap = new Map(
       Array.from(selectLatestBrowserEvidenceByMessage(browserEvidenceRecords).entries())
-        .filter(([key]) => key.startsWith(`${sessionId}::`))
-        .map(([key, record]) => [key.slice(sessionId.length + 2), record]),
+        .filter(([, record]) => record.sessionId === sessionId)
     )
 
     return messages.map((message) => {
+      const sessionLane = this.resolveSessionLane?.(workspaceId, sessionId)
       const sourceMessageId = message.resultAnnotation?.sourceMessageId
         ?? message.taskEntry?.sourceMessageId
         ?? message.trace?.sourceMessageId
         ?? message.id
-      const projection = projectionMap.get(sourceMessageId)
-      const browserEvidenceRecord = browserEvidenceMap.get(sourceMessageId)
+      const key = buildTraceabilityKey(
+        sessionId,
+        sourceMessageId,
+        mergeLaneAttribution(message.trace, message.taskEntry, message.resultAnnotation, sessionLane),
+      )
+      const projection = projectionMap.get(key)
+      const browserEvidenceRecord = browserEvidenceMap.get(key)
 
       let nextMessage = projection
         ? applyProjectionToMessage(message, projection)
@@ -125,7 +135,7 @@ export class VerificationService {
         })
       }
 
-      return nextMessage
+      return applyLaneAttributionToMessage(nextMessage, sessionLane)
     })
   }
 
@@ -134,6 +144,8 @@ export class VerificationService {
     sessionId?: string
     sourceMessageId?: string
     taskId?: string
+    laneId?: string
+    laneContext?: BrowserEvidenceRecord['laneContext']
     captureResult: PreviewRuntimeCaptureResult
   }): BrowserEvidenceRecord {
     if (args.captureResult.outcome !== 'captured' || !args.captureResult.previewUrl) {
@@ -143,7 +155,11 @@ export class VerificationService {
     const capturedAt = args.captureResult.consoleCapture?.capturedAt
       ?? args.captureResult.screenshot?.capturedAt
       ?? this.now().toISOString()
-    const record: BrowserEvidenceRecord = {
+    const lane = mergeLaneAttribution(
+      args,
+      args.sessionId ? this.resolveSessionLane?.(args.workspaceId, args.sessionId) : undefined,
+    )
+    const record: BrowserEvidenceRecord = attachLaneAttribution({
       id: `browser-evidence-${this.randomId()}`,
       workspaceId: args.workspaceId,
       capturedAt,
@@ -154,7 +170,7 @@ export class VerificationService {
       previewUrl: args.captureResult.previewUrl,
       ...(args.captureResult.consoleCapture ? { consoleCapture: args.captureResult.consoleCapture } : {}),
       ...(args.captureResult.screenshot ? { screenshot: args.captureResult.screenshot } : {}),
-    }
+    }, lane)
 
     this.persistBrowserEvidenceRecord(record)
 
@@ -165,6 +181,8 @@ export class VerificationService {
         updatedAt: capturedAt,
         ...(record.sessionId ? { sessionId: record.sessionId } : {}),
         ...(record.sourceMessageId ? { sourceMessageId: record.sourceMessageId } : {}),
+        ...(record.laneId ? { laneId: record.laneId } : {}),
+        ...(record.laneContext ? { laneContext: record.laneContext } : {}),
         recentBrowserEvidenceRef: toBrowserEvidenceReference(record),
       })
     }
@@ -179,12 +197,18 @@ export class VerificationService {
     commandKind: VerificationCommandKind
     sourceMessageId?: string
     taskId?: string
+    laneId?: string
+    laneContext?: VerificationRun['laneContext']
   }): Promise<VerificationRun> {
     const startedAt = this.now().toISOString()
     const linkedTaskId = args.taskId ?? deriveStableTaskId(args.sourceMessageId) ?? `verify-${this.randomId()}`
     const command = resolvePresetCommand(args.workspaceRoot, args.commandKind)
+    const lane = mergeLaneAttribution(
+      args,
+      this.resolveSessionLane?.(args.workspaceId, args.sessionId),
+    )
 
-    const initialRun: VerificationRun = {
+    const initialRun: VerificationRun = attachLaneAttribution({
       id: `verify-${this.randomId()}`,
       workspaceId: args.workspaceId,
       sessionId: args.sessionId,
@@ -194,7 +218,7 @@ export class VerificationService {
       status: 'running',
       startedAt,
       summary: `Running ${args.commandKind} verification.`,
-    }
+    }, lane)
 
     let runs = this.persistRun(initialRun)
     this.emitRunUpdate(args.workspaceId, initialRun, runs)
@@ -269,7 +293,9 @@ export class VerificationService {
 
   private emitRunUpdate(workspaceId: string, run: VerificationRun, runs: VerificationRun[]): void {
     const projection = buildWorkspaceTraceability(runs, this.listBrowserEvidence(workspaceId)).projections.find((entry) => {
-      return entry.sessionId === run.sessionId && entry.sourceMessageId === run.sourceMessageId
+      return entry.sessionId === run.sessionId
+        && entry.sourceMessageId === run.sourceMessageId
+        && resolveLaneId(entry.taskEntry) === resolveLaneId(run)
     })
 
     const timestamp = this.now().toISOString()
@@ -283,6 +309,8 @@ export class VerificationService {
       state: projection?.taskEntry.state ?? mapRunStatusToTaskState(run.status),
       createdAt: run.startedAt,
       updatedAt: timestamp,
+      ...(projection?.taskEntry.laneId ?? run.laneId ? { laneId: projection?.taskEntry.laneId ?? run.laneId } : {}),
+      ...(projection?.taskEntry.laneContext ?? run.laneContext ? { laneContext: projection?.taskEntry.laneContext ?? run.laneContext } : {}),
       ...(run.finishedAt ? { completedAt: run.finishedAt } : {}),
       ...(projection?.resultAnnotation ? { resultAnnotation: projection.resultAnnotation } : {}),
       recentVerificationRef: {
@@ -360,7 +388,13 @@ export class VerificationService {
       }
       return {
         version: RUN_STATE_VERSION,
-        runs: parsed.runs.filter(isVerificationRun),
+        runs: parsed.runs.flatMap((run) => {
+          try {
+            return [validateVerificationRun(run, workspaceId)]
+          } catch {
+            return []
+          }
+        }),
         browserEvidenceRecords: Array.isArray(parsed.browserEvidenceRecords)
           ? parsed.browserEvidenceRecords.flatMap((record) => {
               try {
@@ -448,7 +482,7 @@ function buildWorkspaceTraceability(runs: VerificationRun[], browserEvidenceReco
 
   for (const run of sortRuns(runs)) {
     if (!run.sessionId || !run.sourceMessageId) continue
-    const key = `${run.sessionId}::${run.sourceMessageId}`
+    const key = buildTraceabilityKey(run.sessionId, run.sourceMessageId, run)
     const bucket = grouped.get(key) ?? []
     bucket.push(run)
     grouped.set(key, bucket)
@@ -486,10 +520,12 @@ function buildProjectionFromRuns(runs: VerificationRun[]): VerificationProjectio
       ? 'partially verified'
       : 'unverified'
 
+  const lane = mergeLaneAttribution(...selectedRuns)
+
   return {
     sessionId: latestRun.sessionId!,
     sourceMessageId: latestRun.sourceMessageId!,
-    taskEntry: {
+    taskEntry: attachLaneAttribution({
       taskId: latestRun.taskId,
       workspaceId: latestRun.workspaceId,
       sessionId: latestRun.sessionId,
@@ -499,15 +535,15 @@ function buildProjectionFromRuns(runs: VerificationRun[]): VerificationProjectio
         : 'Verification',
       state: deriveTaskState(selectedRuns),
       latestSummary: buildProjectionSummary(selectedRuns),
-    },
-    resultAnnotation: {
+    }, lane),
+    resultAnnotation: attachLaneAttribution({
       sourceMessageId: latestRun.sourceMessageId!,
       workspaceId: latestRun.workspaceId,
       sessionId: latestRun.sessionId!,
       taskId: latestRun.taskId,
       verification,
       summary: buildProjectionSummary(selectedRuns),
-    },
+    }, lane),
   }
 }
 
@@ -519,7 +555,7 @@ function applyProjectionToMessage(message: NormalizedMessage, projection: Verifi
     ?? message.trace?.taskId
     ?? projection.taskEntry.taskId
 
-  return {
+  return applyLaneAttributionToMessage({
     ...message,
     trace: {
       sourceMessageId: message.trace?.sourceMessageId ?? projection.sourceMessageId,
@@ -546,7 +582,7 @@ function applyProjectionToMessage(message: NormalizedMessage, projection: Verifi
       ...(existingAnnotation?.reviewState ? { reviewState: existingAnnotation.reviewState } : {}),
       ...(existingAnnotation?.shipState ? { shipState: existingAnnotation.shipState } : {}),
     },
-  }
+  }, mergeLaneAttribution(projection.taskEntry, projection.resultAnnotation))
 }
 
 function applyBrowserEvidenceToMessage(
@@ -558,7 +594,7 @@ function applyBrowserEvidenceToMessage(
     ?? message.taskEntry?.taskId
     ?? message.trace?.taskId
     ?? record.taskId
-  return {
+  return applyLaneAttributionToMessage({
     ...message,
     trace: {
       sourceMessageId: message.trace?.sourceMessageId ?? context.sourceMessageId,
@@ -572,7 +608,7 @@ function applyBrowserEvidenceToMessage(
       sourceMessageId: context.sourceMessageId,
       taskId,
     }),
-  }
+  }, record)
 }
 
 function deriveTaskState(runs: VerificationRun[]): TaskEntryState {
@@ -720,6 +756,10 @@ function deriveStableTaskId(sourceMessageId?: string): string | undefined {
   return `verify-${hash}`
 }
 
+function buildTraceabilityKey(sessionId: string, sourceMessageId: string, lane: LaneAttribution | undefined): string {
+  return `${sessionId}::${resolveLaneId(lane) ?? '__default__'}::${sourceMessageId}`
+}
+
 function sortRuns(runs: VerificationRun[]): VerificationRun[] {
   return [...runs].sort((left, right) => {
     const delta = new Date(right.startedAt).getTime() - new Date(left.startedAt).getTime()
@@ -749,6 +789,35 @@ function isVerificationRun(value: unknown): value is VerificationRun {
     && typeof candidate.summary === 'string'
 }
 
+function validateVerificationRun(value: unknown, workspaceId: string): VerificationRun {
+  if (!isVerificationRun(value)) {
+    throw new Error('Verification run must be an object.')
+  }
+
+  const candidate = value as unknown as Record<string, unknown>
+  const recordWorkspaceId = readString(candidate.workspaceId, 'verificationRun.workspaceId')
+  if (recordWorkspaceId !== workspaceId) {
+    throw new Error('Verification run workspace mismatch.')
+  }
+
+  const lane = validateLaneAttributionRecord(candidate, 'verificationRun')
+
+  return attachLaneAttribution({
+    id: readString(candidate.id, 'verificationRun.id'),
+    workspaceId: recordWorkspaceId,
+    ...(candidate.sessionId !== undefined ? { sessionId: readString(candidate.sessionId, 'verificationRun.sessionId') } : {}),
+    ...(candidate.sourceMessageId !== undefined ? { sourceMessageId: readString(candidate.sourceMessageId, 'verificationRun.sourceMessageId') } : {}),
+    taskId: readString(candidate.taskId, 'verificationRun.taskId'),
+    commandKind: readString(candidate.commandKind, 'verificationRun.commandKind') as VerificationRun['commandKind'],
+    status: readString(candidate.status, 'verificationRun.status') as VerificationRun['status'],
+    startedAt: readString(candidate.startedAt, 'verificationRun.startedAt'),
+    ...(candidate.finishedAt !== undefined ? { finishedAt: readString(candidate.finishedAt, 'verificationRun.finishedAt') } : {}),
+    summary: readString(candidate.summary, 'verificationRun.summary'),
+    ...(candidate.exitCode !== undefined ? { exitCode: readNumber(candidate.exitCode, 'verificationRun.exitCode') } : {}),
+    ...(candidate.terminalLogRef !== undefined ? { terminalLogRef: readString(candidate.terminalLogRef, 'verificationRun.terminalLogRef') } : {}),
+  }, lane)
+}
+
 function validateBrowserEvidenceRecord(value: unknown, workspaceId: string): BrowserEvidenceRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Browser evidence record must be an object.')
@@ -761,6 +830,7 @@ function validateBrowserEvidenceRecord(value: unknown, workspaceId: string): Bro
   }
 
   const summary = readString(candidate.summary, 'browserEvidenceRecord.summary')
+  const lane = validateLaneAttributionRecord(candidate, 'browserEvidenceRecord')
   const consoleCapture = candidate.consoleCapture === undefined
     ? undefined
     : validateConsoleCaptureMetadata(candidate.consoleCapture, 'browserEvidenceRecord.consoleCapture')
@@ -768,7 +838,7 @@ function validateBrowserEvidenceRecord(value: unknown, workspaceId: string): Bro
     ? undefined
     : validateScreenshotMetadata(candidate.screenshot, 'browserEvidenceRecord.screenshot')
 
-  return {
+  return attachLaneAttribution({
     id: readString(candidate.id, 'browserEvidenceRecord.id'),
     workspaceId: recordWorkspaceId,
     capturedAt: readString(candidate.capturedAt, 'browserEvidenceRecord.capturedAt'),
@@ -779,7 +849,7 @@ function validateBrowserEvidenceRecord(value: unknown, workspaceId: string): Bro
     previewUrl: readString(candidate.previewUrl, 'browserEvidenceRecord.previewUrl'),
     ...(consoleCapture ? { consoleCapture } : {}),
     ...(screenshot ? { screenshot } : {}),
-  }
+  }, lane)
 }
 
 function mergeBrowserEvidenceIntoResultAnnotations(
@@ -789,7 +859,7 @@ function mergeBrowserEvidenceIntoResultAnnotations(
   const merged = new Map<string, ResultAnnotation>()
 
   for (const annotation of annotations) {
-    merged.set(`${annotation.sessionId}::${annotation.sourceMessageId}`, annotation)
+    merged.set(buildTraceabilityKey(annotation.sessionId, annotation.sourceMessageId, annotation), annotation)
   }
 
   for (const [key, record] of selectLatestBrowserEvidenceByMessage(browserEvidenceRecords).entries()) {
@@ -816,10 +886,10 @@ function selectLatestBrowserEvidenceByMessage(
 
   for (const record of sortBrowserEvidenceRecords(browserEvidenceRecords)) {
     if (!record.sessionId || !record.sourceMessageId) continue
-    const key = `${record.sessionId}::${record.sourceMessageId}`
-    if (!latest.has(key)) {
-      latest.set(key, record)
-    }
+      const key = buildTraceabilityKey(record.sessionId, record.sourceMessageId, record)
+      if (!latest.has(key)) {
+        latest.set(key, record)
+      }
   }
 
   return latest
@@ -833,7 +903,7 @@ function mergeBrowserEvidenceIntoResultAnnotation(
   const taskId = annotation?.taskId ?? context.taskId
   const summary = annotation?.summary ?? record.summary
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: annotation?.sourceMessageId ?? context.sourceMessageId,
     workspaceId: annotation?.workspaceId ?? context.workspaceId,
     sessionId: annotation?.sessionId ?? context.sessionId,
@@ -843,7 +913,7 @@ function mergeBrowserEvidenceIntoResultAnnotation(
     ...(annotation?.reviewState ? { reviewState: annotation.reviewState } : {}),
     ...(annotation?.shipState ? { shipState: annotation.shipState } : {}),
     browserEvidenceRef: toBrowserEvidenceReference(record),
-  }
+  }, mergeLaneAttribution(annotation, record))
 }
 
 function toBrowserEvidenceReference(record: BrowserEvidenceRecord): BrowserEvidenceReference {

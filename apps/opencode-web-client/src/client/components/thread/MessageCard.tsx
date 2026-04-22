@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { NormalizedMessage, NormalizedPart, TaskLedgerShipReference, VerificationCommandKind } from '../../../shared/types.js';
 import { api } from '../../lib/api-client.js';
+import { describeLaneAttribution } from '../../lib/lane-meta.js';
 import { getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 import { selectMessageResultTrace, selectSessionMessages, type ResolvedMessageResultTrace, useStore } from '../../runtime/store.js';
 import { PermissionCard } from './PermissionCard.js';
@@ -395,7 +396,11 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
   const setSessionStreaming = useStore((s) => s.setSessionStreaming);
   const [pendingAction, setPendingAction] = useState<'retry' | 'accept' | 'recover' | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const badges = buildTraceBadges(trace);
+  const laneDisplay = describeLaneAttribution(trace.trace);
+  const isAlternativeAttempt = !!(laneDisplay.label || laneDisplay.detail);
+  const showAlternativeAttemptContext = !!(laneDisplay.label || laneDisplay.detail || trace.trace.workspaceId || trace.trace.sessionId);
+  const showLaneScopedReadiness = !isAlternativeAttempt;
+  const badges = buildTraceBadges(trace, { includeReadiness: showLaneScopedReadiness });
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
   const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
   const effectiveEffort = sessionId
@@ -406,7 +411,7 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
   const canOpenVerification = activeWorkspaceId === trace.trace.workspaceId;
   const canActInContext = canOpenVerification && !!sessionId && sessionId === trace.trace.sessionId;
 
-  if (badges.length === 0 && !verificationSummary) {
+  if (badges.length === 0 && !verificationSummary && !showAlternativeAttemptContext) {
     return null;
   }
 
@@ -506,13 +511,46 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
         </div>
       )}
 
-      {trace.shipReference?.conditionLabel && (
+      {showAlternativeAttemptContext && (
+        <div
+          className="oc-surface-card"
+          style={{
+            padding: '10px 12px',
+            display: 'grid',
+            gap: 4,
+            background: 'rgba(255, 255, 255, 0.82)',
+          }}
+        >
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={traceContextBadgeStyle()}>Alternative attempt</span>
+            {laneDisplay.label && <span style={traceContextBadgeStyle()}>{laneDisplay.label}</span>}
+          </div>
+          {laneDisplay.detail && (
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.6 }}>{laneDisplay.detail}</div>
+          )}
+          <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.6 }}>
+            {trace.trace.workspaceId && (
+              <>
+                Workspace: <span style={traceMonoStyle}>{trace.trace.workspaceId}</span>
+              </>
+            )}
+            {trace.trace.sessionId && (
+              <>
+                {trace.trace.workspaceId ? ' · ' : ''}
+                Session: <span style={traceMonoStyle}>{trace.trace.sessionId}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showLaneScopedReadiness && trace.shipReference?.conditionLabel && (
         <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.6 }}>
           Ship handoff: {formatShipCondition(trace.shipReference)}
         </div>
       )}
 
-      {verificationSummary && (
+      {showLaneScopedReadiness && verificationSummary && (
         <div
           className="oc-surface-card"
           style={{
@@ -560,7 +598,7 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
           />
         )}
         <ResultActionButton
-          label={trace.verification === 'verified' ? 'Accept' : 'Accept anyway'}
+          label={isAlternativeAttempt || trace.verification === 'verified' ? 'Accept' : 'Accept anyway'}
           onClick={() => void handleContextAction('accept')}
           disabled={!canActInContext || pendingAction !== null}
           tone="success"
@@ -571,11 +609,13 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
           disabled={!canActInContext || pendingAction !== null}
           tone="warning"
         />
-        <ResultActionButton
-          label="Recent runs"
-          onClick={openVerificationPanel}
-          disabled={!canOpenVerification}
-        />
+        {showLaneScopedReadiness && (
+          <ResultActionButton
+            label="Recent runs"
+            onClick={openVerificationPanel}
+            disabled={!canOpenVerification}
+          />
+        )}
       </div>
 
       {(actionFeedback || !canActInContext) && (
@@ -587,7 +627,7 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
             lineHeight: 1.6,
           }}
         >
-          {actionFeedback ?? 'Open this result in its active chat session to retry, accept, or recover from the same context.'}
+          {actionFeedback ?? buildResultContextHint(trace.trace.sessionId, laneDisplay.label)}
         </div>
       )}
     </div>
@@ -646,6 +686,15 @@ function buildResultActionPrompt(kind: 'accept' | 'recover', trace: ResolvedMess
   }
 
   return `Recover the current assistant result for ${taskLabel}. Latest linked verification summary: ${summary}\n\nContinue from this result context, address the failing or missing verification, and explain what changed.`;
+}
+
+function buildResultContextHint(sessionId: string | undefined, laneLabel: string | null): string {
+  if (!sessionId) {
+    return 'Open this result in its active chat session to retry, accept, or recover from the same context.';
+  }
+
+  const laneContext = laneLabel ? ` in ${laneLabel}` : '';
+  return `Open session ${sessionId}${laneContext} to retry, accept, or recover from the matching attempt context.`;
 }
 
 function createOptimisticUserMessage(workspaceId: string, sessionId: string, text: string): NormalizedMessage {
@@ -717,7 +766,10 @@ function resolveToolStatusLabel(status: string | undefined, hasResult: boolean, 
   return 'Queued';
 }
 
-function buildTraceBadges(trace: ResolvedMessageResultTrace): Array<{
+function buildTraceBadges(
+  trace: ResolvedMessageResultTrace,
+  options: { includeReadiness: boolean },
+): Array<{
   label: string;
   tone: 'success' | 'warning' | 'danger' | 'neutral';
   color: string;
@@ -734,6 +786,9 @@ function buildTraceBadges(trace: ResolvedMessageResultTrace): Array<{
 
   if (trace.trace.taskId) {
     badges.push(createTraceBadge(trace.trace.taskId, 'neutral'));
+  }
+  if (!options.includeReadiness) {
+    return badges;
   }
   badges.push(createTraceBadge(formatVerificationLabel(trace.verification), resolveVerificationTone(trace.verification)));
   if (trace.annotation?.reviewState) {
@@ -791,6 +846,26 @@ function createTraceBadge(label: string, tone: 'success' | 'warning' | 'danger' 
     background: 'rgba(15, 23, 42, 0.04)',
   };
 }
+
+function traceContextBadgeStyle(): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: 24,
+    padding: '0 10px',
+    borderRadius: 999,
+    border: '1px solid rgba(15, 23, 42, 0.12)',
+    background: 'rgba(15, 23, 42, 0.04)',
+    color: 'var(--text-secondary)',
+    fontSize: 11,
+    fontWeight: 700,
+  };
+}
+
+const traceMonoStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  color: 'var(--text-secondary)',
+};
 
 function formatVerificationLabel(value: string): string {
   return value === 'partially verified' ? 'Partially verified' : capitalizeWords(value);

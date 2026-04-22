@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleBffEvent } from './event-reducer.js';
+import { resolveWorkspaceSessionStoreKey } from './store.js';
 import type { UIStore } from './store.js';
 import type { SessionSummary } from '../../shared/types.js';
 
@@ -77,13 +78,63 @@ describe('handleBffEvent session streaming updates', () => {
       { sourceMessageId: 'message-1', workspaceId: 'workspace-1', sessionId: 'session-1', taskId: 'task-1', verification: 'verified' },
     );
   });
+
+  it('treats same message ids from different lanes as separate live updates', () => {
+    const store = createStoreMock({
+      messagesBySession: {
+        [resolveWorkspaceSessionStoreKey('workspace-1', 'session-1')]: [
+          {
+            id: 'message-1',
+            role: 'assistant',
+            createdAt: '2026-04-20T00:00:00.000Z',
+            parts: [],
+            trace: {
+              sourceMessageId: 'message-1',
+              workspaceId: 'workspace-1',
+              sessionId: 'session-1',
+              laneId: 'branch:feature/lane-a',
+            },
+          },
+        ],
+      },
+      sessionsByWorkspace: {
+        'workspace-1': [makeSession({ id: 'session-1', state: 'idle', messageCount: 0 })],
+      },
+    });
+
+    handleBffEvent({
+      type: 'message.created',
+      timestamp: '2026-04-20T00:00:03.000Z',
+      payload: {
+        workspaceId: 'workspace-1',
+        sessionId: 'session-1',
+        message: {
+          id: 'message-1',
+          role: 'assistant',
+          createdAt: '2026-04-20T00:00:03.000Z',
+          parts: [],
+          trace: {
+            sourceMessageId: 'message-1',
+            workspaceId: 'workspace-1',
+            sessionId: 'session-1',
+            laneId: 'worktree:/tmp/worktrees/lane-b',
+          },
+        },
+      },
+    }, store);
+
+    expect(store.addMessage).toHaveBeenCalledWith('workspace-1', 'session-1', expect.objectContaining({ id: 'message-1' }));
+    expect(store.setSessions).toHaveBeenCalledWith('workspace-1', [
+      expect.objectContaining({ id: 'session-1', messageCount: 1 }),
+    ]);
+  });
 });
 
-function createStoreMock(): UIStore {
+function createStoreMock(overrides: Partial<Pick<UIStore, 'sessionsByWorkspace' | 'messagesBySession'>> = {}): UIStore {
   const sessions = [makeSession({ id: 'session-1', state: 'idle' }), makeSession({ id: 'session-2', state: 'idle' })];
   const store = {
-    sessionsByWorkspace: { 'workspace-1': sessions },
-    messagesBySession: {},
+    sessionsByWorkspace: { 'workspace-1': sessions, ...(overrides.sessionsByWorkspace ?? {}) },
+    messagesBySession: overrides.messagesBySession ?? {},
     taskEntriesByWorkspace: {},
     resultAnnotationsByWorkspace: {},
     pendingPermissions: {},

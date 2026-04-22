@@ -3,6 +3,7 @@ import type { TaskLedgerRecord, TaskLedgerShipReference, VerificationRunStatus }
 import { BrowserEvidenceSurface } from '../common/BrowserEvidenceSurface.js';
 import { selectActiveWorkspaceTaskLedgerRecords, type ProjectedTaskLedgerRecord, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
+import { describeLaneAttribution, resolveLaneId } from '../../lib/lane-meta.js';
 import { reopenWorkspaceSessionContext } from '../../lib/session-context.js';
 
 const ACTIVE_TASK_STATES = new Set<TaskLedgerRecord['state']>(['queued', 'running']);
@@ -111,7 +112,7 @@ function TaskSurfaceSection({
         <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>{emptyMessage}</div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
-          {records.map((record) => <TaskRecordCard key={record.taskId} record={record} />)}
+          {records.map((record) => <TaskRecordCard key={resolveTaskRecordKey(record)} record={record} />)}
         </div>
       )}
     </section>
@@ -120,6 +121,10 @@ function TaskSurfaceSection({
 
 function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
   const activeWorkspaceId = useStore((state) => state.activeWorkspaceId);
+  const activeSessionId = useStore((state) => {
+    if (!activeWorkspaceId) return undefined;
+    return state.activeSessionByWorkspace[activeWorkspaceId];
+  });
   const setSessionStreaming = useStore((state) => state.setSessionStreaming);
   const setVerificationRuns = useStore((state) => state.setVerificationRuns);
   const [pendingAction, setPendingAction] = React.useState<'cancel' | 'retry' | 'reopen' | null>(null);
@@ -128,12 +133,21 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
   const showSummary = title !== record.summary;
   const sessionId = resolveTaskSessionId(record);
   const sourceMessageId = resolveTaskSourceMessageId(record);
-  const canCancel = CANCELLABLE_TASK_STATES.has(record.state) && !!sessionId;
-  const canRetry = RETRYABLE_TASK_STATES.has(record.state)
+  const laneDisplay = describeLaneAttribution(record);
+  const isAlternativeAttempt = !!(laneDisplay.label || laneDisplay.detail);
+  const showAlternativeAttemptContext = !!(laneDisplay.label || laneDisplay.detail || sessionId);
+  const showLaneScopedReadiness = !isAlternativeAttempt;
+  const isMatchingSessionContext = !!sessionId && activeWorkspaceId === record.workspaceId && activeSessionId === sessionId;
+  const requiresContextSwitch = !!sessionId && activeWorkspaceId === record.workspaceId && activeSessionId !== sessionId;
+  const supportsRetry = RETRYABLE_TASK_STATES.has(record.state)
     && !!sessionId
     && !!record.recentVerificationRef
     && record.recentVerificationRef.status !== 'running';
-  const canReopen = REOPENABLE_TASK_STATES.has(record.state) && !!sessionId;
+  const canCancel = CANCELLABLE_TASK_STATES.has(record.state) && isMatchingSessionContext;
+  const canRetry = supportsRetry && isMatchingSessionContext;
+  const canReopen = REOPENABLE_TASK_STATES.has(record.state) && !!sessionId && !requiresContextSwitch;
+  const canOpenSession = !!sessionId && requiresContextSwitch;
+  const actionScopeMessage = buildTaskActionScopeMessage(record, sessionId, laneDisplay.label, supportsRetry, canOpenSession);
 
   const handleCancel = async () => {
     if (!activeWorkspaceId || activeWorkspaceId !== record.workspaceId || !sessionId) return;
@@ -185,7 +199,9 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
 
     try {
       await reopenWorkspaceSessionContext(activeWorkspaceId, sessionId);
-      setActionFeedback('Reopened this task in its saved workspace session.');
+      setActionFeedback(canOpenSession
+        ? `Opened this task in session ${sessionId} for the matching lane context.`
+        : 'Reopened this task in its saved workspace session.');
     } catch (error: any) {
       setActionFeedback(error?.message ?? 'Failed to reopen this task context.');
     } finally {
@@ -214,30 +230,55 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
         <span style={{ ...statusPillStyle(taskStateTone(record.state)), fontSize: 10 }}>{formatTaskState(record.state)}</span>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {record.recentVerificationRef && (
-          <span style={{ ...referenceBadgeStyle(referenceTone(record.recentVerificationRef.status)), fontSize: 10 }}>
-            {formatVerificationBadge(record.recentVerificationRef.commandKind, record.recentVerificationRef.status)}
-          </span>
-        )}
-        {record.resultAnnotation?.shipState && (
-          <span style={{ ...referenceBadgeStyle(shipProjectionTone(record.resultAnnotation.shipState)), fontSize: 10 }}>
-            {formatProjectedShipState(record.resultAnnotation.shipState)}
-          </span>
-        )}
-        {record.recentShipRef && (
-          <span style={{ ...referenceBadgeStyle(referenceTone(record.recentShipRef.outcome)), fontSize: 10 }}>
-            {formatShipBadge(record.recentShipRef)}
-          </span>
-        )}
-      </div>
+      {showAlternativeAttemptContext && (
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span style={{ ...referenceBadgeStyle('neutral'), fontSize: 10 }}>Alternative attempt</span>
+            {laneDisplay.label && (
+              <span style={{ ...referenceBadgeStyle('neutral'), fontSize: 10 }}>{laneDisplay.label}</span>
+            )}
+          </div>
+          {laneDisplay.detail && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>{laneDisplay.detail}</div>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            Workspace: <span style={monoStyle}>{record.workspaceId}</span>
+            {sessionId && (
+              <>
+                {' · '}
+                Session: <span style={monoStyle}>{sessionId}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showLaneScopedReadiness && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {record.recentVerificationRef && (
+            <span style={{ ...referenceBadgeStyle(referenceTone(record.recentVerificationRef.status)), fontSize: 10 }}>
+              {formatVerificationBadge(record.recentVerificationRef.commandKind, record.recentVerificationRef.status)}
+            </span>
+          )}
+          {record.resultAnnotation?.shipState && (
+            <span style={{ ...referenceBadgeStyle(shipProjectionTone(record.resultAnnotation.shipState)), fontSize: 10 }}>
+              {formatProjectedShipState(record.resultAnnotation.shipState)}
+            </span>
+          )}
+          {record.recentShipRef && (
+            <span style={{ ...referenceBadgeStyle(referenceTone(record.recentShipRef.outcome)), fontSize: 10 }}>
+              {formatShipBadge(record.recentShipRef)}
+            </span>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gap: 4, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
         <div>Task: <span style={monoStyle}>{record.taskId}</span></div>
         {sessionId && <div>Session: <span style={monoStyle}>{sessionId}</span></div>}
         {sourceMessageId && <div>Result: <span style={monoStyle}>{sourceMessageId}</span></div>}
         <div>{formatTaskTimestamp(record)}</div>
-        {record.recentShipRef?.conditionLabel && (
+        {showLaneScopedReadiness && record.recentShipRef?.conditionLabel && (
           <div>
             Fix handoff: {formatShipCondition(record.recentShipRef)}
             {record.recentShipRef.detailsUrl && (
@@ -248,19 +289,19 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
             )}
           </div>
         )}
-        {record.recentVerificationRef?.summary && <div>Verification: {record.recentVerificationRef.summary}</div>}
-        {record.recentVerificationRef?.terminalLogRef && (
+        {showLaneScopedReadiness && record.recentVerificationRef?.summary && <div>Verification: {record.recentVerificationRef.summary}</div>}
+        {showLaneScopedReadiness && record.recentVerificationRef?.terminalLogRef && (
           <div>
             Verification log: <span style={{ ...monoStyle, wordBreak: 'break-word' }}>{record.recentVerificationRef.terminalLogRef}</span>
           </div>
         )}
-        {record.recentShipRef?.commitSha && <div>Commit: <span style={monoStyle}>{record.recentShipRef.commitSha}</span></div>}
-        {record.recentShipRef?.pullRequestUrl && (
+        {showLaneScopedReadiness && record.recentShipRef?.commitSha && <div>Commit: <span style={monoStyle}>{record.recentShipRef.commitSha}</span></div>}
+        {showLaneScopedReadiness && record.recentShipRef?.pullRequestUrl && (
           <div>
             Pull request: <a href={record.recentShipRef.pullRequestUrl} target="_blank" rel="noreferrer">{record.recentShipRef.pullRequestUrl}</a>
           </div>
         )}
-        {record.recentShipRef?.terminalLogRef && (
+        {showLaneScopedReadiness && record.recentShipRef?.terminalLogRef && (
           <div>
             Ship log: <span style={{ ...monoStyle, wordBreak: 'break-word' }}>{record.recentShipRef.terminalLogRef}</span>
           </div>
@@ -272,9 +313,9 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
         compact
       />
 
-      {(canCancel || canRetry || canReopen || actionFeedback) && (
+      {(canCancel || canRetry || canReopen || canOpenSession || actionFeedback || actionScopeMessage) && (
         <div style={{ display: 'grid', gap: 8 }}>
-          {(canCancel || canRetry || canReopen) && (
+          {(canCancel || canRetry || canReopen || canOpenSession) && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {canCancel && (
                 <TaskActionButton
@@ -292,9 +333,11 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
                   tone="primary"
                 />
               )}
-              {canReopen && (
+              {(canReopen || canOpenSession) && (
                 <TaskActionButton
-                  label={pendingAction === 'reopen' ? 'Reopening…' : 'Reopen'}
+                  label={pendingAction === 'reopen'
+                    ? canOpenSession ? 'Opening session…' : 'Reopening…'
+                    : canOpenSession ? 'Open session' : 'Reopen'}
                   onClick={() => void handleReopen()}
                   disabled={pendingAction !== null}
                 />
@@ -302,16 +345,16 @@ function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
             </div>
           )}
 
-          {actionFeedback && (
+          {(actionFeedback || actionScopeMessage) && (
             <div
               aria-live="polite"
               style={{
                 fontSize: 11,
                 lineHeight: 1.6,
-                color: actionFeedback.toLowerCase().includes('failed') ? 'var(--error)' : 'var(--text-muted)',
+                color: actionFeedback?.toLowerCase().includes('failed') ? 'var(--error)' : 'var(--text-muted)',
               }}
             >
-              {actionFeedback}
+              {actionFeedback ?? actionScopeMessage}
             </div>
           )}
         </div>
@@ -444,6 +487,35 @@ function formatShipCondition(reference: TaskLedgerShipReference): string {
         : 'Ship condition';
 
   return reference.conditionLabel ? `${kind} · ${reference.conditionLabel}` : kind;
+}
+
+function buildTaskActionScopeMessage(
+  record: TaskLedgerRecord,
+  sessionId: string | undefined,
+  laneLabel: string | null,
+  supportsRetry: boolean,
+  canOpenSession: boolean,
+): string | null {
+  if (!canOpenSession || !sessionId) return null;
+
+  const actionLabel = CANCELLABLE_TASK_STATES.has(record.state)
+    ? 'cancel'
+    : supportsRetry
+      ? 'retry'
+      : 'continue';
+  const laneContext = laneLabel ? ` in ${laneLabel}` : '';
+
+  return `Open session ${sessionId}${laneContext} to ${actionLabel} this attempt from the matching workspace context.`;
+}
+
+function resolveTaskRecordKey(record: ProjectedTaskLedgerRecord): string {
+  return [
+    record.workspaceId,
+    resolveTaskSessionId(record) ?? 'workspace-session',
+    record.taskId,
+    resolveTaskSourceMessageId(record) ?? 'source-message',
+    resolveLaneId(record) ?? 'default-lane',
+  ].join('::');
 }
 
 function resolveTaskSessionId(record: TaskLedgerRecord): string | undefined {

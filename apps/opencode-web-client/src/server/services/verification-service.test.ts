@@ -363,6 +363,94 @@ describe('VerificationService', () => {
       rmSync(stateDir, { recursive: true, force: true })
     }
   })
+
+  it('inherits persisted session lane attribution for verification and browser evidence records', async () => {
+    const stateDir = mkdtempSync(path.join(tmpdir(), 'verify-lane-state-'))
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'verify-lane-workspace-'))
+    writeFileSync(path.join(workspaceRoot, 'package-lock.json'), '{}', 'utf-8')
+
+    const taskLedgerService = new TaskLedgerService({ stateDir })
+    const service = new VerificationService(
+      { stateDir },
+      { forWorkspace: () => ({ shell: vi.fn(async () => ({ status: 'completed', exitCode: 0, summary: 'Lane lint passed.' })) }) as any },
+      undefined,
+      {
+        now: sequenceClock(
+          '2026-04-22T16:00:00.000Z',
+          '2026-04-22T16:00:01.000Z',
+          '2026-04-22T16:00:02.000Z',
+          '2026-04-22T16:00:03.000Z',
+          '2026-04-22T16:00:04.000Z',
+        ),
+        randomId: sequenceIds('lane-run', 'lane-browser'),
+        taskLedgerService,
+        resolveSessionLane: () => ({
+          laneId: 'lane-worktree-b',
+          laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+        }),
+      },
+    )
+
+    try {
+      const run = await service.runPreset({
+        workspaceId: 'ws-lane',
+        workspaceRoot,
+        sessionId: 'session-lane',
+        commandKind: 'lint',
+        sourceMessageId: 'message-lane',
+        taskId: 'task-lane',
+      })
+      const browserRecord = service.recordBrowserEvidence({
+        workspaceId: 'ws-lane',
+        sessionId: 'session-lane',
+        sourceMessageId: 'message-lane',
+        taskId: 'task-lane',
+        captureResult: {
+          workspaceId: 'ws-lane',
+          outcome: 'captured',
+          previewUrl: 'http://127.0.0.1:4173/',
+          consoleCapture: {
+            capturedAt: '2026-04-22T16:00:03.000Z',
+            entryCount: 1,
+            errorCount: 0,
+            warningCount: 0,
+            exceptionCount: 0,
+            levels: ['log'],
+          },
+          issues: [],
+        },
+      })
+
+      expect(run).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }))
+      expect(browserRecord).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }))
+
+      const summary = service.getWorkspaceSummary('ws-lane')
+      expect(summary.traceability.taskEntries[0]).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }))
+      expect(summary.traceability.resultAnnotations[0]).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+      }))
+      expect(taskLedgerService.getRecord('ws-lane', 'task-lane', {
+        sessionId: 'session-lane',
+        sourceMessageId: 'message-lane',
+        laneId: 'lane-worktree-b',
+      })).toEqual(expect.objectContaining({
+        laneId: 'lane-worktree-b',
+        recentBrowserEvidenceRef: expect.objectContaining({ recordId: browserRecord.id }),
+      }))
+    } finally {
+      rmSync(stateDir, { recursive: true, force: true })
+      rmSync(workspaceRoot, { recursive: true, force: true })
+    }
+  })
 })
 
 function makeAssistantMessage(messageId: string): NormalizedMessage {

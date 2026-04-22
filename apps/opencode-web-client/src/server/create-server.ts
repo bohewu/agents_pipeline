@@ -37,6 +37,7 @@ import type { TaskLedgerService } from './services/task-ledger-service.js';
 import type { VerificationService } from './services/verification-service.js';
 import type { PreviewRuntimeService } from './services/preview-runtime-service.js';
 import { PreviewRuntimeRoute } from './routes/preview-runtime.js';
+import { applyLaneAttributionToMessage } from './services/lane-attribution.js';
 
 export interface ServerOptions {
   host: string;
@@ -146,7 +147,7 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
       const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService, previewRuntimeService } = deps;
 
     // Workspace CRUD (no workspace scope middleware needed)
-      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService }));
+      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService, sessionService }));
 
     // SSE events (workspace via query param, no middleware)
     api.route('/events', EventsRoute({ eventBroker }));
@@ -163,10 +164,11 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
       const sessionId = c.req.param('sessionId');
         try {
           const client = clientFactory.forWorkspace(workspaceId);
+          const lane = sessionService.resolveLaneAttribution(workspaceId, sessionId);
           const messages = verificationService.decorateMessages(
             workspaceId,
             sessionId,
-            await client.listMessages(sessionId),
+            (await client.listMessages(sessionId)).map((message) => applyLaneAttributionToMessage(message, lane)),
           );
           return c.json(ok(messages));
         } catch (err: any) {

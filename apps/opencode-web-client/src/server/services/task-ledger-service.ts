@@ -19,6 +19,7 @@ import type {
   VerificationRunStatus,
 } from '../../shared/types.js'
 import type { AppPaths } from './app-paths.js'
+import { attachLaneAttribution, mergeLaneAttribution, resolveLaneId, validateLaneAttributionRecord } from './lane-attribution.js'
 
 interface TaskLedgerStateFile {
   version: 1
@@ -32,6 +33,8 @@ export interface TaskLedgerRuntimeUpdate {
   state?: TaskEntryState
   sessionId?: string
   sourceMessageId?: string
+  laneId?: string
+  laneContext?: ResultAnnotation['laneContext']
   title?: string
   summary?: string
   createdAt?: string
@@ -64,8 +67,12 @@ export class TaskLedgerService {
     return sortTaskLedgerRecords(this.readState(workspaceId).records)
   }
 
-  getRecord(workspaceId: string, taskId: string): TaskLedgerRecord | undefined {
-    return this.listRecords(workspaceId).find((record) => record.taskId === taskId)
+  getRecord(
+    workspaceId: string,
+    taskId: string,
+    selector: Pick<TaskLedgerRuntimeUpdate, 'sessionId' | 'sourceMessageId' | 'laneId' | 'laneContext'> = {},
+  ): TaskLedgerRecord | undefined {
+    return this.listRecords(workspaceId).find((record) => matchesTaskLedgerRecord(record, taskId, selector))
   }
 
   replaceRecords(workspaceId: string, records: TaskLedgerRecord[]): TaskLedgerRecord[] {
@@ -78,7 +85,7 @@ export class TaskLedgerService {
     const normalizedRecord = validateTaskLedgerRecord(record, record.workspaceId)
     const state = this.readState(record.workspaceId)
     const nextRecords = [...state.records]
-    const existingIndex = nextRecords.findIndex((entry) => entry.taskId === record.taskId)
+    const existingIndex = findMatchingTaskLedgerRecordIndex(nextRecords, normalizedRecord)
 
     if (existingIndex >= 0) {
       nextRecords[existingIndex] = normalizedRecord
@@ -91,7 +98,18 @@ export class TaskLedgerService {
   }
 
   upsertRuntimeRecord(update: TaskLedgerRuntimeUpdate): TaskLedgerRecord | undefined {
-    const existing = this.getRecord(update.workspaceId, update.taskId)
+    const selector = {
+      sessionId: update.sessionId ?? update.resultAnnotation?.sessionId,
+      sourceMessageId: update.sourceMessageId ?? update.resultAnnotation?.sourceMessageId ?? update.recentShipRef?.messageId,
+      laneId: update.laneId ?? update.resultAnnotation?.laneId,
+      laneContext: update.laneContext ?? update.resultAnnotation?.laneContext,
+    }
+    const existing = this.getRecord(update.workspaceId, update.taskId, selector)
+      ?? this.getRecord(update.workspaceId, update.taskId, {
+        sessionId: selector.sessionId,
+        laneId: selector.laneId,
+        laneContext: selector.laneContext,
+      })
     const nextRecord = buildRuntimeTaskLedgerRecord(existing, update)
     if (!nextRecord) {
       return existing
@@ -175,6 +193,53 @@ function compareIsoDescending(left: string, right: string): number {
   return left > right ? -1 : 1
 }
 
+function findMatchingTaskLedgerRecordIndex(records: TaskLedgerRecord[], candidate: TaskLedgerRecord): number {
+  return records.findIndex((record) => isSameTaskLedgerIdentity(record, candidate))
+}
+
+function matchesTaskLedgerRecord(
+  record: TaskLedgerRecord,
+  taskId: string,
+  selector: Pick<TaskLedgerRuntimeUpdate, 'sessionId' | 'sourceMessageId' | 'laneId' | 'laneContext'>,
+): boolean {
+  if (record.taskId !== taskId) return false
+
+  const selectorLaneId = resolveLaneId(selector)
+  if (selectorLaneId && resolveLaneId(record) !== selectorLaneId) return false
+  if (selector.sessionId && record.sessionId !== selector.sessionId) return false
+  if (selector.sourceMessageId && record.sourceMessageId !== selector.sourceMessageId) return false
+
+  return true
+}
+
+function isSameTaskLedgerIdentity(left: TaskLedgerRecord, right: TaskLedgerRecord): boolean {
+  if (left.taskId !== right.taskId || left.workspaceId !== right.workspaceId) {
+    return false
+  }
+
+  const leftLaneId = resolveLaneId(left)
+  const rightLaneId = resolveLaneId(right)
+  if (leftLaneId || rightLaneId) {
+    if (!leftLaneId || !rightLaneId || leftLaneId !== rightLaneId) {
+      return false
+    }
+  }
+
+  if (left.sessionId || right.sessionId) {
+    if (!left.sessionId || !right.sessionId || left.sessionId !== right.sessionId) {
+      return false
+    }
+  }
+
+  if (left.sourceMessageId || right.sourceMessageId) {
+    if (!left.sourceMessageId || !right.sourceMessageId || left.sourceMessageId !== right.sourceMessageId) {
+      return false
+    }
+  }
+
+  return true
+}
+
 function buildRuntimeTaskLedgerRecord(
   existing: TaskLedgerRecord | undefined,
   update: TaskLedgerRuntimeUpdate,
@@ -192,6 +257,7 @@ function buildRuntimeTaskLedgerRecord(
     ?? existing?.resultAnnotation?.sourceMessageId
     ?? existing?.recentShipRef?.messageId
   const state = update.state ?? deriveRuntimeTaskState(existing, update)
+  const lane = mergeLaneAttribution(update, update.resultAnnotation, existing, existing?.resultAnnotation)
   const title = update.title ?? existing?.title
   const summary = update.summary
     ?? update.resultAnnotation?.summary
@@ -210,6 +276,7 @@ function buildRuntimeTaskLedgerRecord(
     sessionId,
     sourceMessageId,
     summary,
+    lane,
   })
 
   const completedAt = isTerminalTaskState(state)
@@ -219,7 +286,7 @@ function buildRuntimeTaskLedgerRecord(
   const recentBrowserEvidenceRef = update.recentBrowserEvidenceRef ?? existing?.recentBrowserEvidenceRef
   const recentShipRef = update.recentShipRef ?? existing?.recentShipRef
 
-  return validateTaskLedgerRecord({
+  return validateTaskLedgerRecord(attachLaneAttribution({
     taskId: update.taskId,
     workspaceId: update.workspaceId,
     summary,
@@ -234,7 +301,7 @@ function buildRuntimeTaskLedgerRecord(
     ...(recentVerificationRef ? { recentVerificationRef } : {}),
     ...(recentBrowserEvidenceRef ? { recentBrowserEvidenceRef } : {}),
     ...(recentShipRef ? { recentShipRef } : {}),
-  }, update.workspaceId)
+  }, lane), update.workspaceId)
 }
 
 function deriveRuntimeTaskState(
@@ -286,6 +353,7 @@ function mergeRuntimeResultAnnotation(
     sessionId?: string
     sourceMessageId?: string
     summary: string
+    lane?: Pick<ResultAnnotation, 'laneId' | 'laneContext'>
   },
 ): ResultAnnotation | undefined {
   if (!existing && !incoming) {
@@ -298,7 +366,7 @@ function mergeRuntimeResultAnnotation(
     return undefined
   }
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId,
     workspaceId: context.workspaceId,
     sessionId,
@@ -314,7 +382,7 @@ function mergeRuntimeResultAnnotation(
     ...(incoming?.browserEvidenceRef ?? existing?.browserEvidenceRef
       ? { browserEvidenceRef: incoming?.browserEvidenceRef ?? existing?.browserEvidenceRef }
       : {}),
-  }
+  }, mergeLaneAttribution(incoming, existing, context.lane))
 }
 
 function haveEquivalentRuntimeFields(left: TaskLedgerRecord, right: TaskLedgerRecord): boolean {
@@ -339,11 +407,12 @@ function validateTaskLedgerRecord(record: unknown, workspaceId: string): TaskLed
   const updatedAt = readString(candidate.updatedAt, 'updatedAt')
   const sessionId = readOptionalString(candidate.sessionId, 'sessionId')
   const sourceMessageId = readOptionalString(candidate.sourceMessageId, 'sourceMessageId')
+  const lane = validateLaneAttributionRecord(candidate, 'taskLedgerRecord')
   const title = readOptionalString(candidate.title, 'title')
   const completedAt = readOptionalString(candidate.completedAt, 'completedAt')
   const resultAnnotation = candidate.resultAnnotation === undefined
     ? undefined
-    : validateResultAnnotation(candidate.resultAnnotation, recordWorkspaceId, sessionId, taskId)
+    : validateResultAnnotation(candidate.resultAnnotation, recordWorkspaceId, sessionId, taskId, lane)
   const recentVerificationRef = candidate.recentVerificationRef === undefined
     ? undefined
     : validateTaskLedgerVerificationReference(candidate.recentVerificationRef)
@@ -354,7 +423,7 @@ function validateTaskLedgerRecord(record: unknown, workspaceId: string): TaskLed
     ? undefined
     : validateTaskLedgerShipReference(candidate.recentShipRef, sessionId, taskId)
 
-  return {
+  return attachLaneAttribution({
     taskId,
     workspaceId: recordWorkspaceId,
     summary,
@@ -369,7 +438,7 @@ function validateTaskLedgerRecord(record: unknown, workspaceId: string): TaskLed
     ...(recentVerificationRef ? { recentVerificationRef } : {}),
     ...(recentBrowserEvidenceRef ? { recentBrowserEvidenceRef } : {}),
     ...(recentShipRef ? { recentShipRef } : {}),
-  }
+  }, lane)
 }
 
 function validateResultAnnotation(
@@ -377,6 +446,7 @@ function validateResultAnnotation(
   workspaceId: string,
   sessionId: string | undefined,
   taskId: string,
+  expectedLane: Pick<ResultAnnotation, 'laneId' | 'laneContext'> | undefined,
 ): ResultAnnotation {
   if (!value || typeof value !== 'object') {
     throw new Error('Task ledger resultAnnotation must be an object.')
@@ -398,9 +468,16 @@ function validateResultAnnotation(
     throw new Error('Task ledger resultAnnotation taskId mismatch.')
   }
 
+  const lane = validateLaneAttributionRecord(candidate, 'resultAnnotation')
+  const expectedLaneId = resolveLaneId(expectedLane)
+  const annotationLaneId = resolveLaneId(lane)
+  if (expectedLaneId && annotationLaneId && expectedLaneId !== annotationLaneId) {
+    throw new Error('Task ledger resultAnnotation laneId mismatch.')
+  }
+
   const summary = readOptionalString(candidate.summary, 'resultAnnotation.summary')
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: readString(candidate.sourceMessageId, 'resultAnnotation.sourceMessageId'),
     workspaceId: annotationWorkspaceId,
     sessionId: annotationSessionId,
@@ -416,7 +493,7 @@ function validateResultAnnotation(
     ...(candidate.browserEvidenceRef !== undefined
       ? { browserEvidenceRef: validateBrowserEvidenceReference(candidate.browserEvidenceRef, 'resultAnnotation.browserEvidenceRef') }
       : {}),
-  }
+  }, mergeLaneAttribution(lane, expectedLane))
 }
 
 function validateTaskLedgerVerificationReference(value: unknown): TaskLedgerVerificationReference {

@@ -57,7 +57,7 @@ async function main() {
   const registry = new WorkspaceRegistry(appPaths.workspaceRegistryFile);
   const serverManager = new ManagedServerManager(binaryPath);
   const clientFactory = new OpenCodeClientFactory(serverManager);
-  const sessionService = new SessionService(clientFactory);
+  const sessionService = new SessionService(clientFactory, appPaths);
   const effortService = new EffortService();
   const usageService = new UsageService(appPaths.installManifestFile, packagedProviderUsagePath);
   const configService = new ConfigService(clientFactory);
@@ -65,7 +65,10 @@ async function main() {
   const fileService = new FileService();
   const permissionRegistry = new PermissionRegistry(clientFactory);
   const taskLedgerService = new TaskLedgerService(appPaths);
-  const eventBroker = new EventBroker(serverManager, { taskLedgerService });
+  const eventBroker = new EventBroker(serverManager, {
+    taskLedgerService,
+    resolveSessionLane: (workspaceId, sessionId) => sessionService.resolveLaneAttribution(workspaceId, sessionId),
+  });
   const capabilityProbeService = new WorkspaceCapabilityProbeService();
   const contextCatalogService = new WorkspaceContextCatalogService({
     appPaths,
@@ -74,7 +77,10 @@ async function main() {
     defaultOpencodeConfigDir: args.opencodeConfigDir,
   });
   const workspaceShipService = new WorkspaceShipService(clientFactory);
-  const verificationService = new VerificationService(appPaths, clientFactory, eventBroker, { taskLedgerService });
+  const verificationService = new VerificationService(appPaths, clientFactory, eventBroker, {
+    taskLedgerService,
+    resolveSessionLane: (workspaceId, sessionId) => sessionService.resolveLaneAttribution(workspaceId, sessionId),
+  });
   const previewRuntimeService = new PreviewRuntimeService(appPaths, capabilityProbeService);
 
   const serverOptions = {

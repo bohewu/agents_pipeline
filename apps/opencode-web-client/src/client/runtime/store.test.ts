@@ -18,16 +18,20 @@ import {
   selectActiveWorkspaceCapabilities,
   selectActiveWorkspaceGitStatus,
   selectActiveWorkspaceShipActionResults,
+  selectActiveWorkspaceSessionLanes,
   selectActiveWorkspaceVerificationRuns,
   resolveWorkspaceSessionStoreKey,
   selectMessageResultTrace,
+  selectSessionLane,
   selectSessionTaskLedgerRecords,
   selectSessionMessages,
+  selectWorkspaceSessionLanes,
   selectWorkspaceVerificationRuns,
   useStore,
 } from './store.js';
 import type {
   BrowserEvidenceRecord,
+  LaneAttribution,
   NormalizedMessage,
   ResultAnnotation,
   SessionSummary,
@@ -219,6 +223,69 @@ describe('store session streaming state', () => {
     expect(useStore.getState().taskEntriesByWorkspace['workspace-2'][sharedSessionId]['task-2']?.workspaceId).toBe('workspace-2');
   });
 
+  it('exposes lane metadata keyed by workspace and session context for downstream selectors', () => {
+    const workspaceId = 'workspace-session-lanes';
+    useStore.getState().setSessions(workspaceId, [
+      makeSession({
+        id: 'session-lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      }),
+      makeSession({
+        id: 'session-lane-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }),
+    ]);
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    expect(selectSessionLane(useStore.getState(), workspaceId, 'session-lane-a')).toEqual(expect.objectContaining({
+      workspaceId,
+      sessionId: 'session-lane-a',
+      laneId: 'branch:feature/lane-a',
+    }));
+    expect(selectWorkspaceSessionLanes(useStore.getState(), workspaceId)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 'session-lane-a', laneId: 'branch:feature/lane-a' }),
+      expect.objectContaining({ sessionId: 'session-lane-b', laneId: 'worktree:/tmp/worktrees/lane-b' }),
+    ]));
+    expect(selectActiveWorkspaceSessionLanes(useStore.getState())).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sessionId: 'session-lane-a', laneId: 'branch:feature/lane-a' }),
+      expect.objectContaining({ sessionId: 'session-lane-b', laneId: 'worktree:/tmp/worktrees/lane-b' }),
+    ]));
+  });
+
+  it('keeps refreshed lane hydration isolated when different workspaces reuse the same session id', () => {
+    const sharedSessionId = 'shared-session';
+    useStore.getState().setWorkspaceBootstrap('workspace-1', {
+      ...makeBootstrap('workspace-1', { taskEntries: [], resultAnnotations: [] }),
+      sessions: [makeSession({ id: sharedSessionId, laneContext: { kind: 'branch', branch: 'feature/workspace-one' } })],
+    });
+    useStore.getState().setWorkspaceBootstrap('workspace-2', {
+      ...makeBootstrap('workspace-2', { taskEntries: [], resultAnnotations: [] }),
+      sessions: [makeSession({
+        id: sharedSessionId,
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/workspace-two', branch: 'feature/workspace-two' },
+      })],
+    });
+
+    expect(selectWorkspaceSessionLanes(useStore.getState(), 'workspace-1')).toEqual([
+      expect.objectContaining({ sessionId: sharedSessionId, laneId: 'branch:feature/workspace-one' }),
+    ]);
+    expect(selectWorkspaceSessionLanes(useStore.getState(), 'workspace-2')).toEqual([
+      expect.objectContaining({ sessionId: sharedSessionId, laneId: 'worktree:/tmp/worktrees/workspace-two' }),
+    ]);
+
+    useStore.getState().setWorkspaceBootstrap('workspace-1', {
+      ...makeBootstrap('workspace-1', { taskEntries: [], resultAnnotations: [] }),
+      sessions: [makeSession({ id: sharedSessionId, laneContext: { kind: 'branch', branch: 'feature/workspace-one-refreshed' } })],
+    });
+
+    expect(selectWorkspaceSessionLanes(useStore.getState(), 'workspace-1')).toEqual([
+      expect.objectContaining({ sessionId: sharedSessionId, laneId: 'branch:feature/workspace-one-refreshed' }),
+    ]);
+    expect(selectWorkspaceSessionLanes(useStore.getState(), 'workspace-2')).toEqual([
+      expect.objectContaining({ sessionId: sharedSessionId, laneId: 'worktree:/tmp/worktrees/workspace-two' }),
+    ]);
+  });
+
   it('keeps task ledger records isolated by workspace and session selectors', () => {
     const sharedSessionId = 'shared-session';
     const workspaceOneRecord = makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-1', 'running', {
@@ -250,6 +317,101 @@ describe('store session streaming state', () => {
     expect(selectSessionTaskLedgerRecords(useStore.getState(), 'workspace-2', sharedSessionId)[0]?.recentShipRef?.pullRequestUrl).toBe(
       'https://github.com/example/repo/pull/84',
     );
+  });
+
+  it('keeps lane-specific task and result state isolated when overlapping ids arrive in one session', () => {
+    const workspaceId = 'workspace-lane-isolation';
+    const sessionId = 'session-lane-isolation';
+    const laneA: LaneAttribution = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } };
+    const laneB: LaneAttribution = { laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' } };
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(
+      workspaceId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [
+        makeTaskLedgerRecord(workspaceId, sessionId, 'task-shared', 'completed', {
+          sourceMessageId: 'message-shared',
+          summary: 'Lane A summary',
+          resultAnnotation: {
+            sourceMessageId: 'message-shared',
+            workspaceId,
+            sessionId,
+            taskId: 'task-shared',
+            verification: 'verified',
+            summary: 'Lane A summary',
+            ...laneA,
+          },
+          ...laneA,
+        }),
+        makeTaskLedgerRecord(workspaceId, sessionId, 'task-shared', 'completed', {
+          sourceMessageId: 'message-shared',
+          summary: 'Lane B summary',
+          resultAnnotation: {
+            sourceMessageId: 'message-shared',
+            workspaceId,
+            sessionId,
+            taskId: 'task-shared',
+            verification: 'verified',
+            summary: 'Lane B summary',
+            ...laneB,
+          },
+          ...laneB,
+        }),
+      ],
+    ));
+    useStore.getState().setMessages(workspaceId, sessionId, [
+      makeAssistantMessage(workspaceId, sessionId, 'message-shared', 'task-shared', {
+        summary: 'Lane A message',
+        verification: 'verified',
+        ...laneA,
+      }),
+      makeAssistantMessage(workspaceId, sessionId, 'message-shared', 'task-shared', {
+        summary: 'Lane B message',
+        verification: 'verified',
+        ...laneB,
+      }),
+    ]);
+
+    const messages = selectSessionMessages(useStore.getState(), workspaceId, sessionId);
+    expect(messages).toHaveLength(2);
+    expect(messages.map((message) => selectMessageResultTrace(useStore.getState(), message)?.summary)).toEqual([
+      'Lane A summary',
+      'Lane B summary',
+    ]);
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId, laneA)).toEqual([
+      expect.objectContaining({ summary: 'Lane A summary', laneId: 'branch:feature/lane-a' }),
+    ]);
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId, laneB)).toEqual([
+      expect.objectContaining({ summary: 'Lane B summary', laneId: 'worktree:/tmp/worktrees/lane-b' }),
+    ]);
+    expect(Object.keys(useStore.getState().taskEntriesByWorkspace[workspaceId][sessionId] ?? {})).toHaveLength(2);
+    expect(Object.keys(useStore.getState().resultAnnotationsByWorkspace[workspaceId][sessionId] ?? {})).toHaveLength(2);
+  });
+
+  it('stores live message updates separately when lanes reuse the same message id', () => {
+    const workspaceId = 'workspace-live-lanes';
+    const sessionId = 'session-live-lanes';
+    const laneA: LaneAttribution = { laneContext: { kind: 'branch', branch: 'feature/live-a' } };
+    const laneB: LaneAttribution = { laneContext: { kind: 'branch', branch: 'feature/live-b' } };
+
+    useStore.getState().addMessage(
+      workspaceId,
+      sessionId,
+      makeAssistantMessage(workspaceId, sessionId, 'message-live', 'task-live', { summary: 'Lane A live', ...laneA }),
+    );
+    useStore.getState().updateMessage(
+      workspaceId,
+      sessionId,
+      makeAssistantMessage(workspaceId, sessionId, 'message-live', 'task-live', { summary: 'Lane B live', ...laneB }),
+    );
+
+    expect(selectSessionMessages(useStore.getState(), workspaceId, sessionId)).toEqual([
+      expect.objectContaining({ trace: expect.objectContaining({ laneId: 'branch:feature/live-a' }) }),
+      expect.objectContaining({ trace: expect.objectContaining({ laneId: 'branch:feature/live-b' }) }),
+    ]);
   });
 
   it('applies verification projections to the matching source message and bootstrap run state', () => {
@@ -876,6 +1038,8 @@ function makeSession(overrides: Partial<SessionSummary> & Pick<SessionSummary, '
     parentId: overrides.parentId,
     state: overrides.state,
     changeSummary: overrides.changeSummary,
+    laneId: overrides.laneId,
+    laneContext: overrides.laneContext,
   };
 }
 
@@ -927,6 +1091,8 @@ function makeTaskLedgerRecord(
     recentVerificationRef: overrides.recentVerificationRef,
     recentBrowserEvidenceRef: overrides.recentBrowserEvidenceRef,
     recentShipRef: overrides.recentShipRef,
+    laneId: overrides.laneId,
+    laneContext: overrides.laneContext,
   };
 }
 
@@ -1076,6 +1242,7 @@ function makeTaskEntry(
   sourceMessageId: string,
   taskId: string,
   latestSummary: string,
+  lane?: LaneAttribution,
 ): TaskEntry {
   return {
     taskId,
@@ -1084,6 +1251,8 @@ function makeTaskEntry(
     sourceMessageId,
     state: 'completed',
     latestSummary,
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
   };
 }
 
@@ -1094,6 +1263,7 @@ function makeResultAnnotation(
   taskId: string,
   verification: ResultAnnotation['verification'],
   summary: string,
+  lane?: LaneAttribution,
 ): ResultAnnotation {
   return {
     sourceMessageId,
@@ -1102,6 +1272,8 @@ function makeResultAnnotation(
     taskId,
     verification,
     summary,
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
   };
 }
 
@@ -1113,10 +1285,13 @@ function makeAssistantMessage(
   overrides?: {
     summary?: string;
     verification?: ResultAnnotation['verification'];
-  },
+  } & LaneAttribution,
 ): NormalizedMessage {
   const summary = overrides?.summary ?? `${taskId} summary`;
   const verification = overrides?.verification ?? 'unverified';
+  const lane = overrides?.laneId || overrides?.laneContext
+    ? { laneId: overrides.laneId, laneContext: overrides.laneContext }
+    : undefined;
 
   return {
     id: messageId,
@@ -1128,8 +1303,10 @@ function makeAssistantMessage(
       workspaceId,
       sessionId,
       taskId,
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
-    taskEntry: makeTaskEntry(workspaceId, sessionId, messageId, taskId, summary),
-    resultAnnotation: makeResultAnnotation(workspaceId, sessionId, messageId, taskId, verification, summary),
+    taskEntry: makeTaskEntry(workspaceId, sessionId, messageId, taskId, summary, lane),
+    resultAnnotation: makeResultAnnotation(workspaceId, sessionId, messageId, taskId, verification, summary, lane),
   };
 }

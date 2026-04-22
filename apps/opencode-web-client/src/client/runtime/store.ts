@@ -14,6 +14,8 @@ import type {
   CommitExecuteResult,
   CommitPreviewResult,
   InstallDiagnostics,
+  LaneAttribution,
+  LaneContext,
   MessageTraceLink,
   NormalizedMessage,
   PermissionRequest,
@@ -60,6 +62,12 @@ export interface ResolvedMessageResultTrace {
 export type ProjectedVerificationRun = VerificationRun & { browserEvidenceRef?: BrowserEvidenceReference };
 
 export type ProjectedTaskLedgerRecord = TaskLedgerRecord & { browserEvidenceRef?: BrowserEvidenceReference };
+
+export interface SessionLaneSummary extends LaneAttribution {
+  workspaceId: string;
+  sessionId: string;
+  session?: SessionSummary;
+}
 
 export interface WorkspaceCapabilityGap {
   key: WorkspaceCapabilityKey;
@@ -241,12 +249,16 @@ export const useStore = create<UIStore>((set) => ({
   setWorkspaceBootstrap: (workspaceId, bootstrap) =>
     set((s) => {
       const taskLedgerRecords = normalizeTaskLedgerRecords(workspaceId, bootstrap.taskLedgerRecords);
+      const verificationRuns = normalizeVerificationRuns(workspaceId, bootstrap.verificationRuns);
+      const browserEvidenceRecords = normalizeBrowserEvidenceRecords(workspaceId, bootstrap.browserEvidenceRecords);
       return {
         workspaceBootstraps: {
           ...s.workspaceBootstraps,
           [workspaceId]: {
             ...bootstrap,
-            ...(bootstrap.verificationRuns ? { verificationRuns: sortVerificationRuns(bootstrap.verificationRuns) } : {}),
+            sessions: normalizeSessions(bootstrap.sessions),
+            ...(verificationRuns ? { verificationRuns } : {}),
+            ...(browserEvidenceRecords ? { browserEvidenceRecords } : {}),
             ...(bootstrap.taskLedgerRecords !== undefined ? { taskLedgerRecords } : {}),
           },
         },
@@ -319,27 +331,41 @@ export const useStore = create<UIStore>((set) => ({
     set((s) => ({
       workspaceBootstraps: updateWorkspaceBootstrap(s.workspaceBootstraps, workspaceId, (bootstrap) => ({
         ...bootstrap,
-        verificationRuns: sortVerificationRuns(runs),
+        verificationRuns: normalizeVerificationRuns(workspaceId, runs) ?? [],
       })),
     })),
   upsertVerificationRun: (workspaceId, run) =>
     set((s) => ({
       workspaceBootstraps: updateWorkspaceBootstrap(s.workspaceBootstraps, workspaceId, (bootstrap) => ({
         ...bootstrap,
-        verificationRuns: upsertVerificationRuns(bootstrap.verificationRuns, run),
+        verificationRuns: upsertVerificationRuns(bootstrap.verificationRuns, normalizeVerificationRun(run)),
       })),
     })),
   applyVerificationProjection: (workspaceId, sessionId, sourceMessageId, taskEntry, resultAnnotation) =>
     set((s) => {
       const sessionKey = resolveWorkspaceSessionStoreKey(workspaceId, sessionId);
       const messages = s.messagesBySession[sessionKey] ?? EMPTY_MESSAGES;
+      const lane = mergeLaneAttribution(taskEntry, resultAnnotation);
       const messageIndex = messages.findIndex((message) => {
-        const messageSourceId = message.resultAnnotation?.sourceMessageId
-          ?? message.taskEntry?.sourceMessageId
-          ?? message.trace?.sourceMessageId
-          ?? message.id;
-        return messageSourceId === sourceMessageId;
+        return resolveMessageSourceId(message) === sourceMessageId
+          && matchesExpectedLane(resolveMessageLane(message), lane);
       });
+      const taskKey = taskEntry ? resolveTaskEntryStoreKey(normalizeTaskEntry(taskEntry, {
+        workspaceId,
+        sessionId,
+        sourceMessageId,
+        taskId: taskEntry.taskId,
+        summary: resultAnnotation?.summary,
+        lane,
+      }) ?? taskEntry) : undefined;
+      const annotationKey = resultAnnotation ? resolveResultAnnotationStoreKey(normalizeResultAnnotation(resultAnnotation, {
+        workspaceId,
+        sessionId,
+        sourceMessageId,
+        taskId: taskEntry?.taskId ?? resultAnnotation.taskId,
+        summary: taskEntry?.latestSummary,
+        lane,
+      }) ?? resultAnnotation) : undefined;
 
       if (messageIndex < 0) {
         return {
@@ -350,7 +376,14 @@ export const useStore = create<UIStore>((set) => ({
                   ...(s.taskEntriesByWorkspace[workspaceId] ?? {}),
                   [sessionId]: {
                     ...(s.taskEntriesByWorkspace[workspaceId]?.[sessionId] ?? {}),
-                    [taskEntry.taskId]: taskEntry,
+                    [taskKey ?? resolveTaskEntryStoreKey(taskEntry)]: normalizeTaskEntry(taskEntry, {
+                      workspaceId,
+                      sessionId,
+                      sourceMessageId,
+                      taskId: taskEntry.taskId,
+                      summary: resultAnnotation?.summary,
+                      lane,
+                    }) ?? taskEntry,
                   },
                 },
               }
@@ -362,7 +395,14 @@ export const useStore = create<UIStore>((set) => ({
                   ...(s.resultAnnotationsByWorkspace[workspaceId] ?? {}),
                   [sessionId]: {
                     ...(s.resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {}),
-                    [sourceMessageId]: resultAnnotation,
+                    [annotationKey ?? resolveResultAnnotationStoreKey(resultAnnotation)]: normalizeResultAnnotation(resultAnnotation, {
+                      workspaceId,
+                      sessionId,
+                      sourceMessageId,
+                      taskId: taskEntry?.taskId ?? resultAnnotation.taskId,
+                      summary: taskEntry?.latestSummary,
+                      lane,
+                    }) ?? resultAnnotation,
                   },
                 },
               }
@@ -377,8 +417,9 @@ export const useStore = create<UIStore>((set) => ({
         ?? message.taskEntry?.taskId
         ?? message.resultAnnotation?.taskId
         ?? message.trace?.taskId;
+      const nextLane = mergeLaneAttribution(message.trace, message.taskEntry, message.resultAnnotation, taskEntry, resultAnnotation);
       const mergedTaskEntry = taskEntry
-        ? {
+        ? attachLaneAttribution({
             taskId: nextTaskId ?? taskEntry.taskId,
             workspaceId: taskEntry.workspaceId,
             sessionId: taskEntry.sessionId,
@@ -386,10 +427,10 @@ export const useStore = create<UIStore>((set) => ({
             title: message.taskEntry?.title ?? taskEntry.title,
             state: message.taskEntry?.state ?? taskEntry.state,
             latestSummary: taskEntry.latestSummary ?? message.taskEntry?.latestSummary,
-          }
+          }, nextLane)
         : message.taskEntry;
       const mergedAnnotation = resultAnnotation
-        ? {
+        ? attachLaneAttribution({
             sourceMessageId,
             workspaceId: resultAnnotation.workspaceId,
             sessionId: resultAnnotation.sessionId,
@@ -407,20 +448,22 @@ export const useStore = create<UIStore>((set) => ({
                 message.resultAnnotation?.browserEvidenceRef,
               ]),
             } : {}),
-          }
+          }, nextLane)
         : message.resultAnnotation;
 
       nextMessages[messageIndex] = hydrateMessageTraceability({
         ...message,
-        trace: {
+        trace: attachLaneAttribution<MessageTraceLink>({
           sourceMessageId,
           workspaceId,
           sessionId,
           ...(nextTaskId ? { taskId: nextTaskId } : {}),
-        },
+        }, nextLane),
         ...(mergedTaskEntry ? { taskEntry: mergedTaskEntry } : {}),
         ...(mergedAnnotation ? { resultAnnotation: mergedAnnotation } : {}),
       }, workspaceId, sessionId);
+      const mergedTaskKey = mergedTaskEntry ? resolveTaskEntryStoreKey(mergedTaskEntry) : undefined;
+      const mergedAnnotationKey = mergedAnnotation ? resolveResultAnnotationStoreKey(mergedAnnotation) : undefined;
 
       return {
         messagesBySession: { ...s.messagesBySession, [sessionKey]: nextMessages },
@@ -431,7 +474,7 @@ export const useStore = create<UIStore>((set) => ({
                 ...(s.taskEntriesByWorkspace[workspaceId] ?? {}),
                 [sessionId]: {
                   ...(s.taskEntriesByWorkspace[workspaceId]?.[sessionId] ?? {}),
-                  [mergedTaskEntry.taskId]: mergedTaskEntry,
+                  [mergedTaskKey ?? resolveTaskEntryStoreKey(mergedTaskEntry)]: mergedTaskEntry,
                 },
               },
             }
@@ -443,7 +486,7 @@ export const useStore = create<UIStore>((set) => ({
                 ...(s.resultAnnotationsByWorkspace[workspaceId] ?? {}),
                 [sessionId]: {
                   ...(s.resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {}),
-                  [sourceMessageId]: mergedAnnotation,
+                  [mergedAnnotationKey ?? resolveResultAnnotationStoreKey(mergedAnnotation)]: mergedAnnotation,
                 },
               },
             }
@@ -452,10 +495,11 @@ export const useStore = create<UIStore>((set) => ({
     }),
   setSessions: (workspaceId, sessions) =>
     set((s) => {
+      const normalizedSessions = normalizeSessions(sessions);
       const previousSessions = s.sessionsByWorkspace[workspaceId] ?? [];
-      const pruned = pruneRemovedWorkspaceSessionState(s, workspaceId, previousSessions, sessions);
+      const pruned = pruneRemovedWorkspaceSessionState(s, workspaceId, previousSessions, normalizedSessions);
       return {
-        sessionsByWorkspace: { ...s.sessionsByWorkspace, [workspaceId]: sessions },
+        sessionsByWorkspace: { ...s.sessionsByWorkspace, [workspaceId]: normalizedSessions },
         messagesBySession: pruned.messagesBySession,
         taskEntriesByWorkspace: pruned.taskEntriesByWorkspace,
         resultAnnotationsByWorkspace: pruned.resultAnnotationsByWorkspace,
@@ -463,7 +507,7 @@ export const useStore = create<UIStore>((set) => ({
           pruned.streamingBySession,
           workspaceId,
           previousSessions,
-          sessions,
+          normalizedSessions,
         ),
       };
     }),
@@ -496,7 +540,7 @@ export const useStore = create<UIStore>((set) => ({
       const sessionKey = resolveWorkspaceSessionStoreKey(workspaceId, sessionId);
       const messages = s.messagesBySession[sessionKey] ?? EMPTY_MESSAGES;
       const nextMessage = hydrateMessageTraceability(message, workspaceId, sessionId);
-      const idx = messages.findIndex((entry) => entry.id === nextMessage.id);
+      const idx = findMessageIdentityIndex(messages, nextMessage);
       const nextMessages = idx === -1
         ? [...messages, nextMessage]
         : messages.map((entry, index) => index === idx ? nextMessage : entry);
@@ -519,7 +563,7 @@ export const useStore = create<UIStore>((set) => ({
       const sessionKey = resolveWorkspaceSessionStoreKey(workspaceId, sessionId);
       const existing = s.messagesBySession[sessionKey] ?? EMPTY_MESSAGES;
       const nextMessage = hydrateMessageTraceability(message, workspaceId, sessionId);
-      const idx = existing.findIndex((entry) => entry.id === nextMessage.id);
+      const idx = findMessageIdentityIndex(existing, nextMessage);
       const nextMessages = idx >= 0
         ? existing.map((entry, index) => index === idx ? nextMessage : entry)
         : [...existing, nextMessage];
@@ -625,6 +669,61 @@ export function selectSessionStreaming(
 ): boolean {
   if (!workspaceId || !sessionId) return false;
   return !!store.streamingBySession[resolveWorkspaceSessionStoreKey(workspaceId, sessionId)];
+}
+
+export function findMessageIdentityIndex(messages: NormalizedMessage[], target: NormalizedMessage): number {
+  return messages.findIndex((message) => isSameMessageIdentity(message, target));
+}
+
+export function selectSessionLane(
+  store: Pick<UIStore, 'sessionsByWorkspace' | 'workspaceBootstraps' | 'messagesBySession' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace'>,
+  workspaceId?: string | null,
+  sessionId?: string,
+): SessionLaneSummary | undefined {
+  if (!workspaceId || !sessionId) return undefined;
+
+  const session = (store.sessionsByWorkspace[workspaceId] ?? store.workspaceBootstraps[workspaceId]?.sessions ?? [])
+    .find((entry) => entry.id === sessionId);
+  const lane = mergeLaneAttribution(
+    session,
+    ...selectSessionMessages(store, workspaceId, sessionId).map(resolveMessageLane),
+    ...Object.values(store.taskEntriesByWorkspace[workspaceId]?.[sessionId] ?? {}),
+    ...Object.values(store.resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {}),
+  );
+
+  if (!session && !lane) return undefined;
+
+  return {
+    workspaceId,
+    sessionId,
+    ...(session ? { session } : {}),
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
+  };
+}
+
+export function selectWorkspaceSessionLanes(
+  store: Pick<UIStore, 'sessionsByWorkspace' | 'workspaceBootstraps' | 'messagesBySession' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace'>,
+  workspaceId?: string | null,
+): SessionLaneSummary[] {
+  if (!workspaceId) return [];
+
+  const sessionIds = new Set<string>([
+    ...(store.sessionsByWorkspace[workspaceId] ?? []).map((session) => session.id),
+    ...(store.workspaceBootstraps[workspaceId]?.sessions ?? []).map((session) => session.id),
+    ...Object.keys(store.taskEntriesByWorkspace[workspaceId] ?? {}).filter((sessionId) => sessionId !== WORKSPACE_SCOPE_SESSION_KEY),
+    ...Object.keys(store.resultAnnotationsByWorkspace[workspaceId] ?? {}),
+  ]);
+
+  return [...sessionIds]
+    .map((sessionId) => selectSessionLane(store, workspaceId, sessionId))
+    .filter((lane): lane is SessionLaneSummary => !!lane);
+}
+
+export function selectActiveWorkspaceSessionLanes(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'sessionsByWorkspace' | 'workspaceBootstraps' | 'messagesBySession' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace'>,
+): SessionLaneSummary[] {
+  return selectWorkspaceSessionLanes(store, store.activeWorkspaceId);
 }
 
 export function selectWorkspaceCapabilities(
@@ -790,7 +889,7 @@ export function selectWorkspaceVerificationRuns(
   return (store.workspaceBootstraps[workspaceId]?.verificationRuns ?? []).map((run) => {
     const browserEvidenceRef = deriveBrowserEvidenceProjection({
       capabilities,
-      browserEvidenceRecords,
+      browserEvidenceRecords: filterBrowserEvidenceRecordsByLane(browserEvidenceRecords, run),
       sessionId: run.sessionId,
       sourceMessageId: run.sourceMessageId,
       taskId: run.taskId,
@@ -828,9 +927,13 @@ export function selectSessionTaskLedgerRecords(
   store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
   workspaceId?: string | null,
   sessionId?: string,
+  lane?: LaneAttribution,
 ): ProjectedTaskLedgerRecord[] {
   if (!workspaceId || !sessionId) return [];
-  return selectWorkspaceTaskLedgerRecords(store, workspaceId).filter((record) => resolveTaskLedgerRecordSessionId(record) === sessionId);
+  return selectWorkspaceTaskLedgerRecords(store, workspaceId).filter((record) => {
+    if (resolveTaskLedgerRecordSessionId(record) !== sessionId) return false;
+    return matchesExpectedLane(record, lane);
+  });
 }
 
 export function selectMessageResultTrace(
@@ -847,22 +950,30 @@ export function selectMessageResultTrace(
     ?? message.taskEntry?.sourceMessageId
     ?? message.trace?.sourceMessageId
     ?? message.id;
+  const messageLane = resolveMessageLane(message);
 
   if (!workspaceId || !sessionId || !sourceMessageId) {
     return undefined;
   }
 
-  const annotation = store.resultAnnotationsByWorkspace[workspaceId]?.[sessionId]?.[sourceMessageId]
+  const annotation = selectResultAnnotation(store, workspaceId, sessionId, sourceMessageId, messageLane)
     ?? message.resultAnnotation;
-  const linkedVerificationRuns = selectLinkedVerificationRuns(store, workspaceId, sessionId, sourceMessageId, annotation?.taskId ?? message.trace?.taskId ?? message.taskEntry?.taskId);
+  const linkedVerificationRuns = selectLinkedVerificationRuns(
+    store,
+    workspaceId,
+    sessionId,
+    sourceMessageId,
+    annotation?.taskId ?? message.trace?.taskId ?? message.taskEntry?.taskId,
+    messageLane,
+  );
   const verificationProjection = deriveVerificationEvidence(linkedVerificationRuns);
   const taskId = annotation?.taskId
     ?? message.trace?.taskId
     ?? message.taskEntry?.taskId
     ?? verificationProjection.latestRun?.taskId;
-  const linkedTaskRecord = selectLinkedTaskLedgerRecord(store, workspaceId, sessionId, sourceMessageId, taskId);
+  const linkedTaskRecord = selectLinkedTaskLedgerRecord(store, workspaceId, sessionId, sourceMessageId, taskId, messageLane);
   const taskEntry = taskId
-    ? selectTaskEntry(store, workspaceId, taskId, sessionId) ?? message.taskEntry
+    ? selectTaskEntry(store, workspaceId, taskId, sessionId, messageLane) ?? message.taskEntry
     : message.taskEntry;
   const projectedAnnotation = projectResultAnnotation(
     annotation,
@@ -873,7 +984,7 @@ export function selectMessageResultTrace(
     capabilities: selectWorkspaceCapabilities(store, workspaceId),
     annotation: projectedAnnotation,
     taskRecord: linkedTaskRecord,
-    browserEvidenceRecords: store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords,
+    browserEvidenceRecords: filterBrowserEvidenceRecordsByLane(store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords, messageLane),
     sessionId,
     sourceMessageId,
     taskId,
@@ -884,12 +995,12 @@ export function selectMessageResultTrace(
   }
 
   return {
-    trace: {
+    trace: attachLaneAttribution<MessageTraceLink>({
       sourceMessageId,
       workspaceId,
       sessionId,
       ...(taskId ? { taskId } : {}),
-    },
+    }, mergeLaneAttribution(message.trace, annotation, taskEntry, verificationProjection.latestRun, linkedTaskRecord)),
     annotation: projectResultAnnotationBrowserEvidence(projectedAnnotation, browserEvidenceRef),
     taskEntry,
     shipReference: linkedTaskRecord?.recentShipRef,
@@ -908,8 +1019,9 @@ function selectLinkedTaskLedgerRecord(
   sessionId: string,
   sourceMessageId: string,
   taskId?: string,
+  lane?: LaneAttribution,
 ): TaskLedgerRecord | undefined {
-  const records = selectSessionTaskLedgerRecords(store, workspaceId, sessionId);
+  const records = selectSessionTaskLedgerRecords(store, workspaceId, sessionId, lane);
   return records.find((record) => {
     if (record.sourceMessageId === sourceMessageId) return true;
     return !!taskId && record.taskId === taskId;
@@ -922,11 +1034,13 @@ function selectLinkedVerificationRuns(
   sessionId: string,
   sourceMessageId: string,
   taskId?: string,
+  lane?: LaneAttribution,
 ): VerificationRun[] {
   const runs = selectWorkspaceVerificationRuns(store, workspaceId);
   return runs.filter((run) => {
     if (run.workspaceId !== workspaceId) return false;
     if (run.sessionId && run.sessionId !== sessionId) return false;
+    if (!matchesExpectedLane(run, lane)) return false;
     if (run.sourceMessageId === sourceMessageId) return true;
     return !!taskId && run.taskId === taskId;
   });
@@ -972,15 +1086,20 @@ function selectTaskEntry(
   workspaceId: string,
   taskId: string,
   preferredSessionId?: string,
+  lane?: LaneAttribution,
 ): TaskEntry | undefined {
   const entriesBySession = store.taskEntriesByWorkspace[workspaceId] ?? {};
-  if (preferredSessionId && entriesBySession[preferredSessionId]?.[taskId]) {
-    return entriesBySession[preferredSessionId][taskId];
-  }
-  if (entriesBySession[WORKSPACE_SCOPE_SESSION_KEY]?.[taskId]) {
-    return entriesBySession[WORKSPACE_SCOPE_SESSION_KEY][taskId];
-  }
-  return Object.values(entriesBySession).find((entries) => entries[taskId])?.[taskId];
+
+  const selectFromEntries = (entries: Record<string, TaskEntry> | undefined): TaskEntry | undefined => {
+    if (!entries) return undefined;
+    return Object.values(entries).find((entry) => entry.taskId === taskId && matchesExpectedLane(entry, lane));
+  };
+
+  return selectFromEntries(preferredSessionId ? entriesBySession[preferredSessionId] : undefined)
+    ?? selectFromEntries(entriesBySession[WORKSPACE_SCOPE_SESSION_KEY])
+    ?? Object.values(entriesBySession)
+      .flatMap((entries) => Object.values(entries))
+      .find((entry) => entry.taskId === taskId && matchesExpectedLane(entry, lane));
 }
 
 function projectTaskLedgerRecord(
@@ -994,7 +1113,7 @@ function projectTaskLedgerRecord(
     capabilities,
     annotation: projectedAnnotation,
     taskRecord: record,
-    browserEvidenceRecords,
+    browserEvidenceRecords: filterBrowserEvidenceRecordsByLane(browserEvidenceRecords, record),
     sessionId: resolveTaskLedgerRecordSessionId(record),
     sourceMessageId: record.sourceMessageId ?? record.resultAnnotation?.sourceMessageId,
     taskId: record.taskId,
@@ -1026,7 +1145,7 @@ function projectResultAnnotation(
     return annotation;
   }
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: annotation.sourceMessageId,
     workspaceId: annotation.workspaceId,
     sessionId: annotation.sessionId,
@@ -1035,7 +1154,7 @@ function projectResultAnnotation(
     ...(annotation.summary ? { summary: annotation.summary } : {}),
     ...(projection.reviewState ? { reviewState: projection.reviewState } : {}),
     ...(projection.shipState ? { shipState: projection.shipState } : {}),
-  };
+  }, annotation);
 }
 
 function projectResultAnnotationBrowserEvidence(
@@ -1044,7 +1163,7 @@ function projectResultAnnotationBrowserEvidence(
 ): ResultAnnotation | undefined {
   if (!annotation) return undefined;
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: annotation.sourceMessageId,
     workspaceId: annotation.workspaceId,
     sessionId: annotation.sessionId,
@@ -1054,7 +1173,7 @@ function projectResultAnnotationBrowserEvidence(
     ...(annotation.reviewState ? { reviewState: annotation.reviewState } : {}),
     ...(annotation.shipState ? { shipState: annotation.shipState } : {}),
     ...(browserEvidenceRef ? { browserEvidenceRef } : {}),
-  };
+  }, annotation);
 }
 
 function deriveLinkedPullRequestProjection(status?: WorkspaceGitStatusResult): {
@@ -1212,10 +1331,10 @@ function buildSessionTraceability(messages: NormalizedMessage[]): {
 
   for (const message of messages) {
     if (message.taskEntry?.taskId) {
-      taskEntries[message.taskEntry.taskId] = message.taskEntry;
+      taskEntries[resolveTaskEntryStoreKey(message.taskEntry)] = message.taskEntry;
     }
     if (message.resultAnnotation?.sourceMessageId) {
-      resultAnnotations[message.resultAnnotation.sourceMessageId] = message.resultAnnotation;
+      resultAnnotations[resolveResultAnnotationStoreKey(message.resultAnnotation)] = message.resultAnnotation;
     }
   }
 
@@ -1232,14 +1351,16 @@ function groupTaskEntriesBySession(
   const grouped: TaskEntriesBySession = {};
   for (const taskEntry of traceability?.taskEntries ?? []) {
     const sessionKey = taskEntry.sessionId ?? WORKSPACE_SCOPE_SESSION_KEY;
-    grouped[sessionKey] = { ...(grouped[sessionKey] ?? {}), [taskEntry.taskId]: taskEntry };
+    const normalizedTaskEntry = attachLaneAttribution({ ...taskEntry }, taskEntry);
+    grouped[sessionKey] = { ...(grouped[sessionKey] ?? {}), [resolveTaskEntryStoreKey(normalizedTaskEntry)]: normalizedTaskEntry };
   }
 
   for (const record of taskLedgerRecords ?? []) {
     const sessionKey = resolveTaskLedgerRecordSessionId(record) ?? WORKSPACE_SCOPE_SESSION_KEY;
+    const taskEntry = taskLedgerRecordToTaskEntry(record, sessionKey);
     grouped[sessionKey] = {
       ...(grouped[sessionKey] ?? {}),
-      [record.taskId]: taskLedgerRecordToTaskEntry(record, sessionKey),
+      [resolveTaskEntryStoreKey(taskEntry)]: taskEntry,
     };
   }
 
@@ -1252,9 +1373,10 @@ function groupResultAnnotationsBySession(
 ): ResultAnnotationsBySession {
   const grouped: ResultAnnotationsBySession = {};
   for (const resultAnnotation of traceability?.resultAnnotations ?? []) {
+    const normalizedResultAnnotation = attachLaneAttribution({ ...resultAnnotation }, resultAnnotation);
     grouped[resultAnnotation.sessionId] = {
       ...(grouped[resultAnnotation.sessionId] ?? {}),
-      [resultAnnotation.sourceMessageId]: resultAnnotation,
+      [resolveResultAnnotationStoreKey(normalizedResultAnnotation)]: normalizedResultAnnotation,
     };
   }
 
@@ -1264,7 +1386,7 @@ function groupResultAnnotationsBySession(
 
     grouped[resultAnnotation.sessionId] = {
       ...(grouped[resultAnnotation.sessionId] ?? {}),
-      [resultAnnotation.sourceMessageId]: resultAnnotation,
+      [resolveResultAnnotationStoreKey(resultAnnotation)]: resultAnnotation,
     };
   }
 
@@ -1308,7 +1430,7 @@ function mergeTaskEntries(baseEntry?: TaskEntry, nextEntry?: TaskEntry): TaskEnt
   if (!baseEntry) return nextEntry;
   if (!nextEntry) return baseEntry;
 
-  return {
+  return attachLaneAttribution({
     taskId: nextEntry.taskId,
     workspaceId: nextEntry.workspaceId,
     sessionId: nextEntry.sessionId ?? baseEntry.sessionId,
@@ -1316,7 +1438,7 @@ function mergeTaskEntries(baseEntry?: TaskEntry, nextEntry?: TaskEntry): TaskEnt
     title: baseEntry.title ?? nextEntry.title,
     state: baseEntry.state,
     latestSummary: baseEntry.latestSummary ?? nextEntry.latestSummary,
-  };
+  }, mergeLaneAttribution(baseEntry, nextEntry));
 }
 
 function mergeResultAnnotationMaps(
@@ -1343,7 +1465,7 @@ function mergeResultAnnotations(
   if (!baseAnnotation) return nextAnnotation;
   if (!nextAnnotation) return baseAnnotation;
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: nextAnnotation.sourceMessageId,
     workspaceId: nextAnnotation.workspaceId,
     sessionId: nextAnnotation.sessionId,
@@ -1361,11 +1483,11 @@ function mergeResultAnnotations(
         nextAnnotation.browserEvidenceRef,
       ]),
     } : {}),
-  };
+  }, mergeLaneAttribution(baseAnnotation, nextAnnotation));
 }
 
 function taskLedgerRecordToTaskEntry(record: TaskLedgerRecord, sessionKey: string): TaskEntry {
-  return {
+  return attachLaneAttribution({
     taskId: record.taskId,
     workspaceId: record.workspaceId,
     ...(sessionKey !== WORKSPACE_SCOPE_SESSION_KEY ? { sessionId: sessionKey } : {}),
@@ -1373,7 +1495,7 @@ function taskLedgerRecordToTaskEntry(record: TaskLedgerRecord, sessionKey: strin
     ...(record.title ? { title: record.title } : {}),
     state: record.state,
     latestSummary: record.summary,
-  };
+  }, record);
 }
 
 function taskLedgerRecordToResultAnnotation(record: TaskLedgerRecord): ResultAnnotation | undefined {
@@ -1386,11 +1508,16 @@ function taskLedgerRecordToResultAnnotation(record: TaskLedgerRecord): ResultAnn
     sourceMessageId: record.resultAnnotation.sourceMessageId,
     taskId: record.taskId,
     summary: record.summary,
+    lane: record,
   });
 }
 
 function normalizeTaskLedgerRecords(workspaceId: string, records?: TaskLedgerRecord[]): TaskLedgerRecord[] {
-  return sortTaskLedgerRecords((records ?? []).filter((record) => record.workspaceId === workspaceId));
+  return sortTaskLedgerRecords(
+    (records ?? [])
+      .filter((record) => record.workspaceId === workspaceId)
+      .map(normalizeTaskLedgerRecord),
+  );
 }
 
 function resolveTaskLedgerRecordSessionId(record: TaskLedgerRecord): string | undefined {
@@ -1421,12 +1548,14 @@ function hydrateMessageTraceability(
   const linkedTaskId = message.resultAnnotation?.taskId
     ?? message.taskEntry?.taskId
     ?? message.trace?.taskId;
+  const lane = mergeLaneAttribution(message.trace, message.taskEntry, message.resultAnnotation);
   const taskEntry = normalizeTaskEntry(message.taskEntry, {
     workspaceId,
     sessionId,
     sourceMessageId,
     taskId: linkedTaskId,
     summary: message.resultAnnotation?.summary,
+    lane,
   });
   const resultAnnotation = normalizeResultAnnotation(message.resultAnnotation, {
     workspaceId,
@@ -1434,16 +1563,17 @@ function hydrateMessageTraceability(
     sourceMessageId,
     taskId: linkedTaskId ?? taskEntry?.taskId,
     summary: taskEntry?.latestSummary,
+    lane,
   });
 
   return {
     ...message,
-    trace: {
+    trace: attachLaneAttribution<MessageTraceLink>({
       sourceMessageId,
       workspaceId,
       sessionId,
       ...(resultAnnotation?.taskId ?? taskEntry?.taskId ? { taskId: resultAnnotation?.taskId ?? taskEntry?.taskId } : {}),
-    },
+    }, mergeLaneAttribution(lane, taskEntry, resultAnnotation)),
     ...(taskEntry ? { taskEntry } : {}),
     ...(resultAnnotation ? { resultAnnotation } : {}),
   };
@@ -1451,12 +1581,12 @@ function hydrateMessageTraceability(
 
 function normalizeTaskEntry(
   taskEntry: TaskEntry | undefined,
-  context: { workspaceId: string; sessionId: string; sourceMessageId: string; taskId?: string; summary?: string },
+  context: { workspaceId: string; sessionId: string; sourceMessageId: string; taskId?: string; summary?: string; lane?: LaneAttribution },
 ): TaskEntry | undefined {
   const taskId = taskEntry?.taskId ?? context.taskId;
   if (!taskId) return undefined;
 
-  return {
+  return attachLaneAttribution({
     taskId,
     workspaceId: taskEntry?.workspaceId ?? context.workspaceId,
     sessionId: taskEntry?.sessionId ?? context.sessionId,
@@ -1464,18 +1594,18 @@ function normalizeTaskEntry(
     title: taskEntry?.title,
     state: taskEntry?.state ?? 'completed',
     latestSummary: taskEntry?.latestSummary ?? context.summary,
-  };
+  }, mergeLaneAttribution(taskEntry, context.lane));
 }
 
 function normalizeResultAnnotation(
   annotation: ResultAnnotation | undefined,
-  context: { workspaceId: string; sessionId: string; sourceMessageId: string; taskId?: string; summary?: string },
+  context: { workspaceId: string; sessionId: string; sourceMessageId: string; taskId?: string; summary?: string; lane?: LaneAttribution },
 ): ResultAnnotation | undefined {
   const taskId = annotation?.taskId ?? context.taskId;
   const summary = annotation?.summary ?? context.summary;
   if (!annotation && !taskId && !summary) return undefined;
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: annotation?.sourceMessageId ?? context.sourceMessageId,
     workspaceId: annotation?.workspaceId ?? context.workspaceId,
     sessionId: annotation?.sessionId ?? context.sessionId,
@@ -1485,7 +1615,150 @@ function normalizeResultAnnotation(
     ...(annotation?.reviewState ? { reviewState: annotation.reviewState } : {}),
     ...(annotation?.shipState ? { shipState: annotation.shipState } : {}),
     ...(annotation?.browserEvidenceRef ? { browserEvidenceRef: annotation.browserEvidenceRef } : {}),
+  }, mergeLaneAttribution(annotation, context.lane));
+}
+
+function normalizeSessions(sessions: SessionSummary[]): SessionSummary[] {
+  return sessions.map(normalizeSessionSummary);
+}
+
+function normalizeSessionSummary(session: SessionSummary): SessionSummary {
+  return attachLaneAttribution({ ...session }, session);
+}
+
+function normalizeVerificationRuns(workspaceId: string, runs?: VerificationRun[]): VerificationRun[] | undefined {
+  if (!runs) return undefined;
+  return sortVerificationRuns(runs.filter((run) => run.workspaceId === workspaceId).map(normalizeVerificationRun));
+}
+
+function normalizeVerificationRun(run: VerificationRun): VerificationRun {
+  return attachLaneAttribution({ ...run }, run);
+}
+
+function normalizeBrowserEvidenceRecords(workspaceId: string, records?: BrowserEvidenceRecord[]): BrowserEvidenceRecord[] | undefined {
+  if (!records) return undefined;
+  return records
+    .filter((record) => record.workspaceId === workspaceId)
+    .map(normalizeBrowserEvidenceRecord);
+}
+
+function normalizeBrowserEvidenceRecord(record: BrowserEvidenceRecord): BrowserEvidenceRecord {
+  return attachLaneAttribution({ ...record }, record);
+}
+
+function normalizeTaskLedgerRecord(record: TaskLedgerRecord): TaskLedgerRecord {
+  const sessionId = resolveTaskLedgerRecordSessionId(record);
+  const lane = mergeLaneAttribution(record, record.resultAnnotation);
+  const resultAnnotation = record.resultAnnotation && sessionId
+    ? normalizeResultAnnotation(record.resultAnnotation, {
+        workspaceId: record.workspaceId,
+        sessionId,
+        sourceMessageId: record.resultAnnotation.sourceMessageId ?? record.sourceMessageId ?? record.taskId,
+        taskId: record.taskId,
+        summary: record.summary,
+        lane,
+      })
+    : record.resultAnnotation
+      ? attachLaneAttribution({ ...record.resultAnnotation }, lane)
+      : undefined;
+
+  return attachLaneAttribution({
+    ...record,
+    ...(resultAnnotation ? { resultAnnotation } : {}),
+  }, lane);
+}
+
+function selectResultAnnotation(
+  store: Pick<UIStore, 'resultAnnotationsByWorkspace'>,
+  workspaceId: string,
+  sessionId: string,
+  sourceMessageId: string,
+  lane?: LaneAttribution,
+): ResultAnnotation | undefined {
+  return Object.values(store.resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {})
+    .find((annotation) => annotation.sourceMessageId === sourceMessageId && matchesExpectedLane(annotation, lane));
+}
+
+function filterBrowserEvidenceRecordsByLane(
+  records: BrowserEvidenceRecord[] | undefined,
+  lane?: LaneAttribution,
+): BrowserEvidenceRecord[] | undefined {
+  if (!records) return undefined;
+  const expectedLaneId = resolveLaneId(lane);
+  if (!expectedLaneId) return records;
+  return records.filter((record) => resolveLaneId(record) === expectedLaneId);
+}
+
+function resolveTaskEntryStoreKey(entry: TaskEntry): string {
+  const laneId = resolveLaneId(entry);
+  return laneId ? `${entry.taskId}::${laneId}` : entry.taskId;
+}
+
+function resolveResultAnnotationStoreKey(annotation: ResultAnnotation): string {
+  const laneId = resolveLaneId(annotation);
+  return laneId ? `${annotation.sourceMessageId}::${laneId}` : annotation.sourceMessageId;
+}
+
+function resolveMessageLane(message: NormalizedMessage): LaneAttribution | undefined {
+  return mergeLaneAttribution(message.trace, message.taskEntry, message.resultAnnotation);
+}
+
+function resolveMessageSourceId(message: NormalizedMessage): string {
+  return message.resultAnnotation?.sourceMessageId
+    ?? message.taskEntry?.sourceMessageId
+    ?? message.trace?.sourceMessageId
+    ?? message.id;
+}
+
+function isSameMessageIdentity(left: NormalizedMessage, right: NormalizedMessage): boolean {
+  if (left.id !== right.id) return false;
+  return !hasConflictingLane(resolveMessageLane(left), resolveMessageLane(right));
+}
+
+function matchesExpectedLane(candidate: LaneAttribution | undefined, expected: LaneAttribution | undefined): boolean {
+  const expectedLaneId = resolveLaneId(expected);
+  if (!expectedLaneId) return true;
+  return resolveLaneId(candidate) === expectedLaneId;
+}
+
+function hasConflictingLane(left: LaneAttribution | undefined, right: LaneAttribution | undefined): boolean {
+  const leftLaneId = resolveLaneId(left);
+  const rightLaneId = resolveLaneId(right);
+  return !!leftLaneId && !!rightLaneId && leftLaneId !== rightLaneId;
+}
+
+function attachLaneAttribution<T extends object>(record: T, lane: LaneAttribution | undefined): T & LaneAttribution {
+  const nextLane = mergeLaneAttribution(record as LaneAttribution, lane);
+  if (!nextLane) return record as T & LaneAttribution;
+
+  return {
+    ...record,
+    ...(nextLane.laneId ? { laneId: nextLane.laneId } : {}),
+    ...(nextLane.laneContext ? { laneContext: nextLane.laneContext } : {}),
   };
+}
+
+function mergeLaneAttribution(...values: Array<LaneAttribution | undefined>): LaneAttribution | undefined {
+  const laneId = values.map(resolveLaneId).find((value): value is string => !!value);
+  const laneContext = values.find((value) => value?.laneContext)?.laneContext;
+  if (!laneId && !laneContext) return undefined;
+
+  return {
+    ...(laneId ? { laneId } : {}),
+    ...(laneContext ? { laneContext } : {}),
+  };
+}
+
+function resolveLaneId(value: LaneAttribution | undefined): string | undefined {
+  return value?.laneId ?? deriveLaneId(value?.laneContext);
+}
+
+function deriveLaneId(laneContext: LaneContext | undefined): string | undefined {
+  if (!laneContext) return undefined;
+  if (laneContext.kind === 'branch') {
+    return `branch:${laneContext.branch}`;
+  }
+  return `worktree:${laneContext.worktreePath}`;
 }
 
 const USAGE_CACHE_KEY = 'opencode-web-client:usage-cache';
@@ -1593,7 +1866,7 @@ function sortVerificationRuns(runs: VerificationRun[]): VerificationRun[] {
 
 function upsertVerificationRuns(runs: VerificationRun[] | undefined, run: VerificationRun): VerificationRun[] {
   const existing = runs ?? [];
-  const index = existing.findIndex((entry) => entry.id === run.id);
+  const index = existing.findIndex((entry) => entry.id === run.id && !hasConflictingLane(entry, run));
   if (index === -1) {
     return sortVerificationRuns([run, ...existing]);
   }

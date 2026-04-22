@@ -10,6 +10,7 @@ import type {
   TaskEntry,
   TaskEntryState,
 } from '../../shared/types.js'
+import { attachLaneAttribution, extractLaneAttribution } from './lane-attribution.js'
 
 interface NormalizeMessageScope {
   workspaceId?: string
@@ -22,6 +23,8 @@ interface TraceDefaults {
   sessionId?: string
   taskId?: string
   summary?: string
+  laneId?: string
+  laneContext?: TaskEntry['laneContext']
 }
 
 interface TaskCandidate {
@@ -45,6 +48,7 @@ export function normalizeMessage(raw: any, scope: NormalizeMessageScope = {}): N
     sourceMessageId: id,
     workspaceId,
     sessionId,
+    ...extractLaneAttribution(raw, info),
   }
   const taskEntry = extractTaskEntry(raw, defaults)
   const resultAnnotation = extractResultAnnotation(raw, {
@@ -173,13 +177,17 @@ function mapPartType(type: string | undefined): NormalizedPartType | null {
 
 function buildTraceLink(defaults: TraceDefaults): MessageTraceLink | undefined {
   if (!defaults.sourceMessageId) return undefined
-  if (!defaults.workspaceId && !defaults.sessionId && !defaults.taskId) return undefined
+  if (!defaults.workspaceId && !defaults.sessionId && !defaults.taskId && !defaults.laneId && !defaults.laneContext) {
+    return undefined
+  }
 
   return {
     sourceMessageId: defaults.sourceMessageId,
     ...(defaults.workspaceId ? { workspaceId: defaults.workspaceId } : {}),
     ...(defaults.sessionId ? { sessionId: defaults.sessionId } : {}),
     ...(defaults.taskId ? { taskId: defaults.taskId } : {}),
+    ...(defaults.laneId ? { laneId: defaults.laneId } : {}),
+    ...(defaults.laneContext ? { laneContext: defaults.laneContext } : {}),
   }
 }
 
@@ -205,14 +213,14 @@ function extractResultAnnotation(raw: any, defaults: TraceDefaults): ResultAnnot
     return undefined
   }
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId: defaults.sourceMessageId,
     workspaceId: defaults.workspaceId,
     sessionId: defaults.sessionId,
-    verification: 'unverified',
+    verification: 'unverified' as const,
     ...(defaults.taskId ? { taskId: defaults.taskId } : {}),
     ...(defaults.summary ? { summary: defaults.summary } : {}),
-  }
+  }, defaults)
 }
 
 function collectTaskCandidates(raw: any): TaskCandidate[] {
@@ -311,7 +319,7 @@ function normalizeTaskEntryCandidate(
   const title = readString(candidate, 'title', 'label')
   const latestSummary = readString(candidate, 'latestSummary', 'latest_summary', 'resultSummary', 'result_summary', 'summary')
 
-  return {
+  return attachLaneAttribution({
     taskId,
     workspaceId,
     state,
@@ -319,7 +327,7 @@ function normalizeTaskEntryCandidate(
     ...(sourceMessageId ? { sourceMessageId } : {}),
     ...(title ? { title } : {}),
     ...(latestSummary ? { latestSummary } : {}),
-  }
+  }, extractLaneAttribution(candidate, defaults))
 }
 
 function normalizeResultAnnotationCandidate(
@@ -355,7 +363,7 @@ function normalizeResultAnnotationCandidate(
     return undefined
   }
 
-  return {
+  return attachLaneAttribution({
     sourceMessageId,
     workspaceId,
     sessionId,
@@ -364,7 +372,7 @@ function normalizeResultAnnotationCandidate(
     ...(summary ? { summary } : {}),
     ...(reviewState ? { reviewState } : {}),
     ...(shipState ? { shipState } : {}),
-  }
+  }, extractLaneAttribution(candidate, defaults))
 }
 
 function hasExplicitAnnotationSignal(candidate: Record<string, unknown>): boolean {

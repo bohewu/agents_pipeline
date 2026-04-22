@@ -39,6 +39,8 @@ import {
   selectActiveWorkspaceContextCapabilityEntries,
   selectActiveWorkspaceContextCatalog,
   selectActiveWorkspaceContextInstructionSources,
+  selectSessionMessages,
+  selectWorkspaceSessionLanes,
   useStore,
 } from '../../runtime/store.js';
 import type {
@@ -92,8 +94,24 @@ describe('AppShell continuity hydration', () => {
   it('rehydrates workspace bootstrap task records on same-workspace reconnect', async () => {
     const workspaceId = 'workspace-reconnect';
     const sessionId = 'session-1';
-    const initialBootstrap = makeBootstrap(workspaceId, sessionId, 'Task summary before reconnect', 'https://github.com/example/repo/pull/1');
-    const reconnectedBootstrap = makeBootstrap(workspaceId, sessionId, 'Task summary after reconnect', 'https://github.com/example/repo/pull/2');
+    const initialLane = { laneContext: { kind: 'branch', branch: 'feature/reconnect-before' } } as const;
+    const reconnectedLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/reconnect-after', branch: 'feature/reconnect-after' },
+    } as const;
+    const initialBootstrap = makeBootstrap(
+      workspaceId,
+      sessionId,
+      'Task summary before reconnect',
+      'https://github.com/example/repo/pull/1',
+      initialLane,
+    );
+    const reconnectedBootstrap = makeBootstrap(
+      workspaceId,
+      sessionId,
+      'Task summary after reconnect',
+      'https://github.com/example/repo/pull/2',
+      reconnectedLane,
+    );
     const initialCatalog = makeContextCatalog(workspaceId, {
       instructionId: 'project-local:agents-file:before-reconnect',
       capabilityId: 'project-local:commands:before-reconnect',
@@ -109,7 +127,9 @@ describe('AppShell continuity hydration', () => {
     apiMocks.getWorkspaceContextCatalog
       .mockResolvedValueOnce(initialCatalog)
       .mockResolvedValueOnce(reconnectedCatalog);
-    apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, sessionId)]);
+    apiMocks.listMessages
+      .mockResolvedValueOnce([makeMessage(workspaceId, sessionId, initialLane)])
+      .mockResolvedValueOnce([makeMessage(workspaceId, sessionId, reconnectedLane)]);
 
     useStore.getState().setActiveWorkspace(workspaceId);
 
@@ -140,16 +160,17 @@ describe('AppShell continuity hydration', () => {
         }),
       }),
     );
-    expect(useStore.getState().taskEntriesByWorkspace[workspaceId]?.[sessionId]?.['task-1']).toEqual(
+    expect(Object.values(useStore.getState().taskEntriesByWorkspace[workspaceId]?.[sessionId] ?? {})).toEqual([
       expect.objectContaining({
         taskId: 'task-1',
         workspaceId,
         sessionId,
         state: 'completed',
         latestSummary: 'Task summary before reconnect',
+        laneId: 'branch:feature/reconnect-before',
       }),
-    );
-    expect(useStore.getState().resultAnnotationsByWorkspace[workspaceId]?.[sessionId]?.['message-1']).toEqual(
+    ]);
+    expect(Object.values(useStore.getState().resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {})).toEqual([
       expect.objectContaining({
         sourceMessageId: 'message-1',
         workspaceId,
@@ -157,7 +178,7 @@ describe('AppShell continuity hydration', () => {
         taskId: 'task-1',
         summary: 'Task summary before reconnect',
       }),
-    );
+    ]);
 
     await act(async () => {
       emitEvent?.({
@@ -173,6 +194,9 @@ describe('AppShell continuity hydration', () => {
     expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledTimes(2);
     expect(apiMocks.listMessages).toHaveBeenCalledTimes(2);
     expect(useStore.getState().activeSessionByWorkspace[workspaceId]).toBe(sessionId);
+    expect(selectWorkspaceSessionLanes(useStore.getState(), workspaceId)).toEqual([
+      expect.objectContaining({ sessionId, laneId: 'worktree:/tmp/worktrees/reconnect-after' }),
+    ]);
     expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
       'project-local:agents-file:after-reconnect',
     ]);
@@ -196,13 +220,19 @@ describe('AppShell continuity hydration', () => {
         }),
       }),
     );
-    expect(useStore.getState().taskEntriesByWorkspace[workspaceId]?.[sessionId]?.['task-1']).toEqual(
+    expect(Object.values(useStore.getState().taskEntriesByWorkspace[workspaceId]?.[sessionId] ?? {})).toEqual([
       expect.objectContaining({
         workspaceId,
         sessionId,
         latestSummary: 'Task summary after reconnect',
+        laneId: 'worktree:/tmp/worktrees/reconnect-after',
       }),
-    );
+    ]);
+    expect(selectSessionMessages(useStore.getState(), workspaceId, sessionId)).toEqual([
+      expect.objectContaining({
+        trace: expect.objectContaining({ laneId: 'worktree:/tmp/worktrees/reconnect-after' }),
+      }),
+    ]);
     expect(useStore.getState().connectionByWorkspace[workspaceId]).toBe('connected');
   });
 
@@ -268,6 +298,91 @@ describe('AppShell continuity hydration', () => {
     ]);
   });
 
+  it('renders a compact multi-lane surface when one workspace hydrates sibling attempts', async () => {
+    const workspaceId = 'workspace-lane-surface';
+    const branchLane = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } } as const;
+    const worktreeLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+    } as const;
+    const primarySession = makeSession('session-lane-a', branchLane, {
+      title: 'Branch attempt',
+      updatedAt: '2026-04-21T00:07:00.000Z',
+    });
+    const secondarySession = makeSession('session-lane-b', worktreeLane, {
+      title: 'Worktree attempt',
+      updatedAt: '2026-04-21T00:06:00.000Z',
+    });
+
+    apiMocks.getBootstrap.mockResolvedValue(makeBootstrapWithSessions(workspaceId, [
+      primarySession,
+      secondarySession,
+    ], [
+      makeTaskLedgerRecord(workspaceId, primarySession.id, 'Lane A summary', 'https://github.com/example/repo/pull/31', branchLane),
+      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane),
+    ]));
+    apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, primarySession.id, branchLane)]);
+
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    await renderShell();
+
+    expect(container.textContent).toContain('Alternative attempts');
+    expect(container.textContent).toContain('Open thread · Attempt 1');
+    expect(container.textContent).toContain('Alternative attempt 2');
+    expect(container.textContent).toContain('Branch · feature/lane-a');
+    expect(container.textContent).toContain('Worktree · feature/lane-b');
+    expect(container.textContent).toContain('Path · /tmp/worktrees/lane-b');
+    expect(container.textContent).toContain('Branch attempt');
+    expect(container.textContent).toContain('Worktree attempt');
+    expect(container.textContent).toContain('session-lane-a');
+    expect(container.textContent).toContain('session-lane-b');
+  });
+
+  it('keeps the two-lane surface limited to lane context without compare or readiness guardrail regressions', async () => {
+    const workspaceId = 'workspace-lane-guardrails';
+    const branchLane = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } } as const;
+    const worktreeLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+    } as const;
+    const primarySession = makeSession('session-lane-a', branchLane, {
+      title: 'Branch attempt',
+      updatedAt: '2026-04-21T00:07:00.000Z',
+    });
+    const secondarySession = makeSession('session-lane-b', worktreeLane, {
+      title: 'Worktree attempt',
+      updatedAt: '2026-04-21T00:06:00.000Z',
+    });
+
+    apiMocks.getBootstrap.mockResolvedValue(makeBootstrapWithSessions(workspaceId, [
+      primarySession,
+      secondarySession,
+    ], [
+      makeTaskLedgerRecord(workspaceId, primarySession.id, 'Lane A summary', 'https://github.com/example/repo/pull/31', branchLane),
+      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane),
+    ]));
+    apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, primarySession.id, branchLane)]);
+
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    await renderShell();
+
+    const laneSurface = Array.from(container.querySelectorAll('section')).find((section) =>
+      section.textContent?.includes('Alternative attempts'),
+    );
+
+    expect(laneSurface).toBeTruthy();
+    expect(laneSurface?.querySelector('button')).toBeNull();
+    expect(laneSurface?.textContent).toContain('Alternative attempts');
+    expect(laneSurface?.textContent).toContain('Open thread · Attempt 1');
+    expect(laneSurface?.textContent).toContain('Alternative attempt 2');
+    expect(laneSurface?.textContent).not.toContain('Compare attempts');
+    expect(laneSurface?.textContent).not.toContain('Adopt selected');
+    expect(laneSurface?.textContent).not.toContain('Final selection');
+    expect(laneSurface?.textContent).not.toContain('Selected attempt');
+    expect(laneSurface?.textContent).not.toContain('PR ready');
+    expect(laneSurface?.textContent).not.toContain('Verified');
+  });
+
   async function renderShell(): Promise<void> {
     root = createRoot(container);
     await act(async () => {
@@ -323,6 +438,7 @@ function makeBootstrap(
   sessionId: string,
   summary: string,
   pullRequestUrl: string,
+  lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
 ): WorkspaceBootstrap {
   return {
     workspace: {
@@ -331,15 +447,39 @@ function makeBootstrap(
       rootPath: `/tmp/${workspaceId}`,
       addedAt: '2026-04-21T00:00:00.000Z',
     },
-    sessions: [makeSession(sessionId)],
+    sessions: [makeSession(sessionId, lane)],
     capabilities: makeCapabilityProbe(workspaceId),
     traceability: { taskEntries: [], resultAnnotations: [] },
     verificationRuns: [],
-    taskLedgerRecords: [makeTaskLedgerRecord(workspaceId, sessionId, summary, pullRequestUrl)],
+    taskLedgerRecords: [makeTaskLedgerRecord(workspaceId, sessionId, summary, pullRequestUrl, lane)],
   };
 }
 
-function makeSession(sessionId: string): SessionSummary {
+function makeBootstrapWithSessions(
+  workspaceId: string,
+  sessions: SessionSummary[],
+  taskLedgerRecords: TaskLedgerRecord[],
+): WorkspaceBootstrap {
+  return {
+    workspace: {
+      id: workspaceId,
+      name: workspaceId,
+      rootPath: `/tmp/${workspaceId}`,
+      addedAt: '2026-04-21T00:00:00.000Z',
+    },
+    sessions,
+    capabilities: makeCapabilityProbe(workspaceId),
+    traceability: { taskEntries: [], resultAnnotations: [] },
+    verificationRuns: [],
+    taskLedgerRecords,
+  };
+}
+
+function makeSession(
+  sessionId: string,
+  lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
+  overrides: Partial<SessionSummary> = {},
+): SessionSummary {
   return {
     id: sessionId,
     title: 'Reconnect session',
@@ -347,10 +487,17 @@ function makeSession(sessionId: string): SessionSummary {
     updatedAt: '2026-04-21T00:05:00.000Z',
     messageCount: 1,
     state: 'idle',
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
+    ...overrides,
   };
 }
 
-function makeMessage(workspaceId: string, sessionId: string): NormalizedMessage {
+function makeMessage(
+  workspaceId: string,
+  sessionId: string,
+  lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
+): NormalizedMessage {
   return {
     id: 'message-1',
     role: 'assistant',
@@ -360,6 +507,8 @@ function makeMessage(workspaceId: string, sessionId: string): NormalizedMessage 
       sourceMessageId: 'message-1',
       workspaceId,
       sessionId,
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
   };
 }
@@ -369,6 +518,7 @@ function makeTaskLedgerRecord(
   sessionId: string,
   summary: string,
   pullRequestUrl: string,
+  lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
 ): TaskLedgerRecord {
   return {
     taskId: 'task-1',
@@ -388,6 +538,8 @@ function makeTaskLedgerRecord(
       verification: 'verified',
       summary,
       shipState: 'pr-ready',
+      ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
     recentVerificationRef: {
       runId: `verify-${sessionId}`,
@@ -404,6 +556,8 @@ function makeTaskLedgerRecord(
       taskId: 'task-1',
       pullRequestUrl,
     },
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
   };
 }
 

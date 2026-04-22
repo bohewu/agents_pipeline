@@ -1,10 +1,13 @@
 import type {
   ApiEnvelope,
+  BrowserEvidenceRecord,
   WorkspaceProfile,
   WorkspaceServerStatus,
   WorkspaceBootstrap,
   WorkspaceCapabilityProbe,
   WorkspaceContextCatalogResponse,
+  LaneAttribution,
+  LaneContext,
   SessionSummary,
   NormalizedMessage,
   PermissionRequest,
@@ -16,6 +19,9 @@ import type {
   BffEvent,
   BffEventType,
   SetEffortRequest,
+  TaskEntry,
+  TaskLedgerRecord,
+  ResultAnnotation,
   VerificationCommandKind,
   VerificationRun,
   WorkspaceGitStatusResult,
@@ -53,11 +59,110 @@ const EVENT_TYPES: BffEventType[] = [
   'connection.ping',
 ];
 
+function deriveLaneId(laneContext?: LaneContext): string | undefined {
+  if (!laneContext) return undefined;
+  if (laneContext.kind === 'branch') {
+    return `branch:${laneContext.branch}`;
+  }
+  return `worktree:${laneContext.worktreePath}`;
+}
+
+function normalizeLaneAttribution<T extends object>(record: T & Partial<LaneAttribution>): T & LaneAttribution {
+  const laneId = record.laneId ?? deriveLaneId(record.laneContext);
+  if (!laneId && !record.laneContext) {
+    return record as T & LaneAttribution;
+  }
+
+  return {
+    ...record,
+    ...(laneId ? { laneId } : {}),
+    ...(record.laneContext ? { laneContext: record.laneContext } : {}),
+  };
+}
+
+function normalizeTaskEntry(taskEntry: TaskEntry | undefined): TaskEntry | undefined {
+  return taskEntry ? normalizeLaneAttribution(taskEntry) : undefined;
+}
+
+function normalizeResultAnnotation(annotation: ResultAnnotation | undefined): ResultAnnotation | undefined {
+  return annotation ? normalizeLaneAttribution(annotation) : undefined;
+}
+
+function normalizeMessage(message: NormalizedMessage): NormalizedMessage {
+  const taskEntry = normalizeTaskEntry(message.taskEntry);
+  const resultAnnotation = normalizeResultAnnotation(message.resultAnnotation);
+
+  return {
+    ...message,
+    ...(message.trace ? { trace: normalizeLaneAttribution(message.trace) } : {}),
+    ...(taskEntry ? { taskEntry } : {}),
+    ...(resultAnnotation ? { resultAnnotation } : {}),
+  };
+}
+
+function normalizeVerificationRun(run: VerificationRun): VerificationRun {
+  return normalizeLaneAttribution(run);
+}
+
+function normalizeBrowserEvidenceRecord(record: BrowserEvidenceRecord): BrowserEvidenceRecord {
+  return normalizeLaneAttribution(record);
+}
+
+function normalizeTaskLedgerRecord(record: TaskLedgerRecord): TaskLedgerRecord {
+  return normalizeLaneAttribution({
+    ...record,
+    ...(record.resultAnnotation ? { resultAnnotation: normalizeResultAnnotation(record.resultAnnotation) } : {}),
+  });
+}
+
+function normalizeSessionSummary(session: SessionSummary): SessionSummary {
+  return normalizeLaneAttribution(session);
+}
+
+function normalizeWorkspaceBootstrap(bootstrap: WorkspaceBootstrap): WorkspaceBootstrap {
+  return {
+    ...bootstrap,
+    sessions: bootstrap.sessions.map(normalizeSessionSummary),
+    ...(bootstrap.traceability ? {
+      traceability: {
+        taskEntries: bootstrap.traceability.taskEntries.map((taskEntry) => normalizeLaneAttribution(taskEntry)),
+        resultAnnotations: bootstrap.traceability.resultAnnotations.map((annotation) => normalizeLaneAttribution(annotation)),
+      },
+    } : {}),
+    ...(bootstrap.verificationRuns ? { verificationRuns: bootstrap.verificationRuns.map(normalizeVerificationRun) } : {}),
+    ...(bootstrap.browserEvidenceRecords ? { browserEvidenceRecords: bootstrap.browserEvidenceRecords.map(normalizeBrowserEvidenceRecord) } : {}),
+    ...(bootstrap.taskLedgerRecords ? { taskLedgerRecords: bootstrap.taskLedgerRecords.map(normalizeTaskLedgerRecord) } : {}),
+  };
+}
+
+function normalizeEventPayload(type: BffEventType, payload: Record<string, unknown>): Record<string, unknown> {
+  if (type === 'session.created' || type === 'session.updated') {
+    const session = payload.session as SessionSummary | undefined;
+    return session ? { ...payload, session: normalizeSessionSummary(session) } : payload;
+  }
+
+  if (type === 'message.created' || type === 'message.delta' || type === 'message.completed') {
+    const message = payload.message as NormalizedMessage | undefined;
+    return message ? { ...payload, message: normalizeMessage(message) } : payload;
+  }
+
+  if (type === 'verification.updated') {
+    return {
+      ...payload,
+      ...(payload.run ? { run: normalizeVerificationRun(payload.run as VerificationRun) } : {}),
+      ...(payload.taskEntry ? { taskEntry: normalizeTaskEntry(payload.taskEntry as TaskEntry) } : {}),
+      ...(payload.resultAnnotation ? { resultAnnotation: normalizeResultAnnotation(payload.resultAnnotation as ResultAnnotation) } : {}),
+    };
+  }
+
+  return payload;
+}
+
 function normalizeEvent(value: any): BffEvent {
   return {
     type: value.type,
     timestamp: value.timestamp ?? value.time ?? new Date().toISOString(),
-    payload: value.payload ?? {},
+    payload: normalizeEventPayload(value.type, value.payload ?? {}),
   };
 }
 
@@ -144,14 +249,14 @@ export const api = {
     ),
   discoverWorkspaces: (data: { path: string; maxDepth?: number }) =>
     post<{ repos: string[] }>('/api/workspaces/discover', data).then((result) => result.repos),
-  selectWorkspace: (id: string) => post<WorkspaceBootstrap>(`/api/workspaces/${id}/select`),
+  selectWorkspace: (id: string) => post<WorkspaceBootstrap>(`/api/workspaces/${id}/select`).then(normalizeWorkspaceBootstrap),
   updateWorkspace: (id: string, data: Partial<WorkspaceProfile>) =>
     patch<WorkspaceProfile>(`/api/workspaces/${id}`, data),
   deleteWorkspace: (id: string) => del<void>(`/api/workspaces/${id}`),
   startServer: (id: string) => post<void>(`/api/workspaces/${id}/server/start`),
   stopServer: (id: string) => post<void>(`/api/workspaces/${id}/server/stop`),
   restartServer: (id: string) => post<void>(`/api/workspaces/${id}/server/restart`),
-  getBootstrap: (id: string) => get<WorkspaceBootstrap>(`/api/workspaces/${id}/bootstrap`),
+  getBootstrap: (id: string) => get<WorkspaceBootstrap>(`/api/workspaces/${id}/bootstrap`).then(normalizeWorkspaceBootstrap),
   getWorkspaceCapabilities: (id: string) => get<WorkspaceCapabilityProbe>(`/api/workspaces/${id}/capabilities`),
   getWorkspaceContextCatalog: (id: string) =>
     get<WorkspaceContextCatalogResponse>(`/api/workspaces/${id}/context/catalog`),
@@ -165,7 +270,7 @@ export const api = {
   createPullRequest: (id: string, data: PullRequestCreateRequest, signal?: AbortSignal) =>
     post<PullRequestCreateResult>(`/api/workspaces/${id}/git/pr`, data, signal),
   listVerificationRuns: (wsId: string) =>
-    get<VerificationRun[]>(`/api/workspaces/${wsId}/verify/runs`),
+    get<VerificationRun[]>(`/api/workspaces/${wsId}/verify/runs`).then((runs) => runs.map(normalizeVerificationRun)),
   runVerification: (
     wsId: string,
     data: { sessionId: string; commandKind: VerificationCommandKind; sourceMessageId?: string; taskId?: string },
@@ -175,19 +280,19 @@ export const api = {
 
   // Sessions
   listSessions: (wsId: string) =>
-    get<SessionSummary[]>(`/api/workspaces/${wsId}/sessions`),
+    get<SessionSummary[]>(`/api/workspaces/${wsId}/sessions`).then((sessions) => sessions.map(normalizeSessionSummary)),
   createSession: (wsId: string, data?: { title?: string; providerId?: string; modelId?: string; agentId?: string }) =>
-    post<SessionSummary>(`/api/workspaces/${wsId}/sessions`, data ?? {}),
+    post<SessionSummary>(`/api/workspaces/${wsId}/sessions`, data ?? {}).then(normalizeSessionSummary),
   updateSession: (wsId: string, sid: string, data: { title: string }) =>
-    patch<SessionSummary>(`/api/workspaces/${wsId}/sessions/${sid}`, data),
+    patch<SessionSummary>(`/api/workspaces/${wsId}/sessions/${sid}`, data).then(normalizeSessionSummary),
   deleteSession: (wsId: string, sid: string) =>
     del<void>(`/api/workspaces/${wsId}/sessions/${sid}`),
   forkSession: (wsId: string, sid: string, data?: { title?: string }) =>
-    post<SessionSummary>(`/api/workspaces/${wsId}/sessions/${sid}/fork`, data ?? {}),
+    post<SessionSummary>(`/api/workspaces/${wsId}/sessions/${sid}/fork`, data ?? {}).then(normalizeSessionSummary),
 
   // Messages
   listMessages: (wsId: string, sid: string) =>
-    get<NormalizedMessage[]>(`/api/workspaces/${wsId}/sessions/${sid}/messages`),
+    get<NormalizedMessage[]>(`/api/workspaces/${wsId}/sessions/${sid}/messages`).then((messages) => messages.map(normalizeMessage)),
   sendChat: (
     wsId: string,
     sid: string,

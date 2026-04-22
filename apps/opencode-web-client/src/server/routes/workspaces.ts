@@ -11,6 +11,7 @@ import type { WorkspaceContextCatalogService } from '../services/workspace-conte
 import type { WorkspaceShipService } from '../services/workspace-ship-service.js'
 import type { TaskLedgerService } from '../services/task-ledger-service.js'
 import type { VerificationService } from '../services/verification-service.js'
+import type { SessionService } from '../services/session-service.js'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -25,10 +26,11 @@ export interface WorkspacesRouteDeps {
   workspaceShipService: WorkspaceShipService
   verificationService: VerificationService
   taskLedgerService: TaskLedgerService
+  sessionService: Pick<SessionService, 'listSessions'>
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, verificationService, taskLedgerService } = deps
+  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, verificationService, taskLedgerService, sessionService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -262,7 +264,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
         version = typeof (health as { version?: unknown }).version === 'string'
           ? (health as { version?: string }).version
           : undefined
-        sessions = await client.listSessions()
+        sessions = await sessionService.listSessions(workspaceId)
         config = await configService.getConfig(workspaceId)
       }
     } catch {

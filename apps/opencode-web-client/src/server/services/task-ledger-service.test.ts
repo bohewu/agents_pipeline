@@ -196,6 +196,60 @@ describe('TaskLedgerService', () => {
     expect(rehydratedService.listRecords('ws-1')).toEqual([workspaceOneRecord])
     expect(rehydratedService.listRecords('ws-2')).toEqual([workspaceTwoRecord])
   })
+
+  it('preserves distinct lane-attributed records when task identifiers overlap across alternative attempts', () => {
+    const stateDir = makeTempDir('task-ledger-lanes-')
+    const service = new TaskLedgerService({ stateDir })
+
+    const branchRecord = makeTaskRecord('ws-lane', 'session-a', 'task-shared', 'completed', 'Branch lane summary', {
+      sourceMessageId: 'message-a',
+      laneId: 'branch:feature/lane-a',
+      laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      resultAnnotation: {
+        sourceMessageId: 'message-a',
+        workspaceId: 'ws-lane',
+        sessionId: 'session-a',
+        taskId: 'task-shared',
+        verification: 'verified',
+        summary: 'Branch lane summary',
+        laneId: 'branch:feature/lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      },
+    })
+    const worktreeRecord = makeTaskRecord('ws-lane', 'session-b', 'task-shared', 'running', 'Worktree lane summary', {
+      sourceMessageId: 'message-b',
+      laneId: 'lane-worktree-b',
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      resultAnnotation: {
+        sourceMessageId: 'message-b',
+        workspaceId: 'ws-lane',
+        sessionId: 'session-b',
+        taskId: 'task-shared',
+        verification: 'unverified',
+        summary: 'Worktree lane summary',
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      },
+    })
+
+    service.upsertRecord(branchRecord)
+    service.upsertRecord(worktreeRecord)
+
+    expect(service.listRecords('ws-lane')).toEqual([worktreeRecord, branchRecord])
+    expect(service.getRecord('ws-lane', 'task-shared', {
+      sessionId: 'session-a',
+      sourceMessageId: 'message-a',
+      laneId: 'branch:feature/lane-a',
+    })).toEqual(branchRecord)
+    expect(service.getRecord('ws-lane', 'task-shared', {
+      sessionId: 'session-b',
+      sourceMessageId: 'message-b',
+      laneId: 'lane-worktree-b',
+    })).toEqual(worktreeRecord)
+
+    const rehydratedService = new TaskLedgerService({ stateDir })
+    expect(rehydratedService.listRecords('ws-lane')).toEqual([worktreeRecord, branchRecord])
+  })
 })
 
 function makeTaskRecord(
@@ -210,12 +264,14 @@ function makeTaskRecord(
     taskId,
     workspaceId,
     sessionId,
-    sourceMessageId: `message-${taskId}`,
-    title: `Task ${taskId}`,
+    sourceMessageId: overrides.sourceMessageId ?? `message-${taskId}`,
+    title: overrides.title ?? `Task ${taskId}`,
     summary,
     state,
     createdAt: overrides.createdAt ?? '2026-04-21T11:59:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-04-21T11:59:30.000Z',
+    ...(overrides.laneId ? { laneId: overrides.laneId } : {}),
+    ...(overrides.laneContext ? { laneContext: overrides.laneContext } : {}),
     ...(overrides.completedAt ? { completedAt: overrides.completedAt } : {}),
     ...(overrides.resultAnnotation ? { resultAnnotation: overrides.resultAnnotation } : {}),
     ...(overrides.recentVerificationRef ? { recentVerificationRef: overrides.recentVerificationRef } : {}),
