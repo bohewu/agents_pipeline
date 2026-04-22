@@ -11,19 +11,31 @@ export interface InstallManifest {
     tools?: {
       providerUsagePy?: string
     }
+    opencode?: {
+      effortPlugin?: string
+      effortStateHelper?: string
+      usageCommand?: string
+    }
   }
 }
 
-let cached: InstallManifest | null = null
+const cache = new Map<string, InstallManifest | null>()
 
 export function loadInstallManifest(manifestPath: string): InstallManifest | null {
-  if (cached) return cached
-  if (!existsSync(manifestPath)) return null
+  if (cache.has(manifestPath)) {
+    return cache.get(manifestPath) ?? null
+  }
+  if (!existsSync(manifestPath)) {
+    cache.set(manifestPath, null)
+    return null
+  }
   try {
     const raw = readFileSync(manifestPath, 'utf-8')
-    cached = JSON.parse(raw) as InstallManifest
-    return cached
+    const parsed = JSON.parse(raw) as InstallManifest
+    cache.set(manifestPath, parsed)
+    return parsed
   } catch {
+    cache.set(manifestPath, null)
     return null
   }
 }
@@ -49,4 +61,30 @@ export function getInstalledToolPath(manifestPath: string, toolName: string): st
   }
 
   return null
+}
+
+type OpenCodeAssetName = 'usageCommand' | 'effortPlugin' | 'effortStateHelper'
+
+export function getInstalledOpenCodeAssetPath(manifestPath: string, assetName: OpenCodeAssetName): string | null {
+  const manifest = loadInstallManifest(manifestPath)
+  if (!manifest) return null
+
+  const explicitPath = manifest.assets?.opencode?.[assetName]
+  if (explicitPath) {
+    return explicitPath
+  }
+
+  const opencodeConfigDir = manifest.paths?.['opencodeConfigDir'] ?? manifest.paths?.['configDir']
+  if (!opencodeConfigDir) {
+    return null
+  }
+
+  switch (assetName) {
+    case 'usageCommand':
+      return path.join(opencodeConfigDir, 'commands', 'usage.md')
+    case 'effortPlugin':
+      return path.join(opencodeConfigDir, 'plugins', 'effort-control.js')
+    case 'effortStateHelper':
+      return path.join(opencodeConfigDir, 'plugins', 'effort-control', 'state.js')
+  }
 }

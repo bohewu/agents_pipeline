@@ -3,6 +3,176 @@ import { createApp } from './create-server.js'
 import type { VerificationRun, WorkspaceGitStatusResult, WorkspaceProfile } from '../shared/types.js'
 
 describe('createApp verification routes', () => {
+  it('routes workspace context catalog requests through the context catalog service', async () => {
+    const workspace: WorkspaceProfile = {
+      id: 'ws-context-route',
+      name: 'Context route test',
+      rootPath: '/tmp/ws-context-route',
+      addedAt: '2026-04-22T00:00:00.000Z',
+    }
+    const getContextCatalog = vi.fn(async () => ({
+      workspaceId: workspace.id,
+      collectedAt: '2026-04-22T00:00:00.000Z',
+      instructionSources: [
+        {
+          id: 'project-local:agents-file',
+          category: 'agents-file',
+          sourceLayer: 'project-local',
+          label: 'Workspace AGENTS.md',
+          status: 'available',
+          path: '/tmp/ws-context-route/AGENTS.md',
+          detail: 'Readable file detected.',
+        },
+        {
+          id: 'project-local:opencode-dir',
+          category: 'opencode-dir',
+          sourceLayer: 'project-local',
+          label: 'Workspace .opencode directory',
+          status: 'missing',
+          path: '/tmp/ws-context-route/.opencode',
+          detail: 'Expected directory was not found.',
+          remediation: 'Create /tmp/ws-context-route/.opencode in the workspace root to surface project-local OpenCode instruction assets.',
+        },
+      ],
+      capabilityEntries: [
+        {
+          id: 'project-local:plugins',
+          category: 'plugin',
+          sourceLayer: 'project-local',
+          label: 'Project-local OpenCode plugins',
+          status: 'degraded',
+          path: '/tmp/ws-context-route/opencode/plugins',
+          detail: 'EACCES: permission denied, access \'/tmp/ws-context-route/opencode/plugins\'',
+          remediation: 'Fix permissions or replace /tmp/ws-context-route/opencode/plugins so project-local plugin assets can be read safely.',
+        },
+        {
+          id: 'user-global:provider-usage-tool',
+          category: 'usage-asset',
+          sourceLayer: 'user-global',
+          label: 'User-global provider usage tool asset',
+          status: 'missing',
+          path: '/tmp/opencode/tools/provider-usage.py',
+          detail: 'Expected file was not found.',
+          remediation: 'Install or restore /tmp/opencode/tools/provider-usage.py so the user-global provider usage tool is available.',
+        },
+        {
+          id: 'app-bundled:skills',
+          category: 'skill',
+          sourceLayer: 'app-bundled',
+          label: 'Bundled skill catalog',
+          status: 'available',
+          path: '/opt/app/assets/opencode/skills',
+          detail: '2 supported items discovered.',
+          itemCount: 2,
+          items: ['repo-scout', 'planner'],
+        },
+      ],
+    }))
+
+    const app = createApp({
+      host: '127.0.0.1',
+      port: 3456,
+      appPaths: {
+        configDir: '/tmp/config',
+        dataDir: '/tmp/data',
+        stateDir: '/tmp/state',
+        cacheDir: '/tmp/cache',
+        logDir: '/tmp/logs',
+        workspaceRegistryFile: '/tmp/workspaces.json',
+        installManifestFile: '/tmp/install-manifest.json',
+        clientStaticDir: '/tmp/client',
+        serverBundleDir: '/tmp/server',
+        toolsDir: '/tmp/tools',
+      },
+    }, {
+      registry: {
+        list: () => [workspace],
+        get: () => workspace,
+        getActive: () => workspace,
+        setActive: () => workspace,
+      } as any,
+      serverManager: {
+        get: () => undefined,
+        getAll: () => [],
+        toJSON: (value: unknown) => value,
+      } as any,
+      clientFactory: {
+        forWorkspace: () => ({ listMessages: async () => [] }),
+      } as any,
+      sessionService: {} as any,
+      effortService: {} as any,
+      usageService: {} as any,
+      configService: {} as any,
+      diffService: {} as any,
+      fileService: {} as any,
+      permissionRegistry: {} as any,
+      eventBroker: { broadcast: vi.fn() } as any,
+      capabilityProbeService: {} as any,
+      contextCatalogService: {
+        getContextCatalog,
+      } as any,
+      workspaceShipService: {
+        getStatus: async () => ({ outcome: 'degraded', issues: [] }),
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+      } as any,
+      verificationService: {
+        listRuns: () => [],
+        runPreset: vi.fn(),
+        decorateMessages: (_workspaceId: string, _sessionId: string, messages: unknown[]) => messages,
+      } as any,
+    })
+
+    const response = await app.request(`http://localhost/api/workspaces/${workspace.id}/context/catalog`)
+    const payload = await response.json()
+
+    expect(payload.ok).toBe(true)
+    expect(payload.data).toEqual(expect.objectContaining({
+      workspaceId: workspace.id,
+      instructionSources: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'project-local:agents-file',
+          category: 'agents-file',
+          sourceLayer: 'project-local',
+          status: 'available',
+        }),
+        expect.objectContaining({
+          id: 'project-local:opencode-dir',
+          category: 'opencode-dir',
+          sourceLayer: 'project-local',
+          status: 'missing',
+          remediation: expect.stringContaining('.opencode'),
+        }),
+      ]),
+      capabilityEntries: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'project-local:plugins',
+          category: 'plugin',
+          sourceLayer: 'project-local',
+          status: 'degraded',
+          remediation: expect.stringContaining('plugin assets'),
+        }),
+        expect.objectContaining({
+          id: 'user-global:provider-usage-tool',
+          category: 'usage-asset',
+          sourceLayer: 'user-global',
+          status: 'missing',
+        }),
+        expect.objectContaining({
+          id: 'app-bundled:skills',
+          category: 'skill',
+          sourceLayer: 'app-bundled',
+          status: 'available',
+          itemCount: 2,
+          items: ['repo-scout', 'planner'],
+        }),
+      ]),
+    }))
+    expect(payload.data.capabilityEntries.some((entry: { id: string; status: string }) => entry.id === 'project-local:plugins' && entry.status === 'available')).toBe(false)
+    expect(getContextCatalog).toHaveBeenCalledWith(workspace.id, workspace.rootPath, workspace.opencodeConfigDir)
+  })
+
   it('routes workspace-scoped verification run APIs through the verification service', async () => {
     const workspace: WorkspaceProfile = {
       id: 'ws-route',
@@ -110,6 +280,7 @@ describe('createApp verification routes', () => {
       permissionRegistry: {} as any,
       eventBroker: { broadcast: vi.fn() } as any,
       capabilityProbeService: {} as any,
+      contextCatalogService: {} as any,
       workspaceShipService: {
         getStatus: async () => gitStatus,
       } as any,
@@ -244,6 +415,7 @@ describe('createApp verification routes', () => {
       permissionRegistry: {} as any,
       eventBroker: { broadcast: vi.fn() } as any,
       capabilityProbeService: {} as any,
+      contextCatalogService: {} as any,
       workspaceShipService: {
         getStatus: async () => gitStatus,
         previewCommit,
@@ -352,6 +524,7 @@ describe('createApp verification routes', () => {
       permissionRegistry: {} as any,
       eventBroker: { broadcast: vi.fn(), registerShipFixHandoff } as any,
       capabilityProbeService: {} as any,
+      contextCatalogService: {} as any,
       workspaceShipService: {
         getStatus: async () => ({ outcome: 'degraded', issues: [] }),
       } as any,
@@ -475,6 +648,7 @@ describe('createApp verification routes', () => {
       permissionRegistry: {} as any,
       eventBroker: { broadcast: vi.fn(), registerShipFixHandoff } as any,
       capabilityProbeService: {} as any,
+      contextCatalogService: {} as any,
       workspaceShipService: {
         getStatus: async () => ({ outcome: 'degraded', issues: [] }),
       } as any,

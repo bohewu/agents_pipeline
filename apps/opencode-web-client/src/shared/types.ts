@@ -345,6 +345,60 @@ export interface WorkspaceBootstrap {
   taskLedgerRecords?: TaskLedgerRecord[];
 }
 
+export type WorkspaceContextSourceLayer = 'project-local' | 'user-global' | 'app-bundled';
+
+export type WorkspaceContextEntryStatus = 'available' | 'missing' | 'degraded';
+
+export type WorkspaceInstructionSourceCategory =
+  | 'agents-file'
+  | 'opencode-dir'
+  | 'claude-file'
+  | 'claude-agent'
+  | 'copilot-instructions'
+  | 'cursor-rule';
+
+export interface WorkspaceInstructionSourceEntry {
+  id: string;
+  category: WorkspaceInstructionSourceCategory;
+  sourceLayer: Extract<WorkspaceContextSourceLayer, 'project-local'>;
+  label: string;
+  status: WorkspaceContextEntryStatus;
+  path: string;
+  detail?: string;
+  remediation?: string;
+  itemCount?: number;
+  items?: string[];
+}
+
+export type WorkspaceCapabilityCategory =
+  | 'plugin'
+  | 'command'
+  | 'tool'
+  | 'usage-asset'
+  | 'effort-asset'
+  | 'skill'
+  | 'mcp-asset';
+
+export interface WorkspaceCapabilityEntry {
+  id: string;
+  category: WorkspaceCapabilityCategory;
+  sourceLayer: WorkspaceContextSourceLayer;
+  label: string;
+  status: WorkspaceContextEntryStatus;
+  path: string;
+  detail?: string;
+  remediation?: string;
+  itemCount?: number;
+  items?: string[];
+}
+
+export interface WorkspaceContextCatalogResponse {
+  workspaceId: string;
+  collectedAt: string;
+  instructionSources: WorkspaceInstructionSourceEntry[];
+  capabilityEntries: WorkspaceCapabilityEntry[];
+}
+
 // ── Sessions ──
 
 export interface SessionSummary {

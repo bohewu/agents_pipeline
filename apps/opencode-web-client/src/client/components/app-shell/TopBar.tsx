@@ -1,16 +1,17 @@
 import React, { useEffect } from 'react';
-import { useStore } from '../../runtime/store.js';
+import { useStore, type RightPanel } from '../../runtime/store.js';
 import { WorkspaceSelector } from '../workspaces/WorkspaceSelector.js';
 import { EffortControl } from '../effort/EffortControl.js';
 import { UsageBadge } from '../usage/UsageBadge.js';
 import { ConnectionStatus } from '../common/ConnectionStatus.js';
-import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, GitBranchIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, TasksIcon, UsageIcon } from '../common/Icons.js';
+import { ActivityIcon, CheckIcon, DiffIcon, FilesIcon, FolderIcon, GitBranchIcon, PanelLeftIcon, PanelRightIcon, PlusIcon, ShieldIcon, TasksIcon, UsageIcon } from '../common/Icons.js';
 
-const PANEL_ICONS = {
+const PANEL_ICONS: Record<RightPanel, React.ComponentType<{ size?: number; className?: string }>> = {
   tasks: TasksIcon,
   activity: ActivityIcon,
   diff: DiffIcon,
   files: FilesIcon,
+  context: FolderIcon,
   ship: GitBranchIcon,
   usage: UsageIcon,
   verification: CheckIcon,
@@ -18,11 +19,12 @@ const PANEL_ICONS = {
   diagnostics: ActivityIcon,
 };
 
-const PANEL_LABELS = {
+const PANEL_LABELS: Record<RightPanel, string> = {
   tasks: 'Tasks',
   activity: 'Activity',
   diff: 'Diff',
   files: 'Files',
+  context: 'Context',
   ship: 'Ship',
   usage: 'Usage',
   verification: 'Verification',

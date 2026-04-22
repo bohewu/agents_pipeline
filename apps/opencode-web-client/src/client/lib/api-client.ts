@@ -4,6 +4,7 @@ import type {
   WorkspaceServerStatus,
   WorkspaceBootstrap,
   WorkspaceCapabilityProbe,
+  WorkspaceContextCatalogResponse,
   SessionSummary,
   NormalizedMessage,
   PermissionRequest,
@@ -152,6 +153,8 @@ export const api = {
   restartServer: (id: string) => post<void>(`/api/workspaces/${id}/server/restart`),
   getBootstrap: (id: string) => get<WorkspaceBootstrap>(`/api/workspaces/${id}/bootstrap`),
   getWorkspaceCapabilities: (id: string) => get<WorkspaceCapabilityProbe>(`/api/workspaces/${id}/capabilities`),
+  getWorkspaceContextCatalog: (id: string) =>
+    get<WorkspaceContextCatalogResponse>(`/api/workspaces/${id}/context/catalog`),
   getGitStatus: (id: string) => get<WorkspaceGitStatusResult>(`/api/workspaces/${id}/git/status`),
   previewCommit: (id: string, data?: CommitPreviewRequest) =>
     post<CommitPreviewResult>(`/api/workspaces/${id}/git/commit/preview`, data ?? {}),

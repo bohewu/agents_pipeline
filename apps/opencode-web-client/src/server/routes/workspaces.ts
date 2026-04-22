@@ -7,6 +7,7 @@ import type { WorkspaceBootstrap, WorkspaceTraceabilitySummary } from '../../sha
 import type { ConfigService, NormalizedConfig } from '../services/config-service.js'
 import type { EffortService } from '../services/effort-service.js'
 import type { WorkspaceCapabilityProbeService } from '../services/workspace-capability-probe.js'
+import type { WorkspaceContextCatalogService } from '../services/workspace-context-catalog-service.js'
 import type { WorkspaceShipService } from '../services/workspace-ship-service.js'
 import type { TaskLedgerService } from '../services/task-ledger-service.js'
 import type { VerificationService } from '../services/verification-service.js'
@@ -20,13 +21,14 @@ export interface WorkspacesRouteDeps {
   configService: ConfigService
   effortService: EffortService
   capabilityProbeService: WorkspaceCapabilityProbeService
+  contextCatalogService: WorkspaceContextCatalogService
   workspaceShipService: WorkspaceShipService
   verificationService: VerificationService
   taskLedgerService: TaskLedgerService
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
-  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, verificationService, taskLedgerService } = deps
+  const { registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, verificationService, taskLedgerService } = deps
   const route = new Hono()
 
   // GET /api/workspaces — list all workspaces
@@ -161,6 +163,26 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
 
     const capabilities = await capabilityProbeService.probeWorkspace(workspaceId, workspace.rootPath)
     return c.json(ok(capabilities))
+  })
+
+  // GET /api/workspaces/:workspaceId/context/catalog — get workspace context catalog
+  route.get('/:workspaceId/context/catalog', async (c) => {
+    const workspaceId = c.req.param('workspaceId')
+    const workspace = registry.get(workspaceId)
+    if (!workspace) {
+      return c.json(fail('NOT_FOUND', `Workspace ${workspaceId} not found`), 404)
+    }
+
+    try {
+      const catalog = await contextCatalogService.getContextCatalog(
+        workspaceId,
+        workspace.rootPath,
+        workspace.opencodeConfigDir,
+      )
+      return c.json(ok(catalog))
+    } catch (err: any) {
+      return c.json(fail('CONTEXT_CATALOG_FAILED', err.message), 500)
+    }
   })
 
   // POST /api/workspaces/:workspaceId/server/start

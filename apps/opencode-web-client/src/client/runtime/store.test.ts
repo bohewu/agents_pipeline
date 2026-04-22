@@ -7,6 +7,11 @@ vi.mock('../lib/local-storage.js', () => ({
 }));
 
 import {
+  selectActiveWorkspaceContextCatalog,
+  selectActiveWorkspaceContextCatalogError,
+  selectActiveWorkspaceContextCatalogLoading,
+  selectActiveWorkspaceContextCapabilityEntries,
+  selectActiveWorkspaceContextInstructionSources,
   selectActiveWorkspaceTaskLedgerRecords,
   selectActiveWorkspaceCapabilityGaps,
   selectActiveWorkspaceCapabilities,
@@ -28,6 +33,7 @@ import type {
   VerificationRun,
   WorkspaceCapabilityProbe,
   WorkspaceBootstrap,
+  WorkspaceContextCatalogResponse,
   WorkspaceGitStatusResult,
 } from '../../shared/types.js';
 
@@ -46,6 +52,9 @@ describe('store session streaming state', () => {
       serverStatusByWorkspace: {},
       workspaceBootstraps: {},
       workspaceCapabilitiesByWorkspace: {},
+      workspaceContextCatalogByWorkspace: {},
+      workspaceContextCatalogLoadingByWorkspace: {},
+      workspaceContextCatalogErrorByWorkspace: {},
       workspaceGitStatusByWorkspace: {},
       workspaceShipActionResultsByWorkspace: {},
       effortByWorkspace: {},
@@ -385,6 +394,62 @@ describe('store session streaming state', () => {
     ]);
   });
 
+  it('returns context catalog data, loading, and error state for the active workspace only', () => {
+    const workspaceOneCatalog = makeContextCatalog('workspace-1', {
+      instructionSuffix: 'workspace-1',
+      capabilitySuffix: 'workspace-1',
+    });
+    const workspaceTwoCatalog = makeContextCatalog('workspace-2', {
+      instructionSuffix: 'workspace-2',
+      capabilitySuffix: 'workspace-2',
+    });
+
+    useStore.getState().setWorkspaceContextCatalog('workspace-1', workspaceOneCatalog);
+    useStore.getState().setWorkspaceContextCatalog('workspace-2', workspaceTwoCatalog);
+    useStore.getState().setWorkspaceContextCatalogLoading('workspace-1', true);
+    useStore.getState().setWorkspaceContextCatalogLoading('workspace-2', false);
+    useStore.getState().setWorkspaceContextCatalogError('workspace-1', 'Workspace 1 context failed');
+    useStore.getState().setWorkspaceContextCatalogError('workspace-2', null);
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceContextCatalog(useStore.getState())).toEqual(workspaceTwoCatalog);
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState())).toEqual(workspaceTwoCatalog.instructionSources);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState())).toEqual(workspaceTwoCatalog.capabilityEntries);
+    expect(selectActiveWorkspaceContextCatalogLoading(useStore.getState())).toBe(false);
+    expect(selectActiveWorkspaceContextCatalogError(useStore.getState())).toBeNull();
+  });
+
+  it('keeps workspace context catalog entries isolated when workspaces switch', () => {
+    const workspaceOneCatalog = makeContextCatalog('workspace-1', {
+      instructionSuffix: 'workspace-1',
+      capabilitySuffix: 'workspace-1',
+    });
+    const workspaceTwoCatalog = makeContextCatalog('workspace-2', {
+      instructionSuffix: 'workspace-2',
+      capabilitySuffix: 'workspace-2',
+    });
+
+    useStore.getState().setWorkspaceContextCatalog('workspace-1', workspaceOneCatalog);
+    useStore.getState().setWorkspaceContextCatalog('workspace-2', workspaceTwoCatalog);
+    useStore.getState().setActiveWorkspace('workspace-1');
+
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:workspace-1',
+    ]);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:workspace-1',
+    ]);
+
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:workspace-2',
+    ]);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:workspace-2',
+    ]);
+  });
+
   it('hydrates git status from workspace bootstrap and keeps it workspace-scoped', () => {
     useStore.getState().setWorkspaceBootstrap('workspace-1', makeBootstrap('workspace-1', undefined, undefined, undefined, makeGitStatus('workspace-1')));
     useStore.getState().setWorkspaceBootstrap('workspace-2', makeBootstrap('workspace-2', undefined, undefined, undefined, {
@@ -715,6 +780,38 @@ function makeCapabilityProbe(
     previewTarget: available,
     browserEvidence: available,
     ...overrides,
+  };
+}
+
+function makeContextCatalog(
+  workspaceId: string,
+  options: { instructionSuffix: string; capabilitySuffix: string },
+): WorkspaceContextCatalogResponse {
+  return {
+    workspaceId,
+    collectedAt: '2026-04-22T00:00:00.000Z',
+    instructionSources: [
+      {
+        id: `project-local:agents-file:${options.instructionSuffix}`,
+        category: 'agents-file',
+        sourceLayer: 'project-local',
+        label: `Workspace AGENTS.md ${options.instructionSuffix}`,
+        status: 'available',
+        path: `/tmp/${workspaceId}/AGENTS.md`,
+      },
+    ],
+    capabilityEntries: [
+      {
+        id: `project-local:commands:${options.capabilitySuffix}`,
+        category: 'command',
+        sourceLayer: 'project-local',
+        label: `Project-local commands ${options.capabilitySuffix}`,
+        status: 'available',
+        path: `/tmp/${workspaceId}/opencode/commands`,
+        itemCount: 1,
+        items: [`/${options.capabilitySuffix}`],
+      },
+    ],
   };
 }
 

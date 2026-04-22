@@ -14,6 +14,9 @@ import type {
   ResultAnnotation,
   SessionSummary,
   TaskEntry,
+  WorkspaceCapabilityEntry,
+  WorkspaceContextCatalogResponse,
+  WorkspaceInstructionSourceEntry,
   UsageDetails,
   WorkspaceGitStatusResult,
   WorkspaceBootstrap,
@@ -30,7 +33,7 @@ import type {
   TaskLedgerShipReference,
 } from '../../shared/types.js';
 
-export type RightPanel = 'tasks' | 'activity' | 'diff' | 'files' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
+export type RightPanel = 'tasks' | 'activity' | 'diff' | 'files' | 'context' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
 export type ComposerMode = 'ask' | 'command' | 'shell';
 
 export interface ResolvedMessageResultTrace {
@@ -75,6 +78,9 @@ export interface UIStore {
   serverStatusByWorkspace: Record<string, WorkspaceServerStatus>;
   workspaceBootstraps: Record<string, WorkspaceBootstrap>;
   workspaceCapabilitiesByWorkspace: Record<string, WorkspaceCapabilityProbe>;
+  workspaceContextCatalogByWorkspace: Record<string, WorkspaceContextCatalogResponse>;
+  workspaceContextCatalogLoadingByWorkspace: Record<string, boolean>;
+  workspaceContextCatalogErrorByWorkspace: Record<string, string | null>;
   workspaceGitStatusByWorkspace: Record<string, WorkspaceGitStatusResult>;
   workspaceShipActionResultsByWorkspace: Record<string, WorkspaceShipActionResults>;
   sessionsByWorkspace: Record<string, SessionSummary[]>;
@@ -111,6 +117,9 @@ export interface UIStore {
   setWorkspaceServerStatus: (workspaceId: string, status: WorkspaceServerStatus) => void;
   setWorkspaceBootstrap: (workspaceId: string, bootstrap: WorkspaceBootstrap) => void;
   setWorkspaceCapabilities: (workspaceId: string, capabilities: WorkspaceCapabilityProbe) => void;
+  setWorkspaceContextCatalog: (workspaceId: string, catalog: WorkspaceContextCatalogResponse) => void;
+  setWorkspaceContextCatalogLoading: (workspaceId: string, loading: boolean) => void;
+  setWorkspaceContextCatalogError: (workspaceId: string, error: string | null) => void;
   setWorkspaceGitStatus: (workspaceId: string, status: WorkspaceGitStatusResult) => void;
   setWorkspaceShipActionResult: (workspaceId: string, action: WorkspaceShipActionKey, result: WorkspaceShipActionResults[WorkspaceShipActionKey]) => void;
   setVerificationRuns: (workspaceId: string, runs: VerificationRun[]) => void;
@@ -148,6 +157,8 @@ export interface UIStore {
 
 const EMPTY_MESSAGES: NormalizedMessage[] = [];
 const EMPTY_CAPABILITY_GAPS: WorkspaceCapabilityGap[] = [];
+const EMPTY_WORKSPACE_INSTRUCTION_SOURCES: WorkspaceInstructionSourceEntry[] = [];
+const EMPTY_WORKSPACE_CONTEXT_CAPABILITY_ENTRIES: WorkspaceCapabilityEntry[] = [];
 const WORKSPACE_SCOPE_SESSION_KEY = '__workspace__';
 const VERIFY_KIND_ORDER: VerificationCommandKind[] = ['lint', 'build', 'test'];
 const WORKSPACE_CAPABILITY_KEYS: WorkspaceCapabilityKey[] = ['localGit', 'ghCli', 'ghAuth', 'previewTarget', 'browserEvidence'];
@@ -169,6 +180,9 @@ export const useStore = create<UIStore>((set) => ({
   serverStatusByWorkspace: {},
   workspaceBootstraps: {},
   workspaceCapabilitiesByWorkspace: {},
+  workspaceContextCatalogByWorkspace: {},
+  workspaceContextCatalogLoadingByWorkspace: {},
+  workspaceContextCatalogErrorByWorkspace: {},
   workspaceGitStatusByWorkspace: {},
   workspaceShipActionResultsByWorkspace: {},
   sessionsByWorkspace: {},
@@ -244,6 +258,27 @@ export const useStore = create<UIStore>((set) => ({
       workspaceCapabilitiesByWorkspace: {
         ...s.workspaceCapabilitiesByWorkspace,
         [workspaceId]: capabilities,
+      },
+    })),
+  setWorkspaceContextCatalog: (workspaceId, catalog) =>
+    set((s) => ({
+      workspaceContextCatalogByWorkspace: {
+        ...s.workspaceContextCatalogByWorkspace,
+        [workspaceId]: catalog,
+      },
+    })),
+  setWorkspaceContextCatalogLoading: (workspaceId, loading) =>
+    set((s) => ({
+      workspaceContextCatalogLoadingByWorkspace: {
+        ...s.workspaceContextCatalogLoadingByWorkspace,
+        [workspaceId]: loading,
+      },
+    })),
+  setWorkspaceContextCatalogError: (workspaceId, error) =>
+    set((s) => ({
+      workspaceContextCatalogErrorByWorkspace: {
+        ...s.workspaceContextCatalogErrorByWorkspace,
+        [workspaceId]: error,
       },
     })),
   setWorkspaceGitStatus: (workspaceId, status) =>
@@ -582,6 +617,74 @@ export function selectActiveWorkspaceCapabilities(
   store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceCapabilitiesByWorkspace'>,
 ): WorkspaceCapabilityProbe | undefined {
   return selectWorkspaceCapabilities(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceContextCatalog(
+  store: Pick<UIStore, 'workspaceContextCatalogByWorkspace'>,
+  workspaceId?: string | null,
+): WorkspaceContextCatalogResponse | undefined {
+  if (!workspaceId) return undefined;
+  return store.workspaceContextCatalogByWorkspace[workspaceId];
+}
+
+export function selectActiveWorkspaceContextCatalog(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceContextCatalogByWorkspace'>,
+): WorkspaceContextCatalogResponse | undefined {
+  return selectWorkspaceContextCatalog(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceContextInstructionSources(
+  store: Pick<UIStore, 'workspaceContextCatalogByWorkspace'>,
+  workspaceId?: string | null,
+): WorkspaceInstructionSourceEntry[] {
+  return selectWorkspaceContextCatalog(store, workspaceId)?.instructionSources ?? EMPTY_WORKSPACE_INSTRUCTION_SOURCES;
+}
+
+export function selectActiveWorkspaceContextInstructionSources(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceContextCatalogByWorkspace'>,
+): WorkspaceInstructionSourceEntry[] {
+  return selectWorkspaceContextInstructionSources(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceContextCapabilityEntries(
+  store: Pick<UIStore, 'workspaceContextCatalogByWorkspace'>,
+  workspaceId?: string | null,
+): WorkspaceCapabilityEntry[] {
+  return selectWorkspaceContextCatalog(store, workspaceId)?.capabilityEntries ?? EMPTY_WORKSPACE_CONTEXT_CAPABILITY_ENTRIES;
+}
+
+export function selectActiveWorkspaceContextCapabilityEntries(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceContextCatalogByWorkspace'>,
+): WorkspaceCapabilityEntry[] {
+  return selectWorkspaceContextCapabilityEntries(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceContextCatalogLoading(
+  store: Pick<UIStore, 'workspaceContextCatalogLoadingByWorkspace'>,
+  workspaceId?: string | null,
+): boolean {
+  if (!workspaceId) return false;
+  return store.workspaceContextCatalogLoadingByWorkspace[workspaceId] ?? false;
+}
+
+export function selectActiveWorkspaceContextCatalogLoading(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceContextCatalogLoadingByWorkspace'>,
+): boolean {
+  return selectWorkspaceContextCatalogLoading(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceContextCatalogError(
+  store: Pick<UIStore, 'workspaceContextCatalogErrorByWorkspace'>,
+  workspaceId?: string | null,
+): string | null {
+  if (!workspaceId) return null;
+  return store.workspaceContextCatalogErrorByWorkspace[workspaceId] ?? null;
+}
+
+export function selectActiveWorkspaceContextCatalogError(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceContextCatalogErrorByWorkspace'>,
+): string | null {
+  return selectWorkspaceContextCatalogError(store, store.activeWorkspaceId);
 }
 
 export function selectWorkspaceGitStatus(

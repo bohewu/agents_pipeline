@@ -31,6 +31,7 @@ import type { FileService } from './services/file-service.js';
 import type { PermissionRegistry } from './services/permission-registry.js';
 import type { EventBroker } from './services/event-broker.js';
 import type { WorkspaceCapabilityProbeService } from './services/workspace-capability-probe.js';
+import type { WorkspaceContextCatalogService } from './services/workspace-context-catalog-service.js';
 import type { WorkspaceShipService } from './services/workspace-ship-service.js';
 import type { TaskLedgerService } from './services/task-ledger-service.js';
 import type { VerificationService } from './services/verification-service.js';
@@ -56,6 +57,7 @@ export interface ServerDeps {
   permissionRegistry: PermissionRegistry;
   eventBroker: EventBroker;
   capabilityProbeService: WorkspaceCapabilityProbeService;
+  contextCatalogService: WorkspaceContextCatalogService;
   workspaceShipService: WorkspaceShipService;
   taskLedgerService: TaskLedgerService;
   verificationService: VerificationService;
@@ -138,10 +140,10 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
   // Mount workspace routes (if deps provided)
   if (deps) {
-    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, workspaceShipService, taskLedgerService, verificationService } = deps;
+    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService } = deps;
 
     // Workspace CRUD (no workspace scope middleware needed)
-    api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, workspaceShipService, taskLedgerService, verificationService }));
+      api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService }));
 
     // SSE events (workspace via query param, no middleware)
     api.route('/events', EventsRoute({ eventBroker }));

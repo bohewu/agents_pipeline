@@ -14,6 +14,7 @@ const apiMocks = vi.hoisted(() => ({
   connectEvents: vi.fn(),
   createSession: vi.fn(),
   getBootstrap: vi.fn(),
+  getWorkspaceContextCatalog: vi.fn(),
   getUsage: vi.fn(),
   getWorkspaceCapabilities: vi.fn(),
   listMessages: vi.fn(),
@@ -34,8 +35,21 @@ vi.mock('../workspaces/AddWorkspaceDialog.js', () => ({ AddWorkspaceDialog: () =
 vi.mock('../settings/AppSettingsDialog.js', () => ({ AppSettingsDialog: () => <div data-testid="settings-dialog" /> }));
 
 import { AppShell } from './AppShell.js';
-import { useStore } from '../../runtime/store.js';
-import type { NormalizedMessage, SessionSummary, TaskLedgerRecord, UsageDetails, WorkspaceBootstrap, WorkspaceCapabilityProbe } from '../../../shared/types.js';
+import {
+  selectActiveWorkspaceContextCapabilityEntries,
+  selectActiveWorkspaceContextCatalog,
+  selectActiveWorkspaceContextInstructionSources,
+  useStore,
+} from '../../runtime/store.js';
+import type {
+  NormalizedMessage,
+  SessionSummary,
+  TaskLedgerRecord,
+  UsageDetails,
+  WorkspaceBootstrap,
+  WorkspaceCapabilityProbe,
+  WorkspaceContextCatalogResponse,
+} from '../../../shared/types.js';
 
 const baseState = useStore.getState();
 
@@ -50,6 +64,7 @@ describe('AppShell continuity hydration', () => {
     apiMocks.connectEvents.mockReset();
     apiMocks.createSession.mockReset();
     apiMocks.getBootstrap.mockReset();
+    apiMocks.getWorkspaceContextCatalog.mockReset();
     apiMocks.getUsage.mockReset();
     apiMocks.getWorkspaceCapabilities.mockReset();
     apiMocks.listMessages.mockReset();
@@ -58,6 +73,7 @@ describe('AppShell continuity hydration', () => {
       return vi.fn();
     });
     apiMocks.getUsage.mockResolvedValue(makeUsage());
+    apiMocks.getWorkspaceContextCatalog.mockResolvedValue(makeContextCatalog('workspace-reconnect'));
     apiMocks.getWorkspaceCapabilities.mockResolvedValue(makeCapabilityProbe('workspace-reconnect'));
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -78,10 +94,21 @@ describe('AppShell continuity hydration', () => {
     const sessionId = 'session-1';
     const initialBootstrap = makeBootstrap(workspaceId, sessionId, 'Task summary before reconnect', 'https://github.com/example/repo/pull/1');
     const reconnectedBootstrap = makeBootstrap(workspaceId, sessionId, 'Task summary after reconnect', 'https://github.com/example/repo/pull/2');
+    const initialCatalog = makeContextCatalog(workspaceId, {
+      instructionId: 'project-local:agents-file:before-reconnect',
+      capabilityId: 'project-local:commands:before-reconnect',
+    });
+    const reconnectedCatalog = makeContextCatalog(workspaceId, {
+      instructionId: 'project-local:agents-file:after-reconnect',
+      capabilityId: 'project-local:commands:after-reconnect',
+    });
 
     apiMocks.getBootstrap
       .mockResolvedValueOnce(initialBootstrap)
       .mockResolvedValueOnce(reconnectedBootstrap);
+    apiMocks.getWorkspaceContextCatalog
+      .mockResolvedValueOnce(initialCatalog)
+      .mockResolvedValueOnce(reconnectedCatalog);
     apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, sessionId)]);
 
     useStore.getState().setActiveWorkspace(workspaceId);
@@ -89,7 +116,16 @@ describe('AppShell continuity hydration', () => {
     await renderShell();
 
     expect(apiMocks.getBootstrap).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledTimes(1);
+    expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledWith(workspaceId);
     expect(apiMocks.listMessages).toHaveBeenCalledWith(workspaceId, sessionId);
+    expect(selectActiveWorkspaceContextCatalog(useStore.getState())?.workspaceId).toBe(workspaceId);
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:before-reconnect',
+    ]);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:before-reconnect',
+    ]);
     expect(useStore.getState().workspaceBootstraps[workspaceId]?.taskLedgerRecords?.[0]).toEqual(
       expect.objectContaining({
         summary: 'Task summary before reconnect',
@@ -134,8 +170,21 @@ describe('AppShell continuity hydration', () => {
     });
 
     expect(apiMocks.getBootstrap).toHaveBeenCalledTimes(2);
+    expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledTimes(2);
     expect(apiMocks.listMessages).toHaveBeenCalledTimes(2);
     expect(useStore.getState().activeSessionByWorkspace[workspaceId]).toBe(sessionId);
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:after-reconnect',
+    ]);
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).not.toContain(
+      'project-local:agents-file:before-reconnect',
+    );
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:after-reconnect',
+    ]);
+    expect(useStore.getState().workspaceContextCatalogByWorkspace[workspaceId]?.capabilityEntries.map((entry) => entry.id)).toEqual([
+      'project-local:commands:after-reconnect',
+    ]);
     expect(useStore.getState().workspaceBootstraps[workspaceId]?.taskLedgerRecords?.[0]).toEqual(
       expect.objectContaining({
         summary: 'Task summary after reconnect',
@@ -155,6 +204,68 @@ describe('AppShell continuity hydration', () => {
       }),
     );
     expect(useStore.getState().connectionByWorkspace[workspaceId]).toBe('connected');
+  });
+
+  it('switches active workspace context catalogs without merging entries across workspaces', async () => {
+    const workspaceOne = 'workspace-one';
+    const workspaceTwo = 'workspace-two';
+
+    apiMocks.getBootstrap.mockImplementation(async (workspaceId: string) => {
+      if (workspaceId === workspaceOne) {
+        return makeBootstrap(workspaceOne, 'session-one', 'Workspace one summary', 'https://github.com/example/repo/pull/11');
+      }
+
+      return makeBootstrap(workspaceTwo, 'session-two', 'Workspace two summary', 'https://github.com/example/repo/pull/22');
+    });
+    apiMocks.getWorkspaceContextCatalog.mockImplementation(async (workspaceId: string) => {
+      if (workspaceId === workspaceOne) {
+        return makeContextCatalog(workspaceOne, {
+          instructionId: 'project-local:agents-file:workspace-one',
+          capabilityId: 'project-local:commands:workspace-one',
+        });
+      }
+
+      return makeContextCatalog(workspaceTwo, {
+        instructionId: 'project-local:agents-file:workspace-two',
+        capabilityId: 'project-local:commands:workspace-two',
+      });
+    });
+    apiMocks.listMessages.mockImplementation(async (_workspaceId: string, sessionId: string) => [
+      makeMessage(sessionId === 'session-one' ? workspaceOne : workspaceTwo, sessionId),
+    ]);
+
+    useStore.getState().setActiveWorkspace(workspaceOne);
+
+    await renderShell();
+
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:workspace-one',
+    ]);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:workspace-one',
+    ]);
+
+    await act(async () => {
+      useStore.getState().setActiveWorkspace(workspaceTwo);
+      await flushAsync();
+      await flushAsync();
+    });
+
+    expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledWith(workspaceOne);
+    expect(apiMocks.getWorkspaceContextCatalog).toHaveBeenCalledWith(workspaceTwo);
+    expect(selectActiveWorkspaceContextCatalog(useStore.getState())?.workspaceId).toBe(workspaceTwo);
+    expect(selectActiveWorkspaceContextInstructionSources(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:workspace-two',
+    ]);
+    expect(selectActiveWorkspaceContextCapabilityEntries(useStore.getState()).map((entry) => entry.id)).toEqual([
+      'project-local:commands:workspace-two',
+    ]);
+    expect(useStore.getState().workspaceContextCatalogByWorkspace[workspaceOne]?.instructionSources.map((entry) => entry.id)).toEqual([
+      'project-local:agents-file:workspace-one',
+    ]);
+    expect(useStore.getState().workspaceContextCatalogByWorkspace[workspaceTwo]?.capabilityEntries.map((entry) => entry.id)).toEqual([
+      'project-local:commands:workspace-two',
+    ]);
   });
 
   async function renderShell(): Promise<void> {
@@ -177,6 +288,9 @@ function resetStore(): void {
     serverStatusByWorkspace: {},
     workspaceBootstraps: {},
     workspaceCapabilitiesByWorkspace: {},
+    workspaceContextCatalogByWorkspace: {},
+    workspaceContextCatalogLoadingByWorkspace: {},
+    workspaceContextCatalogErrorByWorkspace: {},
     workspaceGitStatusByWorkspace: {},
     workspaceShipActionResultsByWorkspace: {},
     sessionsByWorkspace: {},
@@ -303,6 +417,38 @@ function makeCapabilityProbe(workspaceId: string): WorkspaceCapabilityProbe {
     ghAuth: available,
     previewTarget: available,
     browserEvidence: available,
+  };
+}
+
+function makeContextCatalog(
+  workspaceId: string,
+  overrides?: { instructionId?: string; capabilityId?: string },
+): WorkspaceContextCatalogResponse {
+  return {
+    workspaceId,
+    collectedAt: '2026-04-22T00:00:00.000Z',
+    instructionSources: [
+      {
+        id: overrides?.instructionId ?? `project-local:agents-file:${workspaceId}`,
+        category: 'agents-file',
+        sourceLayer: 'project-local',
+        label: `Workspace AGENTS.md ${workspaceId}`,
+        status: 'available',
+        path: `/tmp/${workspaceId}/AGENTS.md`,
+      },
+    ],
+    capabilityEntries: [
+      {
+        id: overrides?.capabilityId ?? `project-local:commands:${workspaceId}`,
+        category: 'command',
+        sourceLayer: 'project-local',
+        label: `Project-local commands ${workspaceId}`,
+        status: 'available',
+        path: `/tmp/${workspaceId}/opencode/commands`,
+        itemCount: 1,
+        items: [`/${workspaceId}`],
+      },
+    ],
   };
 }
 

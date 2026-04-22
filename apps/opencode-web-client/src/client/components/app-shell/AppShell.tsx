@@ -1,5 +1,12 @@
 import React, { startTransition, useEffect } from 'react';
-import { deriveWorkspaceCapabilityGaps, getCachedUsage, readUsageCacheSnapshot, selectActiveWorkspaceCapabilities, type WorkspaceCapabilityGap, useStore } from '../../runtime/store.js';
+import {
+  deriveWorkspaceCapabilityGaps,
+  getCachedUsage,
+  readUsageCacheSnapshot,
+  selectActiveWorkspaceCapabilities,
+  type WorkspaceCapabilityGap,
+  useStore,
+} from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { handleBffEvent } from '../../runtime/event-reducer.js';
 import { RuntimeProvider } from '../../runtime/runtime-provider.js';
@@ -25,6 +32,9 @@ export function AppShell() {
     setConnection,
     setWorkspaceBootstrap,
     setWorkspaceCapabilities,
+    setWorkspaceContextCatalog,
+    setWorkspaceContextCatalogError,
+    setWorkspaceContextCatalogLoading,
     setWorkspaceServerStatus,
     setSessions,
     setActiveSession,
@@ -133,6 +143,30 @@ export function AppShell() {
       }
       setConnection(workspaceId, 'connecting');
 
+      void (async () => {
+        setWorkspaceContextCatalogLoading(workspaceId, true);
+        setWorkspaceContextCatalogError(workspaceId, null);
+
+        try {
+          const catalog = await api.getWorkspaceContextCatalog(workspaceId);
+          if (cancelled || requestId !== hydrateRequestId) return;
+
+          setWorkspaceContextCatalog(workspaceId, catalog);
+          setWorkspaceContextCatalogError(workspaceId, null);
+        } catch (error) {
+          if (!cancelled && requestId === hydrateRequestId) {
+            setWorkspaceContextCatalogError(
+              workspaceId,
+              resolveErrorMessage(error, `Failed to load the workspace context catalog for ${workspaceId}.`),
+            );
+          }
+        } finally {
+          if (!cancelled && requestId === hydrateRequestId) {
+            setWorkspaceContextCatalogLoading(workspaceId, false);
+          }
+        }
+      })();
+
       try {
         const boot = await api.getBootstrap(workspaceId);
         if (cancelled || requestId !== hydrateRequestId) return;
@@ -197,6 +231,7 @@ export function AppShell() {
       cancelled = true;
       close();
       clearWorkspaceStreaming(workspaceId);
+      setWorkspaceContextCatalogLoading(workspaceId, false);
       setConnection(workspaceId, 'disconnected');
     };
   }, [
@@ -208,6 +243,9 @@ export function AppShell() {
     setSelectedModelVariant,
     setSelectedProvider,
     setWorkspaceCapabilities,
+    setWorkspaceContextCatalog,
+    setWorkspaceContextCatalogError,
+    setWorkspaceContextCatalogLoading,
     setSessions,
     clearWorkspaceStreaming,
     setWorkspaceBootstrap,
@@ -286,4 +324,10 @@ function WorkspaceCapabilityBanner({ gaps }: { gaps: WorkspaceCapabilityGap[] })
       </ul>
     </div>
   );
+}
+
+function resolveErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : fallback;
 }

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveWorkspacePath } from './workspace-paths.js';
+import { resolveWorkspacePath, resolveWorkspaceProbePath } from './workspace-paths.js';
 
 const tempDirs: string[] = [];
 
@@ -36,6 +36,14 @@ describe('resolveWorkspacePath', () => {
     symlinkSync(outsideFile, join(linksDir, 'secret-link.txt'));
 
     expect(() => resolveWorkspacePath(workspaceRoot, 'links/secret-link.txt')).toThrow('Path escapes workspace');
+  });
+
+  it('resolves missing probe targets without requiring them to exist', () => {
+    const workspaceRoot = makeTempDir('workspace-paths-probe-');
+
+    expect(resolveWorkspaceProbePath(workspaceRoot, '.opencode/context.json')).toBe(
+      join(workspaceRoot, '.opencode', 'context.json'),
+    );
   });
 });
 

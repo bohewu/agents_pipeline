@@ -89,6 +89,7 @@ describe('createApp Phase C local ship loop', () => {
           browserEvidence: { status: 'unavailable', summary: 'Browser evidence unavailable' },
         }),
       } as any,
+      contextCatalogService: {} as any,
       workspaceShipService,
       taskLedgerService: {
         listRecords: () => [],

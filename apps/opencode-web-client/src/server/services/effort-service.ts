@@ -16,6 +16,14 @@ export interface EffortStateFile {
 }
 
 export class EffortService {
+  static stateFilePath(workspaceRoot: string): string {
+    return join(workspaceRoot, '.opencode', 'effort-control.sessions.json')
+  }
+
+  static traceFilePath(workspaceRoot: string): string {
+    return join(workspaceRoot, '.opencode', 'effort-control.trace.jsonl')
+  }
+
   /**
    * Map UI effort level to internal level. UI "max" -> internal "xhigh".
    */
@@ -31,11 +39,11 @@ export class EffortService {
   }
 
   private stateFilePath(workspaceRoot: string): string {
-    return join(workspaceRoot, '.opencode', 'effort-control.sessions.json')
+    return EffortService.stateFilePath(workspaceRoot)
   }
 
   private traceFilePath(workspaceRoot: string): string {
-    return join(workspaceRoot, '.opencode', 'effort-control.trace.jsonl')
+    return EffortService.traceFilePath(workspaceRoot)
   }
 
   readState(workspaceRoot: string): EffortStateFile {

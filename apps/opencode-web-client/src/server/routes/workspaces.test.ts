@@ -80,6 +80,14 @@ describe('WorkspacesRoute capability probes', () => {
         capabilityProbeService: {
           probeWorkspace: async () => capabilities,
         } as any,
+        contextCatalogService: {
+          getContextCatalog: async () => ({
+            workspaceId: workspace.id,
+            collectedAt: '2026-04-22T00:00:00.000Z',
+            instructionSources: [],
+            capabilityEntries: [],
+          }),
+        } as any,
         workspaceShipService: {
           getStatus: async () => gitStatus,
         } as any,
@@ -279,6 +287,14 @@ describe('WorkspacesRoute capability probes', () => {
         } as any,
         capabilityProbeService: {
           probeWorkspace: async () => capabilities,
+        } as any,
+        contextCatalogService: {
+          getContextCatalog: async () => ({
+            workspaceId: workspace.id,
+            collectedAt: '2026-04-22T00:00:00.000Z',
+            instructionSources: [],
+            capabilityEntries: [],
+          }),
         } as any,
         workspaceShipService: {
           getStatus: async () => gitStatus,

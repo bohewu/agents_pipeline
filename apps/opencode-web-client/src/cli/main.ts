@@ -17,6 +17,7 @@ import { FileService } from '../server/services/file-service.js';
 import { PermissionRegistry } from '../server/services/permission-registry.js';
 import { EventBroker } from '../server/services/event-broker.js';
 import { WorkspaceCapabilityProbeService } from '../server/services/workspace-capability-probe.js';
+import { WorkspaceContextCatalogService } from '../server/services/workspace-context-catalog-service.js';
 import { WorkspaceShipService } from '../server/services/workspace-ship-service.js';
 import { TaskLedgerService } from '../server/services/task-ledger-service.js';
 import { VerificationService } from '../server/services/verification-service.js';
@@ -42,7 +43,9 @@ async function main() {
   // Discover opencode binary
   const binaryInfo = discoverOpenCodeBinary();
   const binaryPath = binaryInfo.binaryPath ?? 'opencode';
+  const bundledOpenCodeAssetsPath = fileURLToPath(new URL('../../assets/opencode', import.meta.url));
   const packagedProviderUsagePath = fileURLToPath(new URL('../../assets/tools/provider-usage.py', import.meta.url));
+  const bundledToolsPath = fileURLToPath(new URL('../../assets/tools', import.meta.url));
 
   if (args.debug) {
     console.log(`[${APP_NAME}] opencode binary: ${binaryInfo.found ? binaryPath : 'NOT FOUND'}`);
@@ -63,6 +66,12 @@ async function main() {
   const taskLedgerService = new TaskLedgerService(appPaths);
   const eventBroker = new EventBroker(serverManager, { taskLedgerService });
   const capabilityProbeService = new WorkspaceCapabilityProbeService();
+  const contextCatalogService = new WorkspaceContextCatalogService({
+    appPaths,
+    bundledOpencodeRoot: bundledOpenCodeAssetsPath,
+    bundledToolsRoot: bundledToolsPath,
+    defaultOpencodeConfigDir: args.opencodeConfigDir,
+  });
   const workspaceShipService = new WorkspaceShipService(clientFactory);
   const verificationService = new VerificationService(appPaths, clientFactory, eventBroker, { taskLedgerService });
 
@@ -87,6 +96,7 @@ async function main() {
     permissionRegistry,
     eventBroker,
     capabilityProbeService,
+    contextCatalogService,
     workspaceShipService,
     taskLedgerService,
     verificationService,
