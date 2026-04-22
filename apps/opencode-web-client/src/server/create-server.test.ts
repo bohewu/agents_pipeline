@@ -41,6 +41,32 @@ describe('createApp verification routes', () => {
           hasStagedChanges: true,
         },
         pullRequest: { outcome: 'success', supported: true, summary: 'Ready', issues: [] },
+        linkedPullRequest: {
+          outcome: 'success',
+          linked: true,
+          summary: 'Linked pull request #21 is open.',
+          number: 21,
+          title: 'Verification route fixture',
+          url: 'https://github.com/example/repo/pull/21',
+          state: 'OPEN',
+          headBranch: 'main',
+          baseBranch: 'main',
+          checks: {
+            status: 'passing',
+            summary: '1 check passing.',
+            total: 1,
+            passing: 1,
+            failing: 0,
+            pending: 0,
+            failingChecks: [],
+          },
+          review: {
+            status: 'approved',
+            summary: 'Approved',
+            requestedReviewerCount: 0,
+          },
+          issues: [],
+        },
       },
       issues: [],
     }
@@ -149,6 +175,14 @@ describe('createApp verification routes', () => {
           hasStagedChanges: true,
         },
         pullRequest: { outcome: 'degraded', supported: false, summary: 'Unavailable', issues: [] },
+        linkedPullRequest: {
+          outcome: 'degraded',
+          linked: false,
+          summary: 'Linked pull request details are currently unavailable.',
+          detail: 'The gh CLI is installed, but github.com authentication is not available.',
+          remediation: 'Run gh auth login for github.com and retry the pull request action.',
+          issues: [],
+        },
       },
       issues: [],
     }
@@ -266,5 +300,253 @@ describe('createApp verification routes', () => {
     expect(createPullRequest).toHaveBeenCalledWith(workspace.id, workspace.rootPath, {
       sessionId: 'session-1',
     })
+  })
+
+  it('records a ship fix handoff on chat launch and returns the upstream message id', async () => {
+    const workspace: WorkspaceProfile = {
+      id: 'ws-chat-route',
+      name: 'Chat route test',
+      rootPath: '/tmp/ws-chat-route',
+      addedAt: '2026-04-21T00:00:00.000Z',
+    }
+    const chat = vi.fn(async () => ({ messageId: 'message-user-1' }))
+    const upsertRuntimeRecord = vi.fn()
+    const registerShipFixHandoff = vi.fn()
+
+    const app = createApp({
+      host: '127.0.0.1',
+      port: 3456,
+      appPaths: {
+        configDir: '/tmp/config',
+        dataDir: '/tmp/data',
+        stateDir: '/tmp/state',
+        cacheDir: '/tmp/cache',
+        logDir: '/tmp/logs',
+        workspaceRegistryFile: '/tmp/workspaces.json',
+        installManifestFile: '/tmp/install-manifest.json',
+        clientStaticDir: '/tmp/client',
+        serverBundleDir: '/tmp/server',
+        toolsDir: '/tmp/tools',
+      },
+    }, {
+      registry: {
+        list: () => [workspace],
+        get: () => workspace,
+        getActive: () => workspace,
+        setActive: () => workspace,
+      } as any,
+      serverManager: {
+        get: () => undefined,
+        getAll: () => [],
+        toJSON: (value: unknown) => value,
+      } as any,
+      clientFactory: {
+        forWorkspace: () => ({ listMessages: async () => [], chat }),
+      } as any,
+      sessionService: {} as any,
+      effortService: {} as any,
+      usageService: {} as any,
+      configService: {} as any,
+      diffService: {} as any,
+      fileService: {} as any,
+      permissionRegistry: {} as any,
+      eventBroker: { broadcast: vi.fn(), registerShipFixHandoff } as any,
+      capabilityProbeService: {} as any,
+      workspaceShipService: {
+        getStatus: async () => ({ outcome: 'degraded', issues: [] }),
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+        upsertRuntimeRecord,
+      } as any,
+      verificationService: {
+        listRuns: () => [],
+        runPreset: vi.fn(),
+        decorateMessages: (_workspaceId: string, _sessionId: string, messages: unknown[]) => messages,
+      } as any,
+    })
+
+    const response = await app.request(`http://localhost/api/workspaces/${workspace.id}/sessions/session-1/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: 'Continue the fix handoff.',
+        shipFixHandoff: {
+          taskId: 'ship-fix-pr-84-failing-check-ci-test',
+          title: 'Fix failing check: CI / test',
+          summary: 'Fix handoff from failing check CI / test.',
+          shipState: 'blocked-by-checks',
+          reviewState: 'needs-retry',
+          pullRequestUrl: 'https://github.com/example/repo/pull/84',
+          pullRequestNumber: 84,
+          conditionKind: 'failing-check',
+          conditionLabel: 'CI / test',
+          detailsUrl: 'https://example.com/checks/1',
+        },
+      }),
+    })
+    const payload = await response.json()
+
+    expect(payload.ok).toBe(true)
+    expect(payload.data).toEqual({
+      accepted: true,
+      sessionId: 'session-1',
+      messageId: 'message-user-1',
+      taskId: 'ship-fix-pr-84-failing-check-ci-test',
+    })
+    expect(chat).toHaveBeenCalledWith('session-1', 'Continue the fix handoff.', {
+      providerId: undefined,
+      modelId: undefined,
+      agentId: undefined,
+      effort: undefined,
+    })
+    expect(upsertRuntimeRecord).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: workspace.id,
+      taskId: 'ship-fix-pr-84-failing-check-ci-test',
+      sessionId: 'session-1',
+      sourceMessageId: 'message-user-1',
+      state: 'blocked',
+      resultAnnotation: expect.objectContaining({
+        shipState: 'blocked-by-checks',
+        reviewState: 'needs-retry',
+      }),
+      recentShipRef: expect.objectContaining({
+        conditionKind: 'failing-check',
+        conditionLabel: 'CI / test',
+        pullRequestUrl: 'https://github.com/example/repo/pull/84',
+      }),
+    }))
+    expect(registerShipFixHandoff).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: workspace.id,
+      sessionId: 'session-1',
+      taskId: 'ship-fix-pr-84-failing-check-ci-test',
+      shipState: 'blocked-by-checks',
+      conditionKind: 'failing-check',
+    }))
+  })
+
+  it('tc-review-fix-handoff-contract records a review-feedback ship fix handoff on chat launch', async () => {
+    const workspace: WorkspaceProfile = {
+      id: 'ws-review-route',
+      name: 'Review route test',
+      rootPath: '/tmp/ws-review-route',
+      addedAt: '2026-04-21T00:00:00.000Z',
+    }
+    const chat = vi.fn(async () => ({ messageId: 'message-user-2' }))
+    const upsertRuntimeRecord = vi.fn()
+    const registerShipFixHandoff = vi.fn()
+
+    const app = createApp({
+      host: '127.0.0.1',
+      port: 3456,
+      appPaths: {
+        configDir: '/tmp/config',
+        dataDir: '/tmp/data',
+        stateDir: '/tmp/state',
+        cacheDir: '/tmp/cache',
+        logDir: '/tmp/logs',
+        workspaceRegistryFile: '/tmp/workspaces.json',
+        installManifestFile: '/tmp/install-manifest.json',
+        clientStaticDir: '/tmp/client',
+        serverBundleDir: '/tmp/server',
+        toolsDir: '/tmp/tools',
+      },
+    }, {
+      registry: {
+        list: () => [workspace],
+        get: () => workspace,
+        getActive: () => workspace,
+        setActive: () => workspace,
+      } as any,
+      serverManager: {
+        get: () => undefined,
+        getAll: () => [],
+        toJSON: (value: unknown) => value,
+      } as any,
+      clientFactory: {
+        forWorkspace: () => ({ listMessages: async () => [], chat }),
+      } as any,
+      sessionService: {} as any,
+      effortService: {} as any,
+      usageService: {} as any,
+      configService: {} as any,
+      diffService: {} as any,
+      fileService: {} as any,
+      permissionRegistry: {} as any,
+      eventBroker: { broadcast: vi.fn(), registerShipFixHandoff } as any,
+      capabilityProbeService: {} as any,
+      workspaceShipService: {
+        getStatus: async () => ({ outcome: 'degraded', issues: [] }),
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+        upsertRuntimeRecord,
+      } as any,
+      verificationService: {
+        listRuns: () => [],
+        runPreset: vi.fn(),
+        decorateMessages: (_workspaceId: string, _sessionId: string, messages: unknown[]) => messages,
+      } as any,
+    })
+
+    const response = await app.request(`http://localhost/api/workspaces/${workspace.id}/sessions/session-7/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: 'Continue the review follow-up.',
+        shipFixHandoff: {
+          taskId: 'ship-fix-pr-55-review-feedback-security-review-follow-up-requested',
+          title: 'Address review feedback',
+          summary: 'Fix handoff from pull request review feedback.',
+          shipState: 'not-ready',
+          reviewState: 'approval-needed',
+          pullRequestUrl: 'https://github.com/example/repo/pull/55',
+          pullRequestNumber: 55,
+          conditionKind: 'review-feedback',
+          conditionLabel: 'Security review follow-up requested.',
+        },
+      }),
+    })
+    const payload = await response.json()
+
+    expect(payload.ok).toBe(true)
+    expect(payload.data).toEqual({
+      accepted: true,
+      sessionId: 'session-7',
+      messageId: 'message-user-2',
+      taskId: 'ship-fix-pr-55-review-feedback-security-review-follow-up-requested',
+    })
+    expect(chat).toHaveBeenCalledWith('session-7', 'Continue the review follow-up.', {
+      providerId: undefined,
+      modelId: undefined,
+      agentId: undefined,
+      effort: undefined,
+    })
+    expect(upsertRuntimeRecord).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: workspace.id,
+      taskId: 'ship-fix-pr-55-review-feedback-security-review-follow-up-requested',
+      sessionId: 'session-7',
+      sourceMessageId: 'message-user-2',
+      state: 'blocked',
+      resultAnnotation: expect.objectContaining({
+        shipState: 'not-ready',
+        reviewState: 'approval-needed',
+      }),
+      recentShipRef: expect.objectContaining({
+        conditionKind: 'review-feedback',
+        conditionLabel: 'Security review follow-up requested.',
+        pullRequestUrl: 'https://github.com/example/repo/pull/55',
+        pullRequestNumber: 55,
+      }),
+    }))
+    expect(registerShipFixHandoff).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceId: workspace.id,
+      sessionId: 'session-7',
+      taskId: 'ship-fix-pr-55-review-feedback-security-review-follow-up-requested',
+      shipState: 'not-ready',
+      reviewState: 'approval-needed',
+      conditionKind: 'review-feedback',
+      conditionLabel: 'Security review follow-up requested.',
+    }))
   })
 })

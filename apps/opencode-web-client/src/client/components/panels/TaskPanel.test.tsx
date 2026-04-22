@@ -25,7 +25,7 @@ vi.mock('../../lib/api-client.js', () => ({
 
 import { TaskPanel } from './TaskPanel.js';
 import { useStore } from '../../runtime/store.js';
-import type { TaskLedgerRecord, WorkspaceBootstrap } from '../../../shared/types.js';
+import type { TaskLedgerRecord, WorkspaceBootstrap, WorkspaceGitStatusResult } from '../../../shared/types.js';
 
 const baseState = useStore.getState();
 
@@ -250,6 +250,70 @@ describe('TaskPanel', () => {
     expect(findTaskCard('Failed task summary').textContent).toContain('Reopened this task in its saved workspace session.');
   });
 
+  it('projects linked PR ready and blocked state into task cards without cross-workspace leakage', async () => {
+    useStore.getState().setWorkspaceBootstrap('workspace-1', makeBootstrap('workspace-1', 'Repo Ready', [
+      makeTaskRecord('workspace-1', 'task-ready', 'blocked', 'Ready for ship', {
+        resultAnnotation: {
+          sourceMessageId: 'task-ready-message',
+          workspaceId: 'workspace-1',
+          sessionId: 'session-ready',
+          taskId: 'task-ready',
+          verification: 'verified',
+          summary: 'Ready for ship',
+          shipState: 'not-ready',
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'blocked',
+          sessionId: 'session-ready',
+          messageId: 'task-ready-message',
+          taskId: 'task-ready',
+          pullRequestUrl: 'https://github.com/example/repo/pull/41',
+        },
+      }),
+    ], makeGitStatus('workspace-1', 'https://github.com/example/repo/pull/41', 'passing', 'approved')));
+    useStore.getState().setWorkspaceBootstrap('workspace-2', makeBootstrap('workspace-2', 'Repo Blocked', [
+      makeTaskRecord('workspace-2', 'task-blocked-check', 'blocked', 'Blocked by checks', {
+        resultAnnotation: {
+          sourceMessageId: 'task-blocked-check-message',
+          workspaceId: 'workspace-2',
+          sessionId: 'session-blocked-check',
+          taskId: 'task-blocked-check',
+          verification: 'unverified',
+          summary: 'Blocked by checks',
+          shipState: 'not-ready',
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'blocked',
+          sessionId: 'session-blocked-check',
+          messageId: 'task-blocked-check-message',
+          taskId: 'task-blocked-check',
+          pullRequestUrl: 'https://github.com/example/repo/pull/84',
+          conditionKind: 'failing-check',
+          conditionLabel: 'CI / test',
+          detailsUrl: 'https://example.com/checks/1',
+        },
+      }),
+    ], makeGitStatus('workspace-2', 'https://github.com/example/repo/pull/84', 'failing', 'changes_requested')));
+
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    await renderPanel();
+
+    expect(container.textContent).toContain('Blocked by checks');
+    expect(container.textContent).toContain('Fix handoff: Failing check · CI / test');
+    expect(container.textContent).not.toContain('PR ready');
+
+    await act(async () => {
+      useStore.getState().setActiveWorkspace('workspace-1');
+      await flushAsync();
+    });
+
+    expect(container.textContent).toContain('PR ready');
+    expect(container.textContent).not.toContain('Fix handoff: Failing check · CI / test');
+  });
+
   async function renderPanel(): Promise<void> {
     root = createRoot(container);
     await act(async () => {
@@ -319,7 +383,12 @@ function resetStore(): void {
   }, false);
 }
 
-function makeBootstrap(workspaceId: string, workspaceName: string, taskLedgerRecords: TaskLedgerRecord[]): WorkspaceBootstrap {
+function makeBootstrap(
+  workspaceId: string,
+  workspaceName: string,
+  taskLedgerRecords: TaskLedgerRecord[],
+  git?: WorkspaceBootstrap['git'],
+): WorkspaceBootstrap {
   return {
     workspace: {
       id: workspaceId,
@@ -328,6 +397,7 @@ function makeBootstrap(workspaceId: string, workspaceName: string, taskLedgerRec
       addedAt: '2026-04-21T00:00:00.000Z',
     },
     sessions: [],
+    ...(git ? { git } : {}),
     taskLedgerRecords,
     traceability: {
       taskEntries: [],
@@ -370,6 +440,72 @@ function makeSession(id: string) {
     updatedAt: '2026-04-21T00:00:00.000Z',
     messageCount: 0,
     state: 'idle' as const,
+  };
+}
+
+function makeGitStatus(
+  workspaceId: string,
+  pullRequestUrl: string,
+  checksStatus: 'passing' | 'failing' | 'pending' | 'none',
+  reviewStatus: 'approved' | 'changes_requested' | 'review_required' | 'unknown',
+): WorkspaceGitStatusResult {
+  return {
+    outcome: 'success',
+    data: {
+      workspaceId,
+      checkedAt: '2026-04-21T00:00:00.000Z',
+      branch: { name: 'feature/ship', detached: false },
+      upstream: {
+        status: 'tracked',
+        ref: 'origin/main',
+        remote: 'origin',
+        branch: 'main',
+        ahead: 0,
+        behind: 0,
+        remoteProvider: 'github',
+      },
+      changeSummary: {
+        staged: { count: 0, paths: [], truncated: false },
+        unstaged: { count: 0, paths: [], truncated: false },
+        untracked: { count: 0, paths: [], truncated: false },
+        conflicted: { count: 0, paths: [], truncated: false },
+        hasChanges: false,
+        hasStagedChanges: false,
+      },
+      pullRequest: {
+        outcome: 'success',
+        supported: true,
+        summary: 'Ready',
+        issues: [],
+      },
+      linkedPullRequest: {
+        outcome: 'success',
+        linked: true,
+        summary: 'Linked pull request.',
+        number: workspaceId === 'workspace-1' ? 41 : 84,
+        title: 'Projected PR',
+        url: pullRequestUrl,
+        state: 'OPEN',
+        headBranch: 'feature/ship',
+        baseBranch: 'main',
+        checks: {
+          status: checksStatus,
+          summary: `${checksStatus} checks`,
+          total: 1,
+          passing: checksStatus === 'passing' ? 1 : 0,
+          failing: checksStatus === 'failing' ? 1 : 0,
+          pending: checksStatus === 'pending' ? 1 : 0,
+          failingChecks: checksStatus === 'failing' ? [{ name: 'CI / test' }] : [],
+        },
+        review: {
+          status: reviewStatus,
+          summary: reviewStatus,
+          requestedReviewerCount: reviewStatus === 'approved' ? 0 : 1,
+        },
+        issues: [],
+      },
+    },
+    issues: [],
   };
 }
 

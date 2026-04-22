@@ -3,13 +3,20 @@ import type {
   CommitExecuteResult,
   CommitPreviewResult,
   GitStatusPathBucket,
+  NormalizedMessage,
   PullRequestCreateResult,
   PushResult,
+  ResultReviewState,
+  SessionChatRequest,
   ShipIssue,
+  TaskLedgerRecord,
   WorkspaceCapabilityProbe,
   WorkspaceGitStatusResult,
   WorkspaceGitStatusSnapshot,
   WorkspaceGitUpstreamState,
+  WorkspaceLinkedPullRequestChecksSummary,
+  WorkspaceLinkedPullRequestReviewSummary,
+  WorkspaceLinkedPullRequestSummary,
   WorkspacePullRequestCapability,
 } from '../../../shared/types.js';
 import { api } from '../../lib/api-client.js';
@@ -17,6 +24,7 @@ import {
   selectActiveWorkspaceCapabilities,
   selectActiveWorkspaceGitStatus,
   selectActiveWorkspaceShipActionResults,
+  selectSessionMessages,
   useStore,
 } from '../../runtime/store.js';
 import { ArrowDownIcon, ArrowUpIcon, GitBranchIcon } from '../common/Icons.js';
@@ -57,14 +65,26 @@ interface OutcomeBannerModel {
   remediation?: string;
 }
 
+interface LinkedPullRequestSurfaceModel {
+  tone: SurfaceTone;
+  stateLabel: string;
+}
+
 export function ShipPanel() {
   const activeWorkspaceId = useStore((state) => state.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((state) => state.activeSessionByWorkspace);
   const workspaceBootstraps = useStore((state) => state.workspaceBootstraps);
+  const selectedProvider = useStore((state) => state.selectedProvider);
+  const selectedModel = useStore((state) => state.selectedModel);
   const selectedAgent = useStore((state) => state.selectedAgent);
+  const effortByWorkspace = useStore((state) => state.effortByWorkspace);
   const status = useStore((state) => selectActiveWorkspaceGitStatus(state));
   const shipActionResults = useStore(selectActiveWorkspaceShipActionResults);
   const capabilities = useStore(selectActiveWorkspaceCapabilities);
+  const addMessage = useStore((state) => state.addMessage);
+  const setMessages = useStore((state) => state.setMessages);
+  const setSessionStreaming = useStore((state) => state.setSessionStreaming);
+  const setWorkspaceBootstrap = useStore((state) => state.setWorkspaceBootstrap);
   const setWorkspaceGitStatus = useStore((state) => state.setWorkspaceGitStatus);
   const setWorkspaceShipActionResult = useStore((state) => state.setWorkspaceShipActionResult);
   const workspaceName = activeWorkspaceId
@@ -72,6 +92,10 @@ export function ShipPanel() {
     : null;
   const workspaceLabel = workspaceName ?? activeWorkspaceId ?? 'this workspace';
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
+  const effortState = activeWorkspaceId ? effortByWorkspace[activeWorkspaceId] : undefined;
+  const effectiveEffort = sessionId
+    ? effortState?.sessionOverrides[sessionId] ?? effortState?.projectDefault
+    : effortState?.projectDefault;
   const snapshot = status?.data;
   const commitPreviewResult = shipActionResults?.commitPreview;
   const commitExecuteResult = shipActionResults?.commitExecute;
@@ -224,6 +248,61 @@ export function ShipPanel() {
     }
   }, [activeWorkspaceId, selectedAgent, sessionId, setWorkspaceGitStatus, setWorkspaceShipActionResult, workspaceLabel]);
 
+  const launchShipFixHandoff = React.useCallback(async (handoff: SessionChatRequest['shipFixHandoff']) => {
+    if (!activeWorkspaceId || !sessionId || !handoff) return;
+
+    const prompt = buildShipFixHandoffPrompt(snapshot?.linkedPullRequest, handoff);
+    const optimisticMessage = createOptimisticUserMessage(activeWorkspaceId, sessionId, prompt);
+    addMessage(activeWorkspaceId, sessionId, optimisticMessage);
+    setSessionStreaming(activeWorkspaceId, sessionId, true);
+    setFeedback(null);
+
+    try {
+      const response = await api.sendChat(activeWorkspaceId, sessionId, {
+        text: prompt,
+        providerId: selectedProvider ?? undefined,
+        modelId: selectedModel ?? undefined,
+        agentId: selectedAgent ?? undefined,
+        effort: effectiveEffort,
+        shipFixHandoff: handoff,
+      });
+
+      const bootstrap = workspaceBootstraps[activeWorkspaceId];
+      if (bootstrap) {
+        const sourceMessageId = response.messageId ?? optimisticMessage.id;
+        setWorkspaceBootstrap(activeWorkspaceId, {
+          ...bootstrap,
+          taskLedgerRecords: upsertTaskLedgerRecords(bootstrap.taskLedgerRecords, buildShipFixHandoffRecord(
+            activeWorkspaceId,
+            sessionId,
+            sourceMessageId,
+            handoff,
+          )),
+        });
+      }
+
+      setFeedback({ tone: 'success', message: `Sent a fix handoff for ${handoff.conditionLabel} into the current chat session.` });
+    } catch (error: any) {
+      const currentMessages = selectSessionMessages(useStore.getState(), activeWorkspaceId, sessionId);
+      setMessages(activeWorkspaceId, sessionId, currentMessages.filter((message) => message.id !== optimisticMessage.id));
+      setSessionStreaming(activeWorkspaceId, sessionId, false);
+      setFeedback({ tone: 'danger', message: error?.message ?? `Failed to start a fix handoff for ${handoff.conditionLabel}.` });
+    }
+  }, [
+    activeWorkspaceId,
+    addMessage,
+    effectiveEffort,
+    selectedAgent,
+    selectedModel,
+    selectedProvider,
+    sessionId,
+    setMessages,
+    setSessionStreaming,
+    setWorkspaceBootstrap,
+    snapshot?.linkedPullRequest,
+    workspaceBootstraps,
+  ]);
+
   if (!activeWorkspaceId) {
     return <EmptyPanelState title="No workspace selected" body="Choose a workspace to inspect branch state, change summary, and local ship readiness." />;
   }
@@ -272,6 +351,11 @@ export function ShipPanel() {
       {snapshot && (
         <>
           <StatusOverviewCard snapshot={snapshot} />
+          <LinkedPullRequestCard
+            linkedPullRequest={snapshot.linkedPullRequest}
+            sessionReady={!!sessionId}
+            onLaunchFixHandoff={(handoff) => void launchShipFixHandoff(handoff)}
+          />
 
           <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
@@ -398,6 +482,420 @@ function StatusOverviewCard({ snapshot }: { snapshot: WorkspaceGitStatusSnapshot
       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Checked {formatCheckedAt(snapshot.checkedAt)}</div>
     </section>
   );
+}
+
+function LinkedPullRequestCard({
+  linkedPullRequest,
+  sessionReady,
+  onLaunchFixHandoff,
+}: {
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary;
+  sessionReady: boolean;
+  onLaunchFixHandoff: (handoff: SessionChatRequest['shipFixHandoff']) => void;
+}) {
+  const surface = resolveLinkedPullRequestSurface(linkedPullRequest);
+  const palette = tonePalette(surface.tone);
+  const extraIssues = linkedPullRequest.issues.slice(1);
+  const prLabel = linkedPullRequest.number ? `#${linkedPullRequest.number}` : 'Linked PR';
+  const checksHandoff = buildCheckFixHandoff(linkedPullRequest);
+  const reviewHandoff = buildReviewFixHandoff(linkedPullRequest);
+
+  return (
+    <section
+      className="oc-surface-card"
+      style={{
+        padding: 14,
+        display: 'grid',
+        gap: 12,
+        border: `1px solid ${palette.border}`,
+        background: palette.background,
+      }}
+    >
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: palette.text }}>Linked pull request</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            GitHub checks and review context stay on this ship surface when branch linkage is available.
+          </div>
+        </div>
+        <span style={{ ...statusPillStyle(surface.tone), fontSize: 10 }}>{surface.stateLabel}</span>
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{linkedPullRequest.summary}</div>
+
+      {linkedPullRequest.linked && (
+        <div style={{ display: 'grid', gap: 6, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <div>
+            <strong style={{ color: 'var(--text-primary)' }}>PR:</strong>{' '}
+            {linkedPullRequest.title
+              ? `${prLabel} · ${linkedPullRequest.title}`
+              : prLabel}
+          </div>
+
+          {(linkedPullRequest.state || linkedPullRequest.isDraft !== undefined) && (
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>State:</strong>{' '}
+              {formatLinkedPullRequestState(linkedPullRequest)}
+            </div>
+          )}
+
+          {(linkedPullRequest.headBranch || linkedPullRequest.baseBranch) && (
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>Branches:</strong>{' '}
+              {(linkedPullRequest.headBranch ?? 'unknown')} → {(linkedPullRequest.baseBranch ?? 'unknown')}
+            </div>
+          )}
+
+          {linkedPullRequest.url && (
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>URL:</strong>{' '}
+              <a
+                href={linkedPullRequest.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'rgb(29, 78, 216)', fontWeight: 700, wordBreak: 'break-all' }}
+              >
+                {linkedPullRequest.url}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {linkedPullRequest.detail && (
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{linkedPullRequest.detail}</div>
+      )}
+
+      {linkedPullRequest.remediation && (
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Next:</strong> {linkedPullRequest.remediation}
+        </div>
+      )}
+
+      {linkedPullRequest.linked && (linkedPullRequest.checks || linkedPullRequest.review) && (
+        <div style={{ display: 'grid', gap: 10 }}>
+          {linkedPullRequest.checks && (
+            <LinkedPullRequestChecksCard
+              checks={linkedPullRequest.checks}
+              sessionReady={sessionReady}
+              handoff={checksHandoff}
+              onLaunchFixHandoff={onLaunchFixHandoff}
+            />
+          )}
+          {linkedPullRequest.review && (
+            <LinkedPullRequestReviewCard
+              review={linkedPullRequest.review}
+              sessionReady={sessionReady}
+              handoff={reviewHandoff}
+              onLaunchFixHandoff={onLaunchFixHandoff}
+            />
+          )}
+        </div>
+      )}
+
+      {extraIssues.length > 0 && (
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          {extraIssues.map((issue) => (
+            <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function LinkedPullRequestChecksCard({
+  checks,
+  sessionReady,
+  handoff,
+  onLaunchFixHandoff,
+}: {
+  checks: WorkspaceLinkedPullRequestChecksSummary;
+  sessionReady: boolean;
+  handoff?: SessionChatRequest['shipFixHandoff'];
+  onLaunchFixHandoff: (handoff: SessionChatRequest['shipFixHandoff']) => void;
+}) {
+  return (
+    <section style={summarySectionStyle(resolveChecksTone(checks.status))}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Checks summary</div>
+        <span style={{ ...statusPillStyle(resolveChecksTone(checks.status)), fontSize: 10 }}>
+          {formatChecksStatus(checks.status)}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{checks.summary}</div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <SummaryCountPill label={`Total ${checks.total}`} tone="neutral" />
+        <SummaryCountPill label={`Passing ${checks.passing}`} tone={checks.passing > 0 ? 'success' : 'neutral'} />
+        <SummaryCountPill label={`Failing ${checks.failing}`} tone={checks.failing > 0 ? 'danger' : 'neutral'} />
+        <SummaryCountPill label={`Pending ${checks.pending}`} tone={checks.pending > 0 ? 'warning' : 'neutral'} />
+      </div>
+
+      {checks.failingChecks.length > 0 && (
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>Failing checks</div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {checks.failingChecks.map((check) => (
+              <li key={`${check.name}-${check.detailsUrl ?? 'check'}`}>
+                <strong style={{ color: 'var(--text-primary)' }}>{check.name}</strong>
+                {check.summary ? ` — ${check.summary}` : ''}
+                {check.detailsUrl && (
+                  <>
+                    {' · '}
+                    <a
+                      href={check.detailsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ color: 'rgb(29, 78, 216)', fontWeight: 700 }}
+                    >
+                      Details
+                    </a>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {handoff && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            Continue the failing-check fix from this PR context in the existing chat loop.
+          </div>
+          <button type="button" onClick={() => onLaunchFixHandoff(handoff)} disabled={!sessionReady} style={secondaryButtonStyle(!sessionReady)}>
+            Fix in chat
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LinkedPullRequestReviewCard({
+  review,
+  sessionReady,
+  handoff,
+  onLaunchFixHandoff,
+}: {
+  review: WorkspaceLinkedPullRequestReviewSummary;
+  sessionReady: boolean;
+  handoff?: SessionChatRequest['shipFixHandoff'];
+  onLaunchFixHandoff: (handoff: SessionChatRequest['shipFixHandoff']) => void;
+}) {
+  return (
+    <section style={summarySectionStyle(resolveReviewTone(review.status))}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Review summary</div>
+        <span style={{ ...statusPillStyle(resolveReviewTone(review.status)), fontSize: 10 }}>
+          {formatReviewStatus(review.status)}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{review.summary}</div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <SummaryCountPill
+          label={`Requested ${review.requestedReviewerCount}`}
+          tone={review.requestedReviewerCount > 0 ? 'warning' : 'neutral'}
+        />
+      </div>
+
+      {handoff && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            Continue the review follow-up from this PR context in the existing chat loop.
+          </div>
+          <button type="button" onClick={() => onLaunchFixHandoff(handoff)} disabled={!sessionReady} style={secondaryButtonStyle(!sessionReady)}>
+            Address in chat
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function buildCheckFixHandoff(
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary,
+): SessionChatRequest['shipFixHandoff'] | undefined {
+  const checks = linkedPullRequest.checks;
+  if (!linkedPullRequest.linked || !checks || checks.status !== 'failing') {
+    return undefined;
+  }
+
+  const primaryCheck = checks.failingChecks[0];
+  const conditionLabel = primaryCheck?.name ?? checks.summary;
+  return {
+    taskId: createShipFixTaskId(linkedPullRequest, 'failing-check', conditionLabel),
+    title: primaryCheck?.name ? `Fix failing check: ${primaryCheck.name}` : 'Fix failing PR checks',
+    summary: primaryCheck?.name
+      ? `Fix handoff from failing check ${primaryCheck.name}.`
+      : 'Fix handoff from failing pull request checks.',
+    shipState: 'blocked-by-checks',
+    ...(resolveProjectedReviewState(linkedPullRequest.review) ? { reviewState: resolveProjectedReviewState(linkedPullRequest.review) } : {}),
+    ...(linkedPullRequest.url ? { pullRequestUrl: linkedPullRequest.url } : {}),
+    ...(linkedPullRequest.number !== undefined ? { pullRequestNumber: linkedPullRequest.number } : {}),
+    conditionKind: 'failing-check',
+    conditionLabel,
+    ...(primaryCheck?.detailsUrl ? { detailsUrl: primaryCheck.detailsUrl } : {}),
+  };
+}
+
+function buildReviewFixHandoff(
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary,
+): SessionChatRequest['shipFixHandoff'] | undefined {
+  const review = linkedPullRequest.review;
+  if (!linkedPullRequest.linked || !review || review.status === 'approved' || review.status === 'unknown') {
+    return undefined;
+  }
+
+  const conditionKind = review.status === 'changes_requested' ? 'requested-changes' as const : 'review-feedback' as const;
+  const conditionLabel = review.summary;
+  return {
+    taskId: createShipFixTaskId(linkedPullRequest, conditionKind, conditionLabel),
+    title: review.status === 'changes_requested' ? 'Address requested changes' : 'Address review feedback',
+    summary: review.status === 'changes_requested'
+      ? 'Fix handoff from requested pull request changes.'
+      : 'Fix handoff from pull request review feedback.',
+    shipState: review.status === 'changes_requested' ? 'blocked-by-requested-changes' : 'not-ready',
+    ...(resolveProjectedReviewState(review) ? { reviewState: resolveProjectedReviewState(review) } : {}),
+    ...(linkedPullRequest.url ? { pullRequestUrl: linkedPullRequest.url } : {}),
+    ...(linkedPullRequest.number !== undefined ? { pullRequestNumber: linkedPullRequest.number } : {}),
+    conditionKind,
+    conditionLabel,
+  };
+}
+
+function resolveProjectedReviewState(
+  review: WorkspaceLinkedPullRequestReviewSummary | undefined,
+): ResultReviewState | undefined {
+  if (!review) return undefined;
+  if (review.status === 'approved') return 'ready';
+  if (review.status === 'changes_requested') return 'needs-retry';
+  if (review.status === 'review_required') return 'approval-needed';
+  return undefined;
+}
+
+function createShipFixTaskId(
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary,
+  conditionKind: NonNullable<SessionChatRequest['shipFixHandoff']>['conditionKind'],
+  conditionLabel: string,
+): string {
+  const prToken = linkedPullRequest.number !== undefined
+    ? `pr-${linkedPullRequest.number}`
+    : linkedPullRequest.url
+      ? linkedPullRequest.url.split('/').pop() ?? 'pr'
+      : 'pr';
+  return `ship-fix-${prToken}-${conditionKind}-${sanitizeTaskToken(conditionLabel)}`;
+}
+
+function sanitizeTaskToken(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return normalized.slice(0, 40) || 'context';
+}
+
+function buildShipFixHandoffPrompt(
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary | undefined,
+  handoff: NonNullable<SessionChatRequest['shipFixHandoff']>,
+): string {
+  const prLabel = linkedPullRequest?.number !== undefined ? `PR #${linkedPullRequest.number}` : 'the linked pull request';
+  const prTitle = linkedPullRequest?.title ? ` (${linkedPullRequest.title})` : '';
+  const prUrl = handoff.pullRequestUrl ? `\nPR URL: ${handoff.pullRequestUrl}` : '';
+  const detailsUrl = handoff.detailsUrl ? `\nCondition details: ${handoff.detailsUrl}` : '';
+  const reviewLine = handoff.reviewState ? `\nProjected review state: ${handoff.reviewState}.` : '';
+  const conditionLead = handoff.conditionKind === 'failing-check'
+    ? `Failing check: ${handoff.conditionLabel}.`
+    : handoff.conditionKind === 'requested-changes'
+      ? `Requested changes: ${handoff.conditionLabel}.`
+      : `Review feedback: ${handoff.conditionLabel}.`;
+
+  return [
+    `Continue the fix handoff for ${prLabel}${prTitle} in this session.`,
+    '',
+    conditionLead,
+    `Projected ship state: ${handoff.shipState}.${reviewLine}`.trim(),
+    handoff.summary,
+    `${prUrl}${detailsUrl}`.trim(),
+    '',
+    'Stay in the current workspace/session chat loop, address the blocking ship condition, and explain the next concrete fix steps.',
+  ].filter(Boolean).join('\n');
+}
+
+function createOptimisticUserMessage(workspaceId: string, sessionId: string, text: string): NormalizedMessage {
+  const id = `local-user-${crypto.randomUUID()}`;
+  return {
+    id,
+    role: 'user',
+    createdAt: new Date().toISOString(),
+    parts: [{ type: 'text', text }],
+    trace: {
+      sourceMessageId: id,
+      workspaceId,
+      sessionId,
+    },
+  };
+}
+
+function buildShipFixHandoffRecord(
+  workspaceId: string,
+  sessionId: string,
+  sourceMessageId: string,
+  handoff: NonNullable<SessionChatRequest['shipFixHandoff']>,
+): TaskLedgerRecord {
+  const timestamp = new Date().toISOString();
+  return {
+    taskId: handoff.taskId,
+    workspaceId,
+    sessionId,
+    sourceMessageId,
+    title: handoff.title,
+    summary: handoff.summary,
+    state: 'blocked',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    resultAnnotation: {
+      sourceMessageId,
+      workspaceId,
+      sessionId,
+      taskId: handoff.taskId,
+      summary: handoff.summary,
+      verification: 'unverified',
+      ...(handoff.reviewState ? { reviewState: handoff.reviewState } : {}),
+      shipState: handoff.shipState,
+    },
+    recentShipRef: {
+      action: 'pullRequest',
+      outcome: 'blocked',
+      sessionId,
+      messageId: sourceMessageId,
+      taskId: handoff.taskId,
+      ...(handoff.pullRequestUrl ? { pullRequestUrl: handoff.pullRequestUrl } : {}),
+      ...(handoff.pullRequestNumber !== undefined ? { pullRequestNumber: handoff.pullRequestNumber } : {}),
+      conditionKind: handoff.conditionKind,
+      conditionLabel: handoff.conditionLabel,
+      ...(handoff.detailsUrl ? { detailsUrl: handoff.detailsUrl } : {}),
+    },
+  };
+}
+
+function upsertTaskLedgerRecords(
+  records: TaskLedgerRecord[] | undefined,
+  nextRecord: TaskLedgerRecord,
+): TaskLedgerRecord[] {
+  const nextRecords = [...(records ?? [])];
+  const existingIndex = nextRecords.findIndex((record) => record.taskId === nextRecord.taskId);
+  if (existingIndex >= 0) {
+    nextRecords[existingIndex] = nextRecord;
+  } else {
+    nextRecords.unshift(nextRecord);
+  }
+  return nextRecords;
+}
+
+function SummaryCountPill({ label, tone }: { label: string; tone: SurfaceTone }) {
+  return <span style={{ ...statusPillStyle(tone), fontSize: 10 }}>{label}</span>;
 }
 
 function StatusBannerCard({ banner }: { banner: StatusBannerModel }) {
@@ -1225,6 +1723,62 @@ function resolvePullRequestExecutionBanner(
   };
 }
 
+function resolveLinkedPullRequestSurface(
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary,
+): LinkedPullRequestSurfaceModel {
+  if (!linkedPullRequest.linked) {
+    return {
+      tone: linkedPullRequest.outcome === 'failure' ? 'danger' : 'warning',
+      stateLabel: linkedPullRequest.outcome === 'failure' ? 'Unavailable' : 'Degraded',
+    };
+  }
+
+  if (linkedPullRequest.review?.status === 'changes_requested' || linkedPullRequest.checks?.status === 'failing') {
+    return { tone: 'warning', stateLabel: 'Blocked' };
+  }
+
+  if (linkedPullRequest.review?.status === 'review_required' || linkedPullRequest.checks?.status === 'pending') {
+    return { tone: 'neutral', stateLabel: 'In review' };
+  }
+
+  return { tone: 'success', stateLabel: 'Ready' };
+}
+
+function resolveChecksTone(status: WorkspaceLinkedPullRequestChecksSummary['status']): SurfaceTone {
+  if (status === 'passing') return 'success';
+  if (status === 'failing') return 'danger';
+  if (status === 'pending') return 'warning';
+  return 'neutral';
+}
+
+function resolveReviewTone(status: WorkspaceLinkedPullRequestReviewSummary['status']): SurfaceTone {
+  if (status === 'approved') return 'success';
+  if (status === 'changes_requested') return 'danger';
+  if (status === 'review_required') return 'warning';
+  return 'neutral';
+}
+
+function formatChecksStatus(status: WorkspaceLinkedPullRequestChecksSummary['status']): string {
+  if (status === 'passing') return 'Passing';
+  if (status === 'failing') return 'Failing';
+  if (status === 'pending') return 'Pending';
+  return 'No checks';
+}
+
+function formatReviewStatus(status: WorkspaceLinkedPullRequestReviewSummary['status']): string {
+  if (status === 'approved') return 'Approved';
+  if (status === 'changes_requested') return 'Changes requested';
+  if (status === 'review_required') return 'Review required';
+  return 'Unknown';
+}
+
+function formatLinkedPullRequestState(linkedPullRequest: WorkspaceLinkedPullRequestSummary): string {
+  const state = linkedPullRequest.state
+    ? linkedPullRequest.state.charAt(0).toUpperCase() + linkedPullRequest.state.slice(1).toLowerCase()
+    : 'Unknown';
+  return linkedPullRequest.isDraft ? `${state} · Draft` : state;
+}
+
 function formatBranchLabel(snapshot: WorkspaceGitStatusSnapshot): string {
   if (!snapshot.branch.detached) {
     return snapshot.branch.name ?? 'Unknown branch';
@@ -1322,6 +1876,18 @@ function tonePalette(tone: SurfaceTone): { text: string; border: string; backgro
     return { text: 'var(--error)', border: 'rgba(220, 38, 38, 0.18)', background: 'var(--error-soft)' };
   }
   return { text: 'var(--text-secondary)', border: 'rgba(15, 23, 42, 0.12)', background: 'rgba(15, 23, 42, 0.04)' };
+}
+
+function summarySectionStyle(tone: SurfaceTone): React.CSSProperties {
+  const palette = tonePalette(tone);
+  return {
+    display: 'grid',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    border: `1px solid ${palette.border}`,
+    background: palette.background,
+  };
 }
 
 function statusPillStyle(tone: SurfaceTone): React.CSSProperties {

@@ -1,4 +1,10 @@
-import type { BffEvent, BffEventType } from '../../shared/types.js'
+import type {
+  BffEvent,
+  BffEventType,
+  ResultReviewState,
+  ResultShipState,
+  ShipFixHandoffConditionKind,
+} from '../../shared/types.js'
 import type { ManagedServerManager } from './managed-server-manager.js'
 import type { TaskLedgerService } from './task-ledger-service.js'
 import { randomUUID } from 'node:crypto'
@@ -43,19 +49,35 @@ type LiveMessage = {
 }
 
 interface EventBrokerOptions {
-  taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
+  taskLedgerService?: Pick<TaskLedgerService, 'getRecord' | 'upsertRuntimeRecord'>
   now?: () => Date
+}
+
+interface PendingShipFixHandoff {
+  workspaceId: string
+  sessionId: string
+  taskId: string
+  title: string
+  summary: string
+  shipState: ResultShipState
+  reviewState?: ResultReviewState
+  pullRequestUrl?: string
+  pullRequestNumber?: number
+  conditionKind: ShipFixHandoffConditionKind
+  conditionLabel: string
+  detailsUrl?: string
 }
 
 export class EventBroker {
   private serverManager: ManagedServerManager
-  private taskLedgerService?: Pick<TaskLedgerService, 'upsertRuntimeRecord'>
+  private taskLedgerService?: Pick<TaskLedgerService, 'getRecord' | 'upsertRuntimeRecord'>
   private clients = new Map<string, BrowserClient>()
   private upstreamConnections = new Map<string, UpstreamConnection>()
   private liveMessages = new Map<string, LiveMessage>()
   private activeAssistantBySession = new Map<string, string>()
   private completedMessages = new Set<string>()
   private pendingMessageDeltaFlushes = new Map<string, ReturnType<typeof setTimeout>>()
+  private pendingShipFixHandoffs = new Map<string, PendingShipFixHandoff[]>()
   private keepaliveTimer?: ReturnType<typeof setInterval>
   private now: () => Date
 
@@ -115,6 +137,13 @@ export class EventBroker {
         }
       }
     }
+  }
+
+  registerShipFixHandoff(handoff: PendingShipFixHandoff): void {
+    const key = this.sessionKey(handoff.workspaceId, handoff.sessionId)
+    const queue = this.pendingShipFixHandoffs.get(key) ?? []
+    queue.push(handoff)
+    this.pendingShipFixHandoffs.set(key, queue)
   }
 
   /**
@@ -241,6 +270,9 @@ export class EventBroker {
 
         const message = this.getOrCreateLiveMessage(workspaceId, sessionId, messageId)
         message.info = mergeInfo(message.info, info)
+        if (message.info.role === 'assistant') {
+          message.info = this.attachPendingShipFixHandoff(workspaceId, sessionId, message.info)
+        }
         this.persistTaskLedgerFromLiveMessage(workspaceId, sessionId, messageId)
 
         if (message.info.role === 'assistant') {
@@ -398,6 +430,15 @@ export class EventBroker {
     }
   }
 
+  private clearPendingShipFixHandoffsForWorkspace(workspaceId: string): void {
+    const prefix = `${workspaceId}:`
+    for (const key of this.pendingShipFixHandoffs.keys()) {
+      if (key.startsWith(prefix)) {
+        this.pendingShipFixHandoffs.delete(key)
+      }
+    }
+  }
+
   private getOrCreateLiveMessage(workspaceId: string, sessionId: string, messageId: string): LiveMessage {
     const key = this.messageKey(workspaceId, messageId)
     const existing = this.liveMessages.get(key)
@@ -437,6 +478,15 @@ export class EventBroker {
       ?? normalized.trace?.taskId
     if (!taskId) return
 
+    const existingRecord = this.taskLedgerService.getRecord?.(workspaceId, taskId)
+    const existingShipRef = existingRecord?.recentShipRef
+    const recentShipRef = existingShipRef
+      ? {
+          ...existingShipRef,
+          ...(normalized.id ? { messageId: normalized.id } : {}),
+        }
+      : undefined
+
     this.taskLedgerService.upsertRuntimeRecord({
       workspaceId,
       taskId,
@@ -454,7 +504,63 @@ export class EventBroker {
       createdAt: normalized.createdAt,
       updatedAt: this.now().toISOString(),
       resultAnnotation: normalized.resultAnnotation,
+      ...(recentShipRef ? { recentShipRef } : {}),
     })
+  }
+
+  private attachPendingShipFixHandoff(
+    workspaceId: string,
+    sessionId: string,
+    info: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const messageId = readString(info, 'id')
+    if (!messageId) return info
+
+    const pending = this.consumePendingShipFixHandoff(workspaceId, sessionId)
+    if (!pending) return info
+
+    const existingTask = readNestedRecord(info, 'task') ?? {}
+    const existingAnnotation = readNestedRecord(info, 'resultAnnotation')
+      ?? readNestedRecord(info, 'result_annotation')
+      ?? {}
+
+    return {
+      ...info,
+      task: {
+        ...existingTask,
+        id: readString(existingTask, 'id', 'taskId', 'taskID', 'task_id') ?? pending.taskId,
+        state: readString(existingTask, 'state', 'status') ?? 'blocked',
+        title: readString(existingTask, 'title', 'label') ?? pending.title,
+        summary: readString(existingTask, 'summary', 'latestSummary', 'latest_summary') ?? pending.summary,
+      },
+      resultAnnotation: {
+        ...existingAnnotation,
+        sourceMessageId: readString(existingAnnotation, 'sourceMessageId', 'sourceMessageID', 'source_message_id') ?? messageId,
+        workspaceId: readString(existingAnnotation, 'workspaceId', 'workspaceID', 'workspace_id') ?? workspaceId,
+        sessionId: readString(existingAnnotation, 'sessionId', 'sessionID', 'session_id') ?? sessionId,
+        taskId: readString(existingAnnotation, 'taskId', 'taskID', 'task_id') ?? pending.taskId,
+        verification: readString(existingAnnotation, 'verification', 'verificationStatus', 'verification_status') ?? 'unverified',
+        summary: readString(existingAnnotation, 'summary', 'latestSummary', 'latest_summary') ?? pending.summary,
+        shipState: readString(existingAnnotation, 'shipState', 'ship_state') ?? pending.shipState,
+        ...(readString(existingAnnotation, 'reviewState', 'review_state') ?? pending.reviewState
+          ? { reviewState: readString(existingAnnotation, 'reviewState', 'review_state') ?? pending.reviewState }
+          : {}),
+      },
+    }
+  }
+
+  private consumePendingShipFixHandoff(workspaceId: string, sessionId: string): PendingShipFixHandoff | undefined {
+    const key = this.sessionKey(workspaceId, sessionId)
+    const queue = this.pendingShipFixHandoffs.get(key)
+    if (!queue || queue.length === 0) return undefined
+
+    const next = queue.shift()
+    if (!queue.length) {
+      this.pendingShipFixHandoffs.delete(key)
+    } else {
+      this.pendingShipFixHandoffs.set(key, queue)
+    }
+    return next
   }
 
   private scheduleReconnect(workspaceId: string): void {
@@ -484,6 +590,7 @@ export class EventBroker {
     conn.controller.abort()
     if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
     this.clearPendingMessageDeltaFlushesForWorkspace(workspaceId)
+    this.clearPendingShipFixHandoffsForWorkspace(workspaceId)
     this.upstreamConnections.delete(workspaceId)
   }
 
@@ -518,6 +625,7 @@ export class EventBroker {
       if (conn.reconnectTimer) clearTimeout(conn.reconnectTimer)
     }
     this.upstreamConnections.clear()
+    this.pendingShipFixHandoffs.clear()
     this.clients.clear()
   }
 }

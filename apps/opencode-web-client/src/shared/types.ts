@@ -155,6 +155,50 @@ export interface WorkspacePullRequestCapability {
   issues: ShipIssue[];
 }
 
+export type WorkspaceLinkedPullRequestChecksStatus = 'none' | 'passing' | 'failing' | 'pending';
+
+export interface WorkspaceLinkedPullRequestFailingCheck {
+  name: string;
+  summary?: string;
+  detailsUrl?: string;
+}
+
+export interface WorkspaceLinkedPullRequestChecksSummary {
+  status: WorkspaceLinkedPullRequestChecksStatus;
+  summary: string;
+  total: number;
+  passing: number;
+  failing: number;
+  pending: number;
+  failingChecks: WorkspaceLinkedPullRequestFailingCheck[];
+}
+
+export type WorkspaceLinkedPullRequestReviewStatus = 'approved' | 'changes_requested' | 'review_required' | 'unknown';
+
+export interface WorkspaceLinkedPullRequestReviewSummary {
+  status: WorkspaceLinkedPullRequestReviewStatus;
+  summary: string;
+  requestedReviewerCount: number;
+}
+
+export interface WorkspaceLinkedPullRequestSummary {
+  outcome: ShipStatusOutcome;
+  linked: boolean;
+  summary: string;
+  detail?: string;
+  remediation?: string;
+  number?: number;
+  title?: string;
+  url?: string;
+  state?: string;
+  isDraft?: boolean;
+  headBranch?: string;
+  baseBranch?: string;
+  checks?: WorkspaceLinkedPullRequestChecksSummary;
+  review?: WorkspaceLinkedPullRequestReviewSummary;
+  issues: ShipIssue[];
+}
+
 export interface WorkspaceGitStatusSnapshot {
   workspaceId: string;
   checkedAt: string;
@@ -162,6 +206,7 @@ export interface WorkspaceGitStatusSnapshot {
   upstream: WorkspaceGitUpstreamState;
   changeSummary: WorkspaceGitChangeSummary;
   pullRequest: WorkspacePullRequestCapability;
+  linkedPullRequest: WorkspaceLinkedPullRequestSummary;
 }
 
 export interface WorkspaceGitStatusResult {
@@ -281,6 +326,10 @@ export interface TaskLedgerShipReference {
   terminalLogRef?: string;
   commitSha?: string;
   pullRequestUrl?: string;
+  pullRequestNumber?: number;
+  conditionKind?: ShipFixHandoffConditionKind;
+  conditionLabel?: string;
+  detailsUrl?: string;
 }
 
 export interface WorkspaceBootstrap {
@@ -348,7 +397,43 @@ export type ResultVerificationState = 'verified' | 'partially verified' | 'unver
 
 export type ResultReviewState = 'ready' | 'approval-needed' | 'needs-retry';
 
-export type ResultShipState = 'not-ready' | 'local-ready' | 'pr-ready';
+export type ResultShipState =
+  | 'not-ready'
+  | 'local-ready'
+  | 'pr-ready'
+  | 'blocked-by-checks'
+  | 'blocked-by-requested-changes';
+
+export type ShipFixHandoffConditionKind = 'failing-check' | 'review-feedback' | 'requested-changes';
+
+export interface ShipFixHandoffRequest {
+  taskId: string;
+  title: string;
+  summary: string;
+  shipState: ResultShipState;
+  reviewState?: ResultReviewState;
+  pullRequestUrl?: string;
+  pullRequestNumber?: number;
+  conditionKind: ShipFixHandoffConditionKind;
+  conditionLabel: string;
+  detailsUrl?: string;
+}
+
+export interface SessionChatRequest {
+  text: string;
+  providerId?: string;
+  modelId?: string;
+  agentId?: string;
+  effort?: string;
+  shipFixHandoff?: ShipFixHandoffRequest;
+}
+
+export interface SessionChatResponse {
+  accepted: true;
+  sessionId: string;
+  messageId?: string;
+  taskId?: string;
+}
 
 export interface MessageTraceLink {
   sourceMessageId: string;

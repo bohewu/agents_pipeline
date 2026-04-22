@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { NormalizedMessage, NormalizedPart, VerificationCommandKind } from '../../../shared/types.js';
+import type { NormalizedMessage, NormalizedPart, TaskLedgerShipReference, VerificationCommandKind } from '../../../shared/types.js';
 import { api } from '../../lib/api-client.js';
 import { getRenderableReasoningParts } from '../../lib/reasoning-parts.js';
 import { selectMessageResultTrace, selectSessionMessages, type ResolvedMessageResultTrace, useStore } from '../../runtime/store.js';
@@ -27,11 +27,13 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const resultAnnotationsByWorkspace = useStore((s) => s.resultAnnotationsByWorkspace);
   const taskEntriesByWorkspace = useStore((s) => s.taskEntriesByWorkspace);
   const workspaceBootstraps = useStore((s) => s.workspaceBootstraps);
+  const workspaceGitStatusByWorkspace = useStore((s) => s.workspaceGitStatusByWorkspace);
   const resultTrace = useMemo(() => selectMessageResultTrace({
     resultAnnotationsByWorkspace,
     taskEntriesByWorkspace,
     workspaceBootstraps,
-  }, message), [message, resultAnnotationsByWorkspace, taskEntriesByWorkspace, workspaceBootstraps]);
+    workspaceGitStatusByWorkspace,
+  }, message), [message, resultAnnotationsByWorkspace, taskEntriesByWorkspace, workspaceBootstraps, workspaceGitStatusByWorkspace]);
   const textParts = useMemo(
     () => message.parts.filter((part) => part.type === 'text' && !!part.text?.trim()),
     [message.parts],
@@ -494,6 +496,12 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
         </div>
       )}
 
+      {trace.shipReference?.conditionLabel && (
+        <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.6 }}>
+          Ship handoff: {formatShipCondition(trace.shipReference)}
+        </div>
+      )}
+
       {verificationSummary && (
         <div
           className="oc-surface-card"
@@ -715,7 +723,16 @@ function buildTraceBadges(trace: ResolvedMessageResultTrace): Array<{
     badges.push(createTraceBadge(formatStateLabel(trace.annotation.reviewState), trace.annotation.reviewState === 'ready' ? 'success' : 'warning'));
   }
   if (trace.annotation?.shipState) {
-    badges.push(createTraceBadge(formatStateLabel(trace.annotation.shipState), trace.annotation.shipState === 'pr-ready' ? 'success' : trace.annotation.shipState === 'local-ready' ? 'neutral' : 'warning'));
+    badges.push(createTraceBadge(
+      formatStateLabel(trace.annotation.shipState),
+      trace.annotation.shipState === 'pr-ready'
+        ? 'success'
+        : trace.annotation.shipState === 'blocked-by-checks'
+          ? 'danger'
+          : trace.annotation.shipState === 'local-ready'
+            ? 'neutral'
+            : 'warning',
+    ));
   }
 
   return badges;
@@ -763,7 +780,22 @@ function formatVerificationLabel(value: string): string {
 }
 
 function formatStateLabel(value: string): string {
+  if (value === 'pr-ready') return 'PR ready';
+  if (value === 'blocked-by-checks') return 'Blocked by checks';
+  if (value === 'blocked-by-requested-changes') return 'Blocked by requested changes';
   return capitalizeWords(value.replace(/-/g, ' '));
+}
+
+function formatShipCondition(reference: TaskLedgerShipReference): string {
+  const kind = reference.conditionKind === 'failing-check'
+    ? 'Failing check'
+    : reference.conditionKind === 'requested-changes'
+      ? 'Requested changes'
+      : reference.conditionKind === 'review-feedback'
+        ? 'Review feedback'
+        : 'Ship condition';
+
+  return reference.conditionLabel ? `${kind} · ${reference.conditionLabel}` : kind;
 }
 
 function resolveVerificationTone(value: string): 'success' | 'warning' | 'danger' {

@@ -286,6 +286,51 @@ describe('MessageCard', () => {
     expect(container.textContent).toContain('Recover request failed.')
   })
 
+  it('tc-task-result-state-projection renders requested-changes state and ship handoff details on result cards', async () => {
+    const workspaceId = 'workspace-review-card'
+    const sessionId = 'session-review-card'
+    const message = makeAssistantMessage(
+      workspaceId,
+      sessionId,
+      'message-review-card',
+      'task-review-card',
+      'Requested changes are still blocking ship.',
+      'unverified',
+    )
+    const latestRun = makeRun('verify-review-card', 'build', 'failed', 'Requested changes are still blocking ship.', {
+      workspaceId,
+      sessionId,
+      sourceMessageId: message.id,
+      taskId: 'task-review-card',
+    })
+
+    configureMessageContext(workspaceId, sessionId, message, {
+      ...makeTrace(message, latestRun, 'unverified'),
+      annotation: {
+        ...message.resultAnnotation!,
+        reviewState: 'needs-retry',
+        shipState: 'blocked-by-requested-changes',
+        summary: 'Requested changes are still blocking ship.',
+      },
+      shipReference: {
+        action: 'pullRequest',
+        outcome: 'blocked',
+        sessionId,
+        messageId: message.id,
+        taskId: 'task-review-card',
+        pullRequestUrl: 'https://github.com/example/repo/pull/73',
+        conditionKind: 'requested-changes',
+        conditionLabel: 'Security review requested code changes.',
+      },
+    } as any)
+
+    await renderCard(message)
+
+    expect(container.textContent).toContain('Needs Retry')
+    expect(container.textContent).toContain('Blocked by requested changes')
+    expect(container.textContent).toContain('Ship handoff: Requested changes · Security review requested code changes.')
+  })
+
   async function renderCard(message: NormalizedMessage): Promise<void> {
     root = createRoot(container)
     await act(async () => {

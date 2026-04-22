@@ -12,6 +12,8 @@ import type {
   PushResult,
   ShipExecutionResult,
   ShipIssue,
+  WorkspaceLinkedPullRequestChecksSummary,
+  WorkspaceLinkedPullRequestSummary,
   WorkspaceGitStatusResult,
   WorkspaceGitStatusSnapshot,
   WorkspaceGitUpstreamState,
@@ -24,9 +26,43 @@ const execFileAsync = promisify(execFile)
 const GIT_TIMEOUT_MS = 5000
 const GH_TIMEOUT_MS = 4000
 const MAX_BUCKET_PATHS = 20
+const LINKED_PULL_REQUEST_JSON_FIELDS = [
+  'number',
+  'title',
+  'url',
+  'state',
+  'isDraft',
+  'headRefName',
+  'baseRefName',
+  'reviewDecision',
+  'reviewRequests',
+  'statusCheckRollup',
+].join(',')
 
 type ExecResult = { stdout: string; stderr: string }
 type ExecFn = (file: string, args: string[], options?: { cwd?: string; timeout?: number }) => Promise<ExecResult>
+
+interface GitHubPullRequestView {
+  number?: number
+  title?: string
+  url?: string
+  state?: string
+  isDraft?: boolean
+  headRefName?: string
+  baseRefName?: string
+  reviewDecision?: string
+  reviewRequests?: unknown[]
+  statusCheckRollup?: unknown[]
+}
+
+type NormalizedLinkedPullRequestCheckStatus = 'passing' | 'failing' | 'pending'
+
+interface NormalizedLinkedPullRequestCheck {
+  name: string
+  status: NormalizedLinkedPullRequestCheckStatus
+  summary?: string
+  detailsUrl?: string
+}
 
 export interface WorkspaceShipServiceOptions {
   execFile?: ExecFn
@@ -67,6 +103,7 @@ export class WorkspaceShipService {
       const parsed = await this.readGitStatus(workspaceRoot)
       const upstream = await this.resolveUpstream(parsed, workspaceRoot)
       const pullRequest = await this.resolvePullRequestCapability(parsed, upstream)
+      const linkedPullRequest = await this.resolveLinkedPullRequest(parsed, workspaceRoot, upstream, pullRequest)
 
       return {
         outcome: 'success',
@@ -91,6 +128,7 @@ export class WorkspaceShipService {
             hasStagedChanges: parsed.stagedPaths.length > 0,
           },
           pullRequest,
+          linkedPullRequest,
         },
         issues: [],
       }
@@ -499,6 +537,72 @@ export class WorkspaceShipService {
       issues: [],
     }
   }
+
+  private async resolveLinkedPullRequest(
+    parsed: ParsedGitStatus,
+    workspaceRoot: string,
+    upstream: WorkspaceGitUpstreamState,
+    capability: WorkspacePullRequestCapability,
+  ): Promise<WorkspaceLinkedPullRequestSummary> {
+    if (capability.outcome !== 'success' || !capability.supported) {
+      return linkedPullRequestFromCapability(capability)
+    }
+
+    try {
+      const args = ['pr', 'view']
+      if (parsed.branchName) {
+        args.push(parsed.branchName)
+      }
+      args.push('--json', LINKED_PULL_REQUEST_JSON_FIELDS)
+
+      const result = await this.execFile('gh', args, {
+        cwd: workspaceRoot,
+        timeout: GH_TIMEOUT_MS,
+      })
+
+      return createLinkedPullRequestSummary(parseLinkedPullRequestView(result.stdout))
+    } catch (error) {
+      if (isMissingLinkedPullRequestError(error)) {
+        return missingLinkedPullRequestSummary(parsed, upstream)
+      }
+
+      if (hasExecOutput(error, 'not logged into') || hasExecOutput(error, 'not logged in')) {
+        return degradedLinkedPullRequestSummary(
+          'Linked pull request details are currently unavailable.',
+          'The gh CLI is installed, but github.com authentication is not available.',
+          'Run gh auth login for github.com and refresh ship status.',
+          [createIssue(
+            'GH_AUTH_UNAVAILABLE',
+            'Linked pull request details are currently unavailable.',
+            'The gh CLI is installed, but github.com authentication is not available.',
+            'Run gh auth login for github.com and refresh ship status.',
+            'gh',
+          )],
+        )
+      }
+
+      if (isMissingCommandError(error)) {
+        return degradedLinkedPullRequestSummary(
+          'Linked pull request details are currently unavailable.',
+          'The gh CLI is not installed or is not on PATH.',
+          'Install gh and refresh ship status.',
+          [createIssue(
+            'GH_CLI_UNAVAILABLE',
+            'Linked pull request details are currently unavailable.',
+            'The gh CLI is not installed or is not on PATH.',
+            'Install gh and refresh ship status.',
+            'gh',
+          )],
+        )
+      }
+
+      return failedLinkedPullRequestSummary(
+        'Linked pull request details failed to load.',
+        toErrorMessage(error),
+        'LINKED_PR_READ_FAILED',
+      )
+    }
+  }
 }
 
 async function defaultExecFile(
@@ -867,6 +971,298 @@ function blockedCapability(detail: string, remediation: string): WorkspacePullRe
     remediation,
     issues: [createIssue('PR_BLOCKED', 'Pull request creation is currently blocked.', detail, remediation, 'git')],
   }
+}
+
+function linkedPullRequestFromCapability(capability: WorkspacePullRequestCapability): WorkspaceLinkedPullRequestSummary {
+  const detail = capability.issues[0]?.detail ?? capability.detail ?? capability.summary
+  const remediation = capability.issues[0]?.remediation ?? capability.remediation
+
+  if (capability.outcome === 'failure') {
+    return {
+      outcome: 'failure',
+      linked: false,
+      summary: 'Linked pull request details failed to load.',
+      ...(detail ? { detail } : {}),
+      ...(remediation ? { remediation } : {}),
+      issues: [...capability.issues],
+    }
+  }
+
+  return degradedLinkedPullRequestSummary(
+    'Linked pull request details are currently unavailable.',
+    detail,
+    remediation,
+    capability.issues,
+  )
+}
+
+function degradedLinkedPullRequestSummary(
+  summary: string,
+  detail: string | undefined,
+  remediation: string | undefined,
+  issues: ShipIssue[],
+): WorkspaceLinkedPullRequestSummary {
+  return {
+    outcome: 'degraded',
+    linked: false,
+    summary,
+    ...(detail ? { detail } : {}),
+    ...(remediation ? { remediation } : {}),
+    issues: [...issues],
+  }
+}
+
+function failedLinkedPullRequestSummary(
+  summary: string,
+  detail: string,
+  code: string,
+): WorkspaceLinkedPullRequestSummary {
+  return {
+    outcome: 'failure',
+    linked: false,
+    summary,
+    ...(detail ? { detail } : {}),
+    issues: [createIssue(code, summary, detail, undefined, 'gh')],
+  }
+}
+
+function missingLinkedPullRequestSummary(
+  parsed: ParsedGitStatus,
+  upstream: WorkspaceGitUpstreamState,
+): WorkspaceLinkedPullRequestSummary {
+  const branchLabel = parsed.branchName ?? 'the current branch'
+  const upstreamLabel = upstream.ref ? ` tracking ${upstream.ref}` : ''
+  const detail = `GitHub did not find a pull request linked to ${branchLabel}${upstreamLabel}.`
+  const remediation = 'Create or link a GitHub pull request for the current branch, then refresh ship status.'
+
+  return degradedLinkedPullRequestSummary(
+    'No linked pull request was found for the current branch.',
+    detail,
+    remediation,
+    [createIssue('LINKED_PR_NOT_FOUND', 'No linked pull request was found for the current branch.', detail, remediation, 'gh')],
+  )
+}
+
+function parseLinkedPullRequestView(output: string): GitHubPullRequestView {
+  const parsed = JSON.parse(output) as unknown
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('GitHub CLI returned an invalid linked pull request payload.')
+  }
+  return parsed as GitHubPullRequestView
+}
+
+function createLinkedPullRequestSummary(pr: GitHubPullRequestView): WorkspaceLinkedPullRequestSummary {
+  const checks = summarizeLinkedPullRequestChecks(pr.statusCheckRollup)
+  const review = summarizeLinkedPullRequestReview(pr.reviewDecision, pr.reviewRequests)
+
+  return {
+    outcome: 'success',
+    linked: true,
+    summary: describeLinkedPullRequest(pr),
+    ...(typeof pr.number === 'number' ? { number: pr.number } : {}),
+    ...(pr.title ? { title: pr.title } : {}),
+    ...(pr.url ? { url: pr.url } : {}),
+    ...(pr.state ? { state: pr.state } : {}),
+    ...(typeof pr.isDraft === 'boolean' ? { isDraft: pr.isDraft } : {}),
+    ...(pr.headRefName ? { headBranch: pr.headRefName } : {}),
+    ...(pr.baseRefName ? { baseBranch: pr.baseRefName } : {}),
+    checks,
+    review,
+    issues: [],
+  }
+}
+
+function describeLinkedPullRequest(pr: GitHubPullRequestView): string {
+  const numberLabel = typeof pr.number === 'number' ? ` #${pr.number}` : ''
+  const normalizedState = normalizeUppercase(pr.state)
+
+  if (pr.isDraft && normalizedState === 'OPEN') {
+    return `Linked pull request${numberLabel} is open as a draft.`
+  }
+  if (normalizedState === 'MERGED') {
+    return `Linked pull request${numberLabel} is merged.`
+  }
+  if (normalizedState === 'CLOSED') {
+    return `Linked pull request${numberLabel} is closed.`
+  }
+  if (normalizedState === 'OPEN') {
+    return `Linked pull request${numberLabel} is open.`
+  }
+
+  return `Linked pull request${numberLabel} details are available.`
+}
+
+function summarizeLinkedPullRequestChecks(statusCheckRollup: unknown): WorkspaceLinkedPullRequestChecksSummary {
+  const checks = Array.isArray(statusCheckRollup)
+    ? statusCheckRollup
+        .map((entry) => normalizeLinkedPullRequestCheck(entry))
+        .filter((entry): entry is NormalizedLinkedPullRequestCheck => Boolean(entry))
+    : []
+
+  const total = checks.length
+  const passing = checks.filter((check) => check.status === 'passing').length
+  const failingEntries = checks.filter((check) => check.status === 'failing')
+  const failing = failingEntries.length
+  const pending = checks.filter((check) => check.status === 'pending').length
+
+  if (total === 0) {
+    return {
+      status: 'none',
+      summary: 'No reported status checks.',
+      total: 0,
+      passing: 0,
+      failing: 0,
+      pending: 0,
+      failingChecks: [],
+    }
+  }
+
+  const summary = failing > 0
+    ? `${failing} of ${total} ${pluralize('check', total)} failing${pending > 0 ? `, ${pending} pending` : ''}.`
+    : pending > 0
+      ? `${pending} of ${total} ${pluralize('check', total)} pending.`
+      : `${passing} ${pluralize('check', passing)} passing.`
+
+  return {
+    status: failing > 0 ? 'failing' : pending > 0 ? 'pending' : 'passing',
+    summary,
+    total,
+    passing,
+    failing,
+    pending,
+    failingChecks: failingEntries.map((check) => ({
+      name: check.name,
+      ...(check.summary ? { summary: check.summary } : {}),
+      ...(check.detailsUrl ? { detailsUrl: check.detailsUrl } : {}),
+    })),
+  }
+}
+
+function normalizeLinkedPullRequestCheck(entry: unknown): NormalizedLinkedPullRequestCheck | undefined {
+  if (!entry || typeof entry !== 'object') {
+    return undefined
+  }
+
+  const candidate = entry as Record<string, unknown>
+  const name = readString(candidate.name) ?? readString(candidate.context)
+  if (!name) {
+    return undefined
+  }
+
+  const status = resolveLinkedPullRequestCheckStatus(candidate)
+  const summary = readString(candidate.description)
+    ?? readString(candidate.conclusion)
+    ?? readString(candidate.state)
+    ?? readString(candidate.status)
+  const detailsUrl = readString(candidate.detailsUrl) ?? readString(candidate.targetUrl)
+
+  return {
+    name,
+    status,
+    ...(summary ? { summary } : {}),
+    ...(detailsUrl ? { detailsUrl } : {}),
+  }
+}
+
+function resolveLinkedPullRequestCheckStatus(candidate: Record<string, unknown>): NormalizedLinkedPullRequestCheckStatus {
+  const state = normalizeUppercase(candidate.state)
+  if (state === 'ERROR' || state === 'FAILURE') {
+    return 'failing'
+  }
+  if (state === 'PENDING' || state === 'EXPECTED') {
+    return 'pending'
+  }
+  if (state === 'SUCCESS') {
+    return 'passing'
+  }
+
+  const status = normalizeUppercase(candidate.status)
+  if (status && status !== 'COMPLETED') {
+    return 'pending'
+  }
+
+  const conclusion = normalizeUppercase(candidate.conclusion)
+  if (!conclusion) {
+    return status === 'COMPLETED' ? 'passing' : 'pending'
+  }
+
+  if (conclusion === 'SUCCESS' || conclusion === 'NEUTRAL' || conclusion === 'SKIPPED') {
+    return 'passing'
+  }
+
+  return 'failing'
+}
+
+function summarizeLinkedPullRequestReview(
+  reviewDecision: unknown,
+  reviewRequests: unknown,
+): WorkspaceLinkedPullRequestSummary['review'] {
+  const requestedReviewerCount = Array.isArray(reviewRequests) ? reviewRequests.length : 0
+  const decision = normalizeUppercase(reviewDecision)
+
+  if (decision === 'APPROVED') {
+    return {
+      status: 'approved',
+      summary: appendRequestedReviewerSummary('Approved', requestedReviewerCount),
+      requestedReviewerCount,
+    }
+  }
+
+  if (decision === 'CHANGES_REQUESTED') {
+    return {
+      status: 'changes_requested',
+      summary: appendRequestedReviewerSummary('Changes requested', requestedReviewerCount),
+      requestedReviewerCount,
+    }
+  }
+
+  if (decision === 'REVIEW_REQUIRED') {
+    return {
+      status: 'review_required',
+      summary: appendRequestedReviewerSummary('Review required', requestedReviewerCount),
+      requestedReviewerCount,
+    }
+  }
+
+  if (requestedReviewerCount > 0) {
+    return {
+      status: 'review_required',
+      summary: `Review requested from ${requestedReviewerCount} ${pluralize('reviewer', requestedReviewerCount)}.`,
+      requestedReviewerCount,
+    }
+  }
+
+  return {
+    status: 'unknown',
+    summary: 'Review status unavailable.',
+    requestedReviewerCount,
+  }
+}
+
+function appendRequestedReviewerSummary(base: string, requestedReviewerCount: number): string {
+  if (requestedReviewerCount <= 0) {
+    return base
+  }
+  return `${base}; ${requestedReviewerCount} ${pluralize('reviewer', requestedReviewerCount)} still requested.`
+}
+
+function pluralize(word: string, count: number): string {
+  return count === 1 ? word : `${word}s`
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+}
+
+function normalizeUppercase(value: unknown): string | undefined {
+  const text = readString(value)
+  return text ? text.trim().toUpperCase() : undefined
+}
+
+function isMissingLinkedPullRequestError(error: unknown): boolean {
+  return hasExecOutput(error, 'no pull requests found')
+    || hasExecOutput(error, 'no pull request found')
+    || hasExecOutput(error, 'could not find pull request')
 }
 
 function degradedCapability(

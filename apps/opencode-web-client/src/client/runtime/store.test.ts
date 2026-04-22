@@ -28,6 +28,7 @@ import type {
   VerificationRun,
   WorkspaceCapabilityProbe,
   WorkspaceBootstrap,
+  WorkspaceGitStatusResult,
 } from '../../shared/types.js';
 
 const baseState = useStore.getState();
@@ -391,11 +392,41 @@ describe('store session streaming state', () => {
       data: {
         ...makeGitStatus('workspace-2').data!,
         branch: { name: 'feature/ship', detached: false },
+        linkedPullRequest: {
+          ...makeGitStatus('workspace-2').data!.linkedPullRequest,
+          linked: true,
+          outcome: 'success',
+          summary: 'Linked pull request #84 is open.',
+          number: 84,
+          title: 'Ship status follow-up',
+          url: 'https://github.com/example/repo/pull/84',
+          state: 'OPEN',
+          headBranch: 'feature/ship',
+          baseBranch: 'main',
+          checks: {
+            status: 'passing',
+            summary: '2 checks passing.',
+            total: 2,
+            passing: 2,
+            failing: 0,
+            pending: 0,
+            failingChecks: [],
+          },
+          review: {
+            status: 'approved',
+            summary: 'Approved',
+            requestedReviewerCount: 0,
+          },
+          issues: [],
+        },
       },
     }));
     useStore.getState().setActiveWorkspace('workspace-2');
 
     expect(selectActiveWorkspaceGitStatus(useStore.getState())?.data?.branch.name).toBe('feature/ship');
+    expect(selectActiveWorkspaceGitStatus(useStore.getState())?.data?.linkedPullRequest.url).toBe(
+      'https://github.com/example/repo/pull/84',
+    );
   });
 
   it('stores ship action results with workspace scoping intact', () => {
@@ -420,6 +451,192 @@ describe('store session streaming state', () => {
         issues: [],
       },
     });
+  });
+
+  it('projects matching linked PR state onto task ledger and result traces without leaking across workspaces', () => {
+    const sessionId = 'session-ship-projection';
+    const workspaceId = 'workspace-ship-projection';
+    const message = makeAssistantMessage(workspaceId, sessionId, 'message-ship-projection', 'task-ship-projection', {
+      summary: 'Fix handoff result',
+      verification: 'unverified',
+    });
+    const gitStatus = makeGitStatus(workspaceId);
+    gitStatus.data!.pullRequest = {
+      outcome: 'success',
+      supported: true,
+      summary: 'Ready',
+      issues: [],
+    };
+    gitStatus.data!.linkedPullRequest = {
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #84 is blocked by checks.',
+      number: 84,
+      title: 'Ship fix',
+      url: 'https://github.com/example/repo/pull/84',
+      state: 'OPEN',
+      headBranch: 'feature/ship',
+      baseBranch: 'main',
+      checks: {
+        status: 'failing',
+        summary: '1 failing check.',
+        total: 1,
+        passing: 0,
+        failing: 1,
+        pending: 0,
+        failingChecks: [{ name: 'CI / test' }],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Changes requested.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    };
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, undefined, undefined, undefined, gitStatus, [
+      makeTaskLedgerRecord(workspaceId, sessionId, 'task-ship-projection', 'blocked', {
+        sourceMessageId: 'message-ship-projection',
+        summary: 'Fix handoff result',
+        resultAnnotation: {
+          sourceMessageId: 'message-ship-projection',
+          workspaceId,
+          sessionId,
+          taskId: 'task-ship-projection',
+          verification: 'unverified',
+          summary: 'Fix handoff result',
+          shipState: 'not-ready',
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'blocked',
+          sessionId,
+          messageId: 'message-ship-projection',
+          taskId: 'task-ship-projection',
+          pullRequestUrl: 'https://github.com/example/repo/pull/84',
+          conditionKind: 'failing-check',
+          conditionLabel: 'CI / test',
+        },
+      }),
+    ]));
+    useStore.getState().setWorkspaceBootstrap('workspace-other', makeBootstrap('workspace-other', undefined, undefined, undefined, {
+      ...makeGitStatus('workspace-other'),
+      data: {
+        ...makeGitStatus('workspace-other').data!,
+        linkedPullRequest: {
+          outcome: 'success',
+          linked: true,
+          summary: 'Linked pull request #99 is ready.',
+          number: 99,
+          title: 'Other workspace',
+          url: 'https://github.com/example/repo/pull/99',
+          state: 'OPEN',
+          headBranch: 'feature/other',
+          baseBranch: 'main',
+          checks: {
+            status: 'passing',
+            summary: 'Passing',
+            total: 1,
+            passing: 1,
+            failing: 0,
+            pending: 0,
+            failingChecks: [],
+          },
+          review: {
+            status: 'approved',
+            summary: 'Approved',
+            requestedReviewerCount: 0,
+          },
+          issues: [],
+        },
+      },
+    }));
+    useStore.getState().setMessages(workspaceId, sessionId, [message]);
+
+    const projectedRecord = selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId)[0]!;
+    const projectedTrace = selectMessageResultTrace(useStore.getState(), selectSessionMessages(useStore.getState(), workspaceId, sessionId)[0]!);
+
+    expect(projectedRecord.resultAnnotation?.shipState).toBe('blocked-by-checks');
+    expect(projectedTrace?.annotation?.shipState).toBe('blocked-by-checks');
+    expect(projectedTrace?.annotation?.reviewState).toBe('needs-retry');
+    expect(selectSessionTaskLedgerRecords(useStore.getState(), 'workspace-other', sessionId)).toEqual([]);
+  });
+
+  it('tc-task-result-state-projection projects requested-changes-only PR state onto task ledger and result traces', () => {
+    const sessionId = 'session-review-projection';
+    const workspaceId = 'workspace-review-projection';
+    const message = makeAssistantMessage(workspaceId, sessionId, 'message-review-projection', 'task-review-projection', {
+      summary: 'Requested changes follow-up result',
+      verification: 'unverified',
+    });
+    const gitStatus = makeGitStatus(workspaceId);
+    gitStatus.data!.pullRequest = {
+      outcome: 'success',
+      supported: true,
+      summary: 'Ready',
+      issues: [],
+    };
+    gitStatus.data!.linkedPullRequest = {
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #73 needs review follow-up.',
+      number: 73,
+      title: 'Review follow-up',
+      url: 'https://github.com/example/repo/pull/73',
+      state: 'OPEN',
+      headBranch: 'feature/review',
+      baseBranch: 'main',
+      checks: {
+        status: 'passing',
+        summary: '2 checks passing.',
+        total: 2,
+        passing: 2,
+        failing: 0,
+        pending: 0,
+        failingChecks: [],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Security review requested code changes.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    };
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, undefined, undefined, undefined, gitStatus, [
+      makeTaskLedgerRecord(workspaceId, sessionId, 'task-review-projection', 'blocked', {
+        sourceMessageId: 'message-review-projection',
+        summary: 'Requested changes follow-up result',
+        resultAnnotation: {
+          sourceMessageId: 'message-review-projection',
+          workspaceId,
+          sessionId,
+          taskId: 'task-review-projection',
+          verification: 'unverified',
+          summary: 'Requested changes follow-up result',
+          shipState: 'not-ready',
+        },
+        recentShipRef: {
+          action: 'pullRequest',
+          outcome: 'blocked',
+          sessionId,
+          messageId: 'message-review-projection',
+          taskId: 'task-review-projection',
+          pullRequestUrl: 'https://github.com/example/repo/pull/73',
+          conditionKind: 'requested-changes',
+          conditionLabel: 'Security review requested code changes.',
+        },
+      }),
+    ]));
+    useStore.getState().setMessages(workspaceId, sessionId, [message]);
+
+    const projectedRecord = selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId)[0]!;
+    const projectedTrace = selectMessageResultTrace(useStore.getState(), selectSessionMessages(useStore.getState(), workspaceId, sessionId)[0]!);
+
+    expect(projectedRecord.resultAnnotation?.shipState).toBe('blocked-by-requested-changes');
+    expect(projectedRecord.resultAnnotation?.reviewState).toBe('needs-retry');
+    expect(projectedTrace?.annotation?.shipState).toBe('blocked-by-requested-changes');
+    expect(projectedTrace?.annotation?.reviewState).toBe('needs-retry');
   });
 });
 
@@ -501,7 +718,7 @@ function makeCapabilityProbe(
   };
 }
 
-function makeGitStatus(workspaceId: string) {
+function makeGitStatus(workspaceId: string): WorkspaceGitStatusResult {
   return {
     outcome: 'success' as const,
     data: {
@@ -537,6 +754,22 @@ function makeGitStatus(workspaceId: string) {
           {
             code: 'GH_AUTH_UNAVAILABLE',
             message: 'Pull request creation is currently unavailable.',
+            detail: 'The gh CLI is installed, but github.com authentication is not available.',
+            remediation: 'Run gh auth login for github.com and retry the pull request action.',
+            source: 'gh' as const,
+          },
+        ],
+      },
+      linkedPullRequest: {
+        outcome: 'degraded' as const,
+        linked: false,
+        summary: 'Linked pull request details are currently unavailable.',
+        detail: 'The gh CLI is installed, but github.com authentication is not available.',
+        remediation: 'Run gh auth login for github.com and retry the pull request action.',
+        issues: [
+          {
+            code: 'GH_AUTH_UNAVAILABLE',
+            message: 'Linked pull request details are currently unavailable.',
             detail: 'The gh CLI is installed, but github.com authentication is not available.',
             remediation: 'Run gh auth login for github.com and retry the pull request action.',
             source: 'gh' as const,

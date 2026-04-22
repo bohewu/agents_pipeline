@@ -27,6 +27,7 @@ import type {
   VerificationCommandKind,
   VerificationRun,
   TaskLedgerRecord,
+  TaskLedgerShipReference,
 } from '../../shared/types.js';
 
 export type RightPanel = 'tasks' | 'activity' | 'diff' | 'files' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
@@ -36,6 +37,7 @@ export interface ResolvedMessageResultTrace {
   trace: MessageTraceLink;
   annotation?: ResultAnnotation;
   taskEntry?: TaskEntry;
+  shipReference?: TaskLedgerShipReference;
   verification: ResultVerificationState;
   verificationSummary?: string;
   latestVerificationRun?: VerificationRun;
@@ -654,21 +656,23 @@ export function selectActiveWorkspaceVerificationRuns(
 }
 
 export function selectWorkspaceTaskLedgerRecords(
-  store: Pick<UIStore, 'workspaceBootstraps'>,
+  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
   workspaceId?: string | null,
 ): TaskLedgerRecord[] {
   if (!workspaceId) return [];
-  return normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords);
+  const records = normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords);
+  const status = store.workspaceGitStatusByWorkspace[workspaceId];
+  return records.map((record) => projectTaskLedgerRecord(record, status));
 }
 
 export function selectActiveWorkspaceTaskLedgerRecords(
-  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps'>,
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
 ): TaskLedgerRecord[] {
   return selectWorkspaceTaskLedgerRecords(store, store.activeWorkspaceId);
 }
 
 export function selectSessionTaskLedgerRecords(
-  store: Pick<UIStore, 'workspaceBootstraps'>,
+  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
   workspaceId?: string | null,
   sessionId?: string,
 ): TaskLedgerRecord[] {
@@ -677,7 +681,7 @@ export function selectSessionTaskLedgerRecords(
 }
 
 export function selectMessageResultTrace(
-  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'taskEntriesByWorkspace' | 'workspaceBootstraps'>,
+  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'taskEntriesByWorkspace' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
   message: NormalizedMessage,
 ): ResolvedMessageResultTrace | undefined {
   const workspaceId = message.trace?.workspaceId
@@ -703,9 +707,15 @@ export function selectMessageResultTrace(
     ?? message.trace?.taskId
     ?? message.taskEntry?.taskId
     ?? verificationProjection.latestRun?.taskId;
+  const linkedTaskRecord = selectLinkedTaskLedgerRecord(store, workspaceId, sessionId, sourceMessageId, taskId);
   const taskEntry = taskId
     ? selectTaskEntry(store, workspaceId, taskId, sessionId) ?? message.taskEntry
     : message.taskEntry;
+  const projectedAnnotation = projectResultAnnotation(
+    annotation,
+    linkedTaskRecord?.recentShipRef?.pullRequestUrl,
+    store.workspaceGitStatusByWorkspace[workspaceId],
+  );
 
   if (!annotation && !taskEntry && !taskId && linkedVerificationRuns.length === 0) {
     return undefined;
@@ -718,14 +728,29 @@ export function selectMessageResultTrace(
       sessionId,
       ...(taskId ? { taskId } : {}),
     },
-    annotation,
+    annotation: projectedAnnotation,
     taskEntry,
-    verification: verificationProjection.verification ?? annotation?.verification ?? 'unverified',
+    shipReference: linkedTaskRecord?.recentShipRef,
+    verification: verificationProjection.verification ?? projectedAnnotation?.verification ?? 'unverified',
     verificationSummary: verificationProjection.latestSummary,
     latestVerificationRun: verificationProjection.latestRun,
     linkedVerificationRuns,
-    summary: verificationProjection.latestSummary ?? annotation?.summary ?? taskEntry?.latestSummary,
+    summary: verificationProjection.latestSummary ?? projectedAnnotation?.summary ?? taskEntry?.latestSummary,
   };
+}
+
+function selectLinkedTaskLedgerRecord(
+  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
+  workspaceId: string,
+  sessionId: string,
+  sourceMessageId: string,
+  taskId?: string,
+): TaskLedgerRecord | undefined {
+  const records = selectSessionTaskLedgerRecords(store, workspaceId, sessionId);
+  return records.find((record) => {
+    if (record.sourceMessageId === sourceMessageId) return true;
+    return !!taskId && record.taskId === taskId;
+  });
 }
 
 function selectLinkedVerificationRuns(
@@ -793,6 +818,81 @@ function selectTaskEntry(
     return entriesBySession[WORKSPACE_SCOPE_SESSION_KEY][taskId];
   }
   return Object.values(entriesBySession).find((entries) => entries[taskId])?.[taskId];
+}
+
+function projectTaskLedgerRecord(
+  record: TaskLedgerRecord,
+  status?: WorkspaceGitStatusResult,
+): TaskLedgerRecord {
+  const projectedAnnotation = projectResultAnnotation(record.resultAnnotation, record.recentShipRef?.pullRequestUrl, status);
+  if (projectedAnnotation === record.resultAnnotation) {
+    return record;
+  }
+
+  return {
+    ...record,
+    ...(projectedAnnotation ? { resultAnnotation: projectedAnnotation } : {}),
+  };
+}
+
+function projectResultAnnotation(
+  annotation: ResultAnnotation | undefined,
+  pullRequestUrl: string | undefined,
+  status?: WorkspaceGitStatusResult,
+): ResultAnnotation | undefined {
+  if (!annotation || !pullRequestUrl) {
+    return annotation;
+  }
+
+  const projection = deriveLinkedPullRequestProjection(status);
+  if (!projection || projection.pullRequestUrl !== pullRequestUrl) {
+    return annotation;
+  }
+
+  return {
+    sourceMessageId: annotation.sourceMessageId,
+    workspaceId: annotation.workspaceId,
+    sessionId: annotation.sessionId,
+    verification: annotation.verification,
+    ...(annotation.taskId ? { taskId: annotation.taskId } : {}),
+    ...(annotation.summary ? { summary: annotation.summary } : {}),
+    ...(projection.reviewState ? { reviewState: projection.reviewState } : {}),
+    ...(projection.shipState ? { shipState: projection.shipState } : {}),
+  };
+}
+
+function deriveLinkedPullRequestProjection(status?: WorkspaceGitStatusResult): {
+  pullRequestUrl: string;
+  reviewState?: ResultAnnotation['reviewState'];
+  shipState?: ResultAnnotation['shipState'];
+} | undefined {
+  const linkedPullRequest = status?.outcome === 'success' ? status.data?.linkedPullRequest : undefined;
+  if (!linkedPullRequest?.linked || !linkedPullRequest.url) {
+    return undefined;
+  }
+
+  const checksStatus = linkedPullRequest.checks?.status;
+  const reviewStatus = linkedPullRequest.review?.status;
+
+  return {
+    pullRequestUrl: linkedPullRequest.url,
+    ...(reviewStatus === 'approved'
+      ? { reviewState: 'ready' as const }
+      : reviewStatus === 'changes_requested'
+        ? { reviewState: 'needs-retry' as const }
+        : reviewStatus === 'review_required'
+          ? { reviewState: 'approval-needed' as const }
+          : {}),
+    ...(checksStatus === 'failing'
+      ? { shipState: 'blocked-by-checks' as const }
+      : reviewStatus === 'changes_requested'
+        ? { shipState: 'blocked-by-requested-changes' as const }
+        : checksStatus === 'passing' && reviewStatus === 'approved'
+          ? { shipState: 'pr-ready' as const }
+          : checksStatus === 'none' && reviewStatus === 'approved'
+            ? { shipState: 'pr-ready' as const }
+            : { shipState: 'not-ready' as const }),
+  };
 }
 
 function syncWorkspaceStreamingState(

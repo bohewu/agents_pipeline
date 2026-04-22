@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { WorkspaceShipService } from './workspace-ship-service.js'
 
+const GH_PR_VIEW_JSON_FIELDS = 'number,title,url,state,isDraft,headRefName,baseRefName,reviewDecision,reviewRequests,statusCheckRollup'
+
 describe('WorkspaceShipService', () => {
   it('parses workspace git status and preserves degraded PR capability details', async () => {
     const service = new WorkspaceShipService({ forWorkspace: () => ({ shell: vi.fn() }) as any }, {
@@ -62,11 +64,141 @@ describe('WorkspaceShipService', () => {
             expect.objectContaining({
               code: 'GH_AUTH_UNAVAILABLE',
               source: 'gh',
+              }),
+          ],
+        }),
+        linkedPullRequest: expect.objectContaining({
+          outcome: 'degraded',
+          linked: false,
+          summary: 'Linked pull request details are currently unavailable.',
+          detail: 'The gh CLI is installed, but github.com authentication is not available.',
+          remediation: 'Run gh auth login for github.com and retry the pull request action.',
+          issues: [
+            expect.objectContaining({
+              code: 'GH_AUTH_UNAVAILABLE',
+              source: 'gh',
             }),
           ],
         }),
       },
       issues: [],
+    })
+  })
+
+  it('reads linked pull request summary data when GitHub status is available', async () => {
+    const service = new WorkspaceShipService({ forWorkspace: () => ({ shell: vi.fn() }) as any }, {
+      execFile: createExecStub({
+        'git status --short --branch --untracked-files=all': {
+          stdout: ['## feature/ship...origin/feature/ship [ahead 1]', 'A  src/index.ts'].join('\n'),
+          stderr: '',
+        },
+        'git rev-parse HEAD': { stdout: 'abc123\n', stderr: '' },
+        'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
+        'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
+        'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestView('feature/ship', {
+          number: 42,
+          title: 'Ship status contract',
+          url: 'https://github.com/example/repo/pull/42',
+          state: 'OPEN',
+          isDraft: false,
+          headRefName: 'feature/ship',
+          baseRefName: 'main',
+          reviewDecision: 'CHANGES_REQUESTED',
+          reviewRequests: [{ requestedReviewer: { login: 'octocat' } }],
+          statusCheckRollup: [
+            {
+              __typename: 'CheckRun',
+              name: 'CI / build',
+              status: 'COMPLETED',
+              conclusion: 'SUCCESS',
+              detailsUrl: 'https://example.com/build',
+            },
+            {
+              __typename: 'CheckRun',
+              name: 'CI / test',
+              status: 'COMPLETED',
+              conclusion: 'FAILURE',
+              detailsUrl: 'https://example.com/test',
+            },
+            {
+              __typename: 'StatusContext',
+              context: 'lint',
+              state: 'PENDING',
+              targetUrl: 'https://example.com/lint',
+              description: 'Waiting for runner',
+            },
+          ],
+        }),
+      }),
+    })
+
+    const result = await service.getStatus('ws-1', '/tmp/ws-1')
+
+    expect(result.data?.linkedPullRequest).toEqual({
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #42 is open.',
+      number: 42,
+      title: 'Ship status contract',
+      url: 'https://github.com/example/repo/pull/42',
+      state: 'OPEN',
+      isDraft: false,
+      headBranch: 'feature/ship',
+      baseBranch: 'main',
+      checks: {
+        status: 'failing',
+        summary: '1 of 3 checks failing, 1 pending.',
+        total: 3,
+        passing: 1,
+        failing: 1,
+        pending: 1,
+        failingChecks: [
+          {
+            name: 'CI / test',
+            summary: 'FAILURE',
+            detailsUrl: 'https://example.com/test',
+          },
+        ],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Changes requested; 1 reviewer still requested.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    })
+  })
+
+  it('returns degraded linked pull request details when no PR is linked for the branch', async () => {
+    const service = new WorkspaceShipService({ forWorkspace: () => ({ shell: vi.fn() }) as any }, {
+      execFile: createExecStub({
+        'git status --short --branch --untracked-files=all': {
+          stdout: '## main...origin/main [ahead 1]\n',
+          stderr: '',
+        },
+        'git rev-parse HEAD': { stdout: 'abc123\n', stderr: '' },
+        'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
+        'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
+        'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
+      }),
+    })
+
+    const result = await service.getStatus('ws-1', '/tmp/ws-1')
+
+    expect(result.data?.linkedPullRequest).toEqual({
+      outcome: 'degraded',
+      linked: false,
+      summary: 'No linked pull request was found for the current branch.',
+      detail: 'GitHub did not find a pull request linked to main tracking origin/main.',
+      remediation: 'Create or link a GitHub pull request for the current branch, then refresh ship status.',
+      issues: [
+        expect.objectContaining({
+          code: 'LINKED_PR_NOT_FOUND',
+          source: 'gh',
+        }),
+      ],
     })
   })
 
@@ -81,6 +213,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -116,6 +249,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -177,6 +311,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -231,6 +366,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -280,6 +416,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -335,6 +472,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -387,6 +525,7 @@ describe('WorkspaceShipService', () => {
         'git remote get-url origin': { stdout: 'git@github.com:example/repo.git\n', stderr: '' },
         'gh --version': { stdout: 'gh version 2.60.1\n', stderr: '' },
         'gh auth status --hostname github.com': { stdout: 'Logged in to github.com account octocat\n', stderr: '' },
+        ...githubPullRequestNotFound('main'),
       }),
     })
 
@@ -470,6 +609,27 @@ function createExecStub(handlers: Record<string, ExecHandler | ExecHandler[]>) {
     }
     return resolved
   }
+}
+
+function githubPullRequestView(branchName: string, payload: Record<string, unknown>): Record<string, ExecHandler> {
+  return {
+    [ghPrViewCommand(branchName)]: { stdout: JSON.stringify(payload), stderr: '' },
+  }
+}
+
+function githubPullRequestNotFound(branchName: string): Record<string, ExecHandler> {
+  return {
+    [ghPrViewCommand(branchName)]: () => {
+      throw execError(`no pull requests found for branch "${branchName}"`, {
+        code: 1,
+        stderr: `no pull requests found for branch "${branchName}"`,
+      })
+    },
+  }
+}
+
+function ghPrViewCommand(branchName: string): string {
+  return `gh pr view ${branchName} --json ${GH_PR_VIEW_JSON_FIELDS}`
 }
 
 type ExecHandler = { stdout: string; stderr: string } | (() => { stdout: string; stderr: string } | Promise<{ stdout: string; stderr: string }>)

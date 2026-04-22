@@ -455,6 +455,22 @@ function makeGitStatus(workspaceId: string): WorkspaceGitStatusResult {
           },
         ],
       },
+      linkedPullRequest: {
+        outcome: 'degraded',
+        linked: false,
+        summary: 'Linked pull request details are currently unavailable.',
+        detail: 'The gh CLI is installed, but github.com authentication is not available.',
+        remediation: 'Run gh auth login for github.com and retry the pull request action.',
+        issues: [
+          {
+            code: 'GH_AUTH_UNAVAILABLE',
+            message: 'Linked pull request details are currently unavailable.',
+            detail: 'The gh CLI is installed, but github.com authentication is not available.',
+            remediation: 'Run gh auth login for github.com and retry the pull request action.',
+            source: 'gh',
+          },
+        ],
+      },
     },
     issues: [],
   }

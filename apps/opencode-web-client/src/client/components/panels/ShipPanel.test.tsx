@@ -16,6 +16,7 @@ const apiMocks = vi.hoisted(() => ({
   executeCommit: vi.fn(),
   push: vi.fn(),
   createPullRequest: vi.fn(),
+  sendChat: vi.fn(),
 }))
 
 vi.mock('../../lib/api-client.js', () => ({
@@ -24,7 +25,12 @@ vi.mock('../../lib/api-client.js', () => ({
 
 import { ShipPanel } from './ShipPanel.js'
 import { useStore } from '../../runtime/store.js'
-import type { WorkspaceBootstrap, WorkspaceCapabilityProbe, WorkspaceGitStatusResult } from '../../../shared/types.js'
+import type {
+  WorkspaceBootstrap,
+  WorkspaceCapabilityProbe,
+  WorkspaceGitStatusResult,
+  WorkspaceLinkedPullRequestSummary,
+} from '../../../shared/types.js'
 
 const baseState = useStore.getState()
 
@@ -39,6 +45,7 @@ describe('ShipPanel', () => {
     apiMocks.executeCommit.mockReset()
     apiMocks.push.mockReset()
     apiMocks.createPullRequest.mockReset()
+    apiMocks.sendChat.mockReset()
     container = document.createElement('div')
     document.body.appendChild(container)
     root = null
@@ -95,9 +102,250 @@ describe('ShipPanel', () => {
     expect(container.textContent).toContain('2 files ready to commit.')
     expect(container.textContent).toContain('No local commits are ahead of origin/main.')
     expect(container.textContent).toContain('Pull request creation is currently unavailable.')
+    expect(container.textContent).toContain('Linked pull request details are currently unavailable.')
     expect(container.textContent).toContain('Run gh auth login for github.com and retry the pull request action.')
+    expect(container.textContent).toContain('Preview commit')
+    expect(container.textContent).toContain('Push blocked')
     expect(container.textContent).not.toContain('Create pull request')
     expect(container.textContent).not.toContain('Repo One')
+  })
+
+  it('renders linked PR checks and review summaries without hiding the local ship controls', async () => {
+    const workspaceId = 'workspace-2'
+    const linkedPullRequest: WorkspaceLinkedPullRequestSummary = {
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #42 is open.',
+      number: 42,
+      title: 'Ship status contract',
+      url: 'https://github.com/example/repo/pull/42',
+      state: 'OPEN',
+      headBranch: 'feature/ship',
+      baseBranch: 'main',
+      checks: {
+        status: 'failing',
+        summary: '1 of 3 checks failing, 1 pending.',
+        total: 3,
+        passing: 1,
+        failing: 1,
+        pending: 1,
+        failingChecks: [{ name: 'CI / test', summary: 'FAILURE', detailsUrl: 'https://example.com/test' }],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Changes requested; 1 reviewer still requested.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    }
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Two', makeSuccessStatus(workspaceId, {
+      branchName: 'feature/ship',
+      ahead: 1,
+      behind: 0,
+      staged: 2,
+      stagedPaths: ['src/index.ts', 'README.md'],
+      unstaged: 0,
+      untracked: 0,
+      pullRequestSupported: true,
+      linkedPullRequest,
+    })))
+    useStore.getState().setActiveWorkspace(workspaceId)
+    useStore.getState().setActiveSession(workspaceId, 'session-1')
+
+    await renderPanel()
+
+    expect(container.textContent).toContain('Linked pull request #42 is open.')
+    expect(container.textContent).toContain('Checks summary')
+    expect(container.textContent).toContain('1 of 3 checks failing, 1 pending.')
+    expect(container.textContent).toContain('CI / test')
+    expect(container.textContent).toContain('Review summary')
+    expect(container.textContent).toContain('Changes requested; 1 reviewer still requested.')
+    expect(container.textContent).toContain('Preview commit')
+    expect(container.textContent).toContain('Push now')
+    expect(container.textContent).toContain('Create pull request')
+  })
+
+  it('launches a failing-check fix handoff into the existing chat loop and preserves ship linkage', async () => {
+    const workspaceId = 'workspace-2'
+    const linkedPullRequest: WorkspaceLinkedPullRequestSummary = {
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #42 is blocked by checks.',
+      number: 42,
+      title: 'Ship status contract',
+      url: 'https://github.com/example/repo/pull/42',
+      state: 'OPEN',
+      headBranch: 'feature/ship',
+      baseBranch: 'main',
+      checks: {
+        status: 'failing',
+        summary: '1 of 3 checks failing.',
+        total: 3,
+        passing: 2,
+        failing: 1,
+        pending: 0,
+        failingChecks: [{ name: 'CI / test', summary: 'FAILURE', detailsUrl: 'https://example.com/checks/1' }],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Changes requested.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    }
+
+    apiMocks.sendChat.mockResolvedValue({ accepted: true, sessionId: 'session-1', messageId: 'message-user-1', taskId: 'ship-fix-pr-42-failing-check-ci-test' })
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Two', makeSuccessStatus(workspaceId, {
+      branchName: 'feature/ship',
+      ahead: 1,
+      behind: 0,
+      staged: 0,
+      unstaged: 0,
+      untracked: 0,
+      pullRequestSupported: true,
+      linkedPullRequest,
+    })))
+    useStore.getState().setActiveWorkspace(workspaceId)
+    useStore.getState().setActiveSession(workspaceId, 'session-1')
+
+    await renderPanel()
+    await clickButton('Fix in chat')
+
+    expect(apiMocks.sendChat).toHaveBeenCalledWith(workspaceId, 'session-1', expect.objectContaining({
+      text: expect.stringContaining('Failing check: CI / test.'),
+      shipFixHandoff: expect.objectContaining({
+        taskId: 'ship-fix-pr-42-failing-check-ci-test',
+        shipState: 'blocked-by-checks',
+        reviewState: 'needs-retry',
+        pullRequestUrl: 'https://github.com/example/repo/pull/42',
+        conditionKind: 'failing-check',
+        conditionLabel: 'CI / test',
+        detailsUrl: 'https://example.com/checks/1',
+      }),
+    }))
+    expect(useStore.getState().messagesBySession[`${workspaceId}::session-1`]).toEqual([
+      expect.objectContaining({ role: 'user' }),
+    ])
+    expect(useStore.getState().workspaceBootstraps[workspaceId]?.taskLedgerRecords).toEqual([
+      expect.objectContaining({
+        taskId: 'ship-fix-pr-42-failing-check-ci-test',
+        sourceMessageId: 'message-user-1',
+        resultAnnotation: expect.objectContaining({ shipState: 'blocked-by-checks' }),
+        recentShipRef: expect.objectContaining({
+          conditionKind: 'failing-check',
+          conditionLabel: 'CI / test',
+          pullRequestUrl: 'https://github.com/example/repo/pull/42',
+        }),
+      }),
+    ])
+    expect(container.textContent).toContain('Sent a fix handoff for CI / test into the current chat session.')
+  })
+
+  it('launches a requested-changes fix handoff into the existing chat loop', async () => {
+    const workspaceId = 'workspace-2'
+    const linkedPullRequest: WorkspaceLinkedPullRequestSummary = {
+      outcome: 'success',
+      linked: true,
+      summary: 'Linked pull request #73 needs review follow-up.',
+      number: 73,
+      title: 'Review follow-up',
+      url: 'https://github.com/example/repo/pull/73',
+      state: 'OPEN',
+      headBranch: 'feature/review',
+      baseBranch: 'main',
+      checks: {
+        status: 'passing',
+        summary: '2 checks passing.',
+        total: 2,
+        passing: 2,
+        failing: 0,
+        pending: 0,
+        failingChecks: [],
+      },
+      review: {
+        status: 'changes_requested',
+        summary: 'Security review requested code changes.',
+        requestedReviewerCount: 1,
+      },
+      issues: [],
+    }
+
+    apiMocks.sendChat.mockResolvedValue({ accepted: true, sessionId: 'session-1', messageId: 'message-user-2', taskId: 'ship-fix-pr-73-requested-changes-security-review-requested-code-chan' })
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Two', makeSuccessStatus(workspaceId, {
+      branchName: 'feature/review',
+      ahead: 1,
+      behind: 0,
+      staged: 0,
+      unstaged: 0,
+      untracked: 0,
+      pullRequestSupported: true,
+      linkedPullRequest,
+    })))
+    useStore.getState().setActiveWorkspace(workspaceId)
+    useStore.getState().setActiveSession(workspaceId, 'session-1')
+
+    await renderPanel()
+    await clickButton('Address in chat')
+
+    expect(apiMocks.sendChat).toHaveBeenCalledWith(workspaceId, 'session-1', expect.objectContaining({
+      text: expect.stringContaining('Requested changes: Security review requested code changes.'),
+      shipFixHandoff: expect.objectContaining({
+        shipState: 'blocked-by-requested-changes',
+        reviewState: 'needs-retry',
+        pullRequestUrl: 'https://github.com/example/repo/pull/73',
+        conditionKind: 'requested-changes',
+        conditionLabel: 'Security review requested code changes.',
+      }),
+    }))
+    expect(useStore.getState().workspaceBootstraps[workspaceId]?.taskLedgerRecords?.[0]).toEqual(expect.objectContaining({
+      sourceMessageId: 'message-user-2',
+      resultAnnotation: expect.objectContaining({ shipState: 'blocked-by-requested-changes', reviewState: 'needs-retry' }),
+      recentShipRef: expect.objectContaining({ conditionKind: 'requested-changes' }),
+    }))
+  })
+
+  it('shows explicit linked PR remediation when no PR is linked and keeps local ship controls usable', async () => {
+    const workspaceId = 'workspace-2'
+    const detail = 'GitHub did not find a pull request linked to feature/ship tracking origin/main.'
+    const remediation = 'Create or link a GitHub pull request for the current branch, then refresh ship status.'
+    const linkedPullRequest: WorkspaceLinkedPullRequestSummary = {
+      outcome: 'degraded',
+      linked: false,
+      summary: 'No linked pull request was found for the current branch.',
+      detail,
+      remediation,
+      issues: [{
+        code: 'LINKED_PR_NOT_FOUND',
+        message: 'No linked pull request was found for the current branch.',
+        detail,
+        remediation,
+        source: 'gh',
+      }],
+    }
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(workspaceId, 'Repo Two', makeSuccessStatus(workspaceId, {
+      branchName: 'feature/ship',
+      ahead: 1,
+      behind: 0,
+      staged: 1,
+      stagedPaths: ['src/index.ts'],
+      unstaged: 0,
+      untracked: 0,
+      pullRequestSupported: true,
+      linkedPullRequest,
+    })))
+    useStore.getState().setActiveWorkspace(workspaceId)
+    useStore.getState().setActiveSession(workspaceId, 'session-1')
+
+    await renderPanel()
+
+    expect(container.textContent).toContain('No linked pull request was found for the current branch.')
+    expect(container.textContent).toContain(detail)
+    expect(container.textContent).toContain(remediation)
+    expect(container.textContent).toContain('Preview commit')
+    expect(container.textContent).toContain('Push now')
+    expect(container.textContent).toContain('Create pull request')
   })
 
   it('renders a workspace-scoped unavailable state when git status is degraded', async () => {
@@ -566,6 +814,7 @@ function makeSuccessStatus(
     pullRequestDetail?: string
     pullRequestIssueDetail?: string
     pullRequestRemediation?: string
+    linkedPullRequest?: WorkspaceLinkedPullRequestSummary
   },
 ): WorkspaceGitStatusResult {
   const pullRequestSupported = overrides.pullRequestSupported ?? false
@@ -614,6 +863,47 @@ function makeSuccessStatus(
               source: 'gh',
             }],
       },
+      linkedPullRequest: overrides.linkedPullRequest ?? (pullRequestSupported
+        ? {
+            outcome: 'success',
+            linked: true,
+            summary: 'Linked pull request #42 is open.',
+            number: 42,
+            title: 'Ship panel fixture',
+            url: 'https://github.com/example/repo/pull/42',
+            state: 'OPEN',
+            headBranch: overrides.branchName,
+            baseBranch: 'main',
+            checks: {
+              status: 'passing',
+              summary: '2 checks passing.',
+              total: 2,
+              passing: 2,
+              failing: 0,
+              pending: 0,
+              failingChecks: [],
+            },
+            review: {
+              status: 'approved',
+              summary: 'Approved',
+              requestedReviewerCount: 0,
+            },
+            issues: [],
+          }
+        : {
+            outcome: 'degraded',
+            linked: false,
+            summary: 'Linked pull request details are currently unavailable.',
+            detail: overrides.pullRequestIssueDetail ?? overrides.pullRequestDetail,
+            remediation: overrides.pullRequestRemediation,
+            issues: [{
+              code: 'GH_AUTH_UNAVAILABLE',
+              message: 'Linked pull request details are currently unavailable.',
+              detail: overrides.pullRequestIssueDetail ?? overrides.pullRequestDetail,
+              remediation: overrides.pullRequestRemediation,
+              source: 'gh',
+            }],
+          }),
     },
     issues: [],
   }
@@ -690,6 +980,20 @@ function makeMissingUpstreamStatus(
         issues: [{
           code: 'PR_BLOCKED',
           message: 'Pull request creation is currently blocked.',
+          detail: 'Push the branch with upstream tracking before creating a pull request.',
+          remediation: 'Configure upstream tracking outside the web client, then retry the pull request action.',
+          source: 'git',
+        }],
+      },
+      linkedPullRequest: {
+        outcome: 'degraded',
+        linked: false,
+        summary: 'Linked pull request details are currently unavailable.',
+        detail: 'Push the branch with upstream tracking before creating a pull request.',
+        remediation: 'Configure upstream tracking outside the web client, then retry the pull request action.',
+        issues: [{
+          code: 'PR_BLOCKED',
+          message: 'Linked pull request details are currently unavailable.',
           detail: 'Push the branch with upstream tracking before creating a pull request.',
           remediation: 'Configure upstream tracking outside the web client, then retry the pull request action.',
           source: 'git',

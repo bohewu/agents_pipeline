@@ -4,7 +4,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ApiEnvelope } from '../shared/types.js';
+import type { ApiEnvelope, SessionChatRequest, ShipFixHandoffRequest } from '../shared/types.js';
 import { API_PREFIX } from '../shared/constants.js';
 import { healthRoute } from './routes/health.js';
 import { diagnosticsRoute } from './routes/diagnostics.js';
@@ -215,30 +215,102 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
       wsScoped.post('/sessions/:sessionId/chat', async (c) => {
         const workspaceId = c.get('workspaceId') as string;
-      const sessionId = c.req.param('sessionId');
-      const body = await c.req.json<{
-        text: string;
-        providerId?: string;
-        modelId?: string;
-        agentId?: string;
-        effort?: string;
-      }>().catch(() => ({ text: '', providerId: undefined, modelId: undefined, agentId: undefined, effort: undefined }));
-      if (!body.text) {
-        return c.json(fail('INVALID_INPUT', 'text is required'), 400);
-      }
-      try {
-        const client = clientFactory.forWorkspace(workspaceId);
-        await client.chat(sessionId, body.text, {
-          providerId: body.providerId,
-          modelId: body.modelId,
-          agentId: body.agentId,
-          effort: body.effort,
-        });
-        return c.json(ok({ accepted: true, sessionId }));
-      } catch (err: any) {
-        return c.json(fail('CHAT_FAILED', err.message), 500);
-      }
-    });
+        const sessionId = c.req.param('sessionId');
+        const body = await c.req.json<SessionChatRequest>().catch(() => ({
+          text: '',
+          providerId: undefined,
+          modelId: undefined,
+          agentId: undefined,
+          effort: undefined,
+          shipFixHandoff: undefined,
+        }));
+        if (!body.text) {
+          return c.json(fail('INVALID_INPUT', 'text is required'), 400);
+        }
+        if (body.shipFixHandoff && !isValidShipFixHandoffRequest(body.shipFixHandoff)) {
+          return c.json(fail('INVALID_INPUT', 'shipFixHandoff is invalid'), 400);
+        }
+        try {
+          const client = clientFactory.forWorkspace(workspaceId);
+          const chatResult = await client.chat(sessionId, body.text, {
+            providerId: body.providerId,
+            modelId: body.modelId,
+            agentId: body.agentId,
+            effort: body.effort,
+          });
+          if (body.shipFixHandoff && chatResult.messageId) {
+            const timestamp = new Date().toISOString();
+            taskLedgerService.upsertRuntimeRecord?.({
+              workspaceId,
+              taskId: body.shipFixHandoff.taskId,
+              sessionId,
+              sourceMessageId: chatResult.messageId,
+              title: body.shipFixHandoff.title,
+              summary: body.shipFixHandoff.summary,
+              state: 'blocked',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              resultAnnotation: {
+                sourceMessageId: chatResult.messageId,
+                workspaceId,
+                sessionId,
+                taskId: body.shipFixHandoff.taskId,
+                summary: body.shipFixHandoff.summary,
+                verification: 'unverified',
+                ...(body.shipFixHandoff.reviewState ? { reviewState: body.shipFixHandoff.reviewState } : {}),
+                ...(body.shipFixHandoff.shipState ? { shipState: body.shipFixHandoff.shipState } : {}),
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'blocked',
+                sessionId,
+                messageId: chatResult.messageId,
+                taskId: body.shipFixHandoff.taskId,
+                ...(body.shipFixHandoff.pullRequestUrl ? { pullRequestUrl: body.shipFixHandoff.pullRequestUrl } : {}),
+                ...(body.shipFixHandoff.pullRequestNumber !== undefined ? { pullRequestNumber: body.shipFixHandoff.pullRequestNumber } : {}),
+                conditionKind: body.shipFixHandoff.conditionKind,
+                conditionLabel: body.shipFixHandoff.conditionLabel,
+                ...(body.shipFixHandoff.detailsUrl ? { detailsUrl: body.shipFixHandoff.detailsUrl } : {}),
+              },
+            });
+            (eventBroker as EventBroker & { registerShipFixHandoff?: (payload: {
+              workspaceId: string;
+              sessionId: string;
+              taskId: string;
+              title: string;
+              summary: string;
+              shipState: ShipFixHandoffRequest['shipState'];
+              reviewState?: ShipFixHandoffRequest['reviewState'];
+              pullRequestUrl?: string;
+              pullRequestNumber?: number;
+              conditionKind: ShipFixHandoffRequest['conditionKind'];
+              conditionLabel: string;
+              detailsUrl?: string;
+            }) => void }).registerShipFixHandoff?.({
+              workspaceId,
+              sessionId,
+              taskId: body.shipFixHandoff.taskId,
+              title: body.shipFixHandoff.title,
+              summary: body.shipFixHandoff.summary,
+              shipState: body.shipFixHandoff.shipState,
+              ...(body.shipFixHandoff.reviewState ? { reviewState: body.shipFixHandoff.reviewState } : {}),
+              ...(body.shipFixHandoff.pullRequestUrl ? { pullRequestUrl: body.shipFixHandoff.pullRequestUrl } : {}),
+              ...(body.shipFixHandoff.pullRequestNumber !== undefined ? { pullRequestNumber: body.shipFixHandoff.pullRequestNumber } : {}),
+              conditionKind: body.shipFixHandoff.conditionKind,
+              conditionLabel: body.shipFixHandoff.conditionLabel,
+              ...(body.shipFixHandoff.detailsUrl ? { detailsUrl: body.shipFixHandoff.detailsUrl } : {}),
+            });
+          }
+          return c.json(ok({
+            accepted: true,
+            sessionId,
+            ...(chatResult.messageId ? { messageId: chatResult.messageId } : {}),
+            ...(body.shipFixHandoff?.taskId ? { taskId: body.shipFixHandoff.taskId } : {}),
+          }));
+        } catch (err: any) {
+          return c.json(fail('CHAT_FAILED', err.message), 500);
+        }
+      });
 
     wsScoped.post('/sessions/:sessionId/command', async (c) => {
       const workspaceId = c.get('workspaceId') as string;
@@ -373,4 +445,27 @@ export function ok<T>(data: T): ApiEnvelope<T> {
 
 export function fail(code: string, message: string): ApiEnvelope<never> {
   return { ok: false, error: { code, message } };
+}
+
+const SHIP_FIX_HANDOFF_CONDITION_KINDS = ['failing-check', 'review-feedback', 'requested-changes'] as const;
+const SHIP_FIX_HANDOFF_SHIP_STATES = ['not-ready', 'local-ready', 'pr-ready', 'blocked-by-checks', 'blocked-by-requested-changes'] as const;
+const SHIP_FIX_HANDOFF_REVIEW_STATES = ['ready', 'approval-needed', 'needs-retry'] as const;
+
+function isValidShipFixHandoffRequest(value: ShipFixHandoffRequest): boolean {
+  if (!value.taskId || !value.title || !value.summary || !value.conditionLabel) {
+    return false;
+  }
+  if (!SHIP_FIX_HANDOFF_CONDITION_KINDS.includes(value.conditionKind)) {
+    return false;
+  }
+  if (!SHIP_FIX_HANDOFF_SHIP_STATES.includes(value.shipState)) {
+    return false;
+  }
+  if (value.reviewState && !SHIP_FIX_HANDOFF_REVIEW_STATES.includes(value.reviewState)) {
+    return false;
+  }
+  if (value.pullRequestNumber !== undefined && !Number.isFinite(value.pullRequestNumber)) {
+    return false;
+  }
+  return true;
 }

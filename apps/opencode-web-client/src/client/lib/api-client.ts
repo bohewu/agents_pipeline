@@ -26,6 +26,8 @@ import type {
   PushResult,
   PullRequestCreateRequest,
   PullRequestCreateResult,
+  SessionChatRequest,
+  SessionChatResponse,
 } from '../../shared/types.js';
 
 const BASE = '';
@@ -186,10 +188,10 @@ export const api = {
   sendChat: (
     wsId: string,
     sid: string,
-    data: { text: string; providerId?: string; modelId?: string; agentId?: string; effort?: string },
+    data: SessionChatRequest,
     signal?: AbortSignal,
   ) =>
-    post<void>(`/api/workspaces/${wsId}/sessions/${sid}/chat`, data, signal),
+    post<SessionChatResponse>(`/api/workspaces/${wsId}/sessions/${sid}/chat`, data, signal),
   sendCommand: (wsId: string, sid: string, data: { command: string }, signal?: AbortSignal) =>
     post<void>(`/api/workspaces/${wsId}/sessions/${sid}/command`, data, signal),
   sendShell: (wsId: string, sid: string, data: { command: string }, signal?: AbortSignal) =>

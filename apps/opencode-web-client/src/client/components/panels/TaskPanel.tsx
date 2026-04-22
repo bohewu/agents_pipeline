@@ -1,6 +1,6 @@
 import React from 'react';
 import type { TaskLedgerRecord, TaskLedgerShipReference, VerificationRunStatus } from '../../../shared/types.js';
-import { useStore } from '../../runtime/store.js';
+import { selectActiveWorkspaceTaskLedgerRecords, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { reopenWorkspaceSessionContext } from '../../lib/session-context.js';
 
@@ -9,14 +9,18 @@ const RECENT_COMPLETED_TASK_STATES = new Set<TaskLedgerRecord['state']>(['comple
 const CANCELLABLE_TASK_STATES = new Set<TaskLedgerRecord['state']>(['queued', 'running']);
 const RETRYABLE_TASK_STATES = new Set<TaskLedgerRecord['state']>(['blocked', 'completed', 'failed', 'cancelled']);
 const REOPENABLE_TASK_STATES = new Set<TaskLedgerRecord['state']>(['completed', 'failed', 'cancelled']);
-const EMPTY_TASK_RECORDS: TaskLedgerRecord[] = [];
 
 export function TaskPanel() {
   const activeWorkspaceId = useStore((state) => state.activeWorkspaceId);
   const workspaceBootstraps = useStore((state) => state.workspaceBootstraps);
+  const workspaceGitStatusByWorkspace = useStore((state) => state.workspaceGitStatusByWorkspace);
 
   const activeBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
-  const records = activeBootstrap?.taskLedgerRecords ?? EMPTY_TASK_RECORDS;
+  const records = React.useMemo(() => selectActiveWorkspaceTaskLedgerRecords({
+    activeWorkspaceId,
+    workspaceBootstraps,
+    workspaceGitStatusByWorkspace,
+  }), [activeWorkspaceId, workspaceBootstraps, workspaceGitStatusByWorkspace]);
   const workspaceName = activeBootstrap?.workspace.name ?? activeWorkspaceId;
   const activeTasks = React.useMemo(
     () => records.filter((record) => ACTIVE_TASK_STATES.has(record.state)),
@@ -213,6 +217,11 @@ function TaskRecordCard({ record }: { record: TaskLedgerRecord }) {
             {formatVerificationBadge(record.recentVerificationRef.commandKind, record.recentVerificationRef.status)}
           </span>
         )}
+        {record.resultAnnotation?.shipState && (
+          <span style={{ ...referenceBadgeStyle(shipProjectionTone(record.resultAnnotation.shipState)), fontSize: 10 }}>
+            {formatProjectedShipState(record.resultAnnotation.shipState)}
+          </span>
+        )}
         {record.recentShipRef && (
           <span style={{ ...referenceBadgeStyle(referenceTone(record.recentShipRef.outcome)), fontSize: 10 }}>
             {formatShipBadge(record.recentShipRef)}
@@ -225,6 +234,17 @@ function TaskRecordCard({ record }: { record: TaskLedgerRecord }) {
         {sessionId && <div>Session: <span style={monoStyle}>{sessionId}</span></div>}
         {sourceMessageId && <div>Result: <span style={monoStyle}>{sourceMessageId}</span></div>}
         <div>{formatTaskTimestamp(record)}</div>
+        {record.recentShipRef?.conditionLabel && (
+          <div>
+            Fix handoff: {formatShipCondition(record.recentShipRef)}
+            {record.recentShipRef.detailsUrl && (
+              <>
+                {' · '}
+                <a href={record.recentShipRef.detailsUrl} target="_blank" rel="noreferrer">Details</a>
+              </>
+            )}
+          </div>
+        )}
         {record.recentVerificationRef?.summary && <div>Verification: {record.recentVerificationRef.summary}</div>}
         {record.recentVerificationRef?.terminalLogRef && (
           <div>
@@ -388,6 +408,34 @@ function formatShipAction(action: TaskLedgerShipReference['action']): string {
   if (action === 'pullRequest') return 'PR';
   if (action === 'commit') return 'Commit';
   return 'Push';
+}
+
+function formatProjectedShipState(state: NonNullable<TaskLedgerRecord['resultAnnotation']>['shipState']): string {
+  if (state === 'pr-ready') return 'PR ready';
+  if (state === 'blocked-by-checks') return 'Blocked by checks';
+  if (state === 'blocked-by-requested-changes') return 'Blocked by requested changes';
+  if (state === 'local-ready') return 'Local ready';
+  return 'Not ready';
+}
+
+function shipProjectionTone(state: NonNullable<TaskLedgerRecord['resultAnnotation']>['shipState']): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (state === 'pr-ready') return 'success';
+  if (state === 'blocked-by-checks') return 'danger';
+  if (state === 'blocked-by-requested-changes') return 'warning';
+  if (state === 'local-ready') return 'neutral';
+  return 'warning';
+}
+
+function formatShipCondition(reference: TaskLedgerShipReference): string {
+  const kind = reference.conditionKind === 'failing-check'
+    ? 'Failing check'
+    : reference.conditionKind === 'requested-changes'
+      ? 'Requested changes'
+      : reference.conditionKind === 'review-feedback'
+        ? 'Review feedback'
+        : 'Ship condition';
+
+  return reference.conditionLabel ? `${kind} · ${reference.conditionLabel}` : kind;
 }
 
 function resolveTaskSessionId(record: TaskLedgerRecord): string | undefined {

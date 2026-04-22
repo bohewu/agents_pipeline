@@ -5,6 +5,7 @@ import type {
   ResultReviewState,
   ResultShipState,
   ResultVerificationState,
+  ShipFixHandoffConditionKind,
   ShipActionOutcome,
   TaskEntryState,
   TaskLedgerRecord,
@@ -43,9 +44,10 @@ const VERIFICATION_COMMAND_KINDS: VerificationCommandKind[] = ['lint', 'build', 
 const VERIFICATION_RUN_STATUSES: VerificationRunStatus[] = ['running', 'passed', 'failed', 'cancelled']
 const RESULT_VERIFICATION_STATES: ResultVerificationState[] = ['verified', 'partially verified', 'unverified']
 const RESULT_REVIEW_STATES: ResultReviewState[] = ['ready', 'approval-needed', 'needs-retry']
-const RESULT_SHIP_STATES: ResultShipState[] = ['not-ready', 'local-ready', 'pr-ready']
+const RESULT_SHIP_STATES: ResultShipState[] = ['not-ready', 'local-ready', 'pr-ready', 'blocked-by-checks', 'blocked-by-requested-changes']
 const SHIP_ACTION_OUTCOMES: ShipActionOutcome[] = ['success', 'degraded', 'blocked', 'failure']
 const TASK_LEDGER_SHIP_ACTIONS: TaskLedgerShipAction[] = ['commit', 'push', 'pullRequest']
+const SHIP_FIX_HANDOFF_CONDITION_KINDS: ShipFixHandoffConditionKind[] = ['failing-check', 'review-feedback', 'requested-changes']
 
 export class TaskLedgerService {
   private stateDir: string
@@ -438,6 +440,12 @@ function validateTaskLedgerShipReference(
   const terminalLogRef = readOptionalString(candidate.terminalLogRef, 'recentShipRef.terminalLogRef')
   const commitSha = readOptionalString(candidate.commitSha, 'recentShipRef.commitSha')
   const pullRequestUrl = readOptionalString(candidate.pullRequestUrl, 'recentShipRef.pullRequestUrl')
+  const pullRequestNumber = readOptionalNumber(candidate.pullRequestNumber, 'recentShipRef.pullRequestNumber')
+  const conditionLabel = readOptionalString(candidate.conditionLabel, 'recentShipRef.conditionLabel')
+  const detailsUrl = readOptionalString(candidate.detailsUrl, 'recentShipRef.detailsUrl')
+  const conditionKind = candidate.conditionKind === undefined
+    ? undefined
+    : readEnum(candidate.conditionKind, 'recentShipRef.conditionKind', SHIP_FIX_HANDOFF_CONDITION_KINDS)
 
   return {
     action: readEnum(candidate.action, 'recentShipRef.action', TASK_LEDGER_SHIP_ACTIONS),
@@ -448,6 +456,10 @@ function validateTaskLedgerShipReference(
     ...(terminalLogRef ? { terminalLogRef } : {}),
     ...(commitSha ? { commitSha } : {}),
     ...(pullRequestUrl ? { pullRequestUrl } : {}),
+    ...(pullRequestNumber !== undefined ? { pullRequestNumber } : {}),
+    ...(conditionKind ? { conditionKind } : {}),
+    ...(conditionLabel ? { conditionLabel } : {}),
+    ...(detailsUrl ? { detailsUrl } : {}),
   }
 }
 
@@ -461,6 +473,14 @@ function readString(value: unknown, fieldName: string): string {
 function readOptionalString(value: unknown, fieldName: string): string | undefined {
   if (value === undefined) return undefined
   return readString(value, fieldName)
+}
+
+function readOptionalNumber(value: unknown, fieldName: string): number | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Expected ${fieldName} to be a finite number.`)
+  }
+  return value
 }
 
 function readEnum<T extends string>(value: unknown, fieldName: string, allowedValues: readonly T[]): T {

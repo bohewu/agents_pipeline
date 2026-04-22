@@ -494,6 +494,14 @@ function normalizeReviewState(value: unknown): ResultReviewState | null {
 function normalizeShipState(value: unknown): ResultShipState | null {
   const normalized = normalizeScalarToken(value)
   switch (normalized) {
+    case 'blocked_by_checks':
+    case 'blocked-by-checks':
+    case 'blocked by checks':
+      return 'blocked-by-checks'
+    case 'blocked_by_requested_changes':
+    case 'blocked-by-requested-changes':
+    case 'blocked by requested changes':
+      return 'blocked-by-requested-changes'
     case 'not_ready':
     case 'not-ready':
     case 'not ready':
