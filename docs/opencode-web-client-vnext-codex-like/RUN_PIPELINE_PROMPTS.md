@@ -424,7 +424,9 @@ Browser validation required:
 Hard constraints:
 - Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
 - Keep OpenCode as the backend execution engine.
+- The lane model must not replace or fork the underlying OpenCode execution engine.
 - Do not redesign the planner/router/reviewer pipeline or build a new autonomous swarm runtime.
+- Extend the existing local BFF, workspace-scoped store, and task/result surfaces; do not redesign the main shell around lanes.
 - Use explicit isolated execution context for each lane, tied to branch or worktree semantics.
 - Keep the first slice intentionally small and finishable.
 
@@ -479,7 +481,9 @@ Browser validation required:
 Hard constraints:
 - Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
 - Keep OpenCode as the backend execution engine.
+- The lane model must remain an extension over the existing OpenCode-centered shell, not a replacement for it.
 - Build on the existing lane model rather than replacing it.
+- Reuse the existing local BFF, workspace-scoped store, and verification/ship surfaces rather than redesigning the main shell.
 - Keep this slice read-oriented: comparison and readiness visibility first, no destructive adopt/apply yet.
 - Keep lane state attributable to workspace and session context.
 
@@ -533,7 +537,9 @@ Browser validation required:
 Hard constraints:
 - Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
 - Keep OpenCode as the backend execution engine.
+- The lane model must remain an extension over the existing OpenCode-centered shell, not a replacement for it.
 - Build on the existing lane model and readiness surface rather than replacing them.
+- Reuse the existing local BFF, workspace-scoped store, and verification/ship surfaces rather than redesigning the main shell.
 - Keep compare-and-apply intentionally bounded to explicit user selection and adoption of one lane outcome.
 - Do not redesign the planner/router/reviewer pipeline or build a new autonomous swarm runtime.
 
