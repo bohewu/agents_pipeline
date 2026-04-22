@@ -65,7 +65,7 @@
 4. GitHub-backed ship
 5. context / extension surface
 6. browser evidence
-7. parallel execution surface
+7. parallel execution surface (split into Tranche 7-9)
 
 ## 3. Tranche 1 Prompt
 
@@ -419,7 +419,7 @@ Browser validation required:
 ## 9. Tranche 7 Prompt
 
 ```text
-/run-pipeline Implement Phase H from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+/run-pipeline Implement the first Phase H slice from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
 
 Hard constraints:
 - Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
@@ -431,11 +431,12 @@ Hard constraints:
 Scope:
 - Add a minimal parallel lane UI model for at least two isolated attempts in one workspace.
 - Bind each lane to an explicit isolated branch or worktree context.
-- Add compare-and-apply for alternative lane outcomes.
-- Surface per-lane verification and ship readiness.
 - Keep lane state attributable to workspace and session context.
+- Allow the UI to identify lanes as alternative attempts without yet adding final compare-and-apply behavior.
 
 Out of scope:
+- Final compare-and-apply or adopt flow.
+- Per-lane verification and ship readiness projection.
 - Agent-core redesign.
 - Cloud execution fabric.
 - Multi-user collaboration.
@@ -451,25 +452,134 @@ Browser validation required:
 - Start the local app for `apps/opencode-web-client`.
 - Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
 - Confirm at least two isolated lanes can be created or rendered without shell fallback.
-- Confirm lane comparison and final selection/adopt flow render end-to-end.
-- Confirm per-lane verification/ship readiness is visible.
+- Confirm each lane clearly shows its isolated branch/worktree attribution.
 - Confirm browser console has no uncaught error.
 ```
 
 ### 9.1 這一包做完應該得到什麼
 
 - 使用者可以同時看 2 條以上 isolation-first 的 task attempt
-- 結果不只平行存在，還能 compare-and-apply
-- 產品開始出現 SoT 定義的 codex-like 高階 parallel 感
+- lane 不再只是隱含概念，而是明確綁定 branch/worktree context
+- M5 開始有清楚 substrate，但還沒把 compare/apply 一次塞進來
 
 ### 9.2 這一包不要碰什麼
+
+- final selection / adopt flow
+- lane-level verification / ship readiness projection
+- re-implement OpenCode orchestration runtime
+- cloud agent fabric
+- multi-user collaborative session model
+- 無邊界的 swarm orchestration UI
+
+## 10. Tranche 8 Prompt
+
+```text
+/run-pipeline Implement the second Phase H slice from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Build on the existing lane model rather than replacing it.
+- Keep this slice read-oriented: comparison and readiness visibility first, no destructive adopt/apply yet.
+- Keep lane state attributable to workspace and session context.
+
+Scope:
+- Add a lane comparison surface for alternative attempts.
+- Surface per-lane verification summary and ship readiness.
+- Make alternative-lane status understandable without collapsing back into a single global thread mental model.
+- Preserve the explicit isolated branch/worktree attribution established in Tranche 7.
+
+Out of scope:
+- Final compare-and-apply or adopt flow.
+- Agent-core redesign.
+- Cloud execution fabric.
+- Multi-user collaboration.
+- Fancy swarm visualization unless upstream metadata is already cheap to surface.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm at least two isolated lanes render without shell fallback.
+- Confirm the lane comparison surface renders understandable alternative attempts.
+- Confirm per-lane verification and ship readiness is visible.
+- Confirm browser console has no uncaught error.
+```
+
+### 10.1 這一包做完應該得到什麼
+
+- 使用者不只看到多 lane，還能看懂 lane 之間差在哪裡
+- 每條 lane 開始有 verification / ship readiness 的產品意義
+- compare 是真的 compare，不只是把兩個結果平行擺著
+
+### 10.2 這一包不要碰什麼
+
+- final selection / adopt flow
+- re-implement OpenCode orchestration runtime
+- cloud agent fabric
+- multi-user collaborative session model
+- 無邊界的 swarm orchestration UI
+
+## 11. Tranche 9 Prompt
+
+```text
+/run-pipeline Implement the third Phase H slice from docs/opencode-web-client-vnext-codex-like/TASK_BREAKDOWN.md for apps/opencode-web-client.
+
+Hard constraints:
+- Read docs/opencode-web-client-vnext-codex-like/MILESTONES.md, SPEC.md, SDD.md, and TASK_BREAKDOWN.md first, and treat them as the source of truth.
+- Keep OpenCode as the backend execution engine.
+- Build on the existing lane model and readiness surface rather than replacing them.
+- Keep compare-and-apply intentionally bounded to explicit user selection and adoption of one lane outcome.
+- Do not redesign the planner/router/reviewer pipeline or build a new autonomous swarm runtime.
+
+Scope:
+- Add final selection / adopt flow for alternative lane outcomes.
+- Surface clear selected-lane state and the post-selection outcome.
+- Keep per-lane verification and ship readiness visible during adoption.
+- Add the smallest necessary cleanup/finalization UX so the user understands which lane was adopted and which were not.
+
+Out of scope:
+- Agent-core redesign.
+- Cloud execution fabric.
+- Multi-user collaboration.
+- Fancy swarm visualization unless upstream metadata is already cheap to surface.
+- Unbounded lane orchestration or autonomous swarm UI.
+
+Verification required:
+- npm run lint
+- npm run typecheck
+- npm run test -- --coverage
+- npm run build
+
+Browser validation required:
+- Start the local app for `apps/opencode-web-client`.
+- Use `playwright-cli` skill or Chrome DevTools MCP to open the real app.
+- Confirm at least two isolated lanes can be rendered without shell fallback.
+- Confirm lane comparison and final selection/adopt flow render end-to-end.
+- Confirm the selected/adopted lane is clearly identifiable after the action.
+- Confirm per-lane verification/ship readiness remains visible through the flow.
+- Confirm browser console has no uncaught error.
+```
+
+### 11.1 這一包做完應該得到什麼
+
+- 結果不只平行存在，還能真的 compare-and-apply
+- 使用者可以明確採用其中一條 lane outcome
+- SoT 定義的 codex-like 高階 parallel 感，才在這一包真正成立
+
+### 11.2 這一包不要碰什麼
 
 - re-implement OpenCode orchestration runtime
 - cloud agent fabric
 - multi-user collaborative session model
 - 無邊界的 swarm orchestration UI
 
-## 10. Tranche 3 之後怎麼排
+## 12. Tranche 3 之後怎麼排
 
 建議順序：
 
@@ -477,15 +587,18 @@ Browser validation required:
 2. GitHub-backed ship
 3. context / extension surface
 4. browser evidence
-5. parallel execution surface
+5. parallel lane foundation
+6. lane comparison + readiness surface
+7. lane compare-and-apply
 
 補充：
 
-- optional mini-tranche 也應維持 bounded exception，不要趁機混入 Tranche 4-7 feature scope
-- 這四包仍然要維持一包一個 prompt，不要把 Tranche 4-7 合併成單一大包
+- optional mini-tranche 也應維持 bounded exception，不要趁機混入 Tranche 4-9 feature scope
+- M5 明確拆成 Tranche 7-9 三包，不要再把它們合回單一大包
+- 這六包仍然要維持一包一個 prompt，不要把 Tranche 4-9 合併成單一大包
 - 若 scope 壓力變大，優先保住 M2b 與 M4 的 finishable slice，再考慮壓縮 M1b / M5 深度
 
-## 11. 一句話策略
+## 13. 一句話策略
 
 先把產品補到：
 
