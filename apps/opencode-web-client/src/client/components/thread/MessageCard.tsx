@@ -8,6 +8,7 @@ import { selectMessageResultTrace, selectSessionMessages, type ResolvedMessageRe
 import { PermissionCard } from './PermissionCard.js';
 import { ErrorCard } from './ErrorCard.js';
 import { ActivityIcon, CheckIcon, CopyIcon } from '../common/Icons.js';
+import { BrowserEvidenceSurface } from '../common/BrowserEvidenceSurface.js';
 
 const ROLE_LABELS: Record<string, string> = {
   user: 'You',
@@ -42,6 +43,9 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
   const toolParts = useMemo(() => getRenderableToolParts(message.parts), [message.parts]);
   const copyText = useMemo(() => getCopyText(message.parts, toolParts, resultTrace), [message.parts, resultTrace, toolParts]);
   const extraParts = message.parts.filter((part) => part.type === 'error' || part.type === 'permission-request');
+  const fallbackSummary = textParts.length === 0 && toolParts.length === 0
+    ? resultTrace?.summary?.trim() ?? ''
+    : '';
   const showAvatar = message.role !== 'user';
   const hasPrimaryContent = textParts.length > 0 || toolParts.length > 0 || extraParts.length > 0 || !!resultTrace;
   const showReasoningTrigger = showReasoningSummaries && reasoningParts.length > 0;
@@ -99,6 +103,12 @@ export function MessageCard({ message, isRunning = false }: { message: Normalize
                   {part.text ?? ''}
                 </ReactMarkdown>
               ))}
+
+              {fallbackSummary && (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                  {fallbackSummary}
+                </ReactMarkdown>
+              )}
 
               {toolParts.map((part) => (
                 <AssistantToolPart key={part.key} part={part} />
@@ -531,6 +541,13 @@ function MessageResultTrace({ trace }: { trace: ResolvedMessageResultTrace }) {
             </div>
           )}
         </div>
+      )}
+
+      {trace.browserEvidenceRef && (
+        <BrowserEvidenceSurface
+          projection={{ browserEvidenceRef: trace.browserEvidenceRef }}
+          compact
+        />
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

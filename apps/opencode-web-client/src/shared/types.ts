@@ -307,12 +307,77 @@ export interface VerificationRun {
   terminalLogRef?: string;
 }
 
+export interface BrowserEvidenceArtifacts {
+  previewUrl: string;
+  consoleCapture?: PreviewRuntimeConsoleCaptureMetadata;
+  screenshot?: PreviewRuntimeScreenshotMetadata;
+}
+
+export interface BrowserEvidenceRecord extends BrowserEvidenceArtifacts {
+  id: string;
+  workspaceId: string;
+  capturedAt: string;
+  sessionId?: string;
+  sourceMessageId?: string;
+  taskId?: string;
+  summary: string;
+}
+
+export interface BrowserEvidenceReference extends BrowserEvidenceArtifacts {
+  recordId: string;
+  capturedAt: string;
+  summary?: string;
+}
+
 export interface TaskLedgerVerificationReference {
   runId: string;
   commandKind: VerificationCommandKind;
   status: VerificationRunStatus;
   summary?: string;
   terminalLogRef?: string;
+}
+
+export interface PreviewRuntimeCaptureRequest {
+  previewUrl: string;
+  sessionId?: string;
+  sourceMessageId?: string;
+  taskId?: string;
+}
+
+export type PreviewRuntimeOutcome = 'captured' | 'degraded' | 'unavailable';
+
+export interface PreviewRuntimeIssue {
+  code: string;
+  message: string;
+  detail?: string;
+  capability?: 'previewTarget' | 'browserEvidence';
+}
+
+export interface PreviewRuntimeConsoleCaptureMetadata {
+  capturedAt: string;
+  entryCount: number;
+  errorCount: number;
+  warningCount: number;
+  exceptionCount: number;
+  levels: string[];
+}
+
+export interface PreviewRuntimeScreenshotMetadata {
+  artifactRef: string;
+  mimeType: 'image/png';
+  bytes: number;
+  width: number;
+  height: number;
+  capturedAt: string;
+}
+
+export interface PreviewRuntimeCaptureResult {
+  workspaceId: string;
+  outcome: PreviewRuntimeOutcome;
+  previewUrl?: string;
+  consoleCapture?: PreviewRuntimeConsoleCaptureMetadata;
+  screenshot?: PreviewRuntimeScreenshotMetadata;
+  issues: PreviewRuntimeIssue[];
 }
 
 export type TaskLedgerShipAction = 'commit' | 'push' | 'pullRequest';
@@ -342,6 +407,7 @@ export interface WorkspaceBootstrap {
   capabilities?: WorkspaceCapabilityProbe;
   traceability?: WorkspaceTraceabilitySummary;
   verificationRuns?: VerificationRun[];
+  browserEvidenceRecords?: BrowserEvidenceRecord[];
   taskLedgerRecords?: TaskLedgerRecord[];
 }
 
@@ -515,6 +581,7 @@ export interface ResultAnnotation {
   verification: ResultVerificationState;
   reviewState?: ResultReviewState;
   shipState?: ResultShipState;
+  browserEvidenceRef?: BrowserEvidenceReference;
 }
 
 export interface TaskLedgerRecord {
@@ -530,6 +597,7 @@ export interface TaskLedgerRecord {
   completedAt?: string;
   resultAnnotation?: ResultAnnotation;
   recentVerificationRef?: TaskLedgerVerificationReference;
+  recentBrowserEvidenceRef?: BrowserEvidenceReference;
   recentShipRef?: TaskLedgerShipReference;
 }
 

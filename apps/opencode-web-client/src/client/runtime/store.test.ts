@@ -10,6 +10,7 @@ import {
   selectActiveWorkspaceContextCatalog,
   selectActiveWorkspaceContextCatalogError,
   selectActiveWorkspaceContextCatalogLoading,
+  selectActiveWorkspaceBrowserEvidenceCapabilityState,
   selectActiveWorkspaceContextCapabilityEntries,
   selectActiveWorkspaceContextInstructionSources,
   selectActiveWorkspaceTaskLedgerRecords,
@@ -22,9 +23,11 @@ import {
   selectMessageResultTrace,
   selectSessionTaskLedgerRecords,
   selectSessionMessages,
+  selectWorkspaceVerificationRuns,
   useStore,
 } from './store.js';
 import type {
+  BrowserEvidenceRecord,
   NormalizedMessage,
   ResultAnnotation,
   SessionSummary,
@@ -291,6 +294,90 @@ describe('store session streaming state', () => {
     expect(selectMessageResultTrace(useStore.getState(), updatedMessage!)?.summary).toBe('Lint verification passed.');
   });
 
+  it('projects persisted browser evidence into verification runs, task records, and message traces when capability is available', () => {
+    const workspaceId = 'workspace-browser-projection';
+    const sessionId = 'session-browser-projection';
+    const sourceMessageId = 'message-browser-projection';
+    const taskId = 'task-browser-projection';
+    const browserEvidenceRecord = makeBrowserEvidenceRecord(
+      workspaceId,
+      sessionId,
+      sourceMessageId,
+      taskId,
+      'record-browser-projection',
+      '2026-04-22T16:02:00.000Z',
+    );
+    const taskRecord = makeTaskLedgerRecord(workspaceId, sessionId, taskId, 'completed', {
+      sourceMessageId,
+      summary: 'Browser verification complete.',
+      resultAnnotation: {
+        sourceMessageId,
+        workspaceId,
+        sessionId,
+        taskId,
+        verification: 'verified',
+        summary: 'Browser verification complete.',
+      },
+    });
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(
+      workspaceId,
+      undefined,
+      undefined,
+      [
+        {
+          id: 'verify-browser-projection',
+          workspaceId,
+          sessionId,
+          sourceMessageId,
+          taskId,
+          commandKind: 'test',
+          status: 'passed',
+          startedAt: '2026-04-22T16:00:00.000Z',
+          finishedAt: '2026-04-22T16:00:05.000Z',
+          summary: 'Browser verification passed.',
+        },
+      ],
+      undefined,
+      [taskRecord],
+      [browserEvidenceRecord],
+    ));
+    useStore.getState().setMessages(workspaceId, sessionId, [
+      makeAssistantMessage(workspaceId, sessionId, sourceMessageId, taskId, {
+        summary: 'Browser verification complete.',
+        verification: 'verified',
+      }),
+    ]);
+
+    const projectedRun = selectWorkspaceVerificationRuns(useStore.getState(), workspaceId)[0]!;
+    const projectedRecord = selectSessionTaskLedgerRecords(useStore.getState(), workspaceId, sessionId)[0]!;
+    const resolved = selectMessageResultTrace(
+      useStore.getState(),
+      selectSessionMessages(useStore.getState(), workspaceId, sessionId)[0]!,
+    );
+
+    expect(projectedRun.browserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+      previewUrl: 'http://127.0.0.1:4173/',
+    }));
+    expect(projectedRecord.browserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+    }));
+    expect(projectedRecord.recentBrowserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+    }));
+    expect(projectedRecord.resultAnnotation?.browserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+    }));
+    expect(resolved?.browserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+    }));
+    expect(resolved?.annotation?.browserEvidenceRef).toEqual(expect.objectContaining({
+      recordId: 'record-browser-projection',
+    }));
+    expect(resolved?.summary).toBe('Browser verification passed.');
+  });
+
   it('derives verification state and latest linked summary from workspace-scoped runs', () => {
     const workspaceId = 'workspace-linked-runs';
     const sessionId = 'session-linked-runs';
@@ -392,6 +479,80 @@ describe('store session streaming state', () => {
         detail: 'No preview script detected.',
       },
     ]);
+  });
+
+  it('gates browser evidence capability state and leaves projected browser refs unset when unavailable', () => {
+    const workspaceId = 'workspace-browser-capability';
+    const sessionId = 'session-browser-capability';
+    const taskRecord = makeTaskLedgerRecord(workspaceId, sessionId, 'task-browser-capability', 'completed', {
+      sourceMessageId: 'message-browser-capability',
+      summary: 'Command verification still available.',
+      recentBrowserEvidenceRef: {
+        recordId: 'task-browser-capability-ref',
+        capturedAt: '2026-04-22T15:00:00.000Z',
+        previewUrl: 'http://127.0.0.1:4173/',
+        summary: 'Captured browser evidence while available.',
+      },
+      resultAnnotation: {
+        sourceMessageId: 'message-browser-capability',
+        workspaceId,
+        sessionId,
+        taskId: 'task-browser-capability',
+        verification: 'verified',
+        summary: 'Command verification still available.',
+      },
+    });
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, makeBootstrap(
+      workspaceId,
+      undefined,
+      {
+        previewTarget: { status: 'unavailable', summary: 'Preview target unavailable', detail: 'No preview script detected.' },
+        browserEvidence: { status: 'unavailable', summary: 'Browser evidence unavailable', detail: 'Preview runtime is disabled.' },
+      },
+      [
+        {
+          id: 'verify-browser-capability',
+          workspaceId,
+          sessionId,
+          sourceMessageId: 'message-browser-capability',
+          taskId: 'task-browser-capability',
+          commandKind: 'test',
+          status: 'passed',
+          startedAt: '2026-04-22T15:01:00.000Z',
+          finishedAt: '2026-04-22T15:01:05.000Z',
+          summary: 'Command verification passed.',
+        },
+      ],
+      undefined,
+      [taskRecord],
+      [makeBrowserEvidenceRecord(workspaceId, sessionId, 'message-browser-capability', 'task-browser-capability', 'record-browser-capability', '2026-04-22T15:02:00.000Z')],
+    ));
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    const capabilityState = selectActiveWorkspaceBrowserEvidenceCapabilityState(useStore.getState());
+    const projectedRun = selectActiveWorkspaceVerificationRuns(useStore.getState())[0]!;
+    const projectedRecord = selectActiveWorkspaceTaskLedgerRecords(useStore.getState())[0]!;
+    const resolved = selectMessageResultTrace(
+      useStore.getState(),
+      makeAssistantMessage(workspaceId, sessionId, 'message-browser-capability', 'task-browser-capability', {
+        summary: 'Command verification still available.',
+        verification: 'verified',
+      }),
+    );
+
+    expect(capabilityState).toEqual(expect.objectContaining({
+      status: 'degraded',
+      tone: 'warning',
+      summary: expect.stringContaining('Command-only lint, build, and test verification remains available.'),
+    }));
+    expect(projectedRun.browserEvidenceRef).toBeUndefined();
+    expect(projectedRecord.browserEvidenceRef).toBeUndefined();
+    expect(projectedRecord.recentBrowserEvidenceRef).toBeUndefined();
+    expect(projectedRecord.resultAnnotation?.browserEvidenceRef).toBeUndefined();
+    expect(resolved?.browserEvidenceRef).toBeUndefined();
+    expect(resolved?.annotation?.browserEvidenceRef).toBeUndefined();
+    expect(resolved?.summary).toBe('Command verification passed.');
   });
 
   it('returns context catalog data, loading, and error state for the active workspace only', () => {
@@ -725,6 +886,7 @@ function makeBootstrap(
   verificationRuns?: VerificationRun[],
   git?: WorkspaceBootstrap['git'],
   taskLedgerRecords?: TaskLedgerRecord[],
+  browserEvidenceRecords?: BrowserEvidenceRecord[],
 ): WorkspaceBootstrap {
   return {
     workspace: {
@@ -738,6 +900,7 @@ function makeBootstrap(
     capabilities: makeCapabilityProbe(workspaceId, capabilityOverrides),
     traceability,
     verificationRuns,
+    browserEvidenceRecords,
     taskLedgerRecords,
   };
 }
@@ -762,6 +925,7 @@ function makeTaskLedgerRecord(
     completedAt: overrides.completedAt,
     resultAnnotation: overrides.resultAnnotation,
     recentVerificationRef: overrides.recentVerificationRef,
+    recentBrowserEvidenceRef: overrides.recentBrowserEvidenceRef,
     recentShipRef: overrides.recentShipRef,
   };
 }
@@ -780,6 +944,34 @@ function makeCapabilityProbe(
     previewTarget: available,
     browserEvidence: available,
     ...overrides,
+  };
+}
+
+function makeBrowserEvidenceRecord(
+  workspaceId: string,
+  sessionId: string,
+  sourceMessageId: string,
+  taskId: string,
+  id: string,
+  capturedAt: string,
+): BrowserEvidenceRecord {
+  return {
+    id,
+    workspaceId,
+    capturedAt,
+    sessionId,
+    sourceMessageId,
+    taskId,
+    summary: `Captured browser evidence for ${sourceMessageId}.`,
+    previewUrl: 'http://127.0.0.1:4173/',
+    consoleCapture: {
+      capturedAt,
+      entryCount: 1,
+      errorCount: 0,
+      warningCount: 0,
+      exceptionCount: 0,
+      levels: ['log'],
+    },
   };
 }
 

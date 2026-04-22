@@ -21,6 +21,7 @@ import { WorkspaceContextCatalogService } from '../server/services/workspace-con
 import { WorkspaceShipService } from '../server/services/workspace-ship-service.js';
 import { TaskLedgerService } from '../server/services/task-ledger-service.js';
 import { VerificationService } from '../server/services/verification-service.js';
+import { PreviewRuntimeService } from '../server/services/preview-runtime-service.js';
 import { APP_NAME } from '../shared/constants.js';
 
 async function main() {
@@ -74,6 +75,7 @@ async function main() {
   });
   const workspaceShipService = new WorkspaceShipService(clientFactory);
   const verificationService = new VerificationService(appPaths, clientFactory, eventBroker, { taskLedgerService });
+  const previewRuntimeService = new PreviewRuntimeService(appPaths, capabilityProbeService);
 
   const serverOptions = {
     host: args.host,
@@ -100,6 +102,7 @@ async function main() {
     workspaceShipService,
     taskLedgerService,
     verificationService,
+    previewRuntimeService,
   });
 
   const server = startServer(app, serverOptions);

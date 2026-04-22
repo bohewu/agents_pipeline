@@ -235,6 +235,134 @@ describe('VerificationService', () => {
       rmSync(workspaceRoot, { recursive: true, force: true })
     }
   })
+
+  it('persists bounded browser evidence metadata separately from command verification logs and projects it by traceability', () => {
+    const stateDir = mkdtempSync(path.join(tmpdir(), 'verify-browser-state-'))
+    const taskLedgerService = new TaskLedgerService({ stateDir })
+    const service = new VerificationService(
+      { stateDir },
+      { forWorkspace: () => ({ shell: vi.fn() }) as any },
+      undefined,
+      {
+        now: () => new Date('2026-04-22T14:00:00.000Z'),
+        randomId: sequenceIds('browser-1'),
+        taskLedgerService,
+      },
+    )
+
+    try {
+      const captureResult = {
+        workspaceId: 'ws-browser',
+        outcome: 'captured' as const,
+        previewUrl: 'http://127.0.0.1:4173/',
+        consoleCapture: {
+          capturedAt: '2026-04-22T14:00:00.000Z',
+          entryCount: 2,
+          errorCount: 0,
+          warningCount: 1,
+          exceptionCount: 0,
+          levels: ['log', 'warning'],
+        },
+        screenshot: {
+          artifactRef: 'preview-runtime-artifacts/ws-browser/browser-1.png',
+          mimeType: 'image/png' as const,
+          bytes: 2048,
+          width: 1280,
+          height: 800,
+          capturedAt: '2026-04-22T14:00:00.000Z',
+        },
+        issues: [],
+      }
+
+      const record = service.recordBrowserEvidence({
+        workspaceId: 'ws-browser',
+        sessionId: 'session-browser',
+        sourceMessageId: 'message-browser',
+        taskId: 'task-browser',
+        captureResult,
+      })
+
+      expect(service.listRuns('ws-browser')).toEqual([])
+      expect(service.listBrowserEvidence('ws-browser')).toEqual([record])
+
+      const workspaceSummary = service.getWorkspaceSummary('ws-browser')
+      expect(workspaceSummary.browserEvidenceRecords).toEqual([record])
+      expect(workspaceSummary.traceability.resultAnnotations).toEqual([
+        expect.objectContaining({
+          sourceMessageId: 'message-browser',
+          workspaceId: 'ws-browser',
+          sessionId: 'session-browser',
+          taskId: 'task-browser',
+          verification: 'unverified',
+          browserEvidenceRef: expect.objectContaining({
+            recordId: record.id,
+            previewUrl: 'http://127.0.0.1:4173/',
+            screenshot: expect.objectContaining({
+              artifactRef: 'preview-runtime-artifacts/ws-browser/browser-1.png',
+            }),
+          }),
+        }),
+      ])
+
+      const decorated = service.decorateMessages('ws-browser', 'session-browser', [{
+        id: 'message-browser',
+        role: 'assistant',
+        createdAt: '2026-04-22T14:00:00.000Z',
+        parts: [{ type: 'text', text: 'Preview checked.' }],
+      }])
+      expect(decorated[0]?.resultAnnotation).toEqual(expect.objectContaining({
+        verification: 'unverified',
+        browserEvidenceRef: expect.objectContaining({
+          recordId: record.id,
+          previewUrl: 'http://127.0.0.1:4173/',
+          consoleCapture: expect.objectContaining({
+            entryCount: 2,
+            warningCount: 1,
+          }),
+        }),
+      }))
+
+      const ledgerRecord = taskLedgerService.getRecord('ws-browser', 'task-browser')
+      expect(ledgerRecord).toEqual(expect.objectContaining({
+        workspaceId: 'ws-browser',
+        sessionId: 'session-browser',
+        sourceMessageId: 'message-browser',
+        state: 'completed',
+        recentBrowserEvidenceRef: expect.objectContaining({
+          recordId: record.id,
+          previewUrl: 'http://127.0.0.1:4173/',
+        }),
+      }))
+      expect(ledgerRecord?.recentVerificationRef).toBeUndefined()
+
+      const rawState = JSON.parse(readText(path.join(stateDir, 'verification', 'ws-browser.json'))) as {
+        version: number
+        runs: unknown[]
+        browserEvidenceRecords: Array<Record<string, unknown>>
+      }
+      expect(rawState.version).toBe(1)
+      expect(rawState.runs).toEqual([])
+      expect(rawState.browserEvidenceRecords).toEqual([
+        expect.objectContaining({
+          id: record.id,
+          workspaceId: 'ws-browser',
+          sessionId: 'session-browser',
+          sourceMessageId: 'message-browser',
+          taskId: 'task-browser',
+          previewUrl: 'http://127.0.0.1:4173/',
+          consoleCapture: expect.objectContaining({
+            entryCount: 2,
+            levels: ['log', 'warning'],
+          }),
+          screenshot: expect.objectContaining({
+            artifactRef: 'preview-runtime-artifacts/ws-browser/browser-1.png',
+          }),
+        }),
+      ])
+    } finally {
+      rmSync(stateDir, { recursive: true, force: true })
+    }
+  })
 })
 
 function makeAssistantMessage(messageId: string): NormalizedMessage {

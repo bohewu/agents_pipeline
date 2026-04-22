@@ -54,6 +54,28 @@ describe('TaskLedgerService', () => {
         summary: 'Tests passed.',
         terminalLogRef: 'verification-logs/ws-1/verify-run-2.log',
       },
+      recentBrowserEvidenceRef: {
+        recordId: 'browser-evidence-2',
+        capturedAt: '2026-04-22T09:00:00.000Z',
+        summary: 'Captured browser evidence for http://127.0.0.1:4173/.',
+        previewUrl: 'http://127.0.0.1:4173/',
+        consoleCapture: {
+          capturedAt: '2026-04-22T09:00:00.000Z',
+          entryCount: 1,
+          errorCount: 0,
+          warningCount: 0,
+          exceptionCount: 0,
+          levels: ['log'],
+        },
+        screenshot: {
+          artifactRef: 'preview-runtime-artifacts/ws-1/browser-evidence-2.png',
+          mimeType: 'image/png',
+          bytes: 1024,
+          width: 1280,
+          height: 800,
+          capturedAt: '2026-04-22T09:00:00.000Z',
+        },
+      },
       resultAnnotation: {
         sourceMessageId: 'message-task-completed',
         workspaceId: 'ws-1',
@@ -63,6 +85,28 @@ describe('TaskLedgerService', () => {
         summary: 'Completed task summary',
         reviewState: 'ready',
         shipState: 'local-ready',
+        browserEvidenceRef: {
+          recordId: 'browser-evidence-2',
+          capturedAt: '2026-04-22T09:00:00.000Z',
+          summary: 'Captured browser evidence for http://127.0.0.1:4173/.',
+          previewUrl: 'http://127.0.0.1:4173/',
+          consoleCapture: {
+            capturedAt: '2026-04-22T09:00:00.000Z',
+            entryCount: 1,
+            errorCount: 0,
+            warningCount: 0,
+            exceptionCount: 0,
+            levels: ['log'],
+          },
+          screenshot: {
+            artifactRef: 'preview-runtime-artifacts/ws-1/browser-evidence-2.png',
+            mimeType: 'image/png',
+            bytes: 1024,
+            width: 1280,
+            height: 800,
+            capturedAt: '2026-04-22T09:00:00.000Z',
+          },
+        },
       },
     })
     const failedRecord = makeTaskRecord('ws-1', 'session-1', 'task-failed', 'failed', 'Failed task summary', {
@@ -175,6 +219,7 @@ function makeTaskRecord(
     ...(overrides.completedAt ? { completedAt: overrides.completedAt } : {}),
     ...(overrides.resultAnnotation ? { resultAnnotation: overrides.resultAnnotation } : {}),
     ...(overrides.recentVerificationRef ? { recentVerificationRef: overrides.recentVerificationRef } : {}),
+    ...(overrides.recentBrowserEvidenceRef ? { recentBrowserEvidenceRef: overrides.recentBrowserEvidenceRef } : {}),
     ...(overrides.recentShipRef ? { recentShipRef: overrides.recentShipRef } : {}),
   }
 }

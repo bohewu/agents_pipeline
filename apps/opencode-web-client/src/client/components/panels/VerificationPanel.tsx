@@ -1,7 +1,8 @@
 import React from 'react';
-import type { VerificationCommandKind, VerificationRun, VerificationRunStatus } from '../../../shared/types.js';
+import type { VerificationCommandKind, VerificationRunStatus } from '../../../shared/types.js';
 import { api } from '../../lib/api-client.js';
-import { selectActiveWorkspaceVerificationRuns, useStore } from '../../runtime/store.js';
+import { BrowserEvidenceSurface } from '../common/BrowserEvidenceSurface.js';
+import { selectActiveWorkspaceVerificationRuns, type ProjectedVerificationRun, useStore } from '../../runtime/store.js';
 
 const VERIFICATION_PRESETS: VerificationCommandKind[] = ['lint', 'build', 'test'];
 
@@ -9,7 +10,12 @@ export function VerificationPanel() {
   const activeWorkspaceId = useStore((s) => s.activeWorkspaceId);
   const activeSessionByWorkspace = useStore((s) => s.activeSessionByWorkspace);
   const workspaceBootstraps = useStore((s) => s.workspaceBootstraps);
-  const runs = useStore((s) => selectActiveWorkspaceVerificationRuns(s));
+  const workspaceCapabilitiesByWorkspace = useStore((s) => s.workspaceCapabilitiesByWorkspace);
+  const runs = React.useMemo(() => selectActiveWorkspaceVerificationRuns({
+    activeWorkspaceId,
+    workspaceBootstraps,
+    workspaceCapabilitiesByWorkspace,
+  }), [activeWorkspaceId, workspaceBootstraps, workspaceCapabilitiesByWorkspace]);
   const setVerificationRuns = useStore((s) => s.setVerificationRuns);
   const setSessionStreaming = useStore((s) => s.setSessionStreaming);
   const sessionId = activeWorkspaceId ? activeSessionByWorkspace[activeWorkspaceId] : undefined;
@@ -74,7 +80,7 @@ export function VerificationPanel() {
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>Verification</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-              Recent runs stay scoped to {workspaceName ?? 'this workspace'}, including saved summaries and terminal evidence refs.
+              Recent runs stay scoped to {workspaceName ?? 'this workspace'}, including saved summaries, terminal logs, and projected browser evidence when available.
             </div>
           </div>
           <button
@@ -146,7 +152,7 @@ function VerificationRunCard({
   busy,
   onRetry,
 }: {
-  run: VerificationRun;
+  run: ProjectedVerificationRun;
   disabled: boolean;
   busy: boolean;
   onRetry: () => void;
@@ -172,9 +178,14 @@ function VerificationRunCard({
         )}
         {run.exitCode !== undefined && <div>Exit code: {run.exitCode}</div>}
         {run.terminalLogRef && (
-          <div>Evidence: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{run.terminalLogRef}</span></div>
+          <div>Verification log: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', wordBreak: 'break-word' }}>{run.terminalLogRef}</span></div>
         )}
       </div>
+
+      <BrowserEvidenceSurface
+        projection={run.browserEvidenceRef ? { browserEvidenceRef: run.browserEvidenceRef } : undefined}
+        compact
+      />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button type="button" onClick={onRetry} disabled={disabled} style={secondaryButtonStyle(disabled)}>

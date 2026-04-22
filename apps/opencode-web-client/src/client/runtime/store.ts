@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { getItem, setItem } from '../lib/local-storage.js';
 import { DEFAULT_APP_SETTINGS, normalizeAppSettings, type AppSettings } from '../lib/app-settings.js';
+import {
+  deriveBrowserEvidenceCapabilityState,
+  deriveBrowserEvidenceProjection,
+  pickLatestBrowserEvidenceReference,
+  type BrowserEvidenceCapabilityState,
+} from '../lib/browser-evidence.js';
 import type {
+  BrowserEvidenceRecord,
+  BrowserEvidenceReference,
   CapabilityProbeStatus,
   CommitExecuteResult,
   CommitPreviewResult,
@@ -41,12 +49,17 @@ export interface ResolvedMessageResultTrace {
   annotation?: ResultAnnotation;
   taskEntry?: TaskEntry;
   shipReference?: TaskLedgerShipReference;
+  browserEvidenceRef?: BrowserEvidenceReference;
   verification: ResultVerificationState;
   verificationSummary?: string;
   latestVerificationRun?: VerificationRun;
   linkedVerificationRuns: VerificationRun[];
   summary?: string;
 }
+
+export type ProjectedVerificationRun = VerificationRun & { browserEvidenceRef?: BrowserEvidenceReference };
+
+export type ProjectedTaskLedgerRecord = TaskLedgerRecord & { browserEvidenceRef?: BrowserEvidenceReference };
 
 export interface WorkspaceCapabilityGap {
   key: WorkspaceCapabilityKey;
@@ -385,6 +398,15 @@ export const useStore = create<UIStore>((set) => ({
             ...(resultAnnotation.summary ? { summary: resultAnnotation.summary } : {}),
             ...(message.resultAnnotation?.reviewState ? { reviewState: message.resultAnnotation.reviewState } : {}),
             ...(message.resultAnnotation?.shipState ? { shipState: message.resultAnnotation.shipState } : {}),
+            ...(pickLatestBrowserEvidenceReference([
+              resultAnnotation.browserEvidenceRef,
+              message.resultAnnotation?.browserEvidenceRef,
+            ]) ? {
+              browserEvidenceRef: pickLatestBrowserEvidenceReference([
+                resultAnnotation.browserEvidenceRef,
+                message.resultAnnotation?.browserEvidenceRef,
+              ]),
+            } : {}),
           }
         : message.resultAnnotation;
 
@@ -606,17 +628,30 @@ export function selectSessionStreaming(
 }
 
 export function selectWorkspaceCapabilities(
-  store: Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>,
+  store: Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
   workspaceId?: string | null,
 ): WorkspaceCapabilityProbe | undefined {
   if (!workspaceId) return undefined;
-  return store.workspaceCapabilitiesByWorkspace[workspaceId];
+  return store.workspaceCapabilitiesByWorkspace?.[workspaceId] ?? store.workspaceBootstraps?.[workspaceId]?.capabilities;
 }
 
 export function selectActiveWorkspaceCapabilities(
-  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceCapabilitiesByWorkspace'>,
+  store: Pick<UIStore, 'activeWorkspaceId'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
 ): WorkspaceCapabilityProbe | undefined {
   return selectWorkspaceCapabilities(store, store.activeWorkspaceId);
+}
+
+export function selectWorkspaceBrowserEvidenceCapabilityState(
+  store: Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
+  workspaceId?: string | null,
+): BrowserEvidenceCapabilityState | undefined {
+  return deriveBrowserEvidenceCapabilityState(selectWorkspaceCapabilities(store, workspaceId));
+}
+
+export function selectActiveWorkspaceBrowserEvidenceCapabilityState(
+  store: Pick<UIStore, 'activeWorkspaceId'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
+): BrowserEvidenceCapabilityState | undefined {
+  return selectWorkspaceBrowserEvidenceCapabilityState(store, store.activeWorkspaceId);
 }
 
 export function selectWorkspaceContextCatalog(
@@ -716,7 +751,7 @@ export function selectActiveWorkspaceShipActionResults(
 }
 
 export function selectActiveWorkspaceCapabilityGaps(
-  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceCapabilitiesByWorkspace'>,
+  store: Pick<UIStore, 'activeWorkspaceId'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
 ): WorkspaceCapabilityGap[] {
   return deriveWorkspaceCapabilityGaps(selectActiveWorkspaceCapabilities(store));
 }
@@ -745,46 +780,61 @@ export function deriveWorkspaceCapabilityGaps(
 }
 
 export function selectWorkspaceVerificationRuns(
-  store: Pick<UIStore, 'workspaceBootstraps'>,
+  store: Pick<UIStore, 'workspaceBootstraps'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
   workspaceId?: string | null,
-): VerificationRun[] {
+): ProjectedVerificationRun[] {
   if (!workspaceId) return [];
-  return store.workspaceBootstraps[workspaceId]?.verificationRuns ?? [];
+  const capabilities = selectWorkspaceCapabilities(store, workspaceId);
+  const browserEvidenceRecords = store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords;
+
+  return (store.workspaceBootstraps[workspaceId]?.verificationRuns ?? []).map((run) => {
+    const browserEvidenceRef = deriveBrowserEvidenceProjection({
+      capabilities,
+      browserEvidenceRecords,
+      sessionId: run.sessionId,
+      sourceMessageId: run.sourceMessageId,
+      taskId: run.taskId,
+    })?.browserEvidenceRef;
+
+    return browserEvidenceRef ? { ...run, browserEvidenceRef } : run;
+  });
 }
 
 export function selectActiveWorkspaceVerificationRuns(
-  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps'>,
-): VerificationRun[] {
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
+): ProjectedVerificationRun[] {
   return selectWorkspaceVerificationRuns(store, store.activeWorkspaceId);
 }
 
 export function selectWorkspaceTaskLedgerRecords(
-  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
+  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
   workspaceId?: string | null,
-): TaskLedgerRecord[] {
+): ProjectedTaskLedgerRecord[] {
   if (!workspaceId) return [];
   const records = normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords);
   const status = store.workspaceGitStatusByWorkspace[workspaceId];
-  return records.map((record) => projectTaskLedgerRecord(record, status));
+  const capabilities = selectWorkspaceCapabilities(store, workspaceId);
+  const browserEvidenceRecords = store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords;
+  return records.map((record) => projectTaskLedgerRecord(record, status, capabilities, browserEvidenceRecords));
 }
 
 export function selectActiveWorkspaceTaskLedgerRecords(
-  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
-): TaskLedgerRecord[] {
+  store: Pick<UIStore, 'activeWorkspaceId' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
+): ProjectedTaskLedgerRecord[] {
   return selectWorkspaceTaskLedgerRecords(store, store.activeWorkspaceId);
 }
 
 export function selectSessionTaskLedgerRecords(
-  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
+  store: Pick<UIStore, 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
   workspaceId?: string | null,
   sessionId?: string,
-): TaskLedgerRecord[] {
+): ProjectedTaskLedgerRecord[] {
   if (!workspaceId || !sessionId) return [];
   return selectWorkspaceTaskLedgerRecords(store, workspaceId).filter((record) => resolveTaskLedgerRecordSessionId(record) === sessionId);
 }
 
 export function selectMessageResultTrace(
-  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'taskEntriesByWorkspace' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'>,
+  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'taskEntriesByWorkspace' | 'workspaceBootstraps' | 'workspaceGitStatusByWorkspace'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
   message: NormalizedMessage,
 ): ResolvedMessageResultTrace | undefined {
   const workspaceId = message.trace?.workspaceId
@@ -819,8 +869,17 @@ export function selectMessageResultTrace(
     linkedTaskRecord?.recentShipRef?.pullRequestUrl,
     store.workspaceGitStatusByWorkspace[workspaceId],
   );
+  const browserEvidenceRef = deriveBrowserEvidenceProjection({
+    capabilities: selectWorkspaceCapabilities(store, workspaceId),
+    annotation: projectedAnnotation,
+    taskRecord: linkedTaskRecord,
+    browserEvidenceRecords: store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords,
+    sessionId,
+    sourceMessageId,
+    taskId,
+  })?.browserEvidenceRef;
 
-  if (!annotation && !taskEntry && !taskId && linkedVerificationRuns.length === 0) {
+  if (!annotation && !taskEntry && !taskId && linkedVerificationRuns.length === 0 && !browserEvidenceRef) {
     return undefined;
   }
 
@@ -831,14 +890,15 @@ export function selectMessageResultTrace(
       sessionId,
       ...(taskId ? { taskId } : {}),
     },
-    annotation: projectedAnnotation,
+    annotation: projectResultAnnotationBrowserEvidence(projectedAnnotation, browserEvidenceRef),
     taskEntry,
     shipReference: linkedTaskRecord?.recentShipRef,
+    browserEvidenceRef,
     verification: verificationProjection.verification ?? projectedAnnotation?.verification ?? 'unverified',
     verificationSummary: verificationProjection.latestSummary,
     latestVerificationRun: verificationProjection.latestRun,
     linkedVerificationRuns,
-    summary: verificationProjection.latestSummary ?? projectedAnnotation?.summary ?? taskEntry?.latestSummary,
+    summary: verificationProjection.latestSummary ?? projectedAnnotation?.summary ?? taskEntry?.latestSummary ?? browserEvidenceRef?.summary,
   };
 }
 
@@ -925,16 +985,30 @@ function selectTaskEntry(
 
 function projectTaskLedgerRecord(
   record: TaskLedgerRecord,
-  status?: WorkspaceGitStatusResult,
-): TaskLedgerRecord {
+  status: WorkspaceGitStatusResult | undefined,
+  capabilities: WorkspaceCapabilityProbe | undefined,
+  browserEvidenceRecords: BrowserEvidenceRecord[] | undefined,
+): ProjectedTaskLedgerRecord {
   const projectedAnnotation = projectResultAnnotation(record.resultAnnotation, record.recentShipRef?.pullRequestUrl, status);
-  if (projectedAnnotation === record.resultAnnotation) {
-    return record;
-  }
+  const browserEvidenceRef = deriveBrowserEvidenceProjection({
+    capabilities,
+    annotation: projectedAnnotation,
+    taskRecord: record,
+    browserEvidenceRecords,
+    sessionId: resolveTaskLedgerRecordSessionId(record),
+    sourceMessageId: record.sourceMessageId ?? record.resultAnnotation?.sourceMessageId,
+    taskId: record.taskId,
+  })?.browserEvidenceRef;
+  const nextAnnotation = projectResultAnnotationBrowserEvidence(projectedAnnotation, browserEvidenceRef);
+  const { resultAnnotation: _resultAnnotation, recentBrowserEvidenceRef: _recentBrowserEvidenceRef, ...projectedRecord } = record;
 
   return {
-    ...record,
-    ...(projectedAnnotation ? { resultAnnotation: projectedAnnotation } : {}),
+    ...projectedRecord,
+    ...(nextAnnotation ? { resultAnnotation: nextAnnotation } : {}),
+    ...(browserEvidenceRef ? {
+      recentBrowserEvidenceRef: browserEvidenceRef,
+      browserEvidenceRef,
+    } : {}),
   };
 }
 
@@ -961,6 +1035,25 @@ function projectResultAnnotation(
     ...(annotation.summary ? { summary: annotation.summary } : {}),
     ...(projection.reviewState ? { reviewState: projection.reviewState } : {}),
     ...(projection.shipState ? { shipState: projection.shipState } : {}),
+  };
+}
+
+function projectResultAnnotationBrowserEvidence(
+  annotation: ResultAnnotation | undefined,
+  browserEvidenceRef: BrowserEvidenceReference | undefined,
+): ResultAnnotation | undefined {
+  if (!annotation) return undefined;
+
+  return {
+    sourceMessageId: annotation.sourceMessageId,
+    workspaceId: annotation.workspaceId,
+    sessionId: annotation.sessionId,
+    verification: annotation.verification,
+    ...(annotation.taskId ? { taskId: annotation.taskId } : {}),
+    ...(annotation.summary ? { summary: annotation.summary } : {}),
+    ...(annotation.reviewState ? { reviewState: annotation.reviewState } : {}),
+    ...(annotation.shipState ? { shipState: annotation.shipState } : {}),
+    ...(browserEvidenceRef ? { browserEvidenceRef } : {}),
   };
 }
 
@@ -1259,6 +1352,15 @@ function mergeResultAnnotations(
     ...(baseAnnotation.summary ?? nextAnnotation.summary ? { summary: baseAnnotation.summary ?? nextAnnotation.summary } : {}),
     ...(baseAnnotation.reviewState ?? nextAnnotation.reviewState ? { reviewState: baseAnnotation.reviewState ?? nextAnnotation.reviewState } : {}),
     ...(baseAnnotation.shipState ?? nextAnnotation.shipState ? { shipState: baseAnnotation.shipState ?? nextAnnotation.shipState } : {}),
+    ...(pickLatestBrowserEvidenceReference([
+      baseAnnotation.browserEvidenceRef,
+      nextAnnotation.browserEvidenceRef,
+    ]) ? {
+      browserEvidenceRef: pickLatestBrowserEvidenceReference([
+        baseAnnotation.browserEvidenceRef,
+        nextAnnotation.browserEvidenceRef,
+      ]),
+    } : {}),
   };
 }
 
@@ -1382,6 +1484,7 @@ function normalizeResultAnnotation(
     ...(summary ? { summary } : {}),
     ...(annotation?.reviewState ? { reviewState: annotation.reviewState } : {}),
     ...(annotation?.shipState ? { shipState: annotation.shipState } : {}),
+    ...(annotation?.browserEvidenceRef ? { browserEvidenceRef: annotation.browserEvidenceRef } : {}),
   };
 }
 

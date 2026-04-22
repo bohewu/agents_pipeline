@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type {
+  BrowserEvidenceReference,
+  PreviewRuntimeConsoleCaptureMetadata,
+  PreviewRuntimeScreenshotMetadata,
   ResultAnnotation,
   ResultReviewState,
   ResultShipState,
@@ -35,6 +38,7 @@ export interface TaskLedgerRuntimeUpdate {
   completedAt?: string
   resultAnnotation?: ResultAnnotation
   recentVerificationRef?: TaskLedgerVerificationReference
+  recentBrowserEvidenceRef?: BrowserEvidenceReference
   recentShipRef?: TaskLedgerShipReference
 }
 
@@ -193,6 +197,7 @@ function buildRuntimeTaskLedgerRecord(
     ?? update.resultAnnotation?.summary
     ?? update.recentVerificationRef?.summary
     ?? existing?.summary
+    ?? update.recentBrowserEvidenceRef?.summary
     ?? title
 
   if (!state || !summary) {
@@ -211,6 +216,7 @@ function buildRuntimeTaskLedgerRecord(
     ? update.completedAt ?? existing?.completedAt ?? update.updatedAt
     : undefined
   const recentVerificationRef = update.recentVerificationRef ?? existing?.recentVerificationRef
+  const recentBrowserEvidenceRef = update.recentBrowserEvidenceRef ?? existing?.recentBrowserEvidenceRef
   const recentShipRef = update.recentShipRef ?? existing?.recentShipRef
 
   return validateTaskLedgerRecord({
@@ -226,6 +232,7 @@ function buildRuntimeTaskLedgerRecord(
     ...(completedAt ? { completedAt } : {}),
     ...(resultAnnotation ? { resultAnnotation } : {}),
     ...(recentVerificationRef ? { recentVerificationRef } : {}),
+    ...(recentBrowserEvidenceRef ? { recentBrowserEvidenceRef } : {}),
     ...(recentShipRef ? { recentShipRef } : {}),
   }, update.workspaceId)
 }
@@ -257,6 +264,10 @@ function deriveRuntimeTaskState(
       case 'degraded':
         return existing?.state ?? 'completed'
     }
+  }
+
+  if (update.recentBrowserEvidenceRef) {
+    return existing?.state ?? 'completed'
   }
 
   return existing?.state
@@ -300,6 +311,9 @@ function mergeRuntimeResultAnnotation(
     ...(incoming?.shipState ?? existing?.shipState
       ? { shipState: incoming?.shipState ?? existing?.shipState }
       : {}),
+    ...(incoming?.browserEvidenceRef ?? existing?.browserEvidenceRef
+      ? { browserEvidenceRef: incoming?.browserEvidenceRef ?? existing?.browserEvidenceRef }
+      : {}),
   }
 }
 
@@ -333,6 +347,9 @@ function validateTaskLedgerRecord(record: unknown, workspaceId: string): TaskLed
   const recentVerificationRef = candidate.recentVerificationRef === undefined
     ? undefined
     : validateTaskLedgerVerificationReference(candidate.recentVerificationRef)
+  const recentBrowserEvidenceRef = candidate.recentBrowserEvidenceRef === undefined
+    ? undefined
+    : validateBrowserEvidenceReference(candidate.recentBrowserEvidenceRef, 'recentBrowserEvidenceRef')
   const recentShipRef = candidate.recentShipRef === undefined
     ? undefined
     : validateTaskLedgerShipReference(candidate.recentShipRef, sessionId, taskId)
@@ -350,6 +367,7 @@ function validateTaskLedgerRecord(record: unknown, workspaceId: string): TaskLed
     ...(completedAt ? { completedAt } : {}),
     ...(resultAnnotation ? { resultAnnotation } : {}),
     ...(recentVerificationRef ? { recentVerificationRef } : {}),
+    ...(recentBrowserEvidenceRef ? { recentBrowserEvidenceRef } : {}),
     ...(recentShipRef ? { recentShipRef } : {}),
   }
 }
@@ -395,6 +413,9 @@ function validateResultAnnotation(
     ...(candidate.shipState !== undefined
       ? { shipState: readEnum(candidate.shipState, 'resultAnnotation.shipState', RESULT_SHIP_STATES) }
       : {}),
+    ...(candidate.browserEvidenceRef !== undefined
+      ? { browserEvidenceRef: validateBrowserEvidenceReference(candidate.browserEvidenceRef, 'resultAnnotation.browserEvidenceRef') }
+      : {}),
   }
 }
 
@@ -413,6 +434,72 @@ function validateTaskLedgerVerificationReference(value: unknown): TaskLedgerVeri
     status: readEnum(candidate.status, 'recentVerificationRef.status', VERIFICATION_RUN_STATUSES),
     ...(summary ? { summary } : {}),
     ...(terminalLogRef ? { terminalLogRef } : {}),
+  }
+}
+
+function validateBrowserEvidenceReference(value: unknown, label: string): BrowserEvidenceReference {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  const summary = readOptionalString(candidate.summary, `${label}.summary`)
+  const consoleCapture = candidate.consoleCapture === undefined
+    ? undefined
+    : validateConsoleCaptureMetadata(candidate.consoleCapture, `${label}.consoleCapture`)
+  const screenshot = candidate.screenshot === undefined
+    ? undefined
+    : validateScreenshotMetadata(candidate.screenshot, `${label}.screenshot`)
+
+  return {
+    recordId: readString(candidate.recordId, `${label}.recordId`),
+    capturedAt: readString(candidate.capturedAt, `${label}.capturedAt`),
+    previewUrl: readString(candidate.previewUrl, `${label}.previewUrl`),
+    ...(summary ? { summary } : {}),
+    ...(consoleCapture ? { consoleCapture } : {}),
+    ...(screenshot ? { screenshot } : {}),
+  }
+}
+
+function validateConsoleCaptureMetadata(value: unknown, label: string): PreviewRuntimeConsoleCaptureMetadata {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  const levels = candidate.levels
+  if (!Array.isArray(levels) || levels.some((level) => typeof level !== 'string')) {
+    throw new Error(`${label}.levels must be a string array.`)
+  }
+
+  return {
+    capturedAt: readString(candidate.capturedAt, `${label}.capturedAt`),
+    entryCount: readNumber(candidate.entryCount, `${label}.entryCount`),
+    errorCount: readNumber(candidate.errorCount, `${label}.errorCount`),
+    warningCount: readNumber(candidate.warningCount, `${label}.warningCount`),
+    exceptionCount: readNumber(candidate.exceptionCount, `${label}.exceptionCount`),
+    levels,
+  }
+}
+
+function validateScreenshotMetadata(value: unknown, label: string): PreviewRuntimeScreenshotMetadata {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  const mimeType = readString(candidate.mimeType, `${label}.mimeType`)
+  if (mimeType !== 'image/png') {
+    throw new Error(`${label}.mimeType must be image/png.`)
+  }
+
+  return {
+    artifactRef: readString(candidate.artifactRef, `${label}.artifactRef`),
+    mimeType: 'image/png',
+    bytes: readNumber(candidate.bytes, `${label}.bytes`),
+    width: readNumber(candidate.width, `${label}.width`),
+    height: readNumber(candidate.height, `${label}.height`),
+    capturedAt: readString(candidate.capturedAt, `${label}.capturedAt`),
   }
 }
 
@@ -481,6 +568,14 @@ function readOptionalNumber(value: unknown, fieldName: string): number | undefin
     throw new Error(`Expected ${fieldName} to be a finite number.`)
   }
   return value
+}
+
+function readNumber(value: unknown, fieldName: string): number {
+  const parsed = readOptionalNumber(value, fieldName)
+  if (parsed === undefined) {
+    throw new Error(`Expected ${fieldName} to be a finite number.`)
+  }
+  return parsed
 }
 
 function readEnum<T extends string>(value: unknown, fieldName: string, allowedValues: readonly T[]): T {

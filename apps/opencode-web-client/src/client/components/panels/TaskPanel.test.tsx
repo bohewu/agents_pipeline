@@ -25,7 +25,7 @@ vi.mock('../../lib/api-client.js', () => ({
 
 import { TaskPanel } from './TaskPanel.js';
 import { useStore } from '../../runtime/store.js';
-import type { TaskLedgerRecord, WorkspaceBootstrap, WorkspaceGitStatusResult } from '../../../shared/types.js';
+import type { BrowserEvidenceRecord, TaskLedgerRecord, WorkspaceBootstrap, WorkspaceCapabilityProbe, WorkspaceGitStatusResult } from '../../../shared/types.js';
 
 const baseState = useStore.getState();
 
@@ -314,6 +314,63 @@ describe('TaskPanel', () => {
     expect(container.textContent).not.toContain('Fix handoff: Failing check · CI / test');
   });
 
+  it('renders browser evidence only while the workspace capability-gated projection is present', async () => {
+    const workspaceId = 'workspace-browser-task';
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, {
+      ...makeBootstrap(workspaceId, 'Repo Browser', [
+        makeTaskRecord(workspaceId, 'task-browser', 'completed', 'Browser-backed task', {
+          sessionId: 'session-browser',
+          sourceMessageId: 'message-browser',
+          recentVerificationRef: {
+            runId: 'verify-browser-task',
+            commandKind: 'test',
+            status: 'passed',
+            summary: 'Browser verification passed.',
+            terminalLogRef: 'verification-logs/workspace-browser-task/verify-browser-task.log',
+          },
+        }),
+      ]),
+      browserEvidenceRecords: [makeBrowserEvidenceRecord(workspaceId, 'record-task-browser', '2026-04-22T16:02:00.000Z', {
+        sessionId: 'session-browser',
+        sourceMessageId: 'message-browser',
+        taskId: 'task-browser',
+        summary: 'Captured browser evidence for the task card.',
+        screenshot: {
+          artifactRef: 'artifacts/browser/task-browser.png',
+          mimeType: 'image/png',
+          bytes: 8 * 1024,
+          width: 1280,
+          height: 720,
+          capturedAt: '2026-04-22T16:02:00.000Z',
+        },
+      })],
+    });
+    useStore.getState().setWorkspaceCapabilities(workspaceId, makeCapabilityProbe(workspaceId));
+    useStore.getState().setActiveWorkspace(workspaceId);
+
+    await renderPanel();
+
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Verification log: verification-logs/workspace-browser-task/verify-browser-task.log');
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Browser evidence');
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Captured browser evidence for the task card.');
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Preview URL: http://127.0.0.1:4173/');
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Screenshot ref: artifacts/browser/task-browser.png · 1280×720 · 8.0 KB');
+
+    await act(async () => {
+      useStore.getState().setWorkspaceCapabilities(workspaceId, makeCapabilityProbe(workspaceId, {
+        previewTarget: { status: 'unavailable', summary: 'Preview target unavailable', detail: 'No preview script detected.' },
+        browserEvidence: { status: 'unavailable', summary: 'Browser evidence unavailable', detail: 'Preview runtime is disabled.' },
+      }));
+      await flushAsync();
+    });
+
+    expect(findTaskCard('Browser-backed task').textContent).toContain('Verification log: verification-logs/workspace-browser-task/verify-browser-task.log');
+    expect(findTaskCard('Browser-backed task').textContent).not.toContain('Browser evidence');
+    expect(findTaskCard('Browser-backed task').textContent).not.toContain('Preview URL: http://127.0.0.1:4173/');
+    expect(findTaskCard('Browser-backed task').textContent).not.toContain('Screenshot ref: artifacts/browser/task-browser.png');
+  });
+
   async function renderPanel(): Promise<void> {
     root = createRoot(container);
     await act(async () => {
@@ -506,6 +563,43 @@ function makeGitStatus(
       },
     },
     issues: [],
+  };
+}
+
+function makeCapabilityProbe(
+  workspaceId: string,
+  overrides?: Partial<WorkspaceCapabilityProbe>,
+): WorkspaceCapabilityProbe {
+  const available = { status: 'available', summary: 'Available' } as const;
+  return {
+    workspaceId,
+    checkedAt: '2026-04-22T16:00:00.000Z',
+    localGit: available,
+    ghCli: available,
+    ghAuth: available,
+    previewTarget: available,
+    browserEvidence: available,
+    ...overrides,
+  };
+}
+
+function makeBrowserEvidenceRecord(
+  workspaceId: string,
+  id: string,
+  capturedAt: string,
+  overrides: Partial<BrowserEvidenceRecord> = {},
+): BrowserEvidenceRecord {
+  return {
+    id,
+    workspaceId,
+    capturedAt,
+    sessionId: overrides.sessionId ?? 'session-browser',
+    sourceMessageId: overrides.sourceMessageId ?? 'message-browser',
+    taskId: overrides.taskId ?? 'task-browser',
+    summary: overrides.summary ?? `Captured browser evidence for ${id}.`,
+    previewUrl: overrides.previewUrl ?? 'http://127.0.0.1:4173/',
+    ...(overrides.consoleCapture ? { consoleCapture: overrides.consoleCapture } : {}),
+    ...(overrides.screenshot ? { screenshot: overrides.screenshot } : {}),
   };
 }
 

@@ -3,7 +3,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import path from 'node:path'
 import type {
   BffEvent,
+  BrowserEvidenceRecord,
+  BrowserEvidenceReference,
   NormalizedMessage,
+  PreviewRuntimeCaptureResult,
+  PreviewRuntimeConsoleCaptureMetadata,
+  PreviewRuntimeScreenshotMetadata,
   ResultAnnotation,
   TaskEntry,
   TaskEntryState,
@@ -20,6 +25,7 @@ import type { TaskLedgerService } from './task-ledger-service.js'
 interface VerificationStateFile {
   version: 1
   runs: VerificationRun[]
+  browserEvidenceRecords: BrowserEvidenceRecord[]
 }
 
 interface VerificationProjection {
@@ -64,23 +70,39 @@ export class VerificationService {
     return sortRuns(this.readState(workspaceId).runs)
   }
 
+  listBrowserEvidence(workspaceId: string): BrowserEvidenceRecord[] {
+    return sortBrowserEvidenceRecords(this.readState(workspaceId).browserEvidenceRecords)
+  }
+
   getWorkspaceSummary(workspaceId: string): {
     runs: VerificationRun[]
+    browserEvidenceRecords: BrowserEvidenceRecord[]
     traceability: WorkspaceTraceabilitySummary
   } {
-    const runs = this.listRuns(workspaceId)
+    const state = this.readState(workspaceId)
+    const runs = sortRuns(state.runs)
+    const browserEvidenceRecords = sortBrowserEvidenceRecords(state.browserEvidenceRecords)
     return {
       runs,
-      traceability: buildWorkspaceTraceability(runs).traceability,
+      browserEvidenceRecords,
+      traceability: buildWorkspaceTraceability(runs, browserEvidenceRecords).traceability,
     }
   }
 
   decorateMessages(workspaceId: string, sessionId: string, messages: NormalizedMessage[]): NormalizedMessage[] {
-    const { projections } = buildWorkspaceTraceability(this.listRuns(workspaceId))
+    const state = this.readState(workspaceId)
+    const runs = sortRuns(state.runs)
+    const browserEvidenceRecords = sortBrowserEvidenceRecords(state.browserEvidenceRecords)
+    const { projections } = buildWorkspaceTraceability(runs, browserEvidenceRecords)
     const projectionMap = new Map(
       projections
         .filter((projection) => projection.sessionId === sessionId)
         .map((projection) => [projection.sourceMessageId, projection]),
+    )
+    const browserEvidenceMap = new Map(
+      Array.from(selectLatestBrowserEvidenceByMessage(browserEvidenceRecords).entries())
+        .filter(([key]) => key.startsWith(`${sessionId}::`))
+        .map(([key, record]) => [key.slice(sessionId.length + 2), record]),
     )
 
     return messages.map((message) => {
@@ -89,11 +111,65 @@ export class VerificationService {
         ?? message.trace?.sourceMessageId
         ?? message.id
       const projection = projectionMap.get(sourceMessageId)
-      if (!projection) {
-        return message
+      const browserEvidenceRecord = browserEvidenceMap.get(sourceMessageId)
+
+      let nextMessage = projection
+        ? applyProjectionToMessage(message, projection)
+        : message
+
+      if (browserEvidenceRecord) {
+        nextMessage = applyBrowserEvidenceToMessage(nextMessage, browserEvidenceRecord, {
+          workspaceId,
+          sessionId,
+          sourceMessageId,
+        })
       }
-      return applyProjectionToMessage(message, projection)
+
+      return nextMessage
     })
+  }
+
+  recordBrowserEvidence(args: {
+    workspaceId: string
+    sessionId?: string
+    sourceMessageId?: string
+    taskId?: string
+    captureResult: PreviewRuntimeCaptureResult
+  }): BrowserEvidenceRecord {
+    if (args.captureResult.outcome !== 'captured' || !args.captureResult.previewUrl) {
+      throw new Error('Captured preview runtime evidence is required for persistence.')
+    }
+
+    const capturedAt = args.captureResult.consoleCapture?.capturedAt
+      ?? args.captureResult.screenshot?.capturedAt
+      ?? this.now().toISOString()
+    const record: BrowserEvidenceRecord = {
+      id: `browser-evidence-${this.randomId()}`,
+      workspaceId: args.workspaceId,
+      capturedAt,
+      ...(args.sessionId ? { sessionId: args.sessionId } : {}),
+      ...(args.sourceMessageId ? { sourceMessageId: args.sourceMessageId } : {}),
+      ...(args.taskId ? { taskId: args.taskId } : {}),
+      summary: buildBrowserEvidenceSummary(args.captureResult.previewUrl),
+      previewUrl: args.captureResult.previewUrl,
+      ...(args.captureResult.consoleCapture ? { consoleCapture: args.captureResult.consoleCapture } : {}),
+      ...(args.captureResult.screenshot ? { screenshot: args.captureResult.screenshot } : {}),
+    }
+
+    this.persistBrowserEvidenceRecord(record)
+
+    if (record.taskId) {
+      this.taskLedgerService?.upsertRuntimeRecord({
+        workspaceId: args.workspaceId,
+        taskId: record.taskId,
+        updatedAt: capturedAt,
+        ...(record.sessionId ? { sessionId: record.sessionId } : {}),
+        ...(record.sourceMessageId ? { sourceMessageId: record.sourceMessageId } : {}),
+        recentBrowserEvidenceRef: toBrowserEvidenceReference(record),
+      })
+    }
+
+    return record
   }
 
   async runPreset(args: {
@@ -192,7 +268,7 @@ export class VerificationService {
   }
 
   private emitRunUpdate(workspaceId: string, run: VerificationRun, runs: VerificationRun[]): void {
-    const projection = buildWorkspaceTraceability(runs).projections.find((entry) => {
+    const projection = buildWorkspaceTraceability(runs, this.listBrowserEvidence(workspaceId)).projections.find((entry) => {
       return entry.sessionId === run.sessionId && entry.sourceMessageId === run.sourceMessageId
     })
 
@@ -251,38 +327,70 @@ export class VerificationService {
       nextRuns.unshift(run)
     }
 
-    this.writeState(run.workspaceId, nextRuns)
+    this.writeState(run.workspaceId, nextRuns, state.browserEvidenceRecords)
     return sortRuns(nextRuns)
+  }
+
+  private persistBrowserEvidenceRecord(record: BrowserEvidenceRecord): BrowserEvidenceRecord[] {
+    const state = this.readState(record.workspaceId)
+    const existingIndex = state.browserEvidenceRecords.findIndex((entry) => entry.id === record.id)
+    const nextRecords = [...state.browserEvidenceRecords]
+
+    if (existingIndex >= 0) {
+      nextRecords[existingIndex] = record
+    } else {
+      nextRecords.unshift(record)
+    }
+
+    this.writeState(record.workspaceId, state.runs, nextRecords)
+    return sortBrowserEvidenceRecords(nextRecords)
   }
 
   private readState(workspaceId: string): VerificationStateFile {
     const filePath = this.getStateFilePath(workspaceId)
     if (!existsSync(filePath)) {
-      return { version: RUN_STATE_VERSION, runs: [] }
+      return { version: RUN_STATE_VERSION, runs: [], browserEvidenceRecords: [] }
     }
 
     try {
       const raw = readFileSync(filePath, 'utf-8')
-      const parsed = JSON.parse(raw) as VerificationStateFile
+      const parsed = JSON.parse(raw) as Partial<VerificationStateFile>
       if (parsed.version !== RUN_STATE_VERSION || !Array.isArray(parsed.runs)) {
-        return { version: RUN_STATE_VERSION, runs: [] }
+        return { version: RUN_STATE_VERSION, runs: [], browserEvidenceRecords: [] }
       }
       return {
         version: RUN_STATE_VERSION,
         runs: parsed.runs.filter(isVerificationRun),
+        browserEvidenceRecords: Array.isArray(parsed.browserEvidenceRecords)
+          ? parsed.browserEvidenceRecords.flatMap((record) => {
+              try {
+                return [validateBrowserEvidenceRecord(record, workspaceId)]
+              } catch {
+                return []
+              }
+            })
+          : [],
       }
     } catch {
-      return { version: RUN_STATE_VERSION, runs: [] }
+      return { version: RUN_STATE_VERSION, runs: [], browserEvidenceRecords: [] }
     }
   }
 
-  private writeState(workspaceId: string, runs: VerificationRun[]): void {
+  private writeState(workspaceId: string, runs: VerificationRun[], browserEvidenceRecords: BrowserEvidenceRecord[]): void {
     const filePath = this.getStateFilePath(workspaceId)
     const dir = path.dirname(filePath)
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 
     const tmpPath = `${filePath}.tmp.${process.pid}`
-    writeFileSync(tmpPath, JSON.stringify({ version: RUN_STATE_VERSION, runs: sortRuns(runs) }, null, 2), 'utf-8')
+    writeFileSync(
+      tmpPath,
+      JSON.stringify({
+        version: RUN_STATE_VERSION,
+        runs: sortRuns(runs),
+        browserEvidenceRecords: sortBrowserEvidenceRecords(browserEvidenceRecords),
+      }, null, 2),
+      'utf-8',
+    )
     renameSync(tmpPath, filePath)
   }
 
@@ -332,7 +440,7 @@ export class VerificationService {
   }
 }
 
-function buildWorkspaceTraceability(runs: VerificationRun[]): {
+function buildWorkspaceTraceability(runs: VerificationRun[], browserEvidenceRecords: BrowserEvidenceRecord[]): {
   traceability: WorkspaceTraceabilitySummary
   projections: VerificationProjection[]
 } {
@@ -350,7 +458,10 @@ function buildWorkspaceTraceability(runs: VerificationRun[]): {
   return {
     traceability: {
       taskEntries: projections.map((projection) => projection.taskEntry),
-      resultAnnotations: projections.map((projection) => projection.resultAnnotation),
+      resultAnnotations: mergeBrowserEvidenceIntoResultAnnotations(
+        projections.map((projection) => projection.resultAnnotation),
+        browserEvidenceRecords,
+      ),
     },
     projections,
   }
@@ -435,6 +546,32 @@ function applyProjectionToMessage(message: NormalizedMessage, projection: Verifi
       ...(existingAnnotation?.reviewState ? { reviewState: existingAnnotation.reviewState } : {}),
       ...(existingAnnotation?.shipState ? { shipState: existingAnnotation.shipState } : {}),
     },
+  }
+}
+
+function applyBrowserEvidenceToMessage(
+  message: NormalizedMessage,
+  record: BrowserEvidenceRecord,
+  context: { workspaceId: string; sessionId: string; sourceMessageId: string },
+): NormalizedMessage {
+  const taskId = message.resultAnnotation?.taskId
+    ?? message.taskEntry?.taskId
+    ?? message.trace?.taskId
+    ?? record.taskId
+  return {
+    ...message,
+    trace: {
+      sourceMessageId: message.trace?.sourceMessageId ?? context.sourceMessageId,
+      workspaceId: message.trace?.workspaceId ?? context.workspaceId,
+      sessionId: message.trace?.sessionId ?? context.sessionId,
+      ...(taskId ? { taskId } : {}),
+    },
+    resultAnnotation: mergeBrowserEvidenceIntoResultAnnotation(message.resultAnnotation, record, {
+      workspaceId: context.workspaceId,
+      sessionId: context.sessionId,
+      sourceMessageId: context.sourceMessageId,
+      taskId,
+    }),
   }
 }
 
@@ -591,6 +728,15 @@ function sortRuns(runs: VerificationRun[]): VerificationRun[] {
   })
 }
 
+function sortBrowserEvidenceRecords(records: BrowserEvidenceRecord[]): BrowserEvidenceRecord[] {
+  return [...records].sort((left, right) => {
+    if (left.capturedAt !== right.capturedAt) {
+      return left.capturedAt > right.capturedAt ? -1 : 1
+    }
+    return right.id.localeCompare(left.id)
+  })
+}
+
 function isVerificationRun(value: unknown): value is VerificationRun {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const candidate = value as Partial<VerificationRun>
@@ -601,6 +747,174 @@ function isVerificationRun(value: unknown): value is VerificationRun {
     && typeof candidate.status === 'string'
     && typeof candidate.startedAt === 'string'
     && typeof candidate.summary === 'string'
+}
+
+function validateBrowserEvidenceRecord(value: unknown, workspaceId: string): BrowserEvidenceRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Browser evidence record must be an object.')
+  }
+
+  const candidate = value as Record<string, unknown>
+  const recordWorkspaceId = readString(candidate.workspaceId, 'browserEvidenceRecord.workspaceId')
+  if (recordWorkspaceId !== workspaceId) {
+    throw new Error('Browser evidence record workspace mismatch.')
+  }
+
+  const summary = readString(candidate.summary, 'browserEvidenceRecord.summary')
+  const consoleCapture = candidate.consoleCapture === undefined
+    ? undefined
+    : validateConsoleCaptureMetadata(candidate.consoleCapture, 'browserEvidenceRecord.consoleCapture')
+  const screenshot = candidate.screenshot === undefined
+    ? undefined
+    : validateScreenshotMetadata(candidate.screenshot, 'browserEvidenceRecord.screenshot')
+
+  return {
+    id: readString(candidate.id, 'browserEvidenceRecord.id'),
+    workspaceId: recordWorkspaceId,
+    capturedAt: readString(candidate.capturedAt, 'browserEvidenceRecord.capturedAt'),
+    ...(candidate.sessionId !== undefined ? { sessionId: readString(candidate.sessionId, 'browserEvidenceRecord.sessionId') } : {}),
+    ...(candidate.sourceMessageId !== undefined ? { sourceMessageId: readString(candidate.sourceMessageId, 'browserEvidenceRecord.sourceMessageId') } : {}),
+    ...(candidate.taskId !== undefined ? { taskId: readString(candidate.taskId, 'browserEvidenceRecord.taskId') } : {}),
+    summary,
+    previewUrl: readString(candidate.previewUrl, 'browserEvidenceRecord.previewUrl'),
+    ...(consoleCapture ? { consoleCapture } : {}),
+    ...(screenshot ? { screenshot } : {}),
+  }
+}
+
+function mergeBrowserEvidenceIntoResultAnnotations(
+  annotations: ResultAnnotation[],
+  browserEvidenceRecords: BrowserEvidenceRecord[],
+): ResultAnnotation[] {
+  const merged = new Map<string, ResultAnnotation>()
+
+  for (const annotation of annotations) {
+    merged.set(`${annotation.sessionId}::${annotation.sourceMessageId}`, annotation)
+  }
+
+  for (const [key, record] of selectLatestBrowserEvidenceByMessage(browserEvidenceRecords).entries()) {
+    const sessionId = record.sessionId!
+    const sourceMessageId = record.sourceMessageId!
+    merged.set(
+      key,
+      mergeBrowserEvidenceIntoResultAnnotation(merged.get(key), record, {
+        workspaceId: record.workspaceId,
+        sessionId,
+        sourceMessageId,
+        taskId: record.taskId,
+      }),
+    )
+  }
+
+  return Array.from(merged.values())
+}
+
+function selectLatestBrowserEvidenceByMessage(
+  browserEvidenceRecords: BrowserEvidenceRecord[],
+): Map<string, BrowserEvidenceRecord> {
+  const latest = new Map<string, BrowserEvidenceRecord>()
+
+  for (const record of sortBrowserEvidenceRecords(browserEvidenceRecords)) {
+    if (!record.sessionId || !record.sourceMessageId) continue
+    const key = `${record.sessionId}::${record.sourceMessageId}`
+    if (!latest.has(key)) {
+      latest.set(key, record)
+    }
+  }
+
+  return latest
+}
+
+function mergeBrowserEvidenceIntoResultAnnotation(
+  annotation: ResultAnnotation | undefined,
+  record: BrowserEvidenceRecord,
+  context: { workspaceId: string; sessionId: string; sourceMessageId: string; taskId?: string },
+): ResultAnnotation {
+  const taskId = annotation?.taskId ?? context.taskId
+  const summary = annotation?.summary ?? record.summary
+
+  return {
+    sourceMessageId: annotation?.sourceMessageId ?? context.sourceMessageId,
+    workspaceId: annotation?.workspaceId ?? context.workspaceId,
+    sessionId: annotation?.sessionId ?? context.sessionId,
+    verification: annotation?.verification ?? 'unverified',
+    ...(taskId ? { taskId } : {}),
+    ...(summary ? { summary } : {}),
+    ...(annotation?.reviewState ? { reviewState: annotation.reviewState } : {}),
+    ...(annotation?.shipState ? { shipState: annotation.shipState } : {}),
+    browserEvidenceRef: toBrowserEvidenceReference(record),
+  }
+}
+
+function toBrowserEvidenceReference(record: BrowserEvidenceRecord): BrowserEvidenceReference {
+  return {
+    recordId: record.id,
+    capturedAt: record.capturedAt,
+    previewUrl: record.previewUrl,
+    ...(record.summary ? { summary: record.summary } : {}),
+    ...(record.consoleCapture ? { consoleCapture: record.consoleCapture } : {}),
+    ...(record.screenshot ? { screenshot: record.screenshot } : {}),
+  }
+}
+
+function buildBrowserEvidenceSummary(previewUrl: string): string {
+  return `Captured browser evidence for ${previewUrl}.`
+}
+
+function validateConsoleCaptureMetadata(value: unknown, label: string): PreviewRuntimeConsoleCaptureMetadata {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  const levels = candidate.levels
+  if (!Array.isArray(levels) || levels.some((level) => typeof level !== 'string')) {
+    throw new Error(`${label}.levels must be a string array.`)
+  }
+
+  return {
+    capturedAt: readString(candidate.capturedAt, `${label}.capturedAt`),
+    entryCount: readNumber(candidate.entryCount, `${label}.entryCount`),
+    errorCount: readNumber(candidate.errorCount, `${label}.errorCount`),
+    warningCount: readNumber(candidate.warningCount, `${label}.warningCount`),
+    exceptionCount: readNumber(candidate.exceptionCount, `${label}.exceptionCount`),
+    levels,
+  }
+}
+
+function validateScreenshotMetadata(value: unknown, label: string): PreviewRuntimeScreenshotMetadata {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  const mimeType = readString(candidate.mimeType, `${label}.mimeType`)
+  if (mimeType !== 'image/png') {
+    throw new Error(`${label}.mimeType must be image/png.`)
+  }
+
+  return {
+    artifactRef: readString(candidate.artifactRef, `${label}.artifactRef`),
+    mimeType: 'image/png',
+    bytes: readNumber(candidate.bytes, `${label}.bytes`),
+    width: readNumber(candidate.width, `${label}.width`),
+    height: readNumber(candidate.height, `${label}.height`),
+    capturedAt: readString(candidate.capturedAt, `${label}.capturedAt`),
+  }
+}
+
+function readString(value: unknown, fieldName: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`Expected ${fieldName} to be a string.`)
+  }
+  return value
+}
+
+function readNumber(value: unknown, fieldName: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Expected ${fieldName} to be a finite number.`)
+  }
+  return value
 }
 
 function formatUnknown(value: unknown): string {

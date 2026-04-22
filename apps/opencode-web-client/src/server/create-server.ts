@@ -35,6 +35,8 @@ import type { WorkspaceContextCatalogService } from './services/workspace-contex
 import type { WorkspaceShipService } from './services/workspace-ship-service.js';
 import type { TaskLedgerService } from './services/task-ledger-service.js';
 import type { VerificationService } from './services/verification-service.js';
+import type { PreviewRuntimeService } from './services/preview-runtime-service.js';
+import { PreviewRuntimeRoute } from './routes/preview-runtime.js';
 
 export interface ServerOptions {
   host: string;
@@ -61,6 +63,7 @@ export interface ServerDeps {
   workspaceShipService: WorkspaceShipService;
   taskLedgerService: TaskLedgerService;
   verificationService: VerificationService;
+  previewRuntimeService?: PreviewRuntimeService;
 }
 
 interface ClientBundleResolution {
@@ -140,7 +143,7 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
   // Mount workspace routes (if deps provided)
   if (deps) {
-    const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService } = deps;
+      const { registry, serverManager, clientFactory, sessionService, effortService, usageService, configService, diffService, fileService, permissionRegistry, eventBroker, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService, previewRuntimeService } = deps;
 
     // Workspace CRUD (no workspace scope middleware needed)
       api.route('/workspaces', WorkspacesRoute({ registry, serverManager, clientFactory, configService, effortService, capabilityProbeService, contextCatalogService, workspaceShipService, taskLedgerService, verificationService }));
@@ -398,6 +401,10 @@ export function createApp(options: ServerOptions, deps?: ServerDeps): Hono {
 
     // Git / ship contracts
     wsScoped.route('/git', GitRoute({ workspaceShipService }));
+
+    if (previewRuntimeService) {
+      wsScoped.route('/preview-runtime', PreviewRuntimeRoute({ previewRuntimeService, verificationService }));
+    }
 
     // Effort
     wsScoped.route('/effort', EffortRoute({ effortService }));

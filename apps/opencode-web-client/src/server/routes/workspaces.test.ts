@@ -21,6 +21,34 @@ describe('WorkspacesRoute capability probes', () => {
     const capabilities = makeCapabilityProbe(workspace.id)
     const gitStatus = makeGitStatus(workspace.id)
     const verificationRuns: VerificationRun[] = [makeVerificationRun(workspace.id)]
+    const browserEvidenceRecords = [
+      {
+        id: 'browser-evidence-1',
+        workspaceId: workspace.id,
+        capturedAt: '2026-04-22T00:00:01.000Z',
+        sessionId: 'session-1',
+        sourceMessageId: 'message-1',
+        taskId: 'task-1',
+        summary: 'Captured browser evidence for http://127.0.0.1:4173/.',
+        previewUrl: 'http://127.0.0.1:4173/',
+        consoleCapture: {
+          capturedAt: '2026-04-22T00:00:01.000Z',
+          entryCount: 1,
+          errorCount: 0,
+          warningCount: 0,
+          exceptionCount: 0,
+          levels: ['log'],
+        },
+        screenshot: {
+          artifactRef: 'preview-runtime-artifacts/ws-test/browser-evidence-1.png',
+          mimeType: 'image/png' as const,
+          bytes: 1024,
+          width: 1280,
+          height: 800,
+          capturedAt: '2026-04-22T00:00:01.000Z',
+        },
+      },
+    ]
     const taskLedgerService = new TaskLedgerService({ stateDir })
     const workspaceTaskRecord = makeTaskLedgerRecord(workspace.id, 'session-1', 'task-1', 'running', {
       recentVerificationRef: {
@@ -94,6 +122,7 @@ describe('WorkspacesRoute capability probes', () => {
         verificationService: {
           getWorkspaceSummary: () => ({
             runs: verificationRuns,
+            browserEvidenceRecords,
             traceability: { taskEntries: [], resultAnnotations: [] },
           }),
         } as any,
@@ -106,6 +135,7 @@ describe('WorkspacesRoute capability probes', () => {
       expect(bootstrapPayload.data.capabilities).toEqual(capabilities)
       expect(bootstrapPayload.data.git).toEqual(gitStatus)
       expect(bootstrapPayload.data.verificationRuns).toEqual(verificationRuns)
+      expect(bootstrapPayload.data.browserEvidenceRecords).toEqual(browserEvidenceRecords)
       expect(bootstrapPayload.data.taskLedgerRecords).toEqual([workspaceTaskRecord])
 
       const capabilityResponse = await route.request(`http://localhost/${workspace.id}/capabilities`)

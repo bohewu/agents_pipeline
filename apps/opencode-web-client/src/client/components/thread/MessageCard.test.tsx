@@ -125,7 +125,7 @@ vi.mock('../../runtime/store.js', () => {
 
 import { MessageCard } from './MessageCard.js'
 import { selectSessionMessages, useStore } from '../../runtime/store.js'
-import type { NormalizedMessage, ResultAnnotation, VerificationRun } from '../../../shared/types.js'
+import type { BrowserEvidenceReference, NormalizedMessage, ResultAnnotation, VerificationRun } from '../../../shared/types.js'
 
 describe('MessageCard', () => {
   let container: HTMLDivElement
@@ -147,6 +147,125 @@ describe('MessageCard', () => {
       })
     }
     container.remove()
+  })
+
+  it('renders command-only fallback content when projected browser evidence is absent', async () => {
+    const workspaceId = 'workspace-command-fallback-absent'
+    const sessionId = 'session-command-fallback-absent'
+    const message = {
+      ...makeAssistantMessage(
+        workspaceId,
+        sessionId,
+        'message-command-fallback-absent',
+        'task-command-fallback-absent',
+        'Command fallback should come from trace summary.',
+        'unverified',
+      ),
+      parts: [],
+    }
+
+    configureMessageContext(workspaceId, sessionId, message, {
+      trace: message.trace,
+      annotation: message.resultAnnotation!,
+      taskEntry: message.taskEntry!,
+      verification: 'unverified',
+      linkedVerificationRuns: [],
+      summary: 'Command-only fallback stays visible without projected browser evidence.',
+    })
+
+    await renderCard(message)
+
+    expect(container.textContent).toContain('Command-only fallback stays visible without projected browser evidence.')
+    expect(getButtonByAriaLabel('Copy message')).not.toBeNull()
+  })
+
+  it('renders command-only fallback content when browser capability leaves evidence unavailable', async () => {
+    const workspaceId = 'workspace-command-fallback-capability'
+    const sessionId = 'session-command-fallback-capability'
+    const message = {
+      ...makeAssistantMessage(
+        workspaceId,
+        sessionId,
+        'message-command-fallback-capability',
+        'task-command-fallback-capability',
+        'Command fallback should survive capability-gated browser evidence.',
+        'partially verified',
+      ),
+      parts: [],
+    }
+    const latestRun = makeRun(
+      'verify-command-fallback-capability',
+      'test',
+      'passed',
+      'Latest verification card still renders separately.',
+      {
+        workspaceId,
+        sessionId,
+        sourceMessageId: message.id,
+        taskId: 'task-command-fallback-capability',
+      },
+    )
+
+    configureMessageContext(workspaceId, sessionId, message, {
+      ...makeTrace(message, latestRun, 'partially verified'),
+      summary: 'Command-only fallback still renders when browser capability is unavailable.',
+    })
+
+    await renderCard(message)
+
+    expect(container.textContent).toContain('Command-only fallback still renders when browser capability is unavailable.')
+    expect(container.textContent).toContain('Latest verification card still renders separately.')
+  })
+
+  it('renders persisted browser evidence separately from command verification evidence when projected', async () => {
+    const workspaceId = 'workspace-browser-projected-message'
+    const sessionId = 'session-browser-projected-message'
+    const message = {
+      ...makeAssistantMessage(
+        workspaceId,
+        sessionId,
+        'message-browser-projected-message',
+        'task-browser-projected-message',
+        'Browser evidence should render separately from command verification evidence.',
+        'verified',
+      ),
+      parts: [],
+    }
+    const latestRun = makeRun(
+      'verify-browser-projected-message',
+      'test',
+      'passed',
+      'Latest verification summary still renders as command evidence.',
+      {
+        workspaceId,
+        sessionId,
+        sourceMessageId: message.id,
+        taskId: 'task-browser-projected-message',
+        terminalLogRef: 'verification-logs/workspace-browser-projected-message/verify-browser-projected-message.log',
+      },
+    )
+    const browserEvidenceRef = makeBrowserEvidenceRef('record-browser-projected-message')
+
+    configureMessageContext(workspaceId, sessionId, message, {
+      ...makeTrace(message, latestRun, 'verified'),
+      browserEvidenceRef,
+      annotation: {
+        ...message.resultAnnotation!,
+        browserEvidenceRef,
+      },
+      summary: 'Persisted browser evidence reappears alongside command verification evidence.',
+    } as any)
+
+    await renderCard(message)
+
+    expect(container.textContent).toContain('Latest verification')
+    expect(container.textContent).toContain('Latest verification summary still renders as command evidence.')
+    expect(container.textContent).toContain('Evidence: verification-logs/workspace-browser-projected-message/verify-browser-projected-message.log')
+    expect(container.textContent).toContain('Browser evidence')
+    expect(container.textContent).toContain('Captured browser evidence for record-browser-projected-message.')
+    expect(container.textContent).toContain('Preview URL: http://127.0.0.1:4173/')
+    expect(container.textContent).toContain('Console capture: 3 entries · 1 error · 1 warning · 0 exceptions · levels: error, warn')
+    expect(container.textContent).toContain('Screenshot ref: artifacts/browser/record-browser-projected-message.png · 1440×900 · 32.0 KB')
   })
 
   it('softens plain-text code blocks without rendering a duplicate block copy button', async () => {
@@ -374,10 +493,10 @@ function configureMessageContext(
     annotation: ResultAnnotation
     taskEntry: NonNullable<NormalizedMessage['taskEntry']>
     verification: ResultAnnotation['verification']
-    verificationSummary: string
-    latestVerificationRun: VerificationRun
+    verificationSummary?: string
+    latestVerificationRun?: VerificationRun
     linkedVerificationRuns: VerificationRun[]
-    summary: string
+    summary?: string
   },
   effort?: string,
 ): void {
@@ -479,4 +598,29 @@ function makeTrace(
 
 function flushAsync(): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, 0))
+}
+
+function makeBrowserEvidenceRef(recordId: string): BrowserEvidenceReference {
+  return {
+    recordId,
+    capturedAt: '2026-04-22T16:02:00.000Z',
+    previewUrl: 'http://127.0.0.1:4173/',
+    summary: `Captured browser evidence for ${recordId}.`,
+    consoleCapture: {
+      capturedAt: '2026-04-22T16:02:00.000Z',
+      entryCount: 3,
+      errorCount: 1,
+      warningCount: 1,
+      exceptionCount: 0,
+      levels: ['error', 'warn'],
+    },
+    screenshot: {
+      artifactRef: `artifacts/browser/${recordId}.png`,
+      mimeType: 'image/png',
+      bytes: 32 * 1024,
+      width: 1440,
+      height: 900,
+      capturedAt: '2026-04-22T16:02:00.000Z',
+    },
+  }
 }

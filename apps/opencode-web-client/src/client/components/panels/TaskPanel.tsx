@@ -1,6 +1,7 @@
 import React from 'react';
 import type { TaskLedgerRecord, TaskLedgerShipReference, VerificationRunStatus } from '../../../shared/types.js';
-import { selectActiveWorkspaceTaskLedgerRecords, useStore } from '../../runtime/store.js';
+import { BrowserEvidenceSurface } from '../common/BrowserEvidenceSurface.js';
+import { selectActiveWorkspaceTaskLedgerRecords, type ProjectedTaskLedgerRecord, useStore } from '../../runtime/store.js';
 import { api } from '../../lib/api-client.js';
 import { reopenWorkspaceSessionContext } from '../../lib/session-context.js';
 
@@ -13,14 +14,16 @@ const REOPENABLE_TASK_STATES = new Set<TaskLedgerRecord['state']>(['completed', 
 export function TaskPanel() {
   const activeWorkspaceId = useStore((state) => state.activeWorkspaceId);
   const workspaceBootstraps = useStore((state) => state.workspaceBootstraps);
+  const workspaceCapabilitiesByWorkspace = useStore((state) => state.workspaceCapabilitiesByWorkspace);
   const workspaceGitStatusByWorkspace = useStore((state) => state.workspaceGitStatusByWorkspace);
 
   const activeBootstrap = activeWorkspaceId ? workspaceBootstraps[activeWorkspaceId] : undefined;
   const records = React.useMemo(() => selectActiveWorkspaceTaskLedgerRecords({
     activeWorkspaceId,
     workspaceBootstraps,
+    workspaceCapabilitiesByWorkspace,
     workspaceGitStatusByWorkspace,
-  }), [activeWorkspaceId, workspaceBootstraps, workspaceGitStatusByWorkspace]);
+  }), [activeWorkspaceId, workspaceBootstraps, workspaceCapabilitiesByWorkspace, workspaceGitStatusByWorkspace]);
   const workspaceName = activeBootstrap?.workspace.name ?? activeWorkspaceId;
   const activeTasks = React.useMemo(
     () => records.filter((record) => ACTIVE_TASK_STATES.has(record.state)),
@@ -92,7 +95,7 @@ function TaskSurfaceSection({
   title: string;
   subtitle: string;
   emptyMessage: string;
-  records: TaskLedgerRecord[];
+  records: ProjectedTaskLedgerRecord[];
 }) {
   return (
     <section className="oc-surface-card" style={{ padding: 14, display: 'grid', gap: 10 }}>
@@ -115,7 +118,7 @@ function TaskSurfaceSection({
   );
 }
 
-function TaskRecordCard({ record }: { record: TaskLedgerRecord }) {
+function TaskRecordCard({ record }: { record: ProjectedTaskLedgerRecord }) {
   const activeWorkspaceId = useStore((state) => state.activeWorkspaceId);
   const setSessionStreaming = useStore((state) => state.setSessionStreaming);
   const setVerificationRuns = useStore((state) => state.setVerificationRuns);
@@ -263,6 +266,11 @@ function TaskRecordCard({ record }: { record: TaskLedgerRecord }) {
           </div>
         )}
       </div>
+
+      <BrowserEvidenceSurface
+        projection={record.browserEvidenceRef ? { browserEvidenceRef: record.browserEvidenceRef } : undefined}
+        compact
+      />
 
       {(canCancel || canRetry || canReopen || actionFeedback) && (
         <div style={{ display: 'grid', gap: 8 }}>

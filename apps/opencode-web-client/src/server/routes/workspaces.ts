@@ -297,6 +297,7 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       capabilities,
       traceability: mergeTraceabilitySummaries(createEmptyTraceabilitySummary(), verificationSummary.traceability),
       verificationRuns: verificationSummary.runs,
+      browserEvidenceRecords: verificationSummary.browserEvidenceRecords ?? [],
       taskLedgerRecords,
     }
   }
