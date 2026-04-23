@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.19] - 2026-04-23
+
+### Changed
+
+- The `devtools-ux-audit` skill docs now require explicit browser cleanup recovery and tighter not-connected recovery guidance so Chrome DevTools validation flows leave less ambiguous teardown state.
+- Root-local scratch output under `.tmp/` is now ignored by default so ad hoc testing files do not show up as untracked worktree noise.
+
 ## [0.22.18] - 2026-04-18
 
 ### Changed
