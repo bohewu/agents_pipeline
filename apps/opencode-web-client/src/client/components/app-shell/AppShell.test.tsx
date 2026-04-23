@@ -11,9 +11,11 @@ vi.mock('../../lib/local-storage.js', () => ({
 }));
 
 const apiMocks = vi.hoisted(() => ({
+  adoptComparisonLane: vi.fn(),
   connectEvents: vi.fn(),
   createSession: vi.fn(),
   getBootstrap: vi.fn(),
+  selectComparisonLane: vi.fn(),
   getWorkspaceContextCatalog: vi.fn(),
   getUsage: vi.fn(),
   getWorkspaceCapabilities: vi.fn(),
@@ -63,9 +65,11 @@ describe('AppShell continuity hydration', () => {
   beforeEach(() => {
     resetStore();
     emitEvent = null;
+    apiMocks.adoptComparisonLane.mockReset();
     apiMocks.connectEvents.mockReset();
     apiMocks.createSession.mockReset();
     apiMocks.getBootstrap.mockReset();
+    apiMocks.selectComparisonLane.mockReset();
     apiMocks.getWorkspaceContextCatalog.mockReset();
     apiMocks.getUsage.mockReset();
     apiMocks.getWorkspaceCapabilities.mockReset();
@@ -298,89 +302,190 @@ describe('AppShell continuity hydration', () => {
     ]);
   });
 
-  it('renders a compact multi-lane surface when one workspace hydrates sibling attempts', async () => {
+  it('renders a bounded compare-and-adopt surface with explicit lane selection and per-lane readiness summaries', async () => {
     const workspaceId = 'workspace-lane-surface';
     const branchLane = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } } as const;
     const worktreeLane = {
       laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
     } as const;
+    const fallbackLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-c', branch: 'feature/lane-c' },
+    } as const;
     const primarySession = makeSession('session-lane-a', branchLane, {
       title: 'Branch attempt',
-      updatedAt: '2026-04-21T00:07:00.000Z',
+      updatedAt: '2026-04-21T00:08:00.000Z',
     });
     const secondarySession = makeSession('session-lane-b', worktreeLane, {
       title: 'Worktree attempt',
+      updatedAt: '2026-04-21T00:07:00.000Z',
+    });
+    const fallbackSession = makeSession('session-lane-c', fallbackLane, {
+      title: 'Fallback attempt',
       updatedAt: '2026-04-21T00:06:00.000Z',
     });
 
     apiMocks.getBootstrap.mockResolvedValue(makeBootstrapWithSessions(workspaceId, [
       primarySession,
       secondarySession,
+      fallbackSession,
     ], [
       makeTaskLedgerRecord(workspaceId, primarySession.id, 'Lane A summary', 'https://github.com/example/repo/pull/31', branchLane),
-      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane),
+      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane, {
+        state: 'blocked',
+        verification: 'unverified',
+        shipState: 'blocked-by-checks',
+        reviewState: 'needs-retry',
+        verificationStatus: 'failed',
+        verificationCommandKind: 'build',
+        verificationSummary: 'Worktree build failed.',
+      }),
+      makeTaskLedgerRecord(workspaceId, fallbackSession.id, 'Lane C summary', 'https://github.com/example/repo/pull/33', fallbackLane, {
+        shipState: 'local-ready',
+      }),
     ]));
     apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, primarySession.id, branchLane)]);
 
     useStore.getState().setActiveWorkspace(workspaceId);
 
     await renderShell();
+
+    const laneSurface = getLaneSurface();
 
     expect(container.textContent).toContain('Alternative attempts');
     expect(container.textContent).toContain('Open thread · Attempt 1');
     expect(container.textContent).toContain('Alternative attempt 2');
+    expect(container.textContent).toContain('Alternative attempt 3');
     expect(container.textContent).toContain('Branch · feature/lane-a');
     expect(container.textContent).toContain('Worktree · feature/lane-b');
     expect(container.textContent).toContain('Path · /tmp/worktrees/lane-b');
+    expect(container.textContent).toContain('Select one alternative lane, then adopt it explicitly.');
+    expect(container.textContent).toContain('Explicit adopt only');
+    expect(container.textContent).toContain('Compare and adopt');
     expect(container.textContent).toContain('Branch attempt');
     expect(container.textContent).toContain('Worktree attempt');
+    expect(container.textContent).toContain('Fallback attempt');
+    expect(container.textContent).toContain('Verification');
+    expect(container.textContent).toContain('Ship readiness');
+    expect(container.textContent).toContain('Verified');
+    expect(container.textContent).toContain('Unverified');
+    expect(container.textContent).toContain('Verification passed for Lane A summary');
+    expect(container.textContent).toContain('Worktree build failed.');
+    expect(container.textContent).toContain('PR ready');
+    expect(container.textContent).toContain('Blocked by checks');
+    expect(container.textContent).toContain('Local ready');
+    expect(container.textContent).toContain('Needs retry');
     expect(container.textContent).toContain('session-lane-a');
     expect(container.textContent).toContain('session-lane-b');
+    expect(container.textContent).toContain('session-lane-c');
+    expect(getButtonsByText(laneSurface, 'Select lane')).toHaveLength(2);
+    expect(getButtonByText(laneSurface, 'Adopt selected lane')).toBeNull();
   });
 
-  it('keeps the two-lane surface limited to lane context without compare or readiness guardrail regressions', async () => {
-    const workspaceId = 'workspace-lane-guardrails';
+  it('keeps exactly one lane selected, holds that selection through adoption, and differentiates the adopted outcome', async () => {
+    const workspaceId = 'workspace-lane-adoption';
     const branchLane = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } } as const;
     const worktreeLane = {
       laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
     } as const;
+    const fallbackLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-c', branch: 'feature/lane-c' },
+    } as const;
     const primarySession = makeSession('session-lane-a', branchLane, {
       title: 'Branch attempt',
-      updatedAt: '2026-04-21T00:07:00.000Z',
+      updatedAt: '2026-04-21T00:08:00.000Z',
     });
     const secondarySession = makeSession('session-lane-b', worktreeLane, {
       title: 'Worktree attempt',
+      updatedAt: '2026-04-21T00:07:00.000Z',
+    });
+    const fallbackSession = makeSession('session-lane-c', fallbackLane, {
+      title: 'Fallback attempt',
       updatedAt: '2026-04-21T00:06:00.000Z',
     });
-
-    apiMocks.getBootstrap.mockResolvedValue(makeBootstrapWithSessions(workspaceId, [
-      primarySession,
-      secondarySession,
-    ], [
+    const taskLedgerRecords = [
       makeTaskLedgerRecord(workspaceId, primarySession.id, 'Lane A summary', 'https://github.com/example/repo/pull/31', branchLane),
-      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane),
-    ]));
+      makeTaskLedgerRecord(workspaceId, secondarySession.id, 'Lane B summary', 'https://github.com/example/repo/pull/32', worktreeLane, {
+        state: 'blocked',
+        verification: 'unverified',
+        shipState: 'blocked-by-checks',
+        reviewState: 'needs-retry',
+        verificationStatus: 'failed',
+        verificationCommandKind: 'build',
+        verificationSummary: 'Worktree build failed.',
+      }),
+      makeTaskLedgerRecord(workspaceId, fallbackSession.id, 'Lane C summary', 'https://github.com/example/repo/pull/33', fallbackLane, {
+        shipState: 'local-ready',
+      }),
+    ];
+    const sessions = [primarySession, secondarySession, fallbackSession];
+    const selectedSecondary = makeLaneReference(secondarySession.id, worktreeLane);
+    const selectedFallback = makeLaneReference(fallbackSession.id, fallbackLane);
+    const initialBootstrap = makeBootstrapWithSessions(workspaceId, sessions, taskLedgerRecords);
+    const secondarySelectedBootstrap = makeBootstrapWithSessions(workspaceId, sessions, taskLedgerRecords, {
+      selectedLane: selectedSecondary,
+    });
+    const fallbackSelectedBootstrap = makeBootstrapWithSessions(workspaceId, sessions, taskLedgerRecords, {
+      selectedLane: selectedFallback,
+    });
+    const adoptDeferred = createDeferred<WorkspaceBootstrap>();
+
+    apiMocks.getBootstrap.mockResolvedValue(initialBootstrap);
     apiMocks.listMessages.mockResolvedValue([makeMessage(workspaceId, primarySession.id, branchLane)]);
+    apiMocks.selectComparisonLane.mockImplementation(async (_workspaceId: string, request: { sessionId: string }) => {
+      return request.sessionId === secondarySession.id ? secondarySelectedBootstrap : fallbackSelectedBootstrap;
+    });
+    apiMocks.adoptComparisonLane.mockReturnValue(adoptDeferred.promise);
 
     useStore.getState().setActiveWorkspace(workspaceId);
 
     await renderShell();
 
-    const laneSurface = Array.from(container.querySelectorAll('section')).find((section) =>
-      section.textContent?.includes('Alternative attempts'),
-    );
+    const laneSurface = getLaneSurface();
+    const secondaryLaneCard = getLaneCard('session-lane-b');
+    const fallbackLaneCard = getLaneCard('session-lane-c');
 
-    expect(laneSurface).toBeTruthy();
-    expect(laneSurface?.querySelector('button')).toBeNull();
-    expect(laneSurface?.textContent).toContain('Alternative attempts');
-    expect(laneSurface?.textContent).toContain('Open thread · Attempt 1');
-    expect(laneSurface?.textContent).toContain('Alternative attempt 2');
-    expect(laneSurface?.textContent).not.toContain('Compare attempts');
-    expect(laneSurface?.textContent).not.toContain('Adopt selected');
-    expect(laneSurface?.textContent).not.toContain('Final selection');
-    expect(laneSurface?.textContent).not.toContain('Selected attempt');
-    expect(laneSurface?.textContent).not.toContain('PR ready');
-    expect(laneSurface?.textContent).not.toContain('Verified');
+    await clickButton(getButtonByText(secondaryLaneCard, 'Select lane')!);
+
+    expect(secondaryLaneCard.textContent).toContain('Selected for adoption');
+    expect(fallbackLaneCard.textContent).not.toContain('Selected for adoption');
+    expect(countTextOccurrences(laneSurface.textContent ?? '', 'Selected for adoption')).toBe(1);
+    expect(getButtonByText(laneSurface, 'Adopt selected lane')).toBeTruthy();
+
+    await clickButton(getButtonByText(fallbackLaneCard, 'Select lane')!);
+
+    expect(secondaryLaneCard.textContent).not.toContain('Selected for adoption');
+    expect(fallbackLaneCard.textContent).toContain('Selected for adoption');
+    expect(countTextOccurrences(laneSurface.textContent ?? '', 'Selected for adoption')).toBe(1);
+
+    await clickButton(getButtonByText(laneSurface, 'Adopt selected lane')!, { settle: false });
+
+    expect(fallbackLaneCard.textContent).toContain('Selected · adopting…');
+    expect(laneSurface.textContent).toContain('Adopting lane…');
+    expect(laneSurface.textContent).toContain('Verification');
+    expect(laneSurface.textContent).toContain('Ship readiness');
+
+    await act(async () => {
+      adoptDeferred.resolve(makeBootstrapWithSessions(workspaceId, sessions, taskLedgerRecords, {
+        selectedLane: selectedFallback,
+        adoptedLane: selectedFallback,
+      }));
+      await flushAsync();
+      await flushAsync();
+    });
+
+    expect(fallbackLaneCard.textContent).toContain('Adopted outcome');
+    expect(fallbackLaneCard.textContent).not.toContain('Selected for adoption');
+    expect(secondaryLaneCard.textContent).toContain('Not adopted');
+    expect(getButtonByText(laneSurface, 'Adopt selected lane')).toBeNull();
+    expect(laneSurface.textContent).toContain('Adopted outcome · Worktree · feature/lane-c — Fallback attempt');
+    expect(apiMocks.selectComparisonLane).toHaveBeenCalledTimes(2);
+    expect(apiMocks.adoptComparisonLane).toHaveBeenCalledWith(
+      workspaceId,
+      expect.objectContaining({
+        ...selectedFallback,
+        laneId: 'worktree:/tmp/worktrees/lane-c',
+      }),
+    );
   });
 
   async function renderShell(): Promise<void> {
@@ -459,6 +564,7 @@ function makeBootstrapWithSessions(
   workspaceId: string,
   sessions: SessionSummary[],
   taskLedgerRecords: TaskLedgerRecord[],
+  laneComparison?: WorkspaceBootstrap['laneComparison'],
 ): WorkspaceBootstrap {
   return {
     workspace: {
@@ -469,9 +575,21 @@ function makeBootstrapWithSessions(
     },
     sessions,
     capabilities: makeCapabilityProbe(workspaceId),
+    ...(laneComparison ? { laneComparison } : {}),
     traceability: { taskEntries: [], resultAnnotations: [] },
     verificationRuns: [],
     taskLedgerRecords,
+  };
+}
+
+function makeLaneReference(
+  sessionId: string,
+  lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
+) {
+  return {
+    sessionId,
+    ...(lane?.laneId ? { laneId: lane.laneId } : {}),
+    ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
   };
 }
 
@@ -519,41 +637,67 @@ function makeTaskLedgerRecord(
   summary: string,
   pullRequestUrl: string,
   lane?: { laneId?: string; laneContext?: SessionSummary['laneContext'] },
+  options: {
+    taskId?: string;
+    sourceMessageId?: string;
+    state?: TaskLedgerRecord['state'];
+    title?: string;
+    verification?: NonNullable<TaskLedgerRecord['resultAnnotation']>['verification'];
+    shipState?: NonNullable<TaskLedgerRecord['resultAnnotation']>['shipState'];
+    reviewState?: NonNullable<TaskLedgerRecord['resultAnnotation']>['reviewState'];
+    verificationStatus?: NonNullable<TaskLedgerRecord['recentVerificationRef']>['status'];
+    verificationCommandKind?: NonNullable<TaskLedgerRecord['recentVerificationRef']>['commandKind'];
+    verificationSummary?: string;
+  } = {},
 ): TaskLedgerRecord {
+  const taskId = options.taskId ?? 'task-1';
+  const sourceMessageId = options.sourceMessageId ?? 'message-1';
+  const verification = options.verification ?? 'verified';
+  const shipState = options.shipState ?? 'pr-ready';
+  const reviewState = options.reviewState;
+  const verificationStatus = options.verificationStatus ?? 'passed';
+  const verificationCommandKind = options.verificationCommandKind
+    ?? (verificationStatus === 'failed' ? 'build' : 'test');
+  const verificationSummary = options.verificationSummary
+    ?? (verificationStatus === 'passed'
+      ? `Verification passed for ${summary}`
+      : `Verification ${verificationStatus} for ${summary}`);
+
   return {
-    taskId: 'task-1',
+    taskId,
     workspaceId,
     sessionId,
-    sourceMessageId: 'message-1',
-    title: 'Reconnect task',
+    sourceMessageId,
+    title: options.title ?? 'Reconnect task',
     summary,
-    state: 'completed',
+    state: options.state ?? 'completed',
     createdAt: '2026-04-21T00:00:00.000Z',
     updatedAt: '2026-04-21T00:05:00.000Z',
     resultAnnotation: {
-      sourceMessageId: 'message-1',
+      sourceMessageId,
       workspaceId,
       sessionId,
-      taskId: 'task-1',
-      verification: 'verified',
+      taskId,
+      verification,
       summary,
-      shipState: 'pr-ready',
+      ...(shipState ? { shipState } : {}),
+      ...(reviewState ? { reviewState } : {}),
       ...(lane?.laneId ? { laneId: lane.laneId } : {}),
       ...(lane?.laneContext ? { laneContext: lane.laneContext } : {}),
     },
     recentVerificationRef: {
-      runId: `verify-${sessionId}`,
-      commandKind: 'test',
-      status: 'passed',
-      summary: `Verification passed for ${summary}`,
+      runId: options.taskId ? `verify-${sessionId}-${taskId}` : `verify-${sessionId}`,
+      commandKind: verificationCommandKind,
+      status: verificationStatus,
+      summary: verificationSummary,
       terminalLogRef: `verification-logs/${workspaceId}/${sessionId}.log`,
     },
     recentShipRef: {
       action: 'pullRequest',
-      outcome: 'success',
+      outcome: shipState === 'pr-ready' ? 'success' : 'blocked',
       sessionId,
-      messageId: 'message-1',
-      taskId: 'task-1',
+      messageId: sourceMessageId,
+      taskId,
       pullRequestUrl,
     },
     ...(lane?.laneId ? { laneId: lane.laneId } : {}),
@@ -616,4 +760,61 @@ function makeUsage(): UsageDetails {
 
 function flushAsync(): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+function getLaneSurface(): HTMLElement {
+  const laneSurface = Array.from(document.querySelectorAll('section')).find((section) =>
+    section.textContent?.includes('Alternative attempts'),
+  );
+
+  expect(laneSurface).toBeTruthy();
+  return laneSurface as HTMLElement;
+}
+
+function getLaneCard(sessionId: string): HTMLElement {
+  const laneCard = Array.from(getLaneSurface().querySelectorAll('article')).find((article) =>
+    article.textContent?.includes(sessionId),
+  );
+
+  expect(laneCard).toBeTruthy();
+  return laneCard as HTMLElement;
+}
+
+function getButtonsByText(root: ParentNode, text: string): HTMLButtonElement[] {
+  return Array.from(root.querySelectorAll('button')).filter((button): button is HTMLButtonElement => button.textContent?.trim() === text);
+}
+
+function getButtonByText(root: ParentNode, text: string): HTMLButtonElement | null {
+  return getButtonsByText(root, text)[0] ?? null;
+}
+
+async function clickButton(
+  button: HTMLButtonElement,
+  options: { settle?: boolean } = {},
+): Promise<void> {
+  const { settle = true } = options;
+
+  await act(async () => {
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushAsync();
+    if (settle) {
+      await flushAsync();
+    }
+  });
+}
+
+function countTextOccurrences(text: string, fragment: string): number {
+  if (!fragment) return 0;
+  return text.split(fragment).length - 1;
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
 }

@@ -8,8 +8,10 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:browser-smoke": "tsx src/dev/two-lane-browser-smoke.ts --dev",
     "dev:server": "tsx watch src/cli/main.ts --port 3456 --no-open",
     "dev:client": "vite",
+    "browser-smoke:setup": "tsx src/dev/two-lane-browser-smoke.ts",
     "build": "vite build && tsup",
     "build:client": "vite build",
     "build:server": "tsup",

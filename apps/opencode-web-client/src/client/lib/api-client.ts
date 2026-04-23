@@ -1,11 +1,16 @@
 import type {
   ApiEnvelope,
   BrowserEvidenceRecord,
+  WorkspaceComparisonLaneReference,
   WorkspaceProfile,
   WorkspaceServerStatus,
   WorkspaceBootstrap,
+  WorkspaceLaneRecord,
+  WorkspaceLaneAdoptionRequest,
+  WorkspaceLaneComparisonState,
   WorkspaceCapabilityProbe,
   WorkspaceContextCatalogResponse,
+  WorkspaceLaneSelectionRequest,
   LaneAttribution,
   LaneContext,
   SessionSummary,
@@ -80,6 +85,17 @@ function normalizeLaneAttribution<T extends object>(record: T & Partial<LaneAttr
   };
 }
 
+function normalizeLaneAttributionWithFallback<T extends object>(
+  record: T & Partial<LaneAttribution>,
+  fallback: LaneAttribution | undefined,
+): T & LaneAttribution {
+  return normalizeLaneAttribution({
+    ...(fallback?.laneId ? { laneId: fallback.laneId } : {}),
+    ...(fallback?.laneContext ? { laneContext: fallback.laneContext } : {}),
+    ...record,
+  });
+}
+
 function normalizeTaskEntry(taskEntry: TaskEntry | undefined): TaskEntry | undefined {
   return taskEntry ? normalizeLaneAttribution(taskEntry) : undefined;
 }
@@ -119,10 +135,64 @@ function normalizeSessionSummary(session: SessionSummary): SessionSummary {
   return normalizeLaneAttribution(session);
 }
 
+function normalizeWorkspaceComparisonLaneReference(
+  reference: WorkspaceComparisonLaneReference,
+): WorkspaceComparisonLaneReference {
+  return normalizeLaneAttribution(reference);
+}
+
+function normalizeWorkspaceLaneComparisonState(
+  state: WorkspaceLaneComparisonState | undefined,
+): WorkspaceLaneComparisonState | undefined {
+  if (!state) return undefined;
+
+  const selectedLane = state.selectedLane
+    ? normalizeWorkspaceComparisonLaneReference(state.selectedLane)
+    : undefined;
+  const adoptedLane = state.adoptedLane
+    ? normalizeWorkspaceComparisonLaneReference(state.adoptedLane)
+    : undefined;
+
+  if (!selectedLane && !adoptedLane) {
+    return undefined;
+  }
+
+  return {
+    ...(selectedLane ? { selectedLane } : {}),
+    ...(adoptedLane ? { adoptedLane } : {}),
+  };
+}
+
+function normalizeWorkspaceLaneRecord(record: WorkspaceLaneRecord): WorkspaceLaneRecord {
+  const lane = normalizeLaneAttribution(record);
+
+  return {
+    ...lane,
+    ...(record.session ? { session: normalizeLaneAttributionWithFallback(record.session, lane) } : {}),
+    traceability: {
+      taskEntries: record.traceability.taskEntries.map((taskEntry) => normalizeLaneAttributionWithFallback(taskEntry, lane)),
+      resultAnnotations: record.traceability.resultAnnotations.map((annotation) => normalizeLaneAttributionWithFallback(annotation, lane)),
+    },
+    verificationRuns: record.verificationRuns.map((run) => normalizeLaneAttributionWithFallback(run, lane)),
+    browserEvidenceRecords: record.browserEvidenceRecords.map((browserEvidenceRecord) =>
+      normalizeLaneAttributionWithFallback(browserEvidenceRecord, lane)),
+    taskLedgerRecords: record.taskLedgerRecords.map((taskLedgerRecord) => normalizeTaskLedgerRecord({
+      ...(lane.laneId ? { laneId: lane.laneId } : {}),
+      ...(lane.laneContext ? { laneContext: lane.laneContext } : {}),
+      ...taskLedgerRecord,
+      ...(taskLedgerRecord.resultAnnotation ? {
+        resultAnnotation: normalizeLaneAttributionWithFallback(taskLedgerRecord.resultAnnotation, lane),
+      } : {}),
+    })),
+  };
+}
+
 function normalizeWorkspaceBootstrap(bootstrap: WorkspaceBootstrap): WorkspaceBootstrap {
   return {
     ...bootstrap,
     sessions: bootstrap.sessions.map(normalizeSessionSummary),
+    ...(bootstrap.laneComparison ? { laneComparison: normalizeWorkspaceLaneComparisonState(bootstrap.laneComparison) } : {}),
+    ...(bootstrap.laneRecords ? { laneRecords: bootstrap.laneRecords.map(normalizeWorkspaceLaneRecord) } : {}),
     ...(bootstrap.traceability ? {
       traceability: {
         taskEntries: bootstrap.traceability.taskEntries.map((taskEntry) => normalizeLaneAttribution(taskEntry)),
@@ -260,6 +330,10 @@ export const api = {
   getWorkspaceCapabilities: (id: string) => get<WorkspaceCapabilityProbe>(`/api/workspaces/${id}/capabilities`),
   getWorkspaceContextCatalog: (id: string) =>
     get<WorkspaceContextCatalogResponse>(`/api/workspaces/${id}/context/catalog`),
+  selectComparisonLane: (id: string, data: WorkspaceLaneSelectionRequest) =>
+    post<WorkspaceBootstrap>(`/api/workspaces/${id}/compare/select-lane`, data).then(normalizeWorkspaceBootstrap),
+  adoptComparisonLane: (id: string, data: WorkspaceLaneAdoptionRequest) =>
+    post<WorkspaceBootstrap>(`/api/workspaces/${id}/compare/adopt-lane`, data).then(normalizeWorkspaceBootstrap),
   getGitStatus: (id: string) => get<WorkspaceGitStatusResult>(`/api/workspaces/${id}/git/status`),
   previewCommit: (id: string, data?: CommitPreviewRequest) =>
     post<CommitPreviewResult>(`/api/workspaces/${id}/git/commit/preview`, data ?? {}),

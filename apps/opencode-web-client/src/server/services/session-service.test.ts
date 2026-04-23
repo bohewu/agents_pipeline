@@ -42,6 +42,17 @@ describe('SessionService lane attribution', () => {
       laneId: 'lane-worktree-b',
       laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
     })
+    const laneComparison = service.setLaneComparisonState('ws-lane', {
+      selectedLane: {
+        sessionId: created.id,
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      },
+      adoptedLane: {
+        sessionId: forked.id,
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      },
+    })
 
     expect(created).toEqual(expect.objectContaining({
       laneId: 'branch:feature/lane-a',
@@ -71,6 +82,20 @@ describe('SessionService lane attribution', () => {
       laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
     })
     expect(rehydrated.resolveLaneAttribution('ws-other', forked.id)).toBeUndefined()
+    expect(laneComparison).toEqual({
+      selectedLane: {
+        sessionId: created.id,
+        laneId: 'branch:feature/lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      },
+      adoptedLane: {
+        sessionId: forked.id,
+        laneId: 'lane-worktree-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      },
+    })
+    expect(rehydrated.resolveLaneComparisonState('ws-lane')).toEqual(laneComparison)
+    expect(rehydrated.resolveLaneComparisonState('ws-other')).toBeUndefined()
     expect(createSession).toHaveBeenCalledTimes(2)
   })
 })

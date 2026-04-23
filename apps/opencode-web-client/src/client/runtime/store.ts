@@ -28,10 +28,13 @@ import type {
   WorkspaceContextCatalogResponse,
   WorkspaceInstructionSourceEntry,
   UsageDetails,
+  WorkspaceComparisonLaneReference,
   WorkspaceGitStatusResult,
   WorkspaceBootstrap,
   WorkspaceCapabilityKey,
   WorkspaceCapabilityProbe,
+  WorkspaceLaneComparisonFlags,
+  WorkspaceLaneComparisonState,
   WorkspaceProfile,
   WorkspaceServerStatus,
   WorkspaceTraceabilitySummary,
@@ -41,6 +44,7 @@ import type {
   VerificationRun,
   TaskLedgerRecord,
   TaskLedgerShipReference,
+  WorkspaceLaneRecord,
 } from '../../shared/types.js';
 
 export type RightPanel = 'tasks' | 'activity' | 'diff' | 'files' | 'context' | 'ship' | 'usage' | 'verification' | 'permissions' | 'diagnostics';
@@ -67,6 +71,33 @@ export interface SessionLaneSummary extends LaneAttribution {
   workspaceId: string;
   sessionId: string;
   session?: SessionSummary;
+}
+
+export interface LaneVerificationSummary {
+  state: ResultVerificationState;
+  summary?: string;
+  latestRun?: ProjectedVerificationRun;
+  linkedRuns: ProjectedVerificationRun[];
+}
+
+export interface LaneShipReadinessSummary {
+  shipState?: ResultAnnotation['shipState'];
+  reviewState?: ResultAnnotation['reviewState'];
+  summary?: string;
+  pullRequestUrl?: string;
+}
+
+export interface WorkspaceLaneComparisonSummary extends SessionLaneSummary {
+  title: string;
+  summary?: string;
+  latestTaskRecord?: ProjectedTaskLedgerRecord;
+  comparison: WorkspaceLaneComparisonFlags;
+  verification: LaneVerificationSummary;
+  shipReadiness: LaneShipReadinessSummary;
+}
+
+interface ComparisonSessionLaneSummary extends SessionLaneSummary {
+  comparison: WorkspaceLaneComparisonFlags;
 }
 
 export interface WorkspaceCapabilityGap {
@@ -180,6 +211,7 @@ const EMPTY_MESSAGES: NormalizedMessage[] = [];
 const EMPTY_CAPABILITY_GAPS: WorkspaceCapabilityGap[] = [];
 const EMPTY_WORKSPACE_INSTRUCTION_SOURCES: WorkspaceInstructionSourceEntry[] = [];
 const EMPTY_WORKSPACE_CONTEXT_CAPABILITY_ENTRIES: WorkspaceCapabilityEntry[] = [];
+const EMPTY_LANE_COMPARISON_FLAGS: WorkspaceLaneComparisonFlags = { selected: false, adopted: false };
 const WORKSPACE_SCOPE_SESSION_KEY = '__workspace__';
 const VERIFY_KIND_ORDER: VerificationCommandKind[] = ['lint', 'build', 'test'];
 const WORKSPACE_CAPABILITY_KEYS: WorkspaceCapabilityKey[] = ['localGit', 'ghCli', 'ghAuth', 'previewTarget', 'browserEvidence'];
@@ -248,18 +280,42 @@ export const useStore = create<UIStore>((set) => ({
     set((s) => ({ serverStatusByWorkspace: { ...s.serverStatusByWorkspace, [workspaceId]: status } })),
   setWorkspaceBootstrap: (workspaceId, bootstrap) =>
     set((s) => {
-      const taskLedgerRecords = normalizeTaskLedgerRecords(workspaceId, bootstrap.taskLedgerRecords);
-      const verificationRuns = normalizeVerificationRuns(workspaceId, bootstrap.verificationRuns);
-      const browserEvidenceRecords = normalizeBrowserEvidenceRecords(workspaceId, bootstrap.browserEvidenceRecords);
+      const rawLaneRecords = normalizeWorkspaceLaneRecords(workspaceId, bootstrap.laneRecords);
+      const sessions = mergeBootstrapSessions(bootstrap.sessions, rawLaneRecords);
+      const laneComparison = normalizeWorkspaceLaneComparisonState(rawLaneRecords, sessions, bootstrap.laneComparison);
+      const laneRecords = rawLaneRecords;
+      const taskLedgerRecords = mergeTaskLedgerRecordLists(
+        normalizeTaskLedgerRecords(workspaceId, bootstrap.taskLedgerRecords),
+        laneRecords?.flatMap((laneRecord) => laneRecord.taskLedgerRecords),
+      );
+      const verificationRuns = mergeVerificationRunLists(
+        normalizeVerificationRuns(workspaceId, bootstrap.verificationRuns),
+        laneRecords?.flatMap((laneRecord) => laneRecord.verificationRuns),
+      );
+      const browserEvidenceRecords = mergeBrowserEvidenceRecordLists(
+        normalizeBrowserEvidenceRecords(workspaceId, bootstrap.browserEvidenceRecords),
+        laneRecords?.flatMap((laneRecord) => laneRecord.browserEvidenceRecords),
+      );
+      const traceability = mergeWorkspaceTraceabilitySummaries(
+        bootstrap.traceability,
+        laneRecords ? {
+          taskEntries: laneRecords.flatMap((laneRecord) => laneRecord.traceability.taskEntries),
+          resultAnnotations: laneRecords.flatMap((laneRecord) => laneRecord.traceability.resultAnnotations),
+        } : undefined,
+      );
+
       return {
         workspaceBootstraps: {
           ...s.workspaceBootstraps,
           [workspaceId]: {
             ...bootstrap,
-            sessions: normalizeSessions(bootstrap.sessions),
-            ...(verificationRuns ? { verificationRuns } : {}),
-            ...(browserEvidenceRecords ? { browserEvidenceRecords } : {}),
-            ...(bootstrap.taskLedgerRecords !== undefined ? { taskLedgerRecords } : {}),
+            sessions,
+            ...(laneComparison ? { laneComparison } : {}),
+            ...(laneRecords !== undefined ? { laneRecords } : {}),
+            ...(traceability !== undefined ? { traceability } : {}),
+            ...(verificationRuns !== undefined ? { verificationRuns } : {}),
+            ...(browserEvidenceRecords !== undefined ? { browserEvidenceRecords } : {}),
+            ...(taskLedgerRecords !== undefined ? { taskLedgerRecords } : {}),
           },
         },
         workspaceCapabilitiesByWorkspace: bootstrap.capabilities
@@ -270,11 +326,11 @@ export const useStore = create<UIStore>((set) => ({
           : s.workspaceGitStatusByWorkspace,
         taskEntriesByWorkspace: {
           ...s.taskEntriesByWorkspace,
-          [workspaceId]: groupTaskEntriesBySession(bootstrap.traceability, taskLedgerRecords),
+          [workspaceId]: groupTaskEntriesBySession(traceability, taskLedgerRecords),
         },
         resultAnnotationsByWorkspace: {
           ...s.resultAnnotationsByWorkspace,
-          [workspaceId]: groupResultAnnotationsBySession(bootstrap.traceability, taskLedgerRecords),
+          [workspaceId]: groupResultAnnotationsBySession(traceability, taskLedgerRecords),
         },
       };
     }),
@@ -726,6 +782,234 @@ export function selectActiveWorkspaceSessionLanes(
   return selectWorkspaceSessionLanes(store, store.activeWorkspaceId);
 }
 
+export function selectWorkspaceLaneComparisonSummaries(
+  store: Pick<UIStore, 'sessionsByWorkspace' | 'workspaceBootstraps' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace' | 'workspaceGitStatusByWorkspace'>
+    & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
+  workspaceId?: string | null,
+): WorkspaceLaneComparisonSummary[] {
+  if (!workspaceId) return [];
+
+  return selectWorkspaceComparisonLanes(store, workspaceId).map((lane) => {
+    const latestTaskRecord = selectSessionTaskLedgerRecords(store, workspaceId, lane.sessionId, lane)[0];
+    const verificationRuns = selectLinkedLaneVerificationRuns(
+      store,
+      workspaceId,
+      lane.sessionId,
+      lane,
+      latestTaskRecord,
+    );
+    const verificationEvidence = deriveVerificationEvidence(verificationRuns);
+    const fallbackAnnotation = selectLaneComparisonResultAnnotation(
+      store,
+      workspaceId,
+      lane.sessionId,
+      lane,
+      latestTaskRecord,
+      verificationEvidence.latestRun,
+    );
+    const verificationSummary = verificationEvidence.latestSummary
+      ?? latestTaskRecord?.recentVerificationRef?.summary
+      ?? latestTaskRecord?.resultAnnotation?.summary
+      ?? fallbackAnnotation?.summary
+      ?? latestTaskRecord?.summary;
+    const verificationState = verificationEvidence.verification
+      ?? latestTaskRecord?.resultAnnotation?.verification
+      ?? deriveVerificationStateFromTaskLedger(latestTaskRecord)
+      ?? fallbackAnnotation?.verification
+      ?? 'unverified';
+    const laneSummary = latestTaskRecord?.summary
+      ?? fallbackAnnotation?.summary
+      ?? lane.session?.title;
+    const title = lane.session?.title?.trim()
+      || latestTaskRecord?.title?.trim()
+      || `Session ${lane.sessionId.slice(0, 8)}`;
+
+    return {
+      ...lane,
+      title,
+      ...(laneSummary ? { summary: laneSummary } : {}),
+      ...(latestTaskRecord ? { latestTaskRecord } : {}),
+      comparison: lane.comparison,
+      verification: {
+        state: verificationState,
+        ...(verificationSummary ? { summary: verificationSummary } : {}),
+        ...(verificationEvidence.latestRun ? { latestRun: verificationEvidence.latestRun } : {}),
+        linkedRuns: verificationRuns,
+      },
+      shipReadiness: {
+        ...(latestTaskRecord?.resultAnnotation?.shipState ?? fallbackAnnotation?.shipState ? {
+          shipState: latestTaskRecord?.resultAnnotation?.shipState ?? fallbackAnnotation?.shipState,
+        } : {}),
+        ...(latestTaskRecord?.resultAnnotation?.reviewState ?? fallbackAnnotation?.reviewState ? {
+          reviewState: latestTaskRecord?.resultAnnotation?.reviewState ?? fallbackAnnotation?.reviewState,
+        } : {}),
+        ...(latestTaskRecord?.summary ?? latestTaskRecord?.resultAnnotation?.summary ?? fallbackAnnotation?.summary ? {
+          summary: latestTaskRecord?.summary ?? latestTaskRecord?.resultAnnotation?.summary ?? fallbackAnnotation?.summary,
+        } : {}),
+        ...(latestTaskRecord?.recentShipRef?.pullRequestUrl ? {
+          pullRequestUrl: latestTaskRecord.recentShipRef.pullRequestUrl,
+        } : {}),
+      },
+    };
+  });
+}
+
+export function selectActiveWorkspaceLaneComparisonSummaries(
+  store: Pick<UIStore, 'activeWorkspaceId' | 'sessionsByWorkspace' | 'workspaceBootstraps' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace' | 'workspaceGitStatusByWorkspace'>
+    & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
+): WorkspaceLaneComparisonSummary[] {
+  return selectWorkspaceLaneComparisonSummaries(store, store.activeWorkspaceId);
+}
+
+function selectWorkspaceComparisonLanes(
+  store: Pick<UIStore, 'sessionsByWorkspace' | 'workspaceBootstraps' | 'taskEntriesByWorkspace' | 'resultAnnotationsByWorkspace'>,
+  workspaceId: string,
+): ComparisonSessionLaneSummary[] {
+  const laneRecords = store.workspaceBootstraps[workspaceId]?.laneRecords;
+  const laneComparison = store.workspaceBootstraps[workspaceId]?.laneComparison;
+  if (!laneRecords?.length) {
+    return sortComparisonSessionLaneSummaries(selectWorkspaceSessionLanes({
+      sessionsByWorkspace: store.sessionsByWorkspace,
+      workspaceBootstraps: store.workspaceBootstraps,
+      messagesBySession: {},
+      taskEntriesByWorkspace: store.taskEntriesByWorkspace,
+      resultAnnotationsByWorkspace: store.resultAnnotationsByWorkspace,
+    }, workspaceId).map((lane) => ({
+      ...lane,
+      comparison: resolveLaneComparisonFlags(lane, laneComparison),
+    })));
+  }
+
+  const liveSessions = store.sessionsByWorkspace[workspaceId] ?? [];
+
+  return sortComparisonSessionLaneSummaries(laneRecords.map((laneRecord) => {
+    const liveSession = liveSessions.find((session) => {
+      if (session.id !== laneRecord.sessionId) return false;
+      return !hasConflictingLane(session, laneRecord);
+    });
+    const session = mergeSessionSummariesForLane(laneRecord.session, liveSession, laneRecord);
+
+    return {
+      workspaceId,
+      sessionId: laneRecord.sessionId,
+      ...(session ? { session } : {}),
+      laneId: laneRecord.laneId,
+      laneContext: laneRecord.laneContext,
+      comparison: resolveLaneComparisonFlags(laneRecord, laneComparison),
+    };
+  }));
+}
+
+function sortComparisonSessionLaneSummaries(lanes: ComparisonSessionLaneSummary[]): ComparisonSessionLaneSummary[] {
+  return sortSessionLaneSummaries(lanes) as ComparisonSessionLaneSummary[];
+}
+
+function sortSessionLaneSummaries(lanes: SessionLaneSummary[]): SessionLaneSummary[] {
+  return [...lanes].sort((left, right) => {
+    const leftUpdatedAt = left.session?.updatedAt ?? '';
+    const rightUpdatedAt = right.session?.updatedAt ?? '';
+    if (leftUpdatedAt !== rightUpdatedAt) {
+      return rightUpdatedAt.localeCompare(leftUpdatedAt);
+    }
+
+    if (left.sessionId !== right.sessionId) {
+      return left.sessionId.localeCompare(right.sessionId);
+    }
+
+    return (left.laneId ?? '').localeCompare(right.laneId ?? '');
+  });
+}
+
+function mergeSessionSummariesForLane(
+  base: SessionSummary | undefined,
+  next: SessionSummary | undefined,
+  lane: LaneAttribution | undefined,
+): SessionSummary | undefined {
+  if (!base && !next) return undefined;
+  if (!base) return normalizeSessionSummary(next!, lane);
+  if (!next) return normalizeSessionSummary(base, lane);
+
+  return normalizeSessionSummary({
+    ...base,
+    ...next,
+    id: next.id,
+  }, mergeLaneAttribution(base, next, lane));
+}
+
+function selectLinkedLaneVerificationRuns(
+  store: Pick<UIStore, 'workspaceBootstraps'> & Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace'>>,
+  workspaceId: string,
+  sessionId: string,
+  lane: LaneAttribution | undefined,
+  latestTaskRecord?: ProjectedTaskLedgerRecord,
+): ProjectedVerificationRun[] {
+  const laneRuns = selectWorkspaceVerificationRuns(store, workspaceId).filter((run) => {
+    if (run.workspaceId !== workspaceId) return false;
+    if (run.sessionId && run.sessionId !== sessionId) return false;
+    return matchesExpectedLane(run, lane);
+  });
+
+  if (!latestTaskRecord) {
+    return laneRuns;
+  }
+
+  const linkedRuns = laneRuns.filter((run) => {
+    if (latestTaskRecord.sourceMessageId && run.sourceMessageId === latestTaskRecord.sourceMessageId) {
+      return true;
+    }
+    return run.taskId === latestTaskRecord.taskId;
+  });
+
+  return linkedRuns.length > 0 ? linkedRuns : laneRuns;
+}
+
+function selectLaneComparisonResultAnnotation(
+  store: Pick<UIStore, 'resultAnnotationsByWorkspace' | 'workspaceBootstraps'>,
+  workspaceId: string,
+  sessionId: string,
+  lane: LaneAttribution | undefined,
+  latestTaskRecord?: ProjectedTaskLedgerRecord,
+  latestRun?: VerificationRun,
+): ResultAnnotation | undefined {
+  if (latestTaskRecord?.resultAnnotation) {
+    return latestTaskRecord.resultAnnotation;
+  }
+
+  const laneRecords = store.workspaceBootstraps[workspaceId]?.laneRecords;
+  const bootstrapTraceability = mergeWorkspaceTraceabilitySummaries(
+    store.workspaceBootstraps[workspaceId]?.traceability,
+    laneRecords ? {
+      taskEntries: laneRecords.flatMap((laneRecord) => laneRecord.traceability.taskEntries),
+      resultAnnotations: laneRecords.flatMap((laneRecord) => laneRecord.traceability.resultAnnotations),
+    } : undefined,
+  );
+  const annotations = [
+    ...Object.values(store.resultAnnotationsByWorkspace[workspaceId]?.[sessionId] ?? {}),
+    ...(bootstrapTraceability?.resultAnnotations ?? []).filter((annotation) => annotation.sessionId === sessionId),
+  ].filter((annotation) => matchesExpectedLane(annotation, lane));
+  if (annotations.length === 0) {
+    return undefined;
+  }
+
+  return annotations.find((annotation) => {
+    if (latestTaskRecord?.sourceMessageId && annotation.sourceMessageId === latestTaskRecord.sourceMessageId) {
+      return true;
+    }
+    if (latestTaskRecord?.taskId && annotation.taskId === latestTaskRecord.taskId) {
+      return true;
+    }
+    if (latestRun?.sourceMessageId && annotation.sourceMessageId === latestRun.sourceMessageId) {
+      return true;
+    }
+    return !!latestRun?.taskId && annotation.taskId === latestRun.taskId;
+  }) ?? annotations[0];
+}
+
+function deriveVerificationStateFromTaskLedger(record: ProjectedTaskLedgerRecord | undefined): ResultVerificationState | undefined {
+  if (!record?.recentVerificationRef) return undefined;
+  return record.recentVerificationRef.status === 'passed' ? 'verified' : 'unverified';
+}
+
 export function selectWorkspaceCapabilities(
   store: Partial<Pick<UIStore, 'workspaceCapabilitiesByWorkspace' | 'workspaceBootstraps'>>,
   workspaceId?: string | null,
@@ -884,9 +1168,17 @@ export function selectWorkspaceVerificationRuns(
 ): ProjectedVerificationRun[] {
   if (!workspaceId) return [];
   const capabilities = selectWorkspaceCapabilities(store, workspaceId);
-  const browserEvidenceRecords = store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords;
+  const laneRecords = store.workspaceBootstraps[workspaceId]?.laneRecords;
+  const browserEvidenceRecords = mergeBrowserEvidenceRecordLists(
+    store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords,
+    laneRecords?.flatMap((laneRecord) => laneRecord.browserEvidenceRecords),
+  );
+  const verificationRuns = mergeVerificationRunLists(
+    store.workspaceBootstraps[workspaceId]?.verificationRuns,
+    laneRecords?.flatMap((laneRecord) => laneRecord.verificationRuns),
+  ) ?? [];
 
-  return (store.workspaceBootstraps[workspaceId]?.verificationRuns ?? []).map((run) => {
+  return verificationRuns.map((run) => {
     const browserEvidenceRef = deriveBrowserEvidenceProjection({
       capabilities,
       browserEvidenceRecords: filterBrowserEvidenceRecordsByLane(browserEvidenceRecords, run),
@@ -910,10 +1202,17 @@ export function selectWorkspaceTaskLedgerRecords(
   workspaceId?: string | null,
 ): ProjectedTaskLedgerRecord[] {
   if (!workspaceId) return [];
-  const records = normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords);
+  const laneRecords = store.workspaceBootstraps[workspaceId]?.laneRecords;
+  const records = mergeTaskLedgerRecordLists(
+    normalizeTaskLedgerRecords(workspaceId, store.workspaceBootstraps[workspaceId]?.taskLedgerRecords),
+    laneRecords?.flatMap((laneRecord) => laneRecord.taskLedgerRecords),
+  ) ?? [];
   const status = store.workspaceGitStatusByWorkspace[workspaceId];
   const capabilities = selectWorkspaceCapabilities(store, workspaceId);
-  const browserEvidenceRecords = store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords;
+  const browserEvidenceRecords = mergeBrowserEvidenceRecordLists(
+    store.workspaceBootstraps[workspaceId]?.browserEvidenceRecords,
+    laneRecords?.flatMap((laneRecord) => laneRecord.browserEvidenceRecords),
+  );
   return records.map((record) => projectTaskLedgerRecord(record, status, capabilities, browserEvidenceRecords));
 }
 
@@ -1516,7 +1815,7 @@ function normalizeTaskLedgerRecords(workspaceId: string, records?: TaskLedgerRec
   return sortTaskLedgerRecords(
     (records ?? [])
       .filter((record) => record.workspaceId === workspaceId)
-      .map(normalizeTaskLedgerRecord),
+      .map((record) => normalizeTaskLedgerRecord(record)),
   );
 }
 
@@ -1619,36 +1918,151 @@ function normalizeResultAnnotation(
 }
 
 function normalizeSessions(sessions: SessionSummary[]): SessionSummary[] {
-  return sessions.map(normalizeSessionSummary);
+  return sessions.map((session) => normalizeSessionSummary(session));
 }
 
-function normalizeSessionSummary(session: SessionSummary): SessionSummary {
-  return attachLaneAttribution({ ...session }, session);
+function normalizeSessionSummary(session: SessionSummary, lane?: LaneAttribution): SessionSummary {
+  return normalizeSessionSummaryWithLane(session, lane);
+}
+
+function normalizeSessionSummaryWithLane(session: SessionSummary, lane?: LaneAttribution): SessionSummary {
+  return attachLaneAttribution({ ...session }, mergeLaneAttribution(session, lane));
+}
+
+function normalizeWorkspaceLaneComparisonState(
+  laneRecords: WorkspaceLaneRecord[] | undefined,
+  sessions: SessionSummary[],
+  state?: WorkspaceLaneComparisonState,
+): WorkspaceLaneComparisonState | undefined {
+  if (!state) return undefined;
+
+  const selectedLane = resolveWorkspaceComparisonLaneReference(
+    laneRecords,
+    sessions,
+    normalizeWorkspaceComparisonLaneReference(state.selectedLane),
+  );
+  const adoptedLane = resolveWorkspaceComparisonLaneReference(
+    laneRecords,
+    sessions,
+    normalizeWorkspaceComparisonLaneReference(state.adoptedLane),
+  );
+
+  if (!selectedLane && !adoptedLane) {
+    return undefined;
+  }
+
+  return {
+    ...(selectedLane ? { selectedLane } : {}),
+    ...(adoptedLane ? { adoptedLane } : {}),
+  };
+}
+
+function normalizeWorkspaceComparisonLaneReference(
+  reference: WorkspaceComparisonLaneReference | undefined,
+): WorkspaceComparisonLaneReference | undefined {
+  if (!reference?.sessionId) return undefined;
+
+  const lane = mergeLaneAttribution(reference);
+  if (!lane) return undefined;
+
+  return {
+    sessionId: reference.sessionId,
+    ...lane,
+  };
+}
+
+function resolveWorkspaceComparisonLaneReference(
+  laneRecords: WorkspaceLaneRecord[] | undefined,
+  sessions: SessionSummary[],
+  reference: WorkspaceComparisonLaneReference | undefined,
+): WorkspaceComparisonLaneReference | undefined {
+  if (!reference) return undefined;
+
+  const laneId = resolveLaneId(reference);
+  if (!laneId) return undefined;
+
+  return buildWorkspaceComparisonLaneReferences(laneRecords, sessions)
+    .find((candidate) => candidate.sessionId === reference.sessionId && candidate.laneId === laneId);
+}
+
+function buildWorkspaceComparisonLaneReferences(
+  laneRecords: WorkspaceLaneRecord[] | undefined,
+  sessions: SessionSummary[],
+): WorkspaceComparisonLaneReference[] {
+  const references = new Map<string, WorkspaceComparisonLaneReference>();
+
+  const upsert = (sessionId: string | undefined, lane: LaneAttribution | undefined) => {
+    if (!sessionId) return;
+
+    const laneId = resolveLaneId(lane);
+    const laneContext = lane?.laneContext ?? deriveLaneContext(laneId);
+    if (!laneId || !laneContext) return;
+
+    references.set(`${sessionId}::${laneId}`, {
+      sessionId,
+      laneId,
+      laneContext,
+    });
+  };
+
+  for (const session of sessions) {
+    upsert(session.id, session);
+  }
+
+  for (const laneRecord of laneRecords ?? []) {
+    upsert(laneRecord.sessionId, laneRecord);
+  }
+
+  return [...references.values()];
+}
+
+function normalizeWorkspaceLaneRecords(workspaceId: string, records?: WorkspaceLaneRecord[]): WorkspaceLaneRecord[] | undefined {
+  if (!records) return undefined;
+  return records
+    .filter((record) => record.workspaceId === workspaceId)
+    .map(normalizeWorkspaceLaneRecord);
+}
+
+function normalizeWorkspaceLaneRecord(record: WorkspaceLaneRecord): WorkspaceLaneRecord {
+  const lane = mergeLaneAttribution(record);
+  return attachLaneAttribution({
+    ...record,
+    ...(record.session ? { session: normalizeSessionSummaryWithLane(record.session, lane) } : {}),
+    traceability: {
+      taskEntries: record.traceability.taskEntries.map((taskEntry) => attachLaneAttribution({ ...taskEntry }, mergeLaneAttribution(taskEntry, lane))),
+      resultAnnotations: record.traceability.resultAnnotations.map((annotation) =>
+        attachLaneAttribution({ ...annotation }, mergeLaneAttribution(annotation, lane))),
+    },
+    verificationRuns: record.verificationRuns.map((run) => normalizeVerificationRun(run, lane)),
+    browserEvidenceRecords: record.browserEvidenceRecords.map((browserEvidenceRecord) =>
+      normalizeBrowserEvidenceRecord(browserEvidenceRecord, lane)),
+    taskLedgerRecords: record.taskLedgerRecords.map((taskLedgerRecord) => normalizeTaskLedgerRecord(taskLedgerRecord, lane)),
+  }, lane);
 }
 
 function normalizeVerificationRuns(workspaceId: string, runs?: VerificationRun[]): VerificationRun[] | undefined {
   if (!runs) return undefined;
-  return sortVerificationRuns(runs.filter((run) => run.workspaceId === workspaceId).map(normalizeVerificationRun));
+  return sortVerificationRuns(runs.filter((run) => run.workspaceId === workspaceId).map((run) => normalizeVerificationRun(run)));
 }
 
-function normalizeVerificationRun(run: VerificationRun): VerificationRun {
-  return attachLaneAttribution({ ...run }, run);
+function normalizeVerificationRun(run: VerificationRun, lane?: LaneAttribution): VerificationRun {
+  return attachLaneAttribution({ ...run }, mergeLaneAttribution(run, lane));
 }
 
 function normalizeBrowserEvidenceRecords(workspaceId: string, records?: BrowserEvidenceRecord[]): BrowserEvidenceRecord[] | undefined {
   if (!records) return undefined;
   return records
     .filter((record) => record.workspaceId === workspaceId)
-    .map(normalizeBrowserEvidenceRecord);
+    .map((record) => normalizeBrowserEvidenceRecord(record));
 }
 
-function normalizeBrowserEvidenceRecord(record: BrowserEvidenceRecord): BrowserEvidenceRecord {
-  return attachLaneAttribution({ ...record }, record);
+function normalizeBrowserEvidenceRecord(record: BrowserEvidenceRecord, lane?: LaneAttribution): BrowserEvidenceRecord {
+  return attachLaneAttribution({ ...record }, mergeLaneAttribution(record, lane));
 }
 
-function normalizeTaskLedgerRecord(record: TaskLedgerRecord): TaskLedgerRecord {
+function normalizeTaskLedgerRecord(record: TaskLedgerRecord, fallbackLane?: LaneAttribution): TaskLedgerRecord {
   const sessionId = resolveTaskLedgerRecordSessionId(record);
-  const lane = mergeLaneAttribution(record, record.resultAnnotation);
+  const lane = mergeLaneAttribution(record, record.resultAnnotation, fallbackLane);
   const resultAnnotation = record.resultAnnotation && sessionId
     ? normalizeResultAnnotation(record.resultAnnotation, {
         workspaceId: record.workspaceId,
@@ -1666,6 +2080,135 @@ function normalizeTaskLedgerRecord(record: TaskLedgerRecord): TaskLedgerRecord {
     ...record,
     ...(resultAnnotation ? { resultAnnotation } : {}),
   }, lane);
+}
+
+function mergeBootstrapSessions(sessions: SessionSummary[], laneRecords?: WorkspaceLaneRecord[]): SessionSummary[] {
+  const merged = new Map<string, SessionSummary>();
+
+  for (const session of sessions) {
+    merged.set(session.id, normalizeSessionSummary(session));
+  }
+
+  for (const laneRecord of laneRecords ?? []) {
+    if (!laneRecord.session || merged.has(laneRecord.session.id)) continue;
+    merged.set(laneRecord.session.id, normalizeSessionSummaryWithLane(laneRecord.session, laneRecord));
+  }
+
+  return [...merged.values()];
+}
+
+function resolveLaneComparisonFlags(
+  lane: SessionLaneSummary,
+  laneComparison: WorkspaceLaneComparisonState | undefined,
+): WorkspaceLaneComparisonFlags {
+  if (!laneComparison) return EMPTY_LANE_COMPARISON_FLAGS;
+
+  return {
+    selected: matchesWorkspaceComparisonLaneReference(lane, laneComparison?.selectedLane),
+    adopted: matchesWorkspaceComparisonLaneReference(lane, laneComparison?.adoptedLane),
+  };
+}
+
+function matchesWorkspaceComparisonLaneReference(
+  lane: LaneAttribution & { sessionId?: string },
+  reference: WorkspaceComparisonLaneReference | undefined,
+): boolean {
+  if (!reference?.sessionId || !lane.sessionId) return false;
+  return lane.sessionId === reference.sessionId && resolveLaneId(lane) === resolveLaneId(reference);
+}
+
+function mergeWorkspaceTraceabilitySummaries(
+  ...summaries: Array<WorkspaceTraceabilitySummary | undefined>
+): WorkspaceTraceabilitySummary | undefined {
+  if (!summaries.some((summary) => summary !== undefined)) {
+    return undefined;
+  }
+
+  const taskEntries: Record<string, TaskEntry> = {};
+  const resultAnnotations: Record<string, ResultAnnotation> = {};
+
+  for (const summary of summaries) {
+    for (const taskEntry of summary?.taskEntries ?? []) {
+      const normalizedTaskEntry = attachLaneAttribution({ ...taskEntry }, taskEntry);
+      taskEntries[resolveTaskEntryStoreKey(normalizedTaskEntry)] = normalizedTaskEntry;
+    }
+    for (const resultAnnotation of summary?.resultAnnotations ?? []) {
+      const normalizedResultAnnotation = attachLaneAttribution({ ...resultAnnotation }, resultAnnotation);
+      resultAnnotations[resolveResultAnnotationStoreKey(normalizedResultAnnotation)] = normalizedResultAnnotation;
+    }
+  }
+
+  return {
+    taskEntries: Object.values(taskEntries),
+    resultAnnotations: Object.values(resultAnnotations),
+  };
+}
+
+function mergeVerificationRunLists(...lists: Array<VerificationRun[] | undefined>): VerificationRun[] | undefined {
+  if (!lists.some((list) => list !== undefined)) {
+    return undefined;
+  }
+
+  const runs = new Map<string, VerificationRun>();
+  for (const list of lists) {
+    for (const run of list ?? []) {
+      const normalizedRun = normalizeVerificationRun(run);
+      runs.set(resolveVerificationRunStoreKey(normalizedRun), normalizedRun);
+    }
+  }
+
+  return sortVerificationRuns([...runs.values()]);
+}
+
+function resolveVerificationRunStoreKey(run: VerificationRun): string {
+  return `${run.id}::${resolveLaneId(run) ?? '__default__'}`;
+}
+
+function mergeBrowserEvidenceRecordLists(
+  ...lists: Array<BrowserEvidenceRecord[] | undefined>
+): BrowserEvidenceRecord[] | undefined {
+  if (!lists.some((list) => list !== undefined)) {
+    return undefined;
+  }
+
+  const records = new Map<string, BrowserEvidenceRecord>();
+  for (const list of lists) {
+    for (const record of list ?? []) {
+      const normalizedRecord = normalizeBrowserEvidenceRecord(record);
+      records.set(resolveBrowserEvidenceRecordStoreKey(normalizedRecord), normalizedRecord);
+    }
+  }
+
+  return [...records.values()];
+}
+
+function resolveBrowserEvidenceRecordStoreKey(record: BrowserEvidenceRecord): string {
+  return `${record.id}::${resolveLaneId(record) ?? '__default__'}`;
+}
+
+function mergeTaskLedgerRecordLists(...lists: Array<TaskLedgerRecord[] | undefined>): TaskLedgerRecord[] | undefined {
+  if (!lists.some((list) => list !== undefined)) {
+    return undefined;
+  }
+
+  const records = new Map<string, TaskLedgerRecord>();
+  for (const list of lists) {
+    for (const record of list ?? []) {
+      const normalizedRecord = normalizeTaskLedgerRecord(record);
+      records.set(resolveTaskLedgerRecordStoreKey(normalizedRecord), normalizedRecord);
+    }
+  }
+
+  return sortTaskLedgerRecords([...records.values()]);
+}
+
+function resolveTaskLedgerRecordStoreKey(record: TaskLedgerRecord): string {
+  return [
+    resolveTaskLedgerRecordSessionId(record) ?? WORKSPACE_SCOPE_SESSION_KEY,
+    record.sourceMessageId ?? record.taskId,
+    record.taskId,
+    resolveLaneId(mergeLaneAttribution(record, record.resultAnnotation)) ?? '__default__',
+  ].join('::');
 }
 
 function selectResultAnnotation(
@@ -1751,6 +2294,23 @@ function mergeLaneAttribution(...values: Array<LaneAttribution | undefined>): La
 
 function resolveLaneId(value: LaneAttribution | undefined): string | undefined {
   return value?.laneId ?? deriveLaneId(value?.laneContext);
+}
+
+function deriveLaneContext(laneId: string | undefined): LaneContext | undefined {
+  if (!laneId) return undefined;
+  if (laneId.startsWith('branch:')) {
+    return {
+      kind: 'branch',
+      branch: laneId.slice('branch:'.length),
+    };
+  }
+  if (laneId.startsWith('worktree:')) {
+    return {
+      kind: 'worktree',
+      worktreePath: laneId.slice('worktree:'.length),
+    };
+  }
+  return undefined;
 }
 
 function deriveLaneId(laneContext: LaneContext | undefined): string | undefined {

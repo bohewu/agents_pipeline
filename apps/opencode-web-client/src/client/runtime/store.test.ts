@@ -26,6 +26,8 @@ import {
   selectSessionTaskLedgerRecords,
   selectSessionMessages,
   selectWorkspaceSessionLanes,
+  selectWorkspaceLaneComparisonSummaries,
+  selectActiveWorkspaceLaneComparisonSummaries,
   selectWorkspaceVerificationRuns,
   useStore,
 } from './store.js';
@@ -42,6 +44,7 @@ import type {
   WorkspaceBootstrap,
   WorkspaceContextCatalogResponse,
   WorkspaceGitStatusResult,
+  WorkspaceLaneRecord,
 } from '../../shared/types.js';
 
 const baseState = useStore.getState();
@@ -317,6 +320,685 @@ describe('store session streaming state', () => {
     expect(selectSessionTaskLedgerRecords(useStore.getState(), 'workspace-2', sharedSessionId)[0]?.recentShipRef?.pullRequestUrl).toBe(
       'https://github.com/example/repo/pull/84',
     );
+  });
+
+  it('projects per-lane comparison readiness from lane records without sibling session message hydration', () => {
+    const workspaceId = 'workspace-lane-comparison';
+    const branchLane = { laneContext: { kind: 'branch', branch: 'feature/lane-a' } } as const;
+    const worktreeLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+    } as const;
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, {
+      ...makeBootstrap(workspaceId, undefined),
+      laneRecords: [
+        makeLaneRecord(workspaceId, 'session-lane-a', branchLane, {
+          session: makeSession({ id: 'session-lane-a', title: 'Branch attempt', updatedAt: '2026-04-22T00:02:00.000Z' }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, 'session-lane-a', 'task-lane-a', 'completed', {
+              sourceMessageId: 'message-lane-a',
+              summary: 'Branch lane summary',
+              resultAnnotation: {
+                sourceMessageId: 'message-lane-a',
+                workspaceId,
+                sessionId: 'session-lane-a',
+                taskId: 'task-lane-a',
+                verification: 'verified',
+                summary: 'Branch lane summary',
+                shipState: 'pr-ready',
+                ...branchLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-lane-a',
+                commandKind: 'test',
+                status: 'passed',
+                summary: 'Branch tests passed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'success',
+                sessionId: 'session-lane-a',
+                taskId: 'task-lane-a',
+                pullRequestUrl: 'https://github.com/example/repo/pull/41',
+              },
+              ...branchLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-lane-a',
+              workspaceId,
+              sessionId: 'session-lane-a',
+              sourceMessageId: 'message-lane-a',
+              taskId: 'task-lane-a',
+              commandKind: 'test',
+              status: 'passed',
+              startedAt: '2026-04-22T00:01:00.000Z',
+              summary: 'Branch tests passed.',
+              ...branchLane,
+            },
+          ],
+        }),
+        makeLaneRecord(workspaceId, 'session-lane-b', worktreeLane, {
+          session: makeSession({ id: 'session-lane-b', title: 'Worktree attempt', updatedAt: '2026-04-22T00:01:00.000Z' }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, 'session-lane-b', 'task-lane-b', 'blocked', {
+              sourceMessageId: 'message-lane-b',
+              summary: 'Worktree lane summary',
+              resultAnnotation: {
+                sourceMessageId: 'message-lane-b',
+                workspaceId,
+                sessionId: 'session-lane-b',
+                taskId: 'task-lane-b',
+                verification: 'unverified',
+                summary: 'Worktree lane summary',
+                shipState: 'blocked-by-checks',
+                reviewState: 'needs-retry',
+                ...worktreeLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-lane-b',
+                commandKind: 'build',
+                status: 'failed',
+                summary: 'Worktree build failed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'blocked',
+                sessionId: 'session-lane-b',
+                taskId: 'task-lane-b',
+                pullRequestUrl: 'https://github.com/example/repo/pull/42',
+              },
+              ...worktreeLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-lane-b',
+              workspaceId,
+              sessionId: 'session-lane-b',
+              sourceMessageId: 'message-lane-b',
+              taskId: 'task-lane-b',
+              commandKind: 'build',
+              status: 'failed',
+              startedAt: '2026-04-22T00:01:30.000Z',
+              summary: 'Worktree build failed.',
+              ...worktreeLane,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const laneSummaries = selectWorkspaceLaneComparisonSummaries(useStore.getState(), workspaceId);
+
+    expect(laneSummaries).toHaveLength(2);
+    expect(laneSummaries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sessionId: 'session-lane-a',
+        laneId: 'branch:feature/lane-a',
+        summary: 'Branch lane summary',
+        verification: expect.objectContaining({
+          state: 'verified',
+          summary: 'Branch tests passed.',
+        }),
+        shipReadiness: expect.objectContaining({
+          shipState: 'pr-ready',
+          pullRequestUrl: 'https://github.com/example/repo/pull/41',
+        }),
+      }),
+      expect.objectContaining({
+        sessionId: 'session-lane-b',
+        laneId: 'worktree:/tmp/worktrees/lane-b',
+        summary: 'Worktree lane summary',
+        verification: expect.objectContaining({
+          state: 'unverified',
+          summary: 'Worktree build failed.',
+        }),
+        shipReadiness: expect.objectContaining({
+          shipState: 'blocked-by-checks',
+          reviewState: 'needs-retry',
+          pullRequestUrl: 'https://github.com/example/repo/pull/42',
+        }),
+      }),
+    ]));
+    expect(selectSessionMessages(useStore.getState(), workspaceId, 'session-lane-a')).toEqual([]);
+    expect(selectSessionMessages(useStore.getState(), workspaceId, 'session-lane-b')).toEqual([]);
+  });
+
+  it('projects selected and adopted lane flags without collapsing lane-local readiness summaries', () => {
+    const workspaceId = 'workspace-lane-selection-state';
+    const branchLane = { laneContext: { kind: 'branch', branch: 'feature/selected-branch' } } as const;
+    const worktreeLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/selected-worktree', branch: 'feature/selected-worktree' },
+    } as const;
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, {
+      ...makeBootstrap(workspaceId, undefined),
+      laneComparison: {
+        selectedLane: {
+          sessionId: 'session-worktree',
+          ...worktreeLane,
+        },
+        adoptedLane: {
+          sessionId: 'session-branch',
+          ...branchLane,
+        },
+      },
+      laneRecords: [
+        makeLaneRecord(workspaceId, 'session-branch', branchLane, {
+          session: makeSession({ id: 'session-branch', title: 'Branch lane' }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, 'session-branch', 'task-branch', 'completed', {
+              sourceMessageId: 'message-branch',
+              summary: 'Branch lane ready',
+              resultAnnotation: {
+                sourceMessageId: 'message-branch',
+                workspaceId,
+                sessionId: 'session-branch',
+                taskId: 'task-branch',
+                verification: 'verified',
+                summary: 'Branch lane ready',
+                shipState: 'pr-ready',
+                ...branchLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-branch',
+                commandKind: 'test',
+                status: 'passed',
+                summary: 'Branch tests passed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'success',
+                sessionId: 'session-branch',
+                taskId: 'task-branch',
+                pullRequestUrl: 'https://github.com/example/repo/pull/61',
+              },
+              ...branchLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-branch',
+              workspaceId,
+              sessionId: 'session-branch',
+              sourceMessageId: 'message-branch',
+              taskId: 'task-branch',
+              commandKind: 'test',
+              status: 'passed',
+              startedAt: '2026-04-22T00:01:00.000Z',
+              summary: 'Branch tests passed.',
+              ...branchLane,
+            },
+          ],
+        }),
+        makeLaneRecord(workspaceId, 'session-worktree', worktreeLane, {
+          session: makeSession({ id: 'session-worktree', title: 'Worktree lane' }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, 'session-worktree', 'task-worktree', 'blocked', {
+              sourceMessageId: 'message-worktree',
+              summary: 'Worktree lane blocked',
+              resultAnnotation: {
+                sourceMessageId: 'message-worktree',
+                workspaceId,
+                sessionId: 'session-worktree',
+                taskId: 'task-worktree',
+                verification: 'unverified',
+                summary: 'Worktree lane blocked',
+                shipState: 'blocked-by-checks',
+                reviewState: 'needs-retry',
+                ...worktreeLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-worktree',
+                commandKind: 'build',
+                status: 'failed',
+                summary: 'Worktree build failed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'blocked',
+                sessionId: 'session-worktree',
+                taskId: 'task-worktree',
+                pullRequestUrl: 'https://github.com/example/repo/pull/62',
+              },
+              ...worktreeLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-worktree',
+              workspaceId,
+              sessionId: 'session-worktree',
+              sourceMessageId: 'message-worktree',
+              taskId: 'task-worktree',
+              commandKind: 'build',
+              status: 'failed',
+              startedAt: '2026-04-22T00:01:30.000Z',
+              summary: 'Worktree build failed.',
+              ...worktreeLane,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const summaries = selectWorkspaceLaneComparisonSummaries(useStore.getState(), workspaceId);
+    const branchSummary = summaries.find((lane) => lane.laneId === 'branch:feature/selected-branch');
+    const worktreeSummary = summaries.find((lane) => lane.laneId === 'worktree:/tmp/worktrees/selected-worktree');
+
+    expect(branchSummary?.comparison).toEqual({ selected: false, adopted: true });
+    expect(branchSummary?.verification).toEqual(expect.objectContaining({
+      state: 'verified',
+      summary: 'Branch tests passed.',
+    }));
+    expect(branchSummary?.shipReadiness).toEqual(expect.objectContaining({
+      shipState: 'pr-ready',
+      pullRequestUrl: 'https://github.com/example/repo/pull/61',
+    }));
+    expect(worktreeSummary?.comparison).toEqual({ selected: true, adopted: false });
+    expect(worktreeSummary?.verification).toEqual(expect.objectContaining({
+      state: 'unverified',
+      summary: 'Worktree build failed.',
+    }));
+    expect(worktreeSummary?.shipReadiness).toEqual(expect.objectContaining({
+      shipState: 'blocked-by-checks',
+      reviewState: 'needs-retry',
+      pullRequestUrl: 'https://github.com/example/repo/pull/62',
+    }));
+  });
+
+  it('keeps selected and adopted lane state isolated by workspace when session and lane ids overlap', () => {
+    const sharedSessionId = 'session-shared';
+    const sharedLane = { laneContext: { kind: 'branch', branch: 'feature/shared-lane' } } as const;
+
+    useStore.getState().setWorkspaceBootstrap('workspace-1', {
+      ...makeBootstrap('workspace-1', undefined),
+      laneComparison: {
+        selectedLane: { sessionId: sharedSessionId, ...sharedLane },
+      },
+      laneRecords: [
+        makeLaneRecord('workspace-1', sharedSessionId, sharedLane, {
+          taskLedgerRecords: [makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-1', 'completed', {
+            summary: 'Workspace 1 shared lane',
+            resultAnnotation: {
+              sourceMessageId: 'message-1',
+              workspaceId: 'workspace-1',
+              sessionId: sharedSessionId,
+              taskId: 'task-1',
+              verification: 'verified',
+              summary: 'Workspace 1 shared lane',
+              ...sharedLane,
+            },
+            ...sharedLane,
+          })],
+        }),
+      ],
+    });
+    useStore.getState().setWorkspaceBootstrap('workspace-2', {
+      ...makeBootstrap('workspace-2', undefined),
+      laneComparison: {
+        adoptedLane: { sessionId: sharedSessionId, ...sharedLane },
+      },
+      laneRecords: [
+        makeLaneRecord('workspace-2', sharedSessionId, sharedLane, {
+          taskLedgerRecords: [makeTaskLedgerRecord('workspace-2', sharedSessionId, 'task-2', 'blocked', {
+            summary: 'Workspace 2 shared lane',
+            resultAnnotation: {
+              sourceMessageId: 'message-2',
+              workspaceId: 'workspace-2',
+              sessionId: sharedSessionId,
+              taskId: 'task-2',
+              verification: 'unverified',
+              summary: 'Workspace 2 shared lane',
+              ...sharedLane,
+            },
+            ...sharedLane,
+          })],
+        }),
+      ],
+    });
+
+    expect(selectWorkspaceLaneComparisonSummaries(useStore.getState(), 'workspace-1')).toEqual([
+      expect.objectContaining({
+        sessionId: sharedSessionId,
+        laneId: 'branch:feature/shared-lane',
+        comparison: { selected: true, adopted: false },
+      }),
+    ]);
+    expect(selectWorkspaceLaneComparisonSummaries(useStore.getState(), 'workspace-2')).toEqual([
+      expect.objectContaining({
+        sessionId: sharedSessionId,
+        laneId: 'branch:feature/shared-lane',
+        comparison: { selected: false, adopted: true },
+      }),
+    ]);
+  });
+
+  it('keeps per-lane readiness summaries isolated when rehydrated lane records reuse the same session and trace ids', () => {
+    const workspaceId = 'workspace-lane-rehydrate-shared-ids';
+    const sharedSessionId = 'session-shared';
+    const sharedTaskId = 'task-shared';
+    const sharedSourceMessageId = 'message-shared';
+    const readyLane = { laneContext: { kind: 'branch', branch: 'feature/ready-lane' } } as const;
+    const blockedLane = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/blocked-lane', branch: 'feature/blocked-lane' },
+    } as const;
+
+    useStore.getState().setWorkspaceBootstrap(workspaceId, {
+      ...makeBootstrap(workspaceId, undefined),
+      laneRecords: [
+        makeLaneRecord(workspaceId, sharedSessionId, readyLane, {
+          session: makeSession({
+            id: sharedSessionId,
+            title: 'Ready branch attempt',
+            updatedAt: '2026-04-22T00:02:00.000Z',
+          }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, sharedSessionId, sharedTaskId, 'completed', {
+              sourceMessageId: sharedSourceMessageId,
+              summary: 'Ready lane summary',
+              resultAnnotation: {
+                sourceMessageId: sharedSourceMessageId,
+                workspaceId,
+                sessionId: sharedSessionId,
+                taskId: sharedTaskId,
+                verification: 'verified',
+                summary: 'Ready lane summary',
+                shipState: 'pr-ready',
+                ...readyLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-ready-lane',
+                commandKind: 'test',
+                status: 'passed',
+                summary: 'Ready lane tests passed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'success',
+                sessionId: sharedSessionId,
+                taskId: sharedTaskId,
+                pullRequestUrl: 'https://github.com/example/repo/pull/51',
+              },
+              ...readyLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-ready-lane',
+              workspaceId,
+              sessionId: sharedSessionId,
+              sourceMessageId: sharedSourceMessageId,
+              taskId: sharedTaskId,
+              commandKind: 'test',
+              status: 'passed',
+              startedAt: '2026-04-22T00:01:00.000Z',
+              summary: 'Ready lane tests passed.',
+              ...readyLane,
+            },
+          ],
+        }),
+        makeLaneRecord(workspaceId, sharedSessionId, blockedLane, {
+          session: makeSession({
+            id: sharedSessionId,
+            title: 'Blocked worktree attempt',
+            updatedAt: '2026-04-22T00:01:00.000Z',
+          }),
+          taskLedgerRecords: [
+            makeTaskLedgerRecord(workspaceId, sharedSessionId, sharedTaskId, 'blocked', {
+              sourceMessageId: sharedSourceMessageId,
+              summary: 'Blocked lane summary',
+              resultAnnotation: {
+                sourceMessageId: sharedSourceMessageId,
+                workspaceId,
+                sessionId: sharedSessionId,
+                taskId: sharedTaskId,
+                verification: 'unverified',
+                summary: 'Blocked lane summary',
+                shipState: 'blocked-by-checks',
+                reviewState: 'needs-retry',
+                ...blockedLane,
+              },
+              recentVerificationRef: {
+                runId: 'verify-blocked-lane',
+                commandKind: 'build',
+                status: 'failed',
+                summary: 'Blocked lane build failed.',
+              },
+              recentShipRef: {
+                action: 'pullRequest',
+                outcome: 'blocked',
+                sessionId: sharedSessionId,
+                taskId: sharedTaskId,
+                pullRequestUrl: 'https://github.com/example/repo/pull/52',
+              },
+              ...blockedLane,
+            }),
+          ],
+          verificationRuns: [
+            {
+              id: 'verify-blocked-lane',
+              workspaceId,
+              sessionId: sharedSessionId,
+              sourceMessageId: sharedSourceMessageId,
+              taskId: sharedTaskId,
+              commandKind: 'build',
+              status: 'failed',
+              startedAt: '2026-04-22T00:01:30.000Z',
+              summary: 'Blocked lane build failed.',
+              ...blockedLane,
+            },
+          ],
+        }),
+      ],
+    });
+
+    const laneSummaries = selectWorkspaceLaneComparisonSummaries(useStore.getState(), workspaceId);
+    const readySummary = laneSummaries.find((lane) => lane.laneId === 'branch:feature/ready-lane');
+    const blockedSummary = laneSummaries.find((lane) => lane.laneId === 'worktree:/tmp/worktrees/blocked-lane');
+
+    expect(laneSummaries).toHaveLength(2);
+    expect(new Set(laneSummaries.map((lane) => lane.laneId))).toEqual(new Set([
+      'branch:feature/ready-lane',
+      'worktree:/tmp/worktrees/blocked-lane',
+    ]));
+    expect(readySummary).toEqual(expect.objectContaining({
+      sessionId: sharedSessionId,
+      summary: 'Ready lane summary',
+      verification: expect.objectContaining({
+        state: 'verified',
+        summary: 'Ready lane tests passed.',
+      }),
+      shipReadiness: expect.objectContaining({
+        shipState: 'pr-ready',
+        pullRequestUrl: 'https://github.com/example/repo/pull/51',
+      }),
+    }));
+    expect(blockedSummary).toEqual(expect.objectContaining({
+      sessionId: sharedSessionId,
+      summary: 'Blocked lane summary',
+      verification: expect.objectContaining({
+        state: 'unverified',
+        summary: 'Blocked lane build failed.',
+      }),
+      shipReadiness: expect.objectContaining({
+        shipState: 'blocked-by-checks',
+        reviewState: 'needs-retry',
+        pullRequestUrl: 'https://github.com/example/repo/pull/52',
+      }),
+    }));
+    expect(readySummary?.shipReadiness.reviewState).toBeUndefined();
+    expect(blockedSummary?.shipReadiness.shipState).not.toBe(readySummary?.shipReadiness.shipState);
+    expect(blockedSummary?.verification.summary).not.toBe(readySummary?.verification.summary);
+  });
+
+  it('keeps lane comparison summaries isolated across lane rehydration and workspace navigation', () => {
+    const sharedSessionId = 'session-shared';
+    const workspaceOneLaneA = { laneContext: { kind: 'branch', branch: 'feature/shared-a' } } as const;
+    const workspaceOneLaneB = {
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/shared-b', branch: 'feature/shared-b' },
+    } as const;
+    const workspaceTwoLane = { laneContext: { kind: 'branch', branch: 'feature/workspace-two' } } as const;
+
+    useStore.getState().setWorkspaceBootstrap('workspace-1', {
+      ...makeBootstrap('workspace-1', undefined),
+      laneRecords: [
+        makeLaneRecord('workspace-1', sharedSessionId, workspaceOneLaneA, {
+          taskLedgerRecords: [
+            makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-a', 'completed', {
+              sourceMessageId: 'message-a',
+              summary: 'Workspace 1 lane A ready',
+              resultAnnotation: {
+                sourceMessageId: 'message-a',
+                workspaceId: 'workspace-1',
+                sessionId: sharedSessionId,
+                taskId: 'task-a',
+                verification: 'verified',
+                summary: 'Workspace 1 lane A ready',
+                shipState: 'pr-ready',
+                ...workspaceOneLaneA,
+              },
+              ...workspaceOneLaneA,
+            }),
+          ],
+        }),
+        makeLaneRecord('workspace-1', sharedSessionId, workspaceOneLaneB, {
+          taskLedgerRecords: [
+            makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-b', 'blocked', {
+              sourceMessageId: 'message-b',
+              summary: 'Workspace 1 lane B blocked',
+              resultAnnotation: {
+                sourceMessageId: 'message-b',
+                workspaceId: 'workspace-1',
+                sessionId: sharedSessionId,
+                taskId: 'task-b',
+                verification: 'unverified',
+                summary: 'Workspace 1 lane B blocked',
+                shipState: 'blocked-by-requested-changes',
+                reviewState: 'needs-retry',
+                ...workspaceOneLaneB,
+              },
+              ...workspaceOneLaneB,
+            }),
+          ],
+        }),
+      ],
+    });
+    useStore.getState().setWorkspaceBootstrap('workspace-2', {
+      ...makeBootstrap('workspace-2', undefined),
+      laneRecords: [
+        makeLaneRecord('workspace-2', sharedSessionId, workspaceTwoLane, {
+          taskLedgerRecords: [
+            makeTaskLedgerRecord('workspace-2', sharedSessionId, 'task-c', 'completed', {
+              sourceMessageId: 'message-c',
+              summary: 'Workspace 2 lane ready',
+              resultAnnotation: {
+                sourceMessageId: 'message-c',
+                workspaceId: 'workspace-2',
+                sessionId: sharedSessionId,
+                taskId: 'task-c',
+                verification: 'verified',
+                summary: 'Workspace 2 lane ready',
+                shipState: 'local-ready',
+                ...workspaceTwoLane,
+              },
+              ...workspaceTwoLane,
+            }),
+          ],
+        }),
+      ],
+    });
+    useStore.getState().setActiveWorkspace('workspace-1');
+
+    expect(selectWorkspaceLaneComparisonSummaries(useStore.getState(), 'workspace-1')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ laneId: 'branch:feature/shared-a', shipReadiness: expect.objectContaining({ shipState: 'pr-ready' }) }),
+      expect.objectContaining({
+        laneId: 'worktree:/tmp/worktrees/shared-b',
+        shipReadiness: expect.objectContaining({ shipState: 'blocked-by-requested-changes' }),
+      }),
+    ]));
+    expect(selectActiveWorkspaceLaneComparisonSummaries(useStore.getState())).toEqual(expect.arrayContaining([
+      expect.objectContaining({ laneId: 'branch:feature/shared-a' }),
+      expect.objectContaining({ laneId: 'worktree:/tmp/worktrees/shared-b' }),
+    ]));
+
+    useStore.getState().setWorkspaceBootstrap('workspace-1', {
+      ...makeBootstrap('workspace-1', undefined),
+      laneRecords: [
+        makeLaneRecord('workspace-1', sharedSessionId, workspaceOneLaneA, {
+          taskLedgerRecords: [
+            makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-a', 'blocked', {
+              sourceMessageId: 'message-a',
+              summary: 'Workspace 1 lane A now blocked',
+              resultAnnotation: {
+                sourceMessageId: 'message-a',
+                workspaceId: 'workspace-1',
+                sessionId: sharedSessionId,
+                taskId: 'task-a',
+                verification: 'unverified',
+                summary: 'Workspace 1 lane A now blocked',
+                shipState: 'not-ready',
+                ...workspaceOneLaneA,
+              },
+              ...workspaceOneLaneA,
+            }),
+          ],
+        }),
+        makeLaneRecord('workspace-1', sharedSessionId, workspaceOneLaneB, {
+          taskLedgerRecords: [
+            makeTaskLedgerRecord('workspace-1', sharedSessionId, 'task-b', 'blocked', {
+              sourceMessageId: 'message-b',
+              summary: 'Workspace 1 lane B still blocked',
+              resultAnnotation: {
+                sourceMessageId: 'message-b',
+                workspaceId: 'workspace-1',
+                sessionId: sharedSessionId,
+                taskId: 'task-b',
+                verification: 'unverified',
+                summary: 'Workspace 1 lane B still blocked',
+                shipState: 'blocked-by-requested-changes',
+                reviewState: 'needs-retry',
+                ...workspaceOneLaneB,
+              },
+              ...workspaceOneLaneB,
+            }),
+          ],
+        }),
+      ],
+    });
+
+    expect(selectWorkspaceLaneComparisonSummaries(useStore.getState(), 'workspace-1')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        laneId: 'branch:feature/shared-a',
+        summary: 'Workspace 1 lane A now blocked',
+        shipReadiness: expect.objectContaining({ shipState: 'not-ready' }),
+      }),
+      expect.objectContaining({
+        laneId: 'worktree:/tmp/worktrees/shared-b',
+        summary: 'Workspace 1 lane B still blocked',
+        shipReadiness: expect.objectContaining({ shipState: 'blocked-by-requested-changes' }),
+      }),
+    ]));
+
+    useStore.getState().setActiveWorkspace('workspace-2');
+
+    expect(selectActiveWorkspaceLaneComparisonSummaries(useStore.getState())).toEqual([
+      expect.objectContaining({
+        sessionId: sharedSessionId,
+        laneId: 'branch:feature/workspace-two',
+        summary: 'Workspace 2 lane ready',
+        shipReadiness: expect.objectContaining({ shipState: 'local-ready' }),
+      }),
+    ]);
+    expect(selectWorkspaceLaneComparisonSummaries(useStore.getState(), 'workspace-1')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ laneId: 'branch:feature/shared-a', shipReadiness: expect.objectContaining({ shipState: 'not-ready' }) }),
+      expect.objectContaining({
+        laneId: 'worktree:/tmp/worktrees/shared-b',
+        shipReadiness: expect.objectContaining({ shipState: 'blocked-by-requested-changes' }),
+      }),
+    ]));
   });
 
   it('keeps lane-specific task and result state isolated when overlapping ids arrive in one session', () => {
@@ -1093,6 +1775,35 @@ function makeTaskLedgerRecord(
     recentShipRef: overrides.recentShipRef,
     laneId: overrides.laneId,
     laneContext: overrides.laneContext,
+  };
+}
+
+function makeLaneRecord(
+  workspaceId: string,
+  sessionId: string,
+  lane: LaneAttribution,
+  overrides: Partial<WorkspaceLaneRecord> = {},
+): WorkspaceLaneRecord {
+  const laneId = lane.laneId ?? (lane.laneContext?.kind === 'branch'
+    ? `branch:${lane.laneContext.branch}`
+    : lane.laneContext?.kind === 'worktree'
+      ? `worktree:${lane.laneContext.worktreePath}`
+      : undefined);
+
+  if (!laneId || !lane.laneContext) {
+    throw new Error('makeLaneRecord requires explicit lane attribution.');
+  }
+
+  return {
+    workspaceId,
+    sessionId,
+    laneId,
+    laneContext: lane.laneContext,
+    traceability: overrides.traceability ?? { taskEntries: [], resultAnnotations: [] },
+    verificationRuns: overrides.verificationRuns ?? [],
+    browserEvidenceRecords: overrides.browserEvidenceRecords ?? [],
+    taskLedgerRecords: overrides.taskLedgerRecords ?? [],
+    session: overrides.session,
   };
 }
 

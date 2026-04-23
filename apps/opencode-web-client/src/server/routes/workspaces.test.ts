@@ -20,11 +20,32 @@ describe('WorkspacesRoute capability probes', () => {
     }
     const capabilities = makeCapabilityProbe(workspace.id)
     const gitStatus = makeGitStatus(workspace.id)
-    const sessions = [makeSession('session-1', {
-      laneId: 'branch:feature/lane-a',
-      laneContext: { kind: 'branch', branch: 'feature/lane-a' },
-    })]
-    const verificationRuns: VerificationRun[] = [makeVerificationRun(workspace.id)]
+    const sessions = [
+      makeSession('session-1', {
+        laneId: 'branch:feature/lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      }),
+      makeSession('session-2', {
+        laneId: 'worktree:/tmp/worktrees/lane-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }),
+    ]
+    const verificationRuns: VerificationRun[] = [
+      makeVerificationRun(workspace.id, {
+        laneId: 'branch:feature/lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+      }),
+      makeVerificationRun(workspace.id, {
+        id: 'verify-run-2',
+        sessionId: 'session-2',
+        sourceMessageId: 'message-2',
+        taskId: 'task-2',
+        commandKind: 'test',
+        summary: 'Worktree tests passed.',
+        laneId: 'worktree:/tmp/worktrees/lane-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      }),
+    ]
     const browserEvidenceRecords = [
       {
         id: 'browser-evidence-1',
@@ -35,6 +56,8 @@ describe('WorkspacesRoute capability probes', () => {
         taskId: 'task-1',
         summary: 'Captured browser evidence for http://127.0.0.1:4173/.',
         previewUrl: 'http://127.0.0.1:4173/',
+        laneId: 'branch:feature/lane-a',
+        laneContext: { kind: 'branch', branch: 'feature/lane-a' },
         consoleCapture: {
           capturedAt: '2026-04-22T00:00:01.000Z',
           entryCount: 1,
@@ -52,6 +75,26 @@ describe('WorkspacesRoute capability probes', () => {
           capturedAt: '2026-04-22T00:00:01.000Z',
         },
       },
+      {
+        id: 'browser-evidence-2',
+        workspaceId: workspace.id,
+        capturedAt: '2026-04-22T00:00:03.000Z',
+        sessionId: 'session-2',
+        sourceMessageId: 'message-2',
+        taskId: 'task-2',
+        summary: 'Captured browser evidence for the worktree lane.',
+        previewUrl: 'http://127.0.0.1:4174/',
+        laneId: 'worktree:/tmp/worktrees/lane-b',
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+        consoleCapture: {
+          capturedAt: '2026-04-22T00:00:03.000Z',
+          entryCount: 2,
+          errorCount: 0,
+          warningCount: 0,
+          exceptionCount: 0,
+          levels: ['log'],
+        },
+      },
     ]
     const taskLedgerService = new TaskLedgerService({ stateDir })
     const workspaceTaskRecord = makeTaskLedgerRecord(workspace.id, 'session-1', 'task-1', 'running', {
@@ -65,7 +108,23 @@ describe('WorkspacesRoute capability probes', () => {
         terminalLogRef: 'verification-logs/ws-test/verify-run-1.log',
       },
     })
-    taskLedgerService.replaceRecords(workspace.id, [workspaceTaskRecord])
+    const worktreeTaskRecord = makeTaskLedgerRecord(workspace.id, 'session-2', 'task-2', 'completed', {
+      laneId: 'worktree:/tmp/worktrees/lane-b',
+      laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+      sourceMessageId: 'message-2',
+      summary: 'Ready to open PR from the worktree lane.',
+      updatedAt: '2026-04-21T00:02:00.000Z',
+      recentShipRef: {
+        action: 'pullRequest',
+        outcome: 'success',
+        sessionId: 'session-2',
+        messageId: 'message-2',
+        taskId: 'task-2',
+        terminalLogRef: 'ship-logs/ws-test/pr-task-2.log',
+        pullRequestUrl: 'https://github.com/example/repo/pull/88',
+      },
+    })
+    taskLedgerService.replaceRecords(workspace.id, [workspaceTaskRecord, worktreeTaskRecord])
     taskLedgerService.replaceRecords('ws-other', [makeTaskLedgerRecord('ws-other', 'session-2', 'task-2', 'completed', {
       recentShipRef: {
         action: 'pullRequest',
@@ -101,6 +160,8 @@ describe('WorkspacesRoute capability probes', () => {
         } as any,
         sessionService: {
           listSessions: async () => sessions,
+          resolveLaneComparisonState: () => undefined,
+          setLaneComparisonState: (_workspaceId: string, state: unknown) => state,
         } as any,
         configService: {
           getConfig: async () => ({
@@ -146,7 +207,31 @@ describe('WorkspacesRoute capability probes', () => {
       expect(bootstrapPayload.data.sessions).toEqual(sessions)
       expect(bootstrapPayload.data.verificationRuns).toEqual(verificationRuns)
       expect(bootstrapPayload.data.browserEvidenceRecords).toEqual(browserEvidenceRecords)
-      expect(bootstrapPayload.data.taskLedgerRecords).toEqual([workspaceTaskRecord])
+      expect(bootstrapPayload.data.taskLedgerRecords).toEqual([worktreeTaskRecord, workspaceTaskRecord])
+      expect(bootstrapPayload.data.laneRecords).toEqual([
+        {
+          workspaceId: workspace.id,
+          sessionId: 'session-1',
+          laneId: 'branch:feature/lane-a',
+          laneContext: { kind: 'branch', branch: 'feature/lane-a' },
+          session: sessions[0],
+          traceability: { taskEntries: [], resultAnnotations: [] },
+          verificationRuns: [verificationRuns[0]],
+          browserEvidenceRecords: [browserEvidenceRecords[0]],
+          taskLedgerRecords: [workspaceTaskRecord],
+        },
+        {
+          workspaceId: workspace.id,
+          sessionId: 'session-2',
+          laneId: 'worktree:/tmp/worktrees/lane-b',
+          laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/lane-b', branch: 'feature/lane-b' },
+          session: sessions[1],
+          traceability: { taskEntries: [], resultAnnotations: [] },
+          verificationRuns: [verificationRuns[1]],
+          browserEvidenceRecords: [browserEvidenceRecords[1]],
+          taskLedgerRecords: [worktreeTaskRecord],
+        },
+      ])
 
       const capabilityResponse = await route.request(`http://localhost/${workspace.id}/capabilities`)
       const capabilityPayload = await capabilityResponse.json()
@@ -327,6 +412,8 @@ describe('WorkspacesRoute capability probes', () => {
             laneId: 'lane-worktree-runtime',
             laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/runtime', branch: 'feature/runtime' },
           })],
+          resolveLaneComparisonState: () => undefined,
+          setLaneComparisonState: (_workspaceId: string, state: unknown) => state,
         } as any,
         configService: {
           getConfig: async () => ({
@@ -412,6 +499,181 @@ describe('WorkspacesRoute capability probes', () => {
       rmSync(stateDir, { recursive: true, force: true })
     }
   })
+
+  it('persists explicit selected and adopted lanes without allowing implicit or cross-workspace adoption', async () => {
+    const workspaceRoot = mkdtempSync(path.join(tmpdir(), 'workspaces-route-adopt-'))
+    const workspace: WorkspaceProfile = {
+      id: 'ws-adopt',
+      name: 'Adopt workspace',
+      rootPath: workspaceRoot,
+      addedAt: '2026-04-21T00:00:00.000Z',
+    }
+    const capabilities = makeCapabilityProbe(workspace.id)
+    const gitStatus = makeGitStatus(workspace.id)
+    const sessions = [
+      makeSession('session-branch', {
+        laneContext: { kind: 'branch', branch: 'feature/adopt-branch' },
+      }),
+      makeSession('session-worktree', {
+        laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/adopt-worktree', branch: 'feature/adopt-worktree' },
+      }),
+    ]
+    const laneComparisonByWorkspace = new Map<string, any>([
+      ['ws-other', {
+        selectedLane: {
+          sessionId: 'session-other',
+          laneId: 'branch:feature/other',
+          laneContext: { kind: 'branch', branch: 'feature/other' },
+        },
+      }],
+    ])
+
+    try {
+      const route = WorkspacesRoute({
+        registry: {
+          list: () => [workspace],
+          get: (workspaceId: string) => workspaceId === workspace.id ? workspace : undefined,
+          getActive: () => workspace,
+          setActive: () => workspace,
+        } as any,
+        serverManager: {
+          get: () => runtime,
+          start: async () => runtime,
+          waitUntilReady: async () => runtime,
+          toJSON: () => runtime,
+          getAll: () => [runtime],
+          stop: async () => {},
+          restart: async () => runtime,
+        } as any,
+        clientFactory: {
+          forWorkspace: () => ({
+            health: async () => ({ ok: true, version: '1.2.3' }),
+            listSessions: async () => sessions,
+          }),
+        } as any,
+        sessionService: {
+          listSessions: async () => sessions,
+          resolveLaneComparisonState: (workspaceId: string) => laneComparisonByWorkspace.get(workspaceId),
+          setLaneComparisonState: (workspaceId: string, state: unknown) => {
+            if (state === undefined) {
+              laneComparisonByWorkspace.delete(workspaceId)
+              return undefined
+            }
+            laneComparisonByWorkspace.set(workspaceId, state)
+            return state
+          },
+        } as any,
+        configService: {
+          getConfig: async () => ({
+            providers: [],
+            models: [],
+            agents: [],
+            commands: [],
+            connectedProviderIds: [],
+          }),
+        } as any,
+        effortService: {
+          getEffortSummary: () => ({ sessionOverrides: {} }),
+        } as any,
+        capabilityProbeService: {
+          probeWorkspace: async () => capabilities,
+        } as any,
+        contextCatalogService: {
+          getContextCatalog: async () => ({
+            workspaceId: workspace.id,
+            collectedAt: '2026-04-22T00:00:00.000Z',
+            instructionSources: [],
+            capabilityEntries: [],
+          }),
+        } as any,
+        workspaceShipService: {
+          getStatus: async () => gitStatus,
+        } as any,
+        verificationService: {
+          getWorkspaceSummary: () => ({
+            runs: [],
+            browserEvidenceRecords: [],
+            traceability: { taskEntries: [], resultAnnotations: [] },
+          }),
+        } as any,
+        taskLedgerService: {
+          listRecords: () => [],
+        } as any,
+      })
+
+      const selectResponse = await route.request(`http://localhost/${workspace.id}/compare/select-lane`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: 'session-worktree',
+          laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/adopt-worktree', branch: 'feature/adopt-worktree' },
+        }),
+        headers: { 'content-type': 'application/json' },
+      })
+      const selectPayload = await selectResponse.json()
+      expect(selectResponse.status).toBe(200)
+      expect(selectPayload.data.laneComparison).toEqual({
+        selectedLane: {
+          sessionId: 'session-worktree',
+          laneId: 'worktree:/tmp/worktrees/adopt-worktree',
+          laneContext: { kind: 'worktree', worktreePath: '/tmp/worktrees/adopt-worktree', branch: 'feature/adopt-worktree' },
+        },
+      })
+
+      const adoptResponse = await route.request(`http://localhost/${workspace.id}/compare/adopt-lane`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: 'session-branch',
+          laneContext: { kind: 'branch', branch: 'feature/adopt-branch' },
+        }),
+        headers: { 'content-type': 'application/json' },
+      })
+      const adoptPayload = await adoptResponse.json()
+      expect(adoptResponse.status).toBe(200)
+      expect(adoptPayload.data.laneComparison).toEqual({
+        selectedLane: {
+          sessionId: 'session-branch',
+          laneId: 'branch:feature/adopt-branch',
+          laneContext: { kind: 'branch', branch: 'feature/adopt-branch' },
+        },
+        adoptedLane: {
+          sessionId: 'session-branch',
+          laneId: 'branch:feature/adopt-branch',
+          laneContext: { kind: 'branch', branch: 'feature/adopt-branch' },
+        },
+      })
+
+      const implicitResponse = await route.request(`http://localhost/${workspace.id}/compare/adopt-lane`, {
+        method: 'POST',
+        body: JSON.stringify({ sessionId: 'session-branch' }),
+        headers: { 'content-type': 'application/json' },
+      })
+      expect(implicitResponse.status).toBe(400)
+
+      const crossWorkspaceResponse = await route.request(`http://localhost/${workspace.id}/compare/adopt-lane`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: 'session-other',
+          laneContext: { kind: 'branch', branch: 'feature/other' },
+        }),
+        headers: { 'content-type': 'application/json' },
+      })
+      expect(crossWorkspaceResponse.status).toBe(400)
+
+      const bootstrapResponse = await route.request(`http://localhost/${workspace.id}/bootstrap`)
+      const bootstrapPayload = await bootstrapResponse.json()
+      expect(bootstrapResponse.status).toBe(200)
+      expect(bootstrapPayload.data.laneComparison).toEqual(adoptPayload.data.laneComparison)
+      expect(laneComparisonByWorkspace.get('ws-other')).toEqual({
+        selectedLane: {
+          sessionId: 'session-other',
+          laneId: 'branch:feature/other',
+          laneContext: { kind: 'branch', branch: 'feature/other' },
+        },
+      })
+    } finally {
+      rmSync(workspaceRoot, { recursive: true, force: true })
+    }
+  })
 })
 
 const runtime = {
@@ -425,20 +687,22 @@ const runtime = {
   state: 'ready' as const,
 }
 
-function makeVerificationRun(workspaceId: string): VerificationRun {
+function makeVerificationRun(workspaceId: string, overrides: Partial<VerificationRun> = {}): VerificationRun {
   return {
-    id: 'verify-run-1',
+    id: overrides.id ?? 'verify-run-1',
     workspaceId,
-    sessionId: 'session-1',
-    sourceMessageId: 'message-1',
-    taskId: 'task-1',
-    commandKind: 'lint',
-    status: 'passed',
-    startedAt: '2026-04-21T00:00:00.000Z',
-    finishedAt: '2026-04-21T00:00:05.000Z',
-    summary: 'Lint clean.',
-    exitCode: 0,
-    terminalLogRef: 'verification-logs/ws-test/verify-run-1.log',
+    sessionId: overrides.sessionId ?? 'session-1',
+    sourceMessageId: overrides.sourceMessageId ?? 'message-1',
+    taskId: overrides.taskId ?? 'task-1',
+    commandKind: overrides.commandKind ?? 'lint',
+    status: overrides.status ?? 'passed',
+    startedAt: overrides.startedAt ?? '2026-04-21T00:00:00.000Z',
+    finishedAt: overrides.finishedAt ?? '2026-04-21T00:00:05.000Z',
+    summary: overrides.summary ?? 'Lint clean.',
+    exitCode: overrides.exitCode ?? 0,
+    terminalLogRef: overrides.terminalLogRef ?? 'verification-logs/ws-test/verify-run-1.log',
+    laneId: overrides.laneId,
+    laneContext: overrides.laneContext,
   }
 }
 

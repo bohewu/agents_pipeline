@@ -323,6 +323,256 @@ describe('createApp verification routes', () => {
     })
   })
 
+  it('routes explicit compare-and-adopt lane mutations through the mounted workspace APIs and preserves single-lane guardrails', async () => {
+    const workspace: WorkspaceProfile = {
+      id: 'ws-compare-route',
+      name: 'Compare route test',
+      rootPath: '/tmp/ws-compare-route',
+      addedAt: '2026-04-22T00:00:00.000Z',
+    }
+    const runtime = {
+      workspaceId: workspace.id,
+      pid: 123,
+      port: 3456,
+      baseUrl: 'http://127.0.0.1:3456',
+      password: 'secret',
+      username: 'opencode-web',
+      startedAt: '2026-04-22T00:00:00.000Z',
+      state: 'ready' as const,
+    }
+    const laneComparisonByWorkspace = new Map<string, any>()
+    const gitStatus: WorkspaceGitStatusResult = {
+      outcome: 'success',
+      data: {
+        workspaceId: workspace.id,
+        checkedAt: '2026-04-22T00:00:00.000Z',
+        branch: { name: 'main', detached: false },
+        upstream: {
+          status: 'tracked',
+          ref: 'origin/main',
+          remote: 'origin',
+          branch: 'main',
+          ahead: 0,
+          behind: 0,
+          remoteProvider: 'github',
+        },
+        changeSummary: {
+          staged: { count: 0, paths: [], truncated: false },
+          unstaged: { count: 0, paths: [], truncated: false },
+          untracked: { count: 0, paths: [], truncated: false },
+          conflicted: { count: 0, paths: [], truncated: false },
+          hasChanges: false,
+          hasStagedChanges: false,
+        },
+        pullRequest: { outcome: 'degraded', supported: false, summary: 'Unavailable', issues: [] },
+        linkedPullRequest: {
+          outcome: 'degraded',
+          linked: false,
+          summary: 'Unavailable',
+          issues: [],
+        },
+      },
+      issues: [],
+    }
+    const sessions = [
+      {
+        id: 'session-branch',
+        title: 'Branch attempt',
+        createdAt: '2026-04-22T00:00:00.000Z',
+        updatedAt: '2026-04-22T00:01:00.000Z',
+        messageCount: 1,
+        state: 'idle' as const,
+        laneContext: { kind: 'branch' as const, branch: 'feature/compare-branch' },
+      },
+      {
+        id: 'session-worktree',
+        title: 'Worktree attempt',
+        createdAt: '2026-04-22T00:00:00.000Z',
+        updatedAt: '2026-04-22T00:02:00.000Z',
+        messageCount: 1,
+        state: 'idle' as const,
+        laneContext: {
+          kind: 'worktree' as const,
+          worktreePath: '/tmp/worktrees/compare-route',
+          branch: 'feature/compare-worktree',
+        },
+      },
+    ]
+
+    const app = createApp({
+      host: '127.0.0.1',
+      port: 3456,
+      appPaths: {
+        configDir: '/tmp/config',
+        dataDir: '/tmp/data',
+        stateDir: '/tmp/state',
+        cacheDir: '/tmp/cache',
+        logDir: '/tmp/logs',
+        workspaceRegistryFile: '/tmp/workspaces.json',
+        installManifestFile: '/tmp/install-manifest.json',
+        clientStaticDir: '/tmp/client',
+        serverBundleDir: '/tmp/server',
+        toolsDir: '/tmp/tools',
+      },
+    }, {
+      registry: {
+        list: () => [workspace],
+        get: (workspaceId: string) => workspaceId === workspace.id ? workspace : undefined,
+        getActive: () => workspace,
+        setActive: () => workspace,
+      } as any,
+      serverManager: {
+        get: () => runtime,
+        getAll: () => [runtime],
+        waitUntilReady: async () => runtime,
+        toJSON: (value: unknown) => value,
+      } as any,
+      clientFactory: {
+        forWorkspace: () => ({
+          health: async () => ({ ok: true, version: '1.2.3' }),
+          listMessages: async () => [],
+        }),
+      } as any,
+      sessionService: {
+        listSessions: async () => sessions,
+        resolveLaneComparisonState: (workspaceId: string) => laneComparisonByWorkspace.get(workspaceId),
+        setLaneComparisonState: (workspaceId: string, state: unknown) => {
+          if (state === undefined) {
+            laneComparisonByWorkspace.delete(workspaceId)
+            return undefined
+          }
+
+          laneComparisonByWorkspace.set(workspaceId, state)
+          return state
+        },
+      } as any,
+      effortService: {
+        getEffortSummary: () => ({ sessionOverrides: {} }),
+      } as any,
+      usageService: {} as any,
+      configService: {
+        getConfig: async () => ({
+          providers: [],
+          models: [],
+          agents: [],
+          commands: [],
+          connectedProviderIds: [],
+        }),
+      } as any,
+      diffService: {} as any,
+      fileService: {} as any,
+      permissionRegistry: {} as any,
+      eventBroker: { broadcast: vi.fn() } as any,
+      capabilityProbeService: {
+        probeWorkspace: async () => ({
+          workspaceId: workspace.id,
+          checkedAt: '2026-04-22T00:00:00.000Z',
+          localGit: { status: 'available', summary: 'Local git available' },
+          ghCli: { status: 'available', summary: 'GitHub CLI available' },
+          ghAuth: { status: 'available', summary: 'GitHub auth available' },
+          previewTarget: { status: 'available', summary: 'Preview target available' },
+          browserEvidence: { status: 'available', summary: 'Browser evidence available' },
+        }),
+      } as any,
+      contextCatalogService: {} as any,
+      workspaceShipService: {
+        getStatus: async () => gitStatus,
+      } as any,
+      taskLedgerService: {
+        listRecords: () => [],
+      } as any,
+      verificationService: {
+        listRuns: () => [],
+        runPreset: vi.fn(),
+        decorateMessages: (_workspaceId: string, _sessionId: string, messages: unknown[]) => messages,
+        getWorkspaceSummary: () => ({
+          runs: [],
+          browserEvidenceRecords: [],
+          traceability: { taskEntries: [], resultAnnotations: [] },
+        }),
+      } as any,
+    })
+
+    const selectResponse = await app.request(`http://localhost/api/workspaces/${workspace.id}/compare/select-lane`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'session-worktree',
+        laneContext: {
+          kind: 'worktree',
+          worktreePath: '/tmp/worktrees/compare-route',
+          branch: 'feature/compare-worktree',
+        },
+      }),
+    })
+    const selectPayload = await selectResponse.json()
+
+    expect(selectResponse.status).toBe(200)
+    expect(selectPayload.ok).toBe(true)
+    expect(selectPayload.data.laneComparison).toEqual({
+      selectedLane: {
+        sessionId: 'session-worktree',
+        laneId: 'worktree:/tmp/worktrees/compare-route',
+        laneContext: {
+          kind: 'worktree',
+          worktreePath: '/tmp/worktrees/compare-route',
+          branch: 'feature/compare-worktree',
+        },
+      },
+    })
+
+    const adoptResponse = await app.request(`http://localhost/api/workspaces/${workspace.id}/compare/adopt-lane`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'session-branch',
+        laneContext: { kind: 'branch', branch: 'feature/compare-branch' },
+      }),
+    })
+    const adoptPayload = await adoptResponse.json()
+
+    expect(adoptResponse.status).toBe(200)
+    expect(adoptPayload.ok).toBe(true)
+    expect(adoptPayload.data.laneComparison).toEqual({
+      selectedLane: {
+        sessionId: 'session-branch',
+        laneId: 'branch:feature/compare-branch',
+        laneContext: { kind: 'branch', branch: 'feature/compare-branch' },
+      },
+      adoptedLane: {
+        sessionId: 'session-branch',
+        laneId: 'branch:feature/compare-branch',
+        laneContext: { kind: 'branch', branch: 'feature/compare-branch' },
+      },
+    })
+
+    const guardrailResponse = await app.request(`http://localhost/api/workspaces/${workspace.id}/compare/adopt-lane`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sessionIds: ['session-branch', 'session-worktree'],
+      }),
+    })
+    const guardrailPayload = await guardrailResponse.json()
+
+    expect(guardrailResponse.status).toBe(400)
+    expect(guardrailPayload).toEqual({
+      ok: false,
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'adoptedLane must describe exactly one lane.',
+      },
+    })
+
+    const bootstrapResponse = await app.request(`http://localhost/api/workspaces/${workspace.id}/bootstrap`)
+    const bootstrapPayload = await bootstrapResponse.json()
+
+    expect(bootstrapResponse.status).toBe(200)
+    expect(bootstrapPayload.ok).toBe(true)
+    expect(bootstrapPayload.data.laneComparison).toEqual(adoptPayload.data.laneComparison)
+    expect(laneComparisonByWorkspace.get(workspace.id)).toEqual(adoptPayload.data.laneComparison)
+  })
+
   it('routes workspace-scoped git ship APIs through the ship service', async () => {
     const workspace: WorkspaceProfile = {
       id: 'ws-git-route',

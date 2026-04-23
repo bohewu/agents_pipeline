@@ -4,6 +4,7 @@ import type {
   LaneContextKind,
   MessageTraceLink,
   NormalizedMessage,
+  WorkspaceComparisonLaneReference,
 } from '../../shared/types.js'
 
 const LANE_KIND_VALUES: LaneContextKind[] = ['branch', 'worktree']
@@ -38,6 +39,21 @@ export function validateLaneAttributionRecord(
     ...(laneId ? { laneId } : {}),
     ...(laneContext ? { laneContext } : {}),
   })
+}
+
+export function validateWorkspaceComparisonLaneReferenceRecord(
+  candidate: Record<string, unknown>,
+  fieldPrefix: string,
+): WorkspaceComparisonLaneReference {
+  const lane = validateLaneAttributionRecord(candidate, fieldPrefix)
+  if (!lane) {
+    throw new Error(`Expected ${fieldPrefix} to include lane metadata.`)
+  }
+
+  return {
+    sessionId: readString(candidate.sessionId, `${fieldPrefix}.sessionId`),
+    ...lane,
+  }
 }
 
 export function mergeLaneAttribution(...values: Array<LaneAttribution | undefined>): LaneAttribution | undefined {

@@ -3,7 +3,21 @@ import { ok, fail } from '../create-server.js'
 import type { WorkspaceRegistry } from '../services/workspace-registry.js'
 import type { ManagedServerManager } from '../services/managed-server-manager.js'
 import type { OpenCodeClientFactory } from '../services/opencode-client-factory.js'
-import type { WorkspaceBootstrap, WorkspaceTraceabilitySummary } from '../../shared/types.js'
+import type {
+  BrowserEvidenceRecord,
+  LaneAttribution,
+  LaneContext,
+  SessionSummary,
+  TaskLedgerRecord,
+  VerificationRun,
+  WorkspaceComparisonLaneReference,
+  WorkspaceBootstrap,
+  WorkspaceLaneRecord,
+  WorkspaceLaneAdoptionRequest,
+  WorkspaceLaneComparisonState,
+  WorkspaceLaneSelectionRequest,
+  WorkspaceTraceabilitySummary,
+} from '../../shared/types.js'
 import type { ConfigService, NormalizedConfig } from '../services/config-service.js'
 import type { EffortService } from '../services/effort-service.js'
 import type { WorkspaceCapabilityProbeService } from '../services/workspace-capability-probe.js'
@@ -12,6 +26,11 @@ import type { WorkspaceShipService } from '../services/workspace-ship-service.js
 import type { TaskLedgerService } from '../services/task-ledger-service.js'
 import type { VerificationService } from '../services/verification-service.js'
 import type { SessionService } from '../services/session-service.js'
+import {
+  mergeLaneAttribution,
+  resolveLaneId,
+  validateWorkspaceComparisonLaneReferenceRecord,
+} from '../services/lane-attribution.js'
 import { execSync } from 'node:child_process'
 import path from 'node:path'
 
@@ -26,7 +45,7 @@ export interface WorkspacesRouteDeps {
   workspaceShipService: WorkspaceShipService
   verificationService: VerificationService
   taskLedgerService: TaskLedgerService
-  sessionService: Pick<SessionService, 'listSessions'>
+  sessionService: Pick<SessionService, 'listSessions' | 'resolveLaneComparisonState' | 'setLaneComparisonState'>
 }
 
 export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
@@ -155,6 +174,57 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
     return c.json(ok(bootstrap))
   })
 
+  route.post('/:workspaceId/compare/select-lane', async (c) => {
+    const workspaceId = c.req.param('workspaceId')
+    const workspace = registry.get(workspaceId)
+    if (!workspace) {
+      return c.json(fail('NOT_FOUND', `Workspace ${workspaceId} not found`), 404)
+    }
+
+    try {
+      const request = readWorkspaceLaneRequest(await c.req.json<WorkspaceLaneSelectionRequest>(), 'selectedLane')
+      const bootstrap = await getBootstrap(workspaceId, workspace.rootPath, workspace.opencodeConfigDir)
+      const selectedLane = resolveAvailableComparisonLaneReference(bootstrap, request)
+      if (!selectedLane) {
+        return c.json(fail('INVALID_LANE_SELECTION', 'Select exactly one lane from the current workspace comparison context.'), 400)
+      }
+
+      const laneComparison = sessionService.setLaneComparisonState(workspaceId, {
+        ...(bootstrap.laneComparison ?? {}),
+        selectedLane,
+      })
+      return c.json(ok(applyLaneComparisonStateToBootstrap(bootstrap, laneComparison)))
+    } catch (err: any) {
+      return c.json(fail('INVALID_INPUT', err.message), 400)
+    }
+  })
+
+  route.post('/:workspaceId/compare/adopt-lane', async (c) => {
+    const workspaceId = c.req.param('workspaceId')
+    const workspace = registry.get(workspaceId)
+    if (!workspace) {
+      return c.json(fail('NOT_FOUND', `Workspace ${workspaceId} not found`), 404)
+    }
+
+    try {
+      const request = readWorkspaceLaneRequest(await c.req.json<WorkspaceLaneAdoptionRequest>(), 'adoptedLane')
+      const bootstrap = await getBootstrap(workspaceId, workspace.rootPath, workspace.opencodeConfigDir)
+      const adoptedLane = resolveAvailableComparisonLaneReference(bootstrap, request)
+      if (!adoptedLane) {
+        return c.json(fail('INVALID_LANE_ADOPTION', 'Adoption requires one explicit lane from the current workspace comparison context.'), 400)
+      }
+
+      const laneComparison = sessionService.setLaneComparisonState(workspaceId, {
+        ...(bootstrap.laneComparison ?? {}),
+        selectedLane: adoptedLane,
+        adoptedLane,
+      })
+      return c.json(ok(applyLaneComparisonStateToBootstrap(bootstrap, laneComparison)))
+    } catch (err: any) {
+      return c.json(fail('INVALID_INPUT', err.message), 400)
+    }
+  })
+
   // GET /api/workspaces/:workspaceId/capabilities — get workspace capability probe
   route.get('/:workspaceId/capabilities', async (c) => {
     const workspaceId = c.req.param('workspaceId')
@@ -274,9 +344,23 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
     const capabilities = await capabilitiesPromise
     const git = await gitStatusPromise
     const verificationSummary = verificationService.getWorkspaceSummary(workspaceId)
+    const browserEvidenceRecords = verificationSummary.browserEvidenceRecords ?? []
     const taskLedgerRecords = taskLedgerService.listRecords(workspaceId)
+    const laneRecords = buildWorkspaceLaneRecords(
+      workspaceId,
+      sessions,
+      verificationSummary.traceability,
+      verificationSummary.runs,
+      browserEvidenceRecords,
+      taskLedgerRecords,
+    )
+    const persistedLaneComparison = sessionService.resolveLaneComparisonState(workspaceId)
+    const laneComparison = sanitizeLaneComparisonState(persistedLaneComparison, sessions, laneRecords)
+    if (!areLaneComparisonStatesEqual(persistedLaneComparison, laneComparison)) {
+      sessionService.setLaneComparisonState(workspaceId, laneComparison)
+    }
 
-    return {
+    return applyLaneComparisonStateToBootstrap({
       workspace,
       server: serverManager.toJSON(runtime),
       opencode: {
@@ -297,11 +381,12 @@ export function WorkspacesRoute(deps: WorkspacesRouteDeps): Hono {
       sessions,
       effort: effortService.getEffortSummary(rootPath),
       capabilities,
+      laneRecords,
       traceability: mergeTraceabilitySummaries(createEmptyTraceabilitySummary(), verificationSummary.traceability),
       verificationRuns: verificationSummary.runs,
-      browserEvidenceRecords: verificationSummary.browserEvidenceRecords ?? [],
+      browserEvidenceRecords,
       taskLedgerRecords,
-    }
+    }, laneComparison)
   }
 
   return route
@@ -322,4 +407,237 @@ function mergeTraceabilitySummaries(
     taskEntries: [...base.taskEntries, ...extra.taskEntries],
     resultAnnotations: [...base.resultAnnotations, ...extra.resultAnnotations],
   }
+}
+
+function buildWorkspaceLaneRecords(
+  workspaceId: string,
+  sessions: SessionSummary[],
+  traceability: WorkspaceTraceabilitySummary,
+  verificationRuns: VerificationRun[],
+  browserEvidenceRecords: BrowserEvidenceRecord[],
+  taskLedgerRecords: TaskLedgerRecord[],
+): WorkspaceLaneRecord[] {
+  const laneRecords = new Map<string, WorkspaceLaneRecord>()
+
+  const ensureLaneRecord = (
+    sessionId: string | undefined,
+    lane: LaneAttribution | undefined,
+  ): WorkspaceLaneRecord | undefined => {
+    if (!sessionId) return undefined
+
+    const laneId = resolveLaneId(lane)
+    const laneContext = lane?.laneContext ?? deriveLaneContextFromLaneId(laneId)
+    if (!laneId || !laneContext) return undefined
+
+    const key = `${workspaceId}::${sessionId}::${laneId}`
+    const existing = laneRecords.get(key)
+    if (existing) {
+      existing.laneContext = mergeLaneContexts(existing.laneContext, laneContext)
+      return existing
+    }
+
+    const nextRecord: WorkspaceLaneRecord = {
+      workspaceId,
+      sessionId,
+      laneId,
+      laneContext,
+      traceability: createEmptyTraceabilitySummary(),
+      verificationRuns: [],
+      browserEvidenceRecords: [],
+      taskLedgerRecords: [],
+    }
+    laneRecords.set(key, nextRecord)
+    return nextRecord
+  }
+
+  for (const session of sessions) {
+    const laneRecord = ensureLaneRecord(session.id, session)
+    if (!laneRecord) continue
+    laneRecord.session = session
+  }
+
+  for (const taskEntry of traceability.taskEntries) {
+    if (taskEntry.workspaceId !== workspaceId) continue
+    const laneRecord = ensureLaneRecord(taskEntry.sessionId, taskEntry)
+    if (!laneRecord) continue
+    laneRecord.traceability.taskEntries.push(taskEntry)
+  }
+
+  for (const resultAnnotation of traceability.resultAnnotations) {
+    if (resultAnnotation.workspaceId !== workspaceId) continue
+    const laneRecord = ensureLaneRecord(resultAnnotation.sessionId, resultAnnotation)
+    if (!laneRecord) continue
+    laneRecord.traceability.resultAnnotations.push(resultAnnotation)
+  }
+
+  for (const run of verificationRuns) {
+    if (run.workspaceId !== workspaceId) continue
+    const laneRecord = ensureLaneRecord(run.sessionId, run)
+    if (!laneRecord) continue
+    laneRecord.verificationRuns.push(run)
+  }
+
+  for (const record of browserEvidenceRecords) {
+    if (record.workspaceId !== workspaceId) continue
+    const laneRecord = ensureLaneRecord(record.sessionId, record)
+    if (!laneRecord) continue
+    laneRecord.browserEvidenceRecords.push(record)
+  }
+
+  for (const record of taskLedgerRecords) {
+    if (record.workspaceId !== workspaceId) continue
+    const laneRecord = ensureLaneRecord(
+      resolveTaskLedgerRecordSessionId(record),
+      mergeLaneAttribution(record, record.resultAnnotation),
+    )
+    if (!laneRecord) continue
+    laneRecord.taskLedgerRecords.push(record)
+  }
+
+  return [...laneRecords.values()]
+}
+
+function resolveTaskLedgerRecordSessionId(record: TaskLedgerRecord): string | undefined {
+  return record.sessionId ?? record.resultAnnotation?.sessionId
+}
+
+function deriveLaneContextFromLaneId(laneId: string | undefined): LaneContext | undefined {
+  if (!laneId) return undefined
+  if (laneId.startsWith('branch:')) {
+    return {
+      kind: 'branch',
+      branch: laneId.slice('branch:'.length),
+    }
+  }
+  if (laneId.startsWith('worktree:')) {
+    return {
+      kind: 'worktree',
+      worktreePath: laneId.slice('worktree:'.length),
+    }
+  }
+  return undefined
+}
+
+function mergeLaneContexts(base: LaneContext, extra: LaneContext): LaneContext {
+  if (base.kind !== extra.kind) return base
+  if (base.kind === 'branch') return base
+
+  return {
+    kind: 'worktree',
+    worktreePath: base.worktreePath,
+    ...(base.branch ?? extra.branch ? { branch: base.branch ?? extra.branch } : {}),
+  }
+}
+
+function applyLaneComparisonStateToBootstrap(
+  bootstrap: WorkspaceBootstrap,
+  laneComparison: WorkspaceLaneComparisonState | undefined,
+): WorkspaceBootstrap {
+  if (!laneComparison) {
+    return bootstrap.laneComparison === undefined
+      ? bootstrap
+      : { ...bootstrap, laneComparison: undefined }
+  }
+
+  return {
+    ...bootstrap,
+    laneComparison,
+  }
+}
+
+function sanitizeLaneComparisonState(
+  laneComparison: WorkspaceLaneComparisonState | undefined,
+  sessions: SessionSummary[],
+  laneRecords: WorkspaceLaneRecord[],
+): WorkspaceLaneComparisonState | undefined {
+  if (!laneComparison) return undefined
+
+  const selectedLane = resolveAvailableComparisonLaneReference({ sessions, laneRecords }, laneComparison.selectedLane)
+  const adoptedLane = resolveAvailableComparisonLaneReference({ sessions, laneRecords }, laneComparison.adoptedLane)
+
+  if (!selectedLane && !adoptedLane) {
+    return undefined
+  }
+
+  return {
+    ...(selectedLane ? { selectedLane } : {}),
+    ...(adoptedLane ? { adoptedLane } : {}),
+  }
+}
+
+function buildWorkspaceComparisonLaneReferences(
+  sessions: SessionSummary[],
+  laneRecords: WorkspaceLaneRecord[],
+): WorkspaceComparisonLaneReference[] {
+  const references = new Map<string, WorkspaceComparisonLaneReference>()
+
+  const upsert = (sessionId: string | undefined, lane: LaneAttribution | undefined) => {
+    if (!sessionId) return
+
+    const laneId = resolveLaneId(lane)
+    const laneContext = lane?.laneContext ?? deriveLaneContextFromLaneId(laneId)
+    if (!laneId || !laneContext) return
+
+    references.set(`${sessionId}::${laneId}`, {
+      sessionId,
+      laneId,
+      laneContext,
+    })
+  }
+
+  for (const session of sessions) {
+    upsert(session.id, session)
+  }
+
+  for (const laneRecord of laneRecords) {
+    upsert(laneRecord.sessionId, laneRecord)
+  }
+
+  return [...references.values()]
+}
+
+function resolveAvailableComparisonLaneReference(
+  source: Pick<WorkspaceBootstrap, 'sessions' | 'laneRecords'>,
+  candidate: WorkspaceComparisonLaneReference | undefined,
+): WorkspaceComparisonLaneReference | undefined {
+  if (!candidate) return undefined
+
+  const laneId = resolveLaneId(candidate)
+  if (!candidate.sessionId || !laneId) return undefined
+
+  return buildWorkspaceComparisonLaneReferences(source.sessions, source.laneRecords ?? [])
+    .find((reference) => reference.sessionId === candidate.sessionId && reference.laneId === laneId)
+}
+
+function areLaneComparisonStatesEqual(
+  left: WorkspaceLaneComparisonState | undefined,
+  right: WorkspaceLaneComparisonState | undefined,
+): boolean {
+  return areComparisonLaneReferencesEqual(left?.selectedLane, right?.selectedLane)
+    && areComparisonLaneReferencesEqual(left?.adoptedLane, right?.adoptedLane)
+}
+
+function areComparisonLaneReferencesEqual(
+  left: WorkspaceComparisonLaneReference | undefined,
+  right: WorkspaceComparisonLaneReference | undefined,
+): boolean {
+  if (!left && !right) return true
+  if (!left || !right) return false
+  return left.sessionId === right.sessionId && resolveLaneId(left) === resolveLaneId(right)
+}
+
+function readWorkspaceLaneRequest(
+  value: unknown,
+  fieldPrefix: string,
+): WorkspaceComparisonLaneReference {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Expected ${fieldPrefix} to be an object.`)
+  }
+
+  const candidate = value as Record<string, unknown>
+  if (Array.isArray(candidate.lanes) || Array.isArray(candidate.laneIds) || Array.isArray(candidate.sessionIds)) {
+    throw new Error(`${fieldPrefix} must describe exactly one lane.`)
+  }
+
+  return validateWorkspaceComparisonLaneReferenceRecord(candidate, fieldPrefix)
 }

@@ -312,6 +312,24 @@ export interface LaneAttribution {
   laneContext?: LaneContext;
 }
 
+export interface WorkspaceComparisonLaneReference extends LaneAttribution {
+  sessionId: string;
+}
+
+export interface WorkspaceLaneComparisonState {
+  selectedLane?: WorkspaceComparisonLaneReference;
+  adoptedLane?: WorkspaceComparisonLaneReference;
+}
+
+export interface WorkspaceLaneComparisonFlags {
+  selected: boolean;
+  adopted: boolean;
+}
+
+export type WorkspaceLaneSelectionRequest = WorkspaceComparisonLaneReference;
+
+export type WorkspaceLaneAdoptionRequest = WorkspaceComparisonLaneReference;
+
 export interface VerificationRun extends LaneAttribution {
   id: string;
   workspaceId: string;
@@ -425,6 +443,8 @@ export interface WorkspaceBootstrap {
   sessions: SessionSummary[];
   effort?: EffortStateSummary;
   capabilities?: WorkspaceCapabilityProbe;
+  laneComparison?: WorkspaceLaneComparisonState;
+  laneRecords?: WorkspaceLaneRecord[];
   traceability?: WorkspaceTraceabilitySummary;
   verificationRuns?: VerificationRun[];
   browserEvidenceRecords?: BrowserEvidenceRecord[];
@@ -619,6 +639,18 @@ export interface TaskLedgerRecord extends LaneAttribution {
   recentVerificationRef?: TaskLedgerVerificationReference;
   recentBrowserEvidenceRef?: BrowserEvidenceReference;
   recentShipRef?: TaskLedgerShipReference;
+}
+
+export interface WorkspaceLaneRecord extends LaneAttribution {
+  workspaceId: string;
+  sessionId: string;
+  laneId: string;
+  laneContext: LaneContext;
+  session?: SessionSummary;
+  traceability: WorkspaceTraceabilitySummary;
+  verificationRuns: VerificationRun[];
+  browserEvidenceRecords: BrowserEvidenceRecord[];
+  taskLedgerRecords: TaskLedgerRecord[];
 }
 
 export interface WorkspaceTraceabilitySummary {

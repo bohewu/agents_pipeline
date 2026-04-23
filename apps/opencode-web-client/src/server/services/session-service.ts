@@ -1,17 +1,28 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { LaneAttribution, SessionSummary } from '../../shared/types.js'
+import type {
+  LaneAttribution,
+  SessionSummary,
+  WorkspaceComparisonLaneReference,
+  WorkspaceLaneComparisonState,
+} from '../../shared/types.js'
 import type { AppPaths } from './app-paths.js'
 import type { OpenCodeClientFactory } from './opencode-client-factory.js'
-import { attachLaneAttribution, mergeLaneAttribution, validateLaneAttributionRecord } from './lane-attribution.js'
+import {
+  attachLaneAttribution,
+  mergeLaneAttribution,
+  validateLaneAttributionRecord,
+  validateWorkspaceComparisonLaneReferenceRecord,
+} from './lane-attribution.js'
 
 interface SessionLaneRecord extends LaneAttribution {
   sessionId: string
 }
 
 interface SessionLaneStateFile {
-  version: 1
+  version: 2
   sessions: SessionLaneRecord[]
+  laneComparison?: WorkspaceLaneComparisonState
 }
 
 interface SessionServiceOptions {
@@ -22,7 +33,7 @@ type UpstreamCreateSessionOptions = { title?: string; providerId?: string; model
 
 type SessionMutationOptions = UpstreamCreateSessionOptions & LaneAttribution
 
-const SESSION_LANE_STATE_VERSION = 1
+const SESSION_LANE_STATE_VERSION = 2
 
 export class SessionService {
   private clientFactory: OpenCodeClientFactory
@@ -97,6 +108,20 @@ export class SessionService {
     return this.readState(workspaceId).sessions.find((entry) => entry.sessionId === sessionId)
   }
 
+  resolveLaneComparisonState(workspaceId: string): WorkspaceLaneComparisonState | undefined {
+    return this.readState(workspaceId).laneComparison
+  }
+
+  setLaneComparisonState(
+    workspaceId: string,
+    laneComparison: WorkspaceLaneComparisonState | undefined,
+  ): WorkspaceLaneComparisonState | undefined {
+    const state = this.readState(workspaceId)
+    const nextLaneComparison = normalizeLaneComparisonState(laneComparison)
+    this.writeState(workspaceId, state.sessions, nextLaneComparison)
+    return nextLaneComparison
+  }
+
   private hydrateSession(
     workspaceId: string,
     session: SessionSummary,
@@ -128,13 +153,14 @@ export class SessionService {
       nextSessions.unshift(nextRecord)
     }
 
-    this.writeState(workspaceId, nextSessions)
+    this.writeState(workspaceId, nextSessions, state.laneComparison)
   }
 
   private removeLaneRecord(workspaceId: string, sessionId: string): void {
     if (!this.stateDir) return
-    const nextSessions = this.readState(workspaceId).sessions.filter((entry) => entry.sessionId !== sessionId)
-    this.writeState(workspaceId, nextSessions)
+    const state = this.readState(workspaceId)
+    const nextSessions = state.sessions.filter((entry) => entry.sessionId !== sessionId)
+    this.writeState(workspaceId, nextSessions, state.laneComparison)
   }
 
   private readState(workspaceId: string): SessionLaneStateFile {
@@ -149,27 +175,38 @@ export class SessionService {
 
     try {
       const raw = readFileSync(filePath, 'utf-8')
-      const parsed = JSON.parse(raw) as Partial<SessionLaneStateFile>
-      if (parsed.version !== SESSION_LANE_STATE_VERSION || !Array.isArray(parsed.sessions)) {
+      const parsed = JSON.parse(raw) as {
+        version?: number
+        sessions?: unknown
+        laneComparison?: unknown
+      }
+      if ((parsed.version !== 1 && parsed.version !== SESSION_LANE_STATE_VERSION) || !Array.isArray(parsed.sessions)) {
         return { version: SESSION_LANE_STATE_VERSION, sessions: [] }
       }
 
       return {
         version: SESSION_LANE_STATE_VERSION,
-        sessions: parsed.sessions.flatMap((value) => {
+        sessions: parsed.sessions.flatMap((value: unknown) => {
           try {
             return [validateSessionLaneRecord(value)]
           } catch {
             return []
           }
         }),
+        ...(parsed.version === SESSION_LANE_STATE_VERSION && parsed.laneComparison !== undefined
+          ? { laneComparison: validateLaneComparisonState(parsed.laneComparison) }
+          : {}),
       }
     } catch {
       return { version: SESSION_LANE_STATE_VERSION, sessions: [] }
     }
   }
 
-  private writeState(workspaceId: string, sessions: SessionLaneRecord[]): void {
+  private writeState(
+    workspaceId: string,
+    sessions: SessionLaneRecord[],
+    laneComparison?: WorkspaceLaneComparisonState,
+  ): void {
     if (!this.stateDir) return
 
     const filePath = this.getStateFilePath(workspaceId)
@@ -179,7 +216,11 @@ export class SessionService {
     const tmpPath = `${filePath}.tmp.${process.pid}`
     writeFileSync(
       tmpPath,
-      JSON.stringify({ version: SESSION_LANE_STATE_VERSION, sessions: sortSessionLaneRecords(sessions) }, null, 2),
+      JSON.stringify({
+        version: SESSION_LANE_STATE_VERSION,
+        sessions: sortSessionLaneRecords(sessions),
+        ...(laneComparison ? { laneComparison } : {}),
+      }, null, 2),
       'utf-8',
     )
     renameSync(tmpPath, filePath)
@@ -220,6 +261,66 @@ function validateSessionLaneRecord(value: unknown): SessionLaneRecord {
 
 function sortSessionLaneRecords(records: SessionLaneRecord[]): SessionLaneRecord[] {
   return [...records].sort((left, right) => left.sessionId.localeCompare(right.sessionId))
+}
+
+function validateLaneComparisonState(value: unknown): WorkspaceLaneComparisonState | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Lane comparison state must be an object.')
+  }
+
+  const candidate = value as Record<string, unknown>
+  return normalizeLaneComparisonState({
+    ...(candidate.selectedLane !== undefined ? {
+      selectedLane: validateLaneComparisonReference(candidate.selectedLane, 'laneComparison.selectedLane'),
+    } : {}),
+    ...(candidate.adoptedLane !== undefined ? {
+      adoptedLane: validateLaneComparisonReference(candidate.adoptedLane, 'laneComparison.adoptedLane'),
+    } : {}),
+  })
+}
+
+function validateLaneComparisonReference(
+  value: unknown,
+  fieldName: string,
+): WorkspaceComparisonLaneReference {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Expected ${fieldName} to be an object.`)
+  }
+
+  return validateWorkspaceComparisonLaneReferenceRecord(value as Record<string, unknown>, fieldName)
+}
+
+function normalizeLaneComparisonState(
+  state: WorkspaceLaneComparisonState | undefined,
+): WorkspaceLaneComparisonState | undefined {
+  if (!state) return undefined
+
+  const selectedLane = normalizeWorkspaceComparisonLaneReference(state.selectedLane)
+  const adoptedLane = normalizeWorkspaceComparisonLaneReference(state.adoptedLane)
+  if (!selectedLane && !adoptedLane) {
+    return undefined
+  }
+
+  return {
+    ...(selectedLane ? { selectedLane } : {}),
+    ...(adoptedLane ? { adoptedLane } : {}),
+  }
+}
+
+function normalizeWorkspaceComparisonLaneReference(
+  lane: WorkspaceComparisonLaneReference | undefined,
+): WorkspaceComparisonLaneReference | undefined {
+  if (!lane) return undefined
+
+  const normalizedLane = mergeLaneAttribution(lane)
+  if (!normalizedLane) {
+    return undefined
+  }
+
+  return {
+    sessionId: lane.sessionId,
+    ...normalizedLane,
+  }
 }
 
 function readString(value: unknown, fieldName: string): string {
