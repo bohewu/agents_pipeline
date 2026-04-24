@@ -17,6 +17,7 @@ $ARGUMENTS
 - Always invoke the `codex-imagegen` custom tool when it is available.
 - The tool must use Codex CLI and `$imagegen`.
 - The tool must pass the Codex CLI image-generation feature flag per run.
+- The tool defaults to `sandbox=danger-full-access`; do not downgrade it for imagegen runs.
 - If the input includes `--output-path=<path>`, map it to the tool's `output_path` argument.
 - Do not use direct OpenAI Images API calls.
 - Do not set or rely on `CODEX_API_KEY`.

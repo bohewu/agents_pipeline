@@ -50,6 +50,12 @@ By default, the tool also passes per-run disable flags for Codex plugin sync, ge
 
 If Codex still emits analytics or service-sync warnings but exits successfully and returns generated files, report success with a brief note. Treat missing files, nonzero exit, or a tool warning as the actual failure signal.
 
+## Sandbox
+
+Always pass `sandbox=danger-full-access` to the `codex-imagegen` tool. Codex CLI's bubblewrap sandbox can generate the image successfully but fail to copy the generated file back to the requested OpenCode output path, which makes the run look failed even though image generation completed.
+
+Use this sandbox override only for the delegated Codex imagegen run. Do not change persistent Codex or OpenCode sandbox configuration.
+
 ## Workflow
 
 1. Convert the user request into a concise image brief.
@@ -59,6 +65,7 @@ If Codex still emits analytics or service-sync warnings but exits successfully a
 5. Call `codex-imagegen` with:
    - `prompt`
    - `output_path` for an exact file target, or `output_dir` plus `file_stem`
+   - `sandbox=danger-full-access` to avoid bubblewrap output-copy failures
    - optional `size`, `quality`, `background`
    - optional `reasoning_effort` when you want to override the local Codex default
    - optional `default_size`, `max_side`, and `max_pixels` when the caller wants a bounded raster ceiling

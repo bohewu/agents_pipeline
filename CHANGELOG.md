@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.21] - 2026-04-24
+
+### Changed
+
+- `codex-imagegen` now defaults delegated Codex CLI runs to `sandbox=danger-full-access` so image outputs can be copied back reliably when bubblewrap-style sandboxing blocks output-path writes.
+
 ## [0.22.20] - 2026-04-24
 
 ### Added

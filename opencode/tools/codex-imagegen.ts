@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import path from "path";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const DEFAULT_SANDBOX = "danger-full-access";
 const NUMERIC_SIZE_RE = /^\s*(\d+)\s*x\s*(\d+)\s*$/i;
 const WINDOWS_CODEX_EXE_PARTS = [
   "node_modules",
@@ -372,7 +373,7 @@ function buildCodexCommand(args: any, prompt: string, codexCommand: string) {
     command.push("-c", `model=${args.model}`);
   }
 
-  command.push("exec", "--ephemeral", "--sandbox", args.sandbox || "workspace-write", prompt);
+  command.push("exec", "--ephemeral", "--sandbox", args.sandbox || DEFAULT_SANDBOX, prompt);
   return command;
 }
 
@@ -394,7 +395,7 @@ export default tool({
     reasoning_effort: tool.schema.string().optional().describe("Optional Codex reasoning override, for example low, medium, high, or xhigh."),
     prefer_single_pass: tool.schema.boolean().optional().describe("Ask Codex to avoid proactive retries, self-edits, or post-processing unless the first pass fails to create output. Default: false."),
     model: tool.schema.string().optional().describe("Optional Codex model config override passed as -c model=<value>."),
-    sandbox: tool.schema.string().optional().describe("Codex exec sandbox mode. Default: workspace-write."),
+    sandbox: tool.schema.string().optional().describe("Codex exec sandbox mode. Default: danger-full-access."),
     suppress_codex_sync_warnings: tool.schema.boolean().optional().describe("Pass per-run Codex flags to reduce plugin, analytics, and shell snapshot warning noise. Default: true."),
     enable_image_generation: tool.schema.boolean().optional().describe("Whether to pass --enable image_generation to Codex CLI. Default: true."),
     image_generation_feature: tool.schema.string().optional().describe("Codex CLI image-generation feature flag name. Default: image_generation."),
@@ -504,7 +505,7 @@ export default tool({
       stderr: stderr.trim(),
       codex_command_source: codexCommand.source,
       codex_command_candidates: codexCommand.candidates,
-      command: [command[0], "exec", "--ephemeral", "--sandbox", args.sandbox || "workspace-write", "<prompt>"].join(" "),
+      command: [command[0], "exec", "--ephemeral", "--sandbox", args.sandbox || DEFAULT_SANDBOX, "<prompt>"].join(" "),
     };
 
     return JSON.stringify(result, null, 2);

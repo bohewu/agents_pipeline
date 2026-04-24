@@ -54,6 +54,7 @@ Files:
 External services used:
 
 - Codex CLI's built-in `$imagegen` path, using the local Codex CLI account and Codex usage limits.
+- Delegated Codex CLI image-generation runs default to `sandbox=danger-full-access` so generated files can be copied back from Codex's generated-images area into the requested project output path.
 
 Local auth/state inputs:
 
