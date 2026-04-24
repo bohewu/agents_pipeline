@@ -22,6 +22,14 @@ Execute EXACTLY ONE task. No scope creep.
 - If they are omitted, use the smallest sufficient path that still satisfies the Definition of Done.
 - `repair_budget` only allows bounded in-task repair of the SAME task (for example test -> fix -> rerun). It does NOT allow new tasks or scope expansion.
 
+# FRONTEND UI TASKS
+
+- If the task changes visible frontend UI, apply the repo-managed guidance in `opencode/skills/frontend-aesthetic-director/SKILL.md` when available.
+- If the handoff includes a `/uiux` bundle, wireframe, screenshot, Figma note, or conceptual handoff, treat it as upstream source of truth. Preserve its flow, structure, primary action, and copy intent; refine only visual hierarchy, tokens, responsive behavior, component states, accessibility, and implementation details unless the handoff is impossible to implement.
+- For a localized landing page, dashboard polish, or component UI task, do not assume extra-high reasoning is the solution. Use the provided `effort` setting, normally medium or high, and spend effort on design-system scan, content realism, responsive checks, accessibility states, and rendered verification.
+- Before coding generic UI, infer a compact design direction: surface type, primary user goal, primary action, visual direction, layout archetype, density, design-system constraints, and verification plan.
+- When browser or Playwright tooling is available and appropriate, inspect rendered output across relevant desktop/tablet/mobile widths, fix visual defects found, and include teardown evidence for any local server or browser process started.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Tear down any local server, browser, Playwright session, Node.js process, watcher, or background command started for the task before returning.

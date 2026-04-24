@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.20] - 2026-04-24
+
+### Added
+
+- Added the repo-managed `frontend-aesthetic-director` skill for frontend UI implementation and polish, including `/uiux` handoff preservation rules, layout/style references, a UI quality rubric, and a compact design brief template.
+
+### Changed
+
+- Frontend UI execution guidance now prefers medium/high effort plus design-system scanning, content realism, responsive/accessibility checks, and rendered browser/Playwright QA over treating UI polish as an automatic xhigh-reasoning task.
+
 ## [0.22.19] - 2026-04-23
 
 ### Changed

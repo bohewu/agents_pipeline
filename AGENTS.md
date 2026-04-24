@@ -3,7 +3,7 @@
 This catalog lists all agents and their roles.
 Model selection is runtime-driven by OpenCode/provider configuration, not pinned per-agent in this repo.
 Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Codex role configs all derive from `opencode/agents/*.md`; generated/exported outputs should not be hand-edited.
-For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`. The same surface now also covers communication-first redesign and critique work via the companion skill `opencode/skills/ui-communication-designer/SKILL.md`.
+For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`. The same surface now also covers communication-first redesign and critique work via the companion skill `opencode/skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a `/uiux` handoff, use `opencode/skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|

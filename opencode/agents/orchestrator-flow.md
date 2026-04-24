@@ -265,6 +265,7 @@ Stage 3 — Dispatch & Execution
   - Expected output
   - `effort`, `verification`, and `repair_budget`
   - Artifact output contract (below)
+- For visible frontend UI implementation or polish tasks, include `opencode/skills/frontend-aesthetic-director/SKILL.md` in the handoff when relevant. If `/uiux` output or wireframes are present, treat them as upstream source of truth rather than asking the executor to redesign the flow.
 - For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should use standalone heartbeats only for genuinely long-running active work, should keep them coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), and must reflect cleanup state before reporting success.
 - For any `process`, `server`, or `browser` task, include explicit cleanup expectations in the handoff.
 - You MUST dispatch tasks to existing executors. "Do NOT create new agents" does NOT mean "do not dispatch".

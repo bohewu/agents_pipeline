@@ -37,6 +37,9 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 - Prefer `market-researcher` for tasks that explicitly require external web research, competitor/comparable scans, pricing collection, or benchmark sourcing.
 - Prefer `doc-writer` for final human-friendly reports/specs/checklists built from completed research.
 - Prefer `generalist` for mixed synthesis tasks that combine research findings with strategy/recommendations.
+- Route visible frontend implementation or polish tasks to `executor` with a note to apply `opencode/skills/frontend-aesthetic-director/SKILL.md` when relevant.
+- If a frontend task includes `/uiux` output, wireframes, screenshots, or Figma, note that those artifacts are upstream source of truth and should not be replaced by a new flow design.
+- Classify browser/screenshot/Playwright visual QA as `resource_class = browser`, `max_parallelism = 1`, and `teardown_required = true`; classify ordinary build/lint/typecheck-only UI verification as `process`.
 
 # OUTPUT (JSON ONLY)
   {

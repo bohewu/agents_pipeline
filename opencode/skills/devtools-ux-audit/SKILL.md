@@ -25,6 +25,7 @@ Always run the helper with `--help` first before using it in a workflow.
 
 - Use this skill as the browser evidence workflow.
 - Use `/run-ux` as the reporting/scoring workflow when you want a formal scorecard and synthesized report.
+- Use `../frontend-aesthetic-director/SKILL.md` for frontend implementation or polish that needs design direction, tokens, responsive behavior, accessibility states, and rendered visual QA. This skill remains the evidence/audit layer, not the implementation design layer.
 - When the audit target is a local preview or dev server, pair this skill with an equivalent local-server lifecycle workflow before starting any Chrome DevTools interaction.
 
 If you need detailed background or want the repo-level source document, read `../../protocols/UX_DEVTOOLS_WORKFLOW.md`.

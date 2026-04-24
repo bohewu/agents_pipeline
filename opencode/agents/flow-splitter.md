@@ -34,6 +34,15 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - `resource_class = browser` or `server` should be used only when the task clearly requires those heavy resources.
 - Every task in the output must satisfy the FlowTaskList schema.
 
+# FRONTEND UI TASK GUIDANCE
+
+- For visible frontend implementation or polish tasks, include `opencode/skills/frontend-aesthetic-director/SKILL.md` in the executor handoff when it is relevant.
+- If the prompt references `/uiux` output, wireframes, screenshots, or Figma, make the implementation task preserve that upstream structure and copy intent rather than redesigning the flow.
+- Use `effort = medium` for localized landing page edits, dashboard polish, component styling, forms, tables, and visual hierarchy improvements.
+- Use `effort = high` only for multi-surface UI changes, design-system changes, complex responsive behavior, or risky interactive states.
+- Prefer `verification = strong` when visual QA requires a local preview, screenshot, Playwright, or browser inspection loop.
+- Use `resource_class = browser` only when the same task clearly requires browser automation or screenshot inspection; otherwise keep implementation as `light` or `process` and let normal build/lint verification cover it.
+
 # OUTPUT (JSON ONLY)
 {
   "tasks": [
