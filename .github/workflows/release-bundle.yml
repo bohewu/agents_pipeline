@@ -89,7 +89,7 @@ jobs:
           BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
 
           rm -rf dist
-          mkdir -p "dist/${BUNDLE_DIR}/scripts"
+          mkdir -p "dist/${BUNDLE_DIR}/scripts" "dist/${BUNDLE_DIR}/docs"
 
           cp -R opencode "dist/${BUNDLE_DIR}/"
           cp AGENTS.md "dist/${BUNDLE_DIR}/"
@@ -98,6 +98,7 @@ jobs:
           cp README.md "dist/${BUNDLE_DIR}/"
           cp VERSION "dist/${BUNDLE_DIR}/"
           cp opencode.json.example "dist/${BUNDLE_DIR}/"
+          cp docs/agent-model-profiles.md "dist/${BUNDLE_DIR}/docs/"
           cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
@@ -139,6 +140,7 @@ jobs:
           cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.sh
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
+          chmod 755 "dist/${BUNDLE_DIR}/opencode/tools/agent-profile.sh"
 
           (
             cd dist
@@ -155,6 +157,7 @@ jobs:
           test -f "${BUNDLE_DIR}/README.md"
           test -f "${BUNDLE_DIR}/CHANGELOG.md"
           test -f "${BUNDLE_DIR}/LICENSE"
+          test -f "${BUNDLE_DIR}/docs/agent-model-profiles.md"
           test -f "${BUNDLE_DIR}/scripts/install-claude.sh"
           test -f "${BUNDLE_DIR}/scripts/install-claude.ps1"
           test -f "${BUNDLE_DIR}/scripts/bootstrap-install-claude.sh"
@@ -177,6 +180,11 @@ jobs:
           test -f "${BUNDLE_DIR}/scripts/bootstrap-install-usage-only.ps1"
           test -f "${BUNDLE_DIR}/scripts/bootstrap-install-all-local.sh"
           test -f "${BUNDLE_DIR}/scripts/bootstrap-install-all-local.ps1"
+          test -f "${BUNDLE_DIR}/opencode/commands/agent-profile.md"
+          test -f "${BUNDLE_DIR}/opencode/tools/agent-profile.ps1"
+          test -f "${BUNDLE_DIR}/opencode/tools/agent-profile.sh"
+          test -f "${BUNDLE_DIR}/opencode/tools/agent-profiles/balanced.json"
+          test -f "${BUNDLE_DIR}/opencode/tools/model-sets/openai.json"
           test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex-config.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex.sh"

@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.22] - 2026-04-27
+
+### Added
+
+- Added deterministic workspace OpenCode agent model profile installers for PowerShell and Bash, with `frugal`, `balanced`, `premium`, and `uniform` modes that generate manifest-managed `.opencode/agents` overrides without modifying canonical source agents.
+- Added provider model-set catalogs so profile routing uses logical `mini`, `standard`, and `strong` tiers while concrete model versions stay centralized in `opencode/tools/model-sets/*.json`.
+- Added `/agent-profile`, user docs, README quickstart coverage, and validation scripts for profile install/status/clear, dry-run, unmanaged-target protection, and cross-platform installer parity.
+
 ## [0.22.21] - 2026-04-24
 
 ### Changed

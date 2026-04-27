@@ -417,6 +417,7 @@ jobs:
         run: |
           python3 opencode/tools/provider-usage.py --help
           python3 opencode/tools/skill-manager.py --help
+          bash scripts/test-agent-profile.sh
           python3 - <<'PY'
           import importlib.util
           from pathlib import Path
@@ -971,6 +972,8 @@ jobs:
           bash -n scripts/bootstrap-install-plugin-effort-control.sh
           bash -n scripts/bootstrap-install-usage-only.sh
           bash -n scripts/bootstrap-install-all-local.sh
+          bash -n opencode/tools/agent-profile.sh
+          bash -n scripts/test-agent-profile.sh
           bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
           bash scripts/install-copilot.sh --target ./.tmp-copilot-install --dry-run
           bash scripts/install-claude.sh --target ./.tmp-claude-install --dry-run
@@ -1130,6 +1133,8 @@ jobs:
           [void](Get-Command -Name ./scripts/bootstrap-install-plugin-effort-control.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-usage-only.ps1)
           [void](Get-Command -Name ./scripts/bootstrap-install-all-local.ps1)
+          [void](Get-Command -Name ./opencode/tools/agent-profile.ps1)
+          pwsh -NoProfile -File scripts/test-agent-profile.ps1
           pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
           pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
           pwsh -NoProfile -File scripts/install-claude.ps1 -Target .\.tmp-claude-install -DryRun

@@ -1,0 +1,10 @@
+{
+  "name": "openai",
+  "runtime": "opencode",
+  "description": "OpenAI model set for workspace agent profiles. Update this file when OpenAI model versions change.",
+  "tiers": {
+    "mini": "openai/gpt-5.4-mini",
+    "standard": "openai/gpt-5.4",
+    "strong": "openai/gpt-5.5"
+  }
+}

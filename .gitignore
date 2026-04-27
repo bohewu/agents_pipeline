@@ -14,6 +14,7 @@ test-output/
 
 # Pipeline artifacts (orchestrator outputs, checkpoints)
 .pipeline-output/
+generated/
 
 # Local tooling
 .opencode/
