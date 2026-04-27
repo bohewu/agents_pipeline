@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.25] - 2026-04-27
+
+### Added
+
+- Added a maintainer script for refreshing bundled Anthropic and Google workspace agent model-set catalogs from `models.dev` metadata.
+
+### Changed
+
+- Agent profile validation now derives expected concrete model IDs from bundled model-set JSON files instead of duplicating hardcoded provider model names.
+
 ## [0.22.24] - 2026-04-27
 
 ### Changed

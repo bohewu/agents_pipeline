@@ -40,6 +40,18 @@ Bundled model sets live in `opencode/tools/model-sets`:
 
 Model IDs must match your OpenCode provider configuration. The installer does not call providers or validate remote model availability; it writes the strings from the selected model set exactly as configured.
 
+## Model Set Maintenance
+
+Maintainers can refresh bundled Anthropic and Google model-set catalogs from `models.dev` metadata:
+
+```bash
+python3 scripts/update-agent-model-sets.py --dry-run
+python3 scripts/update-agent-model-sets.py --check
+python3 scripts/update-agent-model-sets.py --provider google
+```
+
+Use `--dry-run` to review diffs before writing, and `--check` in validation contexts to fail when managed model-set files are stale. For offline or pinned validation, pass `--source-file /path/to/models.dev-api.json`. The OpenAI model set is currently maintained manually because the bundled tier choices are workspace policy rather than provider-family selection.
+
 ## PowerShell Usage
 
 ```powershell

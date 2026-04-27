@@ -8,6 +8,7 @@ $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $psInstaller = Join-Path $repoRoot "opencode/tools/agent-profile.ps1"
 $shInstaller = Join-Path $repoRoot "opencode/tools/agent-profile.sh"
 $sourceAgents = Join-Path $repoRoot "opencode/agents"
+$modelSets = Join-Path $repoRoot "opencode/tools/model-sets"
 
 $failures = 0
 
@@ -48,6 +49,16 @@ function Get-SourceHashes {
     return $hashes
 }
 
+function Get-ModelTier {
+    param(
+        [Parameter(Mandatory = $true)][string] $ModelSet,
+        [Parameter(Mandatory = $true)][string] $Tier
+    )
+    $path = Join-Path $modelSets "$ModelSet.json"
+    $data = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    return $data.tiers.$Tier
+}
+
 function Assert-HashesEqual($Before, $After) {
     foreach ($key in $Before.Keys) {
         Assert-Equal "source unchanged $key" $After[$key] $Before[$key]
@@ -78,8 +89,8 @@ try {
         Assert-Equal "ps manifest profile" $manifest.profile "balanced"
         Assert-Equal "ps manifest model set" $manifest.modelSet "anthropic"
         Assert-Equal "ps manifest tool" $manifest.tool "agents_pipeline.agent-profile"
-        Assert-Contains "ps reviewer strong model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: anthropic/claude-opus-4-7"
-        Assert-Contains "ps peon mini model" (Get-Content -LiteralPath $peonPath -Raw) "model: anthropic/claude-haiku-4-5"
+        Assert-Contains "ps reviewer strong model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: $(Get-ModelTier "anthropic" "strong")"
+        Assert-Contains "ps peon mini model" (Get-Content -LiteralPath $peonPath -Raw) "model: $(Get-ModelTier "anthropic" "mini")"
         Assert-HashesEqual $beforeHashes (Get-SourceHashes)
 
         $status = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Workspace", $tmp)
@@ -121,7 +132,7 @@ try {
         Assert-Contains "ps unmanaged warning" $skip.Output "skipped unmanaged"
         $force = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Workspace", $forceTmp, "-Force")
         Assert-Equal "ps force exit" $force.ExitCode 0
-        Assert-Contains "ps force reviewer model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: openai/gpt-5.5"
+        Assert-Contains "ps force reviewer model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: $(Get-ModelTier "openai" "strong")"
     } finally {
         Remove-Item -LiteralPath $forceTmp -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -140,7 +151,7 @@ try {
             $shInstall = Invoke-Captured @("bash", $shInstaller, "install", "balanced", "--model-set", "google", "--workspace", $shTmp)
             Assert-Equal "sh install exit" $shInstall.ExitCode 0
             $shReviewer = Join-Path $shTmp ".opencode/agents/reviewer.md"
-            Assert-Contains "sh reviewer model" (Get-Content -LiteralPath $shReviewer -Raw) "model: google/gemini-3.1-pro-preview"
+            Assert-Contains "sh reviewer model" (Get-Content -LiteralPath $shReviewer -Raw) "model: $(Get-ModelTier "google" "strong")"
             $shManifest = Get-Content -LiteralPath (Join-Path $shTmp ".opencode/.agents-pipeline-agent-profile.json") -Raw | ConvertFrom-Json
             Assert-Equal "sh manifest model set" $shManifest.modelSet "google"
         } finally {

@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 INSTALLER="${REPO_ROOT}/opencode/tools/agent-profile.sh"
+MODEL_SETS="${REPO_ROOT}/opencode/tools/model-sets"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
@@ -19,6 +20,19 @@ assert_contains() {
   echo "PASS ${name}"
 }
 
+model_tier() {
+  local model_set="$1"
+  local tier="$2"
+  python3 - "${MODEL_SETS}/${model_set}.json" "${tier}" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+print(data["tiers"][sys.argv[2]])
+PY
+}
+
 output="$(bash "${INSTALLER}" list)"
 assert_contains "list balanced" "${output}" "balanced"
 assert_contains "list anthropic" "${output}" "anthropic"
@@ -26,7 +40,7 @@ assert_contains "list anthropic" "${output}" "anthropic"
 bash "${INSTALLER}" install balanced --model-set google --workspace "${tmp}" >/tmp/agent-profile-sh-test.out
 test -f "${tmp}/.opencode/.agents-pipeline-agent-profile.json"
 test -f "${tmp}/.opencode/agents/reviewer.md"
-assert_contains "reviewer google model" "$(cat "${tmp}/.opencode/agents/reviewer.md")" "model: google/gemini-3.1-pro-preview"
+assert_contains "reviewer google model" "$(<"${tmp}/.opencode/agents/reviewer.md")" "model: $(model_tier google strong)"
 
 status="$(bash "${INSTALLER}" status --workspace "${tmp}")"
 assert_contains "status balanced" "${status}" "balanced"

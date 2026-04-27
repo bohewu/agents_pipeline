@@ -137,6 +137,7 @@ jobs:
           cp scripts/export-claude-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install-codex-config.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/update-agent-model-sets.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.sh
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
@@ -187,6 +188,7 @@ jobs:
           test -f "${BUNDLE_DIR}/opencode/tools/model-sets/openai.json"
           test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex-config.py"
+          test -f "${BUNDLE_DIR}/scripts/update-agent-model-sets.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
           test -f "${BUNDLE_DIR}/opencode/plugins/status-runtime.js"
           test -d "${BUNDLE_DIR}/opencode/plugins/status-runtime"
