@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.27] - 2026-04-27
+
+### Changed
+
+- Clarified the frugal workspace agent profile description as cost-conservative routing without changing its mappings.
+- Upgraded `atomizer` and `orchestrator-ci` to the `strong` tier in the premium workspace agent profile for higher-rigor task decomposition and CI/release workflow planning.
+
 ## [0.22.26] - 2026-04-27
 
 ### Changed

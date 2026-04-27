@@ -1,7 +1,7 @@
 {
   "name": "frugal",
   "runtime": "opencode",
-  "description": "Lowest-cost routing profile: mechanical roles use mini, routine planning/execution uses standard, and review/security/judges stay strong.",
+  "description": "Cost-conservative routing profile: mechanical roles use mini, routine planning/execution stays standard, and review/security/judges stay strong.",
   "modelSet": "openai",
   "models": {
     "analysis-complexity": "standard",
