@@ -1,6 +1,6 @@
 ---
 name: frontend-aesthetic-director
-description: Use this skill for frontend implementation or review work that changes visible UI: landing pages, dashboards, components, forms, data tables, responsive polish, visual hierarchy, accessibility states, design-system alignment, screenshot/Figma implementation, or requests like make it beautiful, improve UI, polish dashboard, modernize page, UI/UX, interface, layout, visual design. Do not use for pure backend work, non-visual logic changes, or conceptual-only /uiux outputs.
+description: "Use this skill for frontend implementation or review work that changes visible UI: landing pages, dashboards, components, forms, data tables, responsive polish, visual hierarchy, accessibility states, design-system alignment, screenshot/Figma implementation, or requests like make it beautiful, improve UI, polish dashboard, modernize page, UI/UX, interface, layout, visual design. Do not use for pure backend work, non-visual logic changes, or conceptual-only /uiux outputs."
 license: See repository license
 compatibility: Implementation-facing UI guidance. Pair with /uiux for upstream concepts and with devtools-ux-audit or Playwright/browser tooling for rendered visual evidence.
 ---

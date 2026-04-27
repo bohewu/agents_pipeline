@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.29] - 2026-04-27
+
+### Added
+
+- Added CI validation for repo-managed skill frontmatter so YAML-sensitive scalar values are quoted before they can trigger Codex CLI skill warnings.
+
+### Fixed
+
+- Quoted the `frontend-aesthetic-director` skill description frontmatter to avoid Codex CLI YAML warnings from colon-containing scalar text.
+
 ## [0.22.28] - 2026-04-27
 
 ### Changed

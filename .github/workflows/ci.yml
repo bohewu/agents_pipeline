@@ -417,6 +417,8 @@ jobs:
         run: |
           python3 opencode/tools/provider-usage.py --help
           python3 opencode/tools/skill-manager.py --help
+          python3 -m py_compile scripts/validate-skill-frontmatter.py
+          python3 scripts/validate-skill-frontmatter.py
           bash scripts/test-agent-profile.sh
           python3 - <<'PY'
           import importlib.util
