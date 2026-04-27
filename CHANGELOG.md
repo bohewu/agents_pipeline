@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.26] - 2026-04-27
+
+### Changed
+
+- Upgraded `analysis-numerics` to the `strong` tier in the premium workspace agent profile for higher-rigor numerical audits.
+
 ## [0.22.25] - 2026-04-27
 
 ### Added

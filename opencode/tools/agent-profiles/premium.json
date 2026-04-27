@@ -6,7 +6,7 @@
   "models": {
     "analysis-complexity": "strong",
     "analysis-correctness": "strong",
-    "analysis-numerics": "standard",
+    "analysis-numerics": "strong",
     "analysis-robustness": "strong",
     "art-director": "standard",
     "atomizer": "standard",
