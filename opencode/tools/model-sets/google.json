@@ -3,8 +3,8 @@
   "runtime": "opencode",
   "description": "Google model set for workspace agent profiles. Adjust concrete model IDs to match your OpenCode provider configuration.",
   "tiers": {
-    "mini": "google/gemini-2.5-flash-lite",
-    "standard": "google/gemini-2.5-flash",
-    "strong": "google/gemini-2.5-pro"
+    "mini": "google/gemini-3.1-flash-lite-preview",
+    "standard": "google/gemini-3-flash-preview",
+    "strong": "google/gemini-3.1-pro-preview"
   }
 }

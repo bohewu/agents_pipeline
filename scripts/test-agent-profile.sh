@@ -26,7 +26,7 @@ assert_contains "list anthropic" "${output}" "anthropic"
 bash "${INSTALLER}" install balanced --model-set google --workspace "${tmp}" >/tmp/agent-profile-sh-test.out
 test -f "${tmp}/.opencode/.agents-pipeline-agent-profile.json"
 test -f "${tmp}/.opencode/agents/reviewer.md"
-assert_contains "reviewer google model" "$(cat "${tmp}/.opencode/agents/reviewer.md")" "model: google/gemini-2.5-pro"
+assert_contains "reviewer google model" "$(cat "${tmp}/.opencode/agents/reviewer.md")" "model: google/gemini-3.1-pro-preview"
 
 status="$(bash "${INSTALLER}" status --workspace "${tmp}")"
 assert_contains "status balanced" "${status}" "balanced"

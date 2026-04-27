@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.24] - 2026-04-27
+
+### Changed
+
+- Refreshed Anthropic and Google workspace agent model sets to current Claude 4.x and Gemini 3.x model IDs.
+
 ## [0.22.23] - 2026-04-27
 
 ### Changed

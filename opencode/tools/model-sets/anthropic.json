@@ -3,8 +3,8 @@
   "runtime": "opencode",
   "description": "Anthropic model set for workspace agent profiles. Adjust concrete model IDs to match your OpenCode provider configuration.",
   "tiers": {
-    "mini": "anthropic/claude-3-5-haiku-latest",
-    "standard": "anthropic/claude-sonnet-4-5",
-    "strong": "anthropic/claude-opus-4-1"
+    "mini": "anthropic/claude-haiku-4-5",
+    "standard": "anthropic/claude-sonnet-4-6",
+    "strong": "anthropic/claude-opus-4-7"
   }
 }

@@ -78,8 +78,8 @@ try {
         Assert-Equal "ps manifest profile" $manifest.profile "balanced"
         Assert-Equal "ps manifest model set" $manifest.modelSet "anthropic"
         Assert-Equal "ps manifest tool" $manifest.tool "agents_pipeline.agent-profile"
-        Assert-Contains "ps reviewer strong model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: anthropic/claude-opus-4-1"
-        Assert-Contains "ps peon mini model" (Get-Content -LiteralPath $peonPath -Raw) "model: anthropic/claude-3-5-haiku-latest"
+        Assert-Contains "ps reviewer strong model" (Get-Content -LiteralPath $reviewerPath -Raw) "model: anthropic/claude-opus-4-7"
+        Assert-Contains "ps peon mini model" (Get-Content -LiteralPath $peonPath -Raw) "model: anthropic/claude-haiku-4-5"
         Assert-HashesEqual $beforeHashes (Get-SourceHashes)
 
         $status = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Workspace", $tmp)
@@ -140,7 +140,7 @@ try {
             $shInstall = Invoke-Captured @("bash", $shInstaller, "install", "balanced", "--model-set", "google", "--workspace", $shTmp)
             Assert-Equal "sh install exit" $shInstall.ExitCode 0
             $shReviewer = Join-Path $shTmp ".opencode/agents/reviewer.md"
-            Assert-Contains "sh reviewer model" (Get-Content -LiteralPath $shReviewer -Raw) "model: google/gemini-2.5-pro"
+            Assert-Contains "sh reviewer model" (Get-Content -LiteralPath $shReviewer -Raw) "model: google/gemini-3.1-pro-preview"
             $shManifest = Get-Content -LiteralPath (Join-Path $shTmp ".opencode/.agents-pipeline-agent-profile.json") -Raw | ConvertFrom-Json
             Assert-Equal "sh manifest model set" $shManifest.modelSet "google"
         } finally {
