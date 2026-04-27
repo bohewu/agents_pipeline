@@ -45,7 +45,7 @@ Model IDs must match your OpenCode provider configuration. The installer does no
 ```powershell
 pwsh ~/.config/opencode/tools/agent-profile.ps1 list
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace D:\repo\zhuoshui-flow
+pwsh ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace C:\path\to\project
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
@@ -59,7 +59,7 @@ The Bash installer uses Python 3 standard library support for deterministic JSON
 ```bash
 bash ~/.config/opencode/tools/agent-profile.sh list
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set openai --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install frugal --model-set anthropic --workspace /repo/zhuoshui-flow
+bash ~/.config/opencode/tools/agent-profile.sh install frugal --model-set anthropic --workspace /path/to/project
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .

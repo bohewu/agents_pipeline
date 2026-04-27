@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.23] - 2026-04-27
+
+### Changed
+
+- Replaced project-specific workspace path examples in the agent model profile docs with generic placeholder paths.
+
 ## [0.22.22] - 2026-04-27
 
 ### Added
