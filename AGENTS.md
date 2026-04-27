@@ -13,7 +13,7 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retry loops |
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
-| orchestrator-general | General-purpose orchestration for non-coding tasks (planning/writing/analysis) | primary | Non-coding workflow |
+| orchestrator-general | General-purpose orchestration for mixed coding, planning, writing, analysis, and maintenance tasks | primary | General dispatcher |
 | orchestrator-analysis | Post-hoc analysis pipeline with conditional expert roster and severity-ranked findings | primary | Analytical review |
 | orchestrator-ux | UX audit orchestration with profile-aware scoring and normal-user findings | primary | Analysis-only |
 | specifier | Convert user input into ProblemSpec JSON and optional DevSpec JSON | subagent | hidden |

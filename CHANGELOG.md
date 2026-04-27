@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.28] - 2026-04-27
+
+### Changed
+
+- Repositioned `/run-general` and `orchestrator-general` as a general-purpose dispatcher for mixed coding, maintenance, planning, writing, and analysis tasks instead of a non-coding-only workflow, with `--full-auto` guidance for hands-off path selection.
+- Added explicit reviewer `mode = pipeline` / `mode = ad_hoc` handling so pipeline quality gates stay strict while ad hoc review calls can inspect explicit targets without requiring pipeline artifacts.
+
 ## [0.22.27] - 2026-04-27
 
 ### Changed

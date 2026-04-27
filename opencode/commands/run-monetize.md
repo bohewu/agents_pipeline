@@ -124,6 +124,7 @@ If the available context is too thin for the full set above, still produce at le
 - `--resume`
 - `--confirm`
 - `--verbose`
+- `--full-auto`
 
 ## Examples
 
@@ -137,6 +138,6 @@ If the available context is too thin for the full set above, still produce at le
 ## Guarantees
 
 - No direct code implementation in this workflow.
-- Uses the existing general-purpose non-coding orchestration path.
+- Uses the existing general-purpose orchestration path with this wrapper's analysis-only constraints.
 - Runtime/plugin writes canonical checkpoint and status artifacts under `<run_output_dir>/`.
 - Outputs should remain explicit about evidence quality and confidence.
