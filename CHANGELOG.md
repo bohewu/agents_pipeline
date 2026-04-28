@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.30] - 2026-04-27
+
+### Added
+
+- Added `/run-simple` and `orchestrator-simple`, a build-agent-style dispatcher that delegates to subagents without writing run manifests, checkpoint/status files, or `.pipeline-output` artifacts, with `--max-parallel=<n>` concurrency guidance.
+
 ## [0.22.29] - 2026-04-27
 
 ### Added

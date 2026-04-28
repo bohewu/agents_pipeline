@@ -12,6 +12,7 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retry loops |
+| orchestrator-simple | Simple build-style dispatcher with subagent delegation and no run artifacts | primary | No manifest/status writes |
 | orchestrator-committee | Swarm committee for decision-making (experts + KISS soft-veto + judge) | primary | Decision support only |
 | orchestrator-general | General-purpose orchestration for mixed coding, planning, writing, analysis, and maintenance tasks | primary | General dispatcher |
 | orchestrator-analysis | Post-hoc analysis pipeline with conditional expert roster and severity-ranked findings | primary | Analytical review |

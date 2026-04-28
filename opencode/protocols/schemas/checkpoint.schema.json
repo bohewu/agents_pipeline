@@ -30,6 +30,7 @@
         "orchestrator-pipeline",
         "orchestrator-flow",
         "orchestrator-spec",
+        "orchestrator-simple",
         "orchestrator-ci",
         "orchestrator-analysis",
         "orchestrator-modernize",

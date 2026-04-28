@@ -32,6 +32,7 @@
     "orchestrator-general": "standard",
     "orchestrator-modernize": "standard",
     "orchestrator-pipeline": "standard",
+    "orchestrator-simple": "standard",
     "orchestrator-spec": "standard",
     "orchestrator-ux": "standard",
     "peon": "mini",

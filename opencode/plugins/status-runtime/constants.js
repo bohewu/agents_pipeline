@@ -56,6 +56,7 @@ const ORCHESTRATORS = [
   "orchestrator-analysis",
   "orchestrator-modernize",
   "orchestrator-spec",
+  "orchestrator-simple",
   "orchestrator-committee",
   "orchestrator-general",
   "orchestrator-ux"
