@@ -26,25 +26,11 @@ function resolvePythonCommand() {
   throw new Error("Missing Python interpreter: install python3, python, or the Windows py launcher.");
 }
 
-function resolveUserPath(worktree: string, value?: string) {
-  if (!value) {
-    return value;
-  }
-  if (path.isAbsolute(value)) {
-    return value;
-  }
-  if (value.startsWith("~")) {
-    return value;
-  }
-  return path.join(worktree, value);
-}
-
 export default tool({
-  description: "Inspect live Codex quota windows and summarize Copilot premium request reports.",
+  description: "Inspect live Codex quota windows.",
   args: {
-    provider: tool.schema.string().optional().describe("Provider to inspect: auto, codex, or copilot."),
+    provider: tool.schema.string().optional().describe("Provider to inspect: auto or codex."),
     format: tool.schema.string().optional().describe("Output format: text or json."),
-    copilot_report: tool.schema.string().optional().describe("Optional Copilot premium-request CSV report path to use when live GitHub lookup is unavailable."),
     include_sensitive: tool.schema.boolean().optional().describe("Include less-redacted account metadata in output. Never use this in shared logs unless required.")
   },
   async execute(args, context) {
@@ -62,10 +48,6 @@ export default tool({
       worktree
     ];
 
-    const copilotReport = resolveUserPath(worktree, args.copilot_report);
-    if (copilotReport) {
-      command.push("--copilot-report", copilotReport);
-    }
     if (args.include_sensitive) {
       command.push("--include-sensitive");
     }

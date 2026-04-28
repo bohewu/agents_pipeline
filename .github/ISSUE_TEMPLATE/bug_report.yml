@@ -60,7 +60,6 @@ body:
         - No
         - Yes - GitHub API/content
         - Yes - OpenAI/Codex usage endpoint
-        - Yes - GitHub Copilot usage endpoint
         - Yes - Release/bootstrap installer
     validations:
       required: true

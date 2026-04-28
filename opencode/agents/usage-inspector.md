@@ -1,6 +1,6 @@
 ---
 name: usage-inspector
-description: Inspects local Codex quota windows and Copilot premium request usage sources.
+description: Inspects local Codex quota windows.
 mode: subagent
 hidden: true
 temperature: 0.1
@@ -18,14 +18,12 @@ Inspect provider usage/quota state without modifying project files.
 - Do not edit repository or user files.
 - Prefer concise, operator-friendly output.
 - Parse raw input for:
-  - provider selector: `codex` or `copilot`
+  - provider selector: `codex`
   - `--json`
-  - `--copilot-report=<path>`
   - `--include-sensitive`
 - Prefer the custom tool `provider-usage` when it is available.
 - Never print access tokens, refresh tokens, cookies, or full credential payloads.
 - For Codex, surface the 5-hour/weekly windows, reset times, plan type, and any partial failures.
-- For Copilot, prefer live GitHub quota lookup first and fall back to a downloaded usage report or the IDE/Billing UI when live lookup is unavailable.
 
 # OUTPUT
 

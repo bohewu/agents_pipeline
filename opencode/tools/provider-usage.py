@@ -4,11 +4,9 @@ from __future__ import annotations
 import argparse
 import base64
 import copy
-import csv
 import json
 import math
 import os
-import subprocess
 import sys
 import textwrap
 import urllib.error
@@ -23,9 +21,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 TOKEN_URL = "https://auth.openai.com/oauth/token"
 CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
-COPILOT_USER_INFO_URL = "https://api.github.com/copilot_internal/user"
-COPILOT_MONITORING_URL = "https://github.com/settings/billing"
-COPILOT_DOCS_URL = "https://docs.github.com/en/copilot/how-tos/manage-and-track-spending/monitor-premium-requests"
 JWT_CLAIM_PATH = "https://api.openai.com/auth"
 ACCESS_TOKEN_SKEW_MS = 30_000
 CACHE_FILE_NAME = "provider-usage-cache.json"
@@ -56,27 +51,24 @@ def to_unix_ms(dt: datetime) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Inspect Codex quota windows and Copilot premium request usage.",
+        description="Inspect Codex quota windows.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(
             """\
             Examples:
               python3 opencode/tools/provider-usage.py --provider auto
-              python3 opencode/tools/provider-usage.py --provider copilot --copilot-report ~/Downloads/copilot-premium-requests.csv
               python3 opencode/tools/provider-usage.py --provider codex --format json
 
             Notes:
               - Codex lookup reads local OpenCode/Codex auth files and performs live quota requests to OpenAI endpoints.
-              - Copilot lookup prefers GH_TOKEN/GITHUB_TOKEN or `gh auth token`, then falls back to a local CSV report when provided.
               - Cached data may be reused when a later live lookup fails.
             """
         ),
     )
     parser.add_argument(
-        "--provider", default="auto", choices=["auto", "codex", "copilot"]
+        "--provider", default="auto", choices=["auto", "codex"]
     )
     parser.add_argument("--format", default="text", choices=["text", "json"])
-    parser.add_argument("--copilot-report")
     parser.add_argument("--project-root", default=os.getcwd())
     parser.add_argument("--include-sensitive", action="store_true")
     return parser.parse_args()
@@ -833,308 +825,20 @@ def summarize_codex(project_root: Path, include_sensitive: bool) -> Dict[str, An
     }
 
 
-def parse_copilot_report(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None:
-            raise RuntimeError("report has no header row")
-        fields = {field.strip() for field in reader.fieldnames if field}
-        required = {"date", "quantity"}
-        missing = required - fields
-        if missing:
-            raise RuntimeError(
-                f"report is missing required column(s): {', '.join(sorted(missing))}"
-            )
-
-        rows: List[Dict[str, Any]] = []
-        latest_month: Optional[Tuple[int, int]] = None
-        for raw in reader:
-            if not raw:
-                continue
-            date_text = ensure_text(raw.get("date"))
-            if not date_text:
-                continue
-            try:
-                date_value = datetime.fromisoformat(date_text.replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if date_value.tzinfo is None:
-                date_value = date_value.replace(tzinfo=timezone.utc)
-            month_key = (date_value.year, date_value.month)
-            if latest_month is None or month_key > latest_month:
-                latest_month = month_key
-            rows.append({"row": raw, "date": date_value, "month": month_key})
-
-    if latest_month is None:
-        raise RuntimeError("report contains no usable rows")
-
-    monthly_rows = [entry for entry in rows if entry["month"] == latest_month]
-    total_used = 0.0
-    total_quota = None
-    over_quota = 0.0
-    by_model: Dict[str, float] = {}
-    by_user: Dict[str, float] = {}
-
-    for entry in monthly_rows:
-        row = entry["row"]
-        quantity_raw = ensure_text(row.get("quantity"))
-        if quantity_raw is None:
-            continue
-        try:
-            quantity = float(quantity_raw)
-        except ValueError:
-            continue
-        total_used += quantity
-
-        model = ensure_text(row.get("model")) or "unknown"
-        by_model[model] = by_model.get(model, 0.0) + quantity
-
-        username = ensure_text(row.get("username")) or "unknown"
-        by_user[username] = by_user.get(username, 0.0) + quantity
-
-        quota_raw = ensure_text(row.get("total_monthly_quota"))
-        if quota_raw is not None:
-            try:
-                quota = float(quota_raw)
-            except ValueError:
-                quota = None
-            if quota is not None:
-                total_quota = quota if total_quota is None else max(total_quota, quota)
-
-        exceeds = ensure_text(row.get("exceeds_quota"))
-        if exceeds and exceeds.upper() == "TRUE":
-            over_quota += quantity
-
-    remaining = None if total_quota is None else max(0.0, total_quota - total_used)
-    month_start = datetime(latest_month[0], latest_month[1], 1, tzinfo=timezone.utc)
-    if latest_month[1] == 12:
-        reset_at = datetime(latest_month[0] + 1, 1, 1, tzinfo=timezone.utc)
-    else:
-        reset_at = datetime(
-            latest_month[0], latest_month[1] + 1, 1, tzinfo=timezone.utc
-        )
-
-    def top_entries(values: Dict[str, float]) -> List[Dict[str, Any]]:
-        ordered = sorted(values.items(), key=lambda item: (-item[1], item[0]))
-        return [{"name": name, "quantity": quantity} for name, quantity in ordered]
-
-    return {
-        "status": "ok",
-        "source": "report",
-        "reportPath": str(path),
-        "month": month_start.strftime("%Y-%m"),
-        "requestsUsed": total_used,
-        "monthlyQuota": total_quota,
-        "remaining": remaining,
-        "overQuota": over_quota,
-        "resetAt": reset_at.strftime("%Y-%m-%d %H:%M UTC"),
-        "byModel": top_entries(by_model),
-        "byUser": top_entries(by_user),
-    }
-
-
-def get_github_auth_token() -> Tuple[Optional[str], Optional[str]]:
-    for env_name in ("GH_TOKEN", "GITHUB_TOKEN"):
-        value = ensure_text(os.environ.get(env_name))
-        if value:
-            return value, None
-
-    try:
-        completed = subprocess.run(
-            ["gh", "auth", "token"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except Exception as error:
-        return None, (
-            f"failed to run gh auth token: {error}. Install GitHub CLI or set GH_TOKEN/GITHUB_TOKEN."
-        )
-
-    token = ensure_text(completed.stdout)
-    if completed.returncode != 0 or not token:
-        stderr = ensure_text(completed.stderr)
-        if stderr:
-            return (
-                None,
-                f"gh auth token failed: {stderr}. Run `gh auth status` or set GH_TOKEN/GITHUB_TOKEN.",
-            )
-        return (
-            None,
-            "gh auth token failed. Run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN.",
-        )
-    return token, None
-
-
-def fetch_copilot_live_usage() -> Dict[str, Any]:
-    token, error = get_github_auth_token()
-    if error:
-        raise RuntimeError(error)
-    if not token:
-        raise RuntimeError(
-            "No GitHub auth token available. Run `gh auth login` or set GH_TOKEN/GITHUB_TOKEN."
-        )
-
-    request = urllib.request.Request(
-        COPILOT_USER_INFO_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-            "User-Agent": "opencode-provider-usage",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        method="GET",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as http_error:
-        body = http_error.read().decode("utf-8", errors="replace").strip()
-        raise RuntimeError(
-            "GitHub Copilot user lookup failed: "
-            f"HTTP {http_error.code} {body[:200]}. "
-            "Confirm the authenticated account can access Copilot usage or use --copilot-report."
-        ) from http_error
-    except Exception as request_error:
-        raise RuntimeError(
-            f"GitHub Copilot user lookup failed: {request_error}. Use --copilot-report if live lookup is unavailable."
-        ) from request_error
-
-    if not isinstance(payload, dict):
-        raise RuntimeError("unexpected GitHub Copilot user payload")
-
-    quotas: List[Dict[str, Any]] = []
-    quota_snapshots = payload.get("quota_snapshots")
-    if isinstance(quota_snapshots, dict):
-        for quota_id, raw in quota_snapshots.items():
-            if not isinstance(raw, dict):
-                continue
-            entitlement = (
-                raw.get("entitlement")
-                if isinstance(raw.get("entitlement"), (int, float))
-                else None
-            )
-            remaining = (
-                raw.get("remaining")
-                if isinstance(raw.get("remaining"), (int, float))
-                else None
-            )
-            percent_remaining = (
-                raw.get("percent_remaining")
-                if isinstance(raw.get("percent_remaining"), (int, float))
-                else None
-            )
-            unlimited = ensure_bool(raw.get("unlimited"))
-            used = None
-            if entitlement is not None and remaining is not None and not unlimited:
-                used = max(0.0, float(entitlement) - float(remaining))
-            quotas.append(
-                {
-                    "quotaId": quota_id,
-                    "entitlement": float(entitlement)
-                    if entitlement is not None
-                    else None,
-                    "remaining": float(remaining) if remaining is not None else None,
-                    "used": used,
-                    "percentRemaining": float(percent_remaining)
-                    if percent_remaining is not None
-                    else None,
-                    "overageCount": float(raw.get("overage_count"))
-                    if isinstance(raw.get("overage_count"), (int, float))
-                    else None,
-                    "overagePermitted": ensure_bool(raw.get("overage_permitted")),
-                    "unlimited": unlimited,
-                    "timestampUtc": ensure_text(raw.get("timestamp_utc")),
-                }
-            )
-
-    quotas.sort(
-        key=lambda item: (
-            item.get("unlimited") is True,
-            item.get("quotaId") != "premium_interactions",
-            item.get("quotaId") or "",
-        )
-    )
-
-    return {
-        "status": "ok",
-        "source": "github-internal-user",
-        "login": ensure_text(payload.get("login")),
-        "accessTypeSku": ensure_text(payload.get("access_type_sku")),
-        "copilotPlan": ensure_text(payload.get("copilot_plan")),
-        "chatEnabled": ensure_bool(payload.get("chat_enabled")),
-        "resetAt": ensure_text(payload.get("quota_reset_date_utc"))
-        or ensure_text(payload.get("quota_reset_date")),
-        "quotas": quotas,
-    }
-
-
-def summarize_copilot(report_path: Optional[str]) -> Dict[str, Any]:
-    if not report_path:
-        try:
-            summary = fetch_copilot_live_usage()
-        except Exception as error:
-            return {
-                "status": "manual",
-                "message": (
-                    f"Live Copilot usage lookup failed: {error}. "
-                    "Provide --copilot-report=<csv> or use the GitHub billing UI/manual report export."
-                ),
-                "docsUrl": COPILOT_DOCS_URL,
-                "billingUrl": COPILOT_MONITORING_URL,
-            }
-
-        summary["docsUrl"] = COPILOT_DOCS_URL
-        summary["billingUrl"] = COPILOT_MONITORING_URL
-        return summary
-
-    path = Path(os.path.expanduser(report_path)).resolve()
-    if not path.exists() or not path.is_file():
-        return {
-            "status": "error",
-            "message": f"Copilot report not found: {path}. Export the CSV from GitHub billing or remove --copilot-report.",
-            "docsUrl": COPILOT_DOCS_URL,
-            "billingUrl": COPILOT_MONITORING_URL,
-        }
-
-    try:
-        summary = parse_copilot_report(path)
-    except Exception as error:
-        return {
-            "status": "error",
-            "message": str(error),
-            "docsUrl": COPILOT_DOCS_URL,
-            "billingUrl": COPILOT_MONITORING_URL,
-        }
-
-    summary["docsUrl"] = COPILOT_DOCS_URL
-    summary["billingUrl"] = COPILOT_MONITORING_URL
-    return summary
-
-
 def collect_codex_section(
     args: argparse.Namespace, project_root: Path
 ) -> Dict[str, Any]:
     return summarize_codex(project_root, include_sensitive=args.include_sensitive)
 
 
-def collect_copilot_section(
-    args: argparse.Namespace, project_root: Path
-) -> Dict[str, Any]:
-    del project_root
-    return summarize_copilot(args.copilot_report)
-
-
 SECTION_COLLECTORS = {
     "codex": collect_codex_section,
-    "copilot": collect_copilot_section,
 }
 
 
 def requested_providers(provider: str) -> List[str]:
     if provider == "auto":
-        return ["codex", "copilot"]
+        return ["codex"]
     return [provider]
 
 
@@ -1201,98 +905,6 @@ def format_text(result: Dict[str, Any]) -> str:
                         f"  {limit.get('name', 'limit')}: {format_bar(left_percent)} {limit.get('summary', 'unavailable')}"
                     )
         lines.append("")
-
-    copilot = result.get("copilot")
-    if isinstance(copilot, dict):
-        lines.append("Copilot")
-        status = copilot.get("status")
-        copilot_stale = stale_note(copilot)
-        if status == "ok":
-            if copilot_stale:
-                lines.append(f"- {copilot_stale}")
-            if copilot.get("source") == "github-internal-user":
-                if copilot.get("login"):
-                    lines.append(f"- User: {copilot.get('login')}")
-                if copilot.get("copilotPlan") or copilot.get("accessTypeSku"):
-                    plan_bits = []
-                    if copilot.get("copilotPlan"):
-                        plan_bits.append(str(copilot.get("copilotPlan")))
-                    if copilot.get("accessTypeSku"):
-                        plan_bits.append(str(copilot.get("accessTypeSku")))
-                    lines.append(f"- Plan: {' / '.join(plan_bits)}")
-                if copilot.get("resetAt"):
-                    lines.append(f"- Resets: {copilot.get('resetAt')}")
-                for quota in copilot.get("quotas") or []:
-                    if not isinstance(quota, dict):
-                        continue
-                    quota_id = quota.get("quotaId") or "quota"
-                    quota_name = {
-                        "premium_interactions": "Premium requests",
-                        "chat": "Chat quota",
-                        "completions": "Completions",
-                    }.get(quota_id, str(quota_id))
-                    if quota.get("unlimited"):
-                        lines.append(f"- {quota_name}: unlimited")
-                        continue
-                    percent_remaining = (
-                        quota.get("percentRemaining")
-                        if isinstance(quota.get("percentRemaining"), (int, float))
-                        else None
-                    )
-                    remaining = quota.get("remaining")
-                    entitlement = quota.get("entitlement")
-                    detail = ""
-                    if remaining is not None and entitlement is not None:
-                        detail = f" ({format_number(remaining)} / {format_number(entitlement)} remaining)"
-                    overage_text = ""
-                    if quota.get("overagePermitted"):
-                        overage_text = ", overage allowed"
-                    lines.append(
-                        f"- {quota_name}: {format_bar(percent_remaining)} {format_number(percent_remaining)}% left{detail}{overage_text}"
-                    )
-            else:
-                lines.append(f"- Month: {copilot.get('month')}")
-                remaining = copilot.get("remaining")
-                monthly_quota = copilot.get("monthlyQuota")
-                remaining_percent = None
-                if (
-                    isinstance(remaining, (int, float))
-                    and isinstance(monthly_quota, (int, float))
-                    and monthly_quota > 0
-                ):
-                    remaining_percent = (
-                        float(remaining) / float(monthly_quota)
-                    ) * 100.0
-                lines.append(
-                    f"- Premium requests: {format_number(copilot.get('requestsUsed'))}"
-                    + (
-                        f" / {format_number(monthly_quota)}"
-                        if monthly_quota is not None
-                        else ""
-                    )
-                )
-                if remaining is not None:
-                    lines.append(
-                        f"- Remaining: {format_bar(remaining_percent)} {format_number(remaining)}"
-                    )
-                if copilot.get("overQuota"):
-                    lines.append(
-                        f"- Over quota: {format_number(copilot.get('overQuota'))}"
-                    )
-                lines.append(f"- Resets: {copilot.get('resetAt')}")
-                by_model = copilot.get("byModel") or []
-                if by_model:
-                    top = ", ".join(
-                        f"{entry.get('name')}={format_number(entry.get('quantity'))}"
-                        for entry in by_model[:5]
-                        if isinstance(entry, dict)
-                    )
-                    if top:
-                        lines.append(f"- By model: {top}")
-        else:
-            lines.append(f"- {copilot.get('message')}")
-            lines.append(f"- Docs: {copilot.get('docsUrl')}")
-            lines.append(f"- Billing UI: {copilot.get('billingUrl')}")
 
     return "\n".join(lines).strip()
 

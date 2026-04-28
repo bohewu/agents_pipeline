@@ -53,26 +53,17 @@ function asMode(value, fallback = "short") {
 }
 
 function asFilter(value, fallback = "all") {
-  return value === "all" || value === "codex" || value === "copilot" ? value : fallback;
+  return value === "all" || value === "codex" ? value : fallback;
 }
 
-function filterFromFlags(showCodex, showCopilot) {
-  if (showCodex && showCopilot) {
-    return "all";
-  }
-  if (showCodex) {
-    return "codex";
-  }
-  if (showCopilot) {
-    return "copilot";
-  }
-  return "all";
+function filterFromFlags(showCodex) {
+  return showCodex ? "codex" : "all";
 }
 
 function visibilityFromFilter(filter) {
+  void filter;
   return {
-    showCodex: filter !== "copilot",
-    showCopilot: filter !== "codex",
+    showCodex: true,
   };
 }
 
@@ -186,48 +177,12 @@ function summarizeCodex(result, mode) {
   return parts.length > 1 ? parts.join(" ") : "C n/a";
 }
 
-function summarizeCopilot(result, mode) {
-  const copilot = result?.copilot;
-  if (!copilot || copilot.status !== "ok") {
-    return "GH n/a";
-  }
-
-  if (copilot.source === "github-internal-user") {
-    const quotas = Array.isArray(copilot.quotas) ? copilot.quotas : [];
-    const premium = quotas.find((item) => item?.quotaId === "premium_interactions");
-    if (!premium) {
-      return "GH n/a";
-    }
-    if (premium.unlimited) {
-      return "GH unlimited";
-    }
-
-    const remaining = premium.remaining;
-    const entitlement = premium.entitlement;
-    if (typeof remaining === "number" && typeof entitlement === "number") {
-      return `GH ${Math.round(remaining)}/${Math.round(entitlement)}`;
-    }
-    const percentRemaining = roundPercent(premium.percentRemaining);
-    return percentRemaining !== undefined ? `GH ${percentRemaining}%` : "GH n/a";
-  }
-
-  if (typeof copilot.remaining === "number" && typeof copilot.monthlyQuota === "number") {
-    return `GH ${Math.round(copilot.remaining)}/${Math.round(copilot.monthlyQuota)}`;
-  }
-
-  return "GH n/a";
-}
-
 function buildSummary(result, options, mode) {
   const parts = [];
   let stale = false;
   if (options.showCodex) {
     parts.push(summarizeCodex(result, mode));
     stale = stale || sectionIsStale(result?.codex);
-  }
-  if (options.showCopilot) {
-    parts.push(summarizeCopilot(result, mode));
-    stale = stale || sectionIsStale(result?.copilot);
   }
   const text = parts.filter(Boolean).join(" | ") || "Usage n/a";
   return stale ? `~ ${text}` : text;
@@ -289,94 +244,8 @@ function codexCard(result, mode) {
   };
 }
 
-function copilotCard(result, mode) {
-  const copilot = result?.copilot;
-  if (!copilot || copilot.status !== "ok") {
-    return {
-      title: "Copilot",
-      subtitle: "GitHub auth unavailable",
-      value: "Premium usage unavailable",
-      metrics: [],
-      muted: true,
-      stale: false,
-    };
-  }
-
-  if (copilot.source === "github-internal-user") {
-    const quotas = Array.isArray(copilot.quotas) ? copilot.quotas : [];
-    const premium = quotas.find((item) => item?.quotaId === "premium_interactions");
-    if (!premium) {
-      return {
-        title: "Copilot",
-        subtitle: copilot.accessTypeSku || copilot.copilotPlan || "premium usage",
-        value: "Premium usage unavailable",
-        metrics: [],
-        muted: true,
-        stale: sectionIsStale(copilot),
-      };
-    }
-
-    let value = "Unlimited";
-    if (!premium.unlimited) {
-      if (typeof premium.remaining === "number" && typeof premium.entitlement === "number") {
-        value = `${Math.round(premium.remaining)}/${Math.round(premium.entitlement)} left`;
-      } else {
-        const percent = roundPercent(premium.percentRemaining);
-        value = percent !== undefined ? `${percent}% left` : "Usage available";
-      }
-    }
-
-    return {
-      title: "Copilot",
-      subtitle: copilot.accessTypeSku || copilot.copilotPlan || "premium requests",
-      value,
-      metrics: [
-        metric(
-          "Premium",
-          roundPercent(premium.percentRemaining),
-          typeof premium.remaining === "number" && typeof premium.entitlement === "number"
-            ? `${Math.round(premium.remaining)}/${Math.round(premium.entitlement)} left`
-            : value,
-          formatLocalReset(copilot.resetAt),
-        ),
-      ],
-      muted: false,
-      stale: sectionIsStale(copilot),
-    };
-  }
-
-  if (typeof copilot.remaining === "number" && typeof copilot.monthlyQuota === "number") {
-    return {
-      title: "Copilot",
-      subtitle: copilot.month || "report",
-      value: `${Math.round(copilot.remaining)}/${Math.round(copilot.monthlyQuota)} left`,
-      metrics: [
-        metric(
-          "Premium",
-          typeof copilot.remaining === "number" && typeof copilot.monthlyQuota === "number" && copilot.monthlyQuota > 0
-            ? Math.round((copilot.remaining / copilot.monthlyQuota) * 100)
-            : undefined,
-          `${Math.round(copilot.remaining)}/${Math.round(copilot.monthlyQuota)} left`,
-          formatLocalReset(copilot.resetAt),
-        ),
-      ],
-      muted: false,
-      stale: sectionIsStale(copilot),
-    };
-  }
-
-  return {
-    title: "Copilot",
-    subtitle: copilot.source || "usage",
-    value: "Usage unavailable",
-    metrics: [],
-    muted: true,
-    stale: sectionIsStale(copilot),
-  };
-}
-
 function cardBadge(result, mode) {
-  const stale = sectionIsStale(result?.codex) || sectionIsStale(result?.copilot);
+  const stale = sectionIsStale(result?.codex);
   if (stale) {
     return "cached";
   }
@@ -412,7 +281,7 @@ async function runJsonHelper(projectRoot, scriptPath, args) {
 }
 
 async function runUsageHelper(projectRoot) {
-  return runJsonHelper(projectRoot, helperPath, ["--provider", "auto", "--format", "json", "--project-root", projectRoot]);
+  return runJsonHelper(projectRoot, helperPath, ["--provider", "codex", "--format", "json", "--project-root", projectRoot]);
 }
 
 export async function createUsageStatusTuiPlugin(api, options = {}) {
@@ -423,7 +292,7 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
   const resolved = {
     enabled: asBoolean(options.enabled, false),
     refreshSeconds: asPositiveInteger(options.refreshSeconds, DEFAULT_REFRESH_SECONDS),
-    defaultFilter: filterFromFlags(asBoolean(options.showCodex, true), asBoolean(options.showCopilot, true)),
+    defaultFilter: filterFromFlags(asBoolean(options.showCodex, true)),
     mode: asMode(options.mode, "short"),
   };
 
@@ -529,7 +398,7 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       if (showToast) {
         api.ui.toast({
           title: "Usage status enabled",
-          message: "The usage panel will keep Codex and Copilot quotas refreshed.",
+          message: "The usage panel will keep Codex quotas refreshed.",
         });
       }
       return;
@@ -598,7 +467,7 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     {
       title: enabled() ? "Disable Usage Status UI" : "Enable Usage Status UI",
       value: "usage-status:toggle",
-      description: "Toggle the Codex/Copilot usage UI.",
+      description: "Toggle the Codex usage UI.",
       category: "Usage",
       suggested: true,
       slash: {
@@ -609,7 +478,7 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     {
       title: "Enable Usage Status UI",
       value: "usage-status:on",
-      description: "Show the Codex/Copilot usage UI.",
+      description: "Show the Codex usage UI.",
       category: "Usage",
       hidden: enabled(),
       slash: {
@@ -621,7 +490,7 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
     {
       title: "Disable Usage Status UI",
       value: "usage-status:off",
-      description: "Hide the Codex/Copilot usage UI.",
+      description: "Hide the Codex usage UI.",
       category: "Usage",
       hidden: !enabled(),
       slash: {
@@ -687,9 +556,9 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
       onSelect: () => updateMode("detail"),
     },
     {
-      title: "Show All Usage Providers",
+      title: "Show Usage Summary",
       value: "usage-status:filter-all",
-      description: "Show both Codex and Copilot usage.",
+      description: "Show Codex usage.",
       category: "Usage",
       hidden: filter() === "all",
       slash: {
@@ -707,17 +576,6 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
         name: "usage-status-codex",
       },
       onSelect: () => updateFilter("codex"),
-    },
-    {
-      title: "Show Copilot Usage Only",
-      value: "usage-status:filter-copilot",
-      description: "Show only Copilot usage.",
-      category: "Usage",
-      hidden: filter() === "copilot",
-      slash: {
-        name: "usage-status-copilot",
-      },
-      onSelect: () => updateFilter("copilot"),
     },
   ]);
 
@@ -737,7 +595,6 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
             const result = lastResult();
             const options = displayOptions();
             const codex = codexCard(result, mode());
-            const copilot = copilotCard(result, mode());
             const panelBackground = api.theme.current.backgroundPanel ?? api.theme.current.backgroundElement;
             const chipBackground = api.theme.current.backgroundElement ?? panelBackground;
             const muted = api.theme.current.textMuted;
@@ -816,37 +673,6 @@ export async function createUsageStatusTuiPlugin(api, options = {}) {
                       ))
                     ) : (
                       <text fg={codex.muted ? muted : text}>{codex.value}</text>
-                    )}
-                  </box>
-                ) : null}
-                {options.showCopilot ? (
-                  <box
-                    backgroundColor={chipBackground}
-                    paddingTop={1}
-                    paddingBottom={1}
-                    paddingLeft={1}
-                    paddingRight={1}
-                    flexDirection="column"
-                  >
-                    <box flexDirection="row" justifyContent="space-between">
-                      <text fg={text}>
-                        <b>{copilot.title}</b>
-                      </text>
-                      {copilot.stale ? <text fg={muted}>cached</text> : null}
-                    </box>
-                    <text fg={muted}>{copilot.subtitle}</text>
-                    {copilot.metrics.length > 0 ? (
-                      copilot.metrics.map((entry) => (
-                        <box flexDirection="column" gap={0}>
-                          <box flexDirection="row" justifyContent="space-between">
-                            <text fg={text}>{entry.label}</text>
-                            <text fg={metricTone(api, entry.percent)}>{entry.detail}</text>
-                          </box>
-                          {entry.reset ? <text fg={muted}>reset {entry.reset}</text> : null}
-                        </box>
-                      ))
-                    ) : (
-                      <text fg={copilot.muted ? muted : text}>{copilot.value}</text>
                     )}
                   </box>
                 ) : null}

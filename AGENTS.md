@@ -52,6 +52,6 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
 | codex-account-manager | List and switch local OpenCode Codex account selections | subagent | hidden |
-| usage-inspector | Inspect local Codex quota windows and Copilot premium request sources | subagent | hidden |
+| usage-inspector | Inspect local Codex quota windows | subagent | hidden |
 | skill-curator | List/search/install skills from local locations and curated catalogs | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |

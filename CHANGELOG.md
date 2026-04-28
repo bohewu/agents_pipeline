@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.22.31] - 2026-04-28
+
+### Changed
+
+- Removed Copilot premium-request lookup/report support from `/usage`, `provider-usage`, and the usage-status UI so the usage surface is scoped to live Codex quota inspection.
+
 ## [0.22.30] - 2026-04-27
 
 ### Added

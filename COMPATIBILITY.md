@@ -32,7 +32,7 @@ Installed plugins run inside the host runtime's JavaScript environment. Contribu
 ## Optional Dependencies
 
 - GitHub CLI (`gh`)
-  Used for live Copilot usage lookup and optional release-attestation verification.
+  Used for optional release-attestation verification.
 - Codex CLI / local Codex auth files
   Needed for live Codex quota inspection.
 - Claude Code, VS Code Copilot, Codex CLI targets
@@ -51,7 +51,6 @@ Installed plugins run inside the host runtime's JavaScript environment. Contribu
 
 - Python missing or older than 3.9
 - PowerShell 5.x instead of PowerShell 7+
-- `gh` installed but not authenticated when using live Copilot usage lookup
 - no local OpenCode/Codex auth files when using live Codex usage lookup
 - older OpenCode runtimes that do not support the plugin/tool APIs used here
 - missing Node when running repo-local test/smoke commands

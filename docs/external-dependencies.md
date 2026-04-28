@@ -15,28 +15,20 @@ External services used:
 
 - OpenAI auth/token refresh: `https://auth.openai.com/oauth/token`
 - Codex usage endpoint: `https://chatgpt.com/backend-api/wham/usage`
-- GitHub Copilot live usage endpoint: `https://api.github.com/copilot_internal/user`
 
 Local auth/state inputs:
 
 - OpenCode/Codex auth files under user config locations
-- `GH_TOKEN` / `GITHUB_TOKEN`
-- `gh auth token` as a fallback source for GitHub auth
-- optional local Copilot CSV usage report passed via `--copilot-report`
 
 Expected failure modes:
 
 - no local OpenCode/Codex auth files
 - expired or revoked refresh/access tokens
-- GitHub CLI not installed or not authenticated
 - rate limits, 403/404 access failures, or endpoint changes
-- missing or malformed Copilot CSV report
 
 Fallback behavior:
 
-- Copilot can fall back to a local CSV report.
 - cached provider data may be reused when a live lookup previously succeeded and a later lookup fails.
-- when live Copilot lookup fails, the tool returns manual guidance plus docs/billing URLs instead of silently succeeding.
 
 Privacy notes:
 
