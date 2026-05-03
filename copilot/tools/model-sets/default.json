@@ -1,0 +1,13 @@
+{
+  "name": "default",
+  "runtime": "copilot",
+  "description": "Copilot/VS Code custom agent model set. Values must match available Copilot/VS Code model picker names.",
+  "tiers": {
+    "mini": "GPT-5 mini",
+    "standard": "GPT-5.4",
+    "strong": [
+      "Claude Opus 4.7",
+      "GPT-5.5"
+    ]
+  }
+}

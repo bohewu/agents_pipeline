@@ -21,6 +21,12 @@ Options:
   --dry-run                 Print actions without writing files
   --no-backup               Skip backups in underlying installers
   --force-codex             Accepted for backward compatibility; Codex overwrite is already enabled by default
+  --agent-profile <name|path>
+                            Forward model profile selection to Copilot/Claude/Codex installers
+  --model-set <name|path>   Forward runtime model-set selection to Copilot/Claude/Codex installers
+  --profile-dir <path>      Forward agent profile directory override
+  --model-set-dir <path>    Forward runtime model-set directory override
+  --uniform-model <model>   Forward uniform runtime model selection
   -h, --help                Show this help
 
 Includes:
@@ -46,6 +52,11 @@ EFFORT_PLUGIN_TARGET=""
 COPILOT_TARGET=""
 CLAUDE_TARGET=""
 CODEX_TARGET=""
+AGENT_PROFILE=""
+MODEL_SET=""
+PROFILE_DIR=""
+MODEL_SET_DIR=""
+UNIFORM_MODEL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,6 +99,46 @@ while [[ $# -gt 0 ]]; do
     --force-codex)
       FORCE_CODEX=1
       shift
+      ;;
+    --agent-profile)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --agent-profile" >&2
+        exit 2
+      fi
+      AGENT_PROFILE="$2"
+      shift 2
+      ;;
+    --model-set)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set" >&2
+        exit 2
+      fi
+      MODEL_SET="$2"
+      shift 2
+      ;;
+    --profile-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --profile-dir" >&2
+        exit 2
+      fi
+      PROFILE_DIR="$2"
+      shift 2
+      ;;
+    --model-set-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set-dir" >&2
+        exit 2
+      fi
+      MODEL_SET_DIR="$2"
+      shift 2
+      ;;
+    --uniform-model)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --uniform-model" >&2
+        exit 2
+      fi
+      UNIFORM_MODEL="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -162,6 +213,27 @@ fi
 if [[ ${FORCE_CODEX} -eq 1 ]]; then
   CODEX_CMD+=(--force)
 fi
+append_model_flags() {
+  local -n cmd_ref="$1"
+  if [[ -n "${AGENT_PROFILE}" ]]; then
+    cmd_ref+=(--agent-profile "${AGENT_PROFILE}")
+  fi
+  if [[ -n "${MODEL_SET}" ]]; then
+    cmd_ref+=(--model-set "${MODEL_SET}")
+  fi
+  if [[ -n "${PROFILE_DIR}" ]]; then
+    cmd_ref+=(--profile-dir "${PROFILE_DIR}")
+  fi
+  if [[ -n "${MODEL_SET_DIR}" ]]; then
+    cmd_ref+=(--model-set-dir "${MODEL_SET_DIR}")
+  fi
+  if [[ -n "${UNIFORM_MODEL}" ]]; then
+    cmd_ref+=(--uniform-model "${UNIFORM_MODEL}")
+  fi
+}
+append_model_flags COPILOT_CMD
+append_model_flags CLAUDE_CMD
+append_model_flags CODEX_CMD
 
 echo "Running local installers with shared flags: dry-run=${DRY_RUN}, no-backup=${NO_BACKUP}"
 echo "Note: OpenCode plugin installation applies to OpenCode only."

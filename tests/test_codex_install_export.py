@@ -124,6 +124,35 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("--resolve-opencode-refs-to", command)
         self.assertIn("/home/test/.codex/opencode", command)
 
+    def test_build_export_command_forwards_model_profile_flags(self) -> None:
+        command = INSTALL_MODULE.build_export_command(
+            Path("scripts/export-codex-agents.py"),
+            Path("opencode/agents"),
+            Path("AGENTS.md"),
+            Path(".codex"),
+            strict=True,
+            max_threads=6,
+            max_depth=2,
+            job_max_runtime_seconds=None,
+            resolve_opencode_refs_to=None,
+            agent_profile="balanced",
+            model_set="openai",
+            profile_dir=Path("opencode/tools/agent-profiles"),
+            model_set_dir=Path("codex/tools/model-sets"),
+            uniform_model="gpt-5.5",
+        )
+
+        self.assertIn("--agent-profile", command)
+        self.assertIn("balanced", command)
+        self.assertIn("--model-set", command)
+        self.assertIn("openai", command)
+        self.assertIn("--profile-dir", command)
+        self.assertIn("opencode/tools/agent-profiles", command)
+        self.assertIn("--model-set-dir", command)
+        self.assertIn("codex/tools/model-sets", command)
+        self.assertIn("--uniform-model", command)
+        self.assertIn("gpt-5.5", command)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -59,7 +59,30 @@ Each generated `agents/<name>.toml` file includes:
 This matches the current Codex custom-agent schema from the official docs, which requires `name`, `description`, and `developer_instructions` in each standalone agent file.
 Codex custom-agent files can also include other supported `config.toml` keys, but this exporter keeps generated agent files minimal unless a specific mapping is implemented explicitly.
 
-Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+By default, model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+
+## Opt-In Agent Model Profiles
+
+Codex runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+
+- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
+- The Codex tier catalog is loaded from `codex/tools/model-sets/<set>.json` and must have `runtime: "codex"`.
+- Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Codex model set maps each tier to an object with `model` and optional `model_provider`.
+- For each mapped generated role, the exporter writes only `model` and optional `model_provider` into that role file: `.codex/agents/<name>.toml`.
+- The exporter does **not** write `model` or `model_provider` into root `config.toml` `[agents.<name>]` tables.
+- The exporter does **not** emit `model_reasoning_effort` or `plan_mode_reasoning_effort`.
+
+Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Codex runtime configuration. Omit the profile flags to keep Codex's normal runtime model selection.
+
+Examples from a cloned repo:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-codex.ps1 -AgentProfile balanced -ModelSet openai
+```
+
+```bash
+scripts/install-codex.sh --agent-profile balanced --model-set openai
+```
 
 Sandbox mode, MCP servers, and other Codex-specific config are intentionally left unset so they inherit from the parent Codex environment unless you customize them after generation.
 

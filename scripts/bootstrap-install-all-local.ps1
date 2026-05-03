@@ -13,7 +13,12 @@ param(
     [switch]$NoBackup,
     [switch]$ForceCodex,
     [switch]$DryRun,
-    [switch]$KeepTemp
+    [switch]$KeepTemp,
+    [string]$AgentProfile,
+    [string]$ModelSet,
+    [string]$ProfileDir,
+    [string]$ModelSetDir,
+    [string]$UniformModel
 )
 
 $ErrorActionPreference = "Stop"
@@ -241,6 +246,21 @@ try {
     }
     if ($ForceCodex) {
         $installParams.ForceCodex = $true
+    }
+    if ($AgentProfile) {
+        $installParams.AgentProfile = $AgentProfile
+    }
+    if ($ModelSet) {
+        $installParams.ModelSet = $ModelSet
+    }
+    if ($ProfileDir) {
+        $installParams.ProfileDir = $ProfileDir
+    }
+    if ($ModelSetDir) {
+        $installParams.ModelSetDir = $ModelSetDir
+    }
+    if ($UniformModel) {
+        $installParams.UniformModel = $UniformModel
     }
 
     & $installScript @installParams

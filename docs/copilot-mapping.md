@@ -23,7 +23,30 @@ Do not manually maintain generated `.agent.md` files as a primary source.
 | `tools` | (removed) | not emitted |
 | body `@agent` refs | `agents` | extracted and deduplicated |
 
-Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+By default, model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+
+## Opt-In Agent Model Profiles
+
+Copilot runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+
+- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
+- The Copilot tier catalog is loaded from `copilot/tools/model-sets/<set>.json` and must have `runtime: "copilot"`.
+- Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Copilot model set maps each tier to either one model name or a prioritized list of model names.
+- For each mapped generated agent, the exporter writes `.agent.md` frontmatter `model` as either a scalar or a YAML list matching the selected tier value.
+
+Copilot model names are written exactly as configured and must match model names available in the VS Code/GitHub Copilot model picker. The exporter does not validate remote availability.
+
+Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Copilot/VS Code runtime configuration. Omit the profile flags to keep Copilot's normal runtime model selection.
+
+Examples from a cloned repo:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-copilot.ps1 -AgentProfile balanced -ModelSet default
+```
+
+```bash
+scripts/install-copilot.sh --agent-profile balanced --model-set default
+```
 
 ## Subagent Extraction Rules
 

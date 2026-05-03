@@ -21,6 +21,11 @@ Options:
   --codex-target <path>        Override Codex config install target
   --no-backup                  Do not back up existing installed files
   --force-codex                Accepted for backward compatibility; Codex overwrite is already enabled by default
+  --agent-profile <name|path>  Forward model profile selection to runtime installers
+  --model-set <name|path>      Forward runtime model-set selection to runtime installers
+  --profile-dir <path>         Forward agent profile directory override
+  --model-set-dir <path>       Forward runtime model-set directory override
+  --uniform-model <model>      Forward uniform runtime model selection
   --dry-run                    Resolve release and print actions only
   --keep-temp                  Keep downloaded temporary files
   --verbose                    Show attestation verification details
@@ -131,6 +136,11 @@ FORCE_CODEX=0
 DRY_RUN=0
 KEEP_TEMP=0
 VERBOSE=0
+AGENT_PROFILE=""
+MODEL_SET=""
+PROFILE_DIR=""
+MODEL_SET_DIR=""
+UNIFORM_MODEL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -213,6 +223,46 @@ while [[ $# -gt 0 ]]; do
     --force-codex)
       FORCE_CODEX=1
       shift
+      ;;
+    --agent-profile)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --agent-profile" >&2
+        exit 2
+      fi
+      AGENT_PROFILE="$2"
+      shift 2
+      ;;
+    --model-set)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set" >&2
+        exit 2
+      fi
+      MODEL_SET="$2"
+      shift 2
+      ;;
+    --profile-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --profile-dir" >&2
+        exit 2
+      fi
+      PROFILE_DIR="$2"
+      shift 2
+      ;;
+    --model-set-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set-dir" >&2
+        exit 2
+      fi
+      MODEL_SET_DIR="$2"
+      shift 2
+      ;;
+    --uniform-model)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --uniform-model" >&2
+        exit 2
+      fi
+      UNIFORM_MODEL="$2"
+      shift 2
       ;;
     --dry-run)
       DRY_RUN=1
@@ -407,6 +457,21 @@ if [[ ${NO_BACKUP} -eq 1 ]]; then
 fi
 if [[ ${FORCE_CODEX} -eq 1 ]]; then
   INSTALL_CMD+=(--force-codex)
+fi
+if [[ -n "${AGENT_PROFILE}" ]]; then
+  INSTALL_CMD+=(--agent-profile "${AGENT_PROFILE}")
+fi
+if [[ -n "${MODEL_SET}" ]]; then
+  INSTALL_CMD+=(--model-set "${MODEL_SET}")
+fi
+if [[ -n "${PROFILE_DIR}" ]]; then
+  INSTALL_CMD+=(--profile-dir "${PROFILE_DIR}")
+fi
+if [[ -n "${MODEL_SET_DIR}" ]]; then
+  INSTALL_CMD+=(--model-set-dir "${MODEL_SET_DIR}")
+fi
+if [[ -n "${UNIFORM_MODEL}" ]]; then
+  INSTALL_CMD+=(--uniform-model "${UNIFORM_MODEL}")
 fi
 
 "${INSTALL_CMD[@]}"

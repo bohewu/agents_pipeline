@@ -10,7 +10,12 @@ param(
     [string]$CodexTarget,
     [switch]$DryRun,
     [switch]$NoBackup,
-    [switch]$ForceCodex
+    [switch]$ForceCodex,
+    [string]$AgentProfile,
+    [string]$ModelSet,
+    [string]$ProfileDir,
+    [string]$ModelSetDir,
+    [string]$UniformModel
 )
 
 $ErrorActionPreference = "Stop"
@@ -83,6 +88,23 @@ if ($CodexTarget) {
 }
 if ($ForceCodex) {
     $codexParams.Force = $true
+}
+foreach ($params in @($copilotParams, $claudeParams, $codexParams)) {
+    if ($AgentProfile) {
+        $params.AgentProfile = $AgentProfile
+    }
+    if ($ModelSet) {
+        $params.ModelSet = $ModelSet
+    }
+    if ($ProfileDir) {
+        $params.ProfileDir = $ProfileDir
+    }
+    if ($ModelSetDir) {
+        $params.ModelSetDir = $ModelSetDir
+    }
+    if ($UniformModel) {
+        $params.UniformModel = $UniformModel
+    }
 }
 
 Write-Host "Running local installers with shared flags: dry-run=$DryRun, no-backup=$NoBackup"

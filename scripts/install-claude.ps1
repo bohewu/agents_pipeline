@@ -5,7 +5,12 @@ param(
     [string]$ClaudeMd,
     [switch]$NoRunner,
     [switch]$DryRun,
-    [switch]$NoBackup
+    [switch]$NoBackup,
+    [string]$AgentProfile,
+    [string]$ModelSet,
+    [string]$ProfileDir,
+    [string]$ModelSetDir,
+    [string]$UniformModel
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +31,13 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $sourceAgents = Join-Path $repoRoot "opencode/agents"
 $exportScript = Join-Path $repoRoot "scripts/export-claude-agents.py"
+$modelFlags = [bool]($AgentProfile -or $ModelSet -or $ProfileDir -or $ModelSetDir -or $UniformModel)
+if (-not $ProfileDir) {
+    $ProfileDir = Join-Path $repoRoot "opencode/tools/agent-profiles"
+}
+if (-not $ModelSetDir) {
+    $ModelSetDir = Join-Path $repoRoot "claude/tools/model-sets"
+}
 
 if (-not (Test-Path -LiteralPath $sourceAgents -PathType Container)) {
     throw "Source agents directory not found: $sourceAgents"
@@ -96,6 +108,18 @@ if (-not $NoRunner -and $ClaudeMd) {
 }
 if ($DryRun) {
     $exportArgs += "--dry-run"
+}
+if ($AgentProfile) {
+    $exportArgs += @("--agent-profile", $AgentProfile)
+}
+if ($ModelSet) {
+    $exportArgs += @("--model-set", $ModelSet)
+}
+if ($modelFlags) {
+    $exportArgs += @("--profile-dir", $ProfileDir, "--model-set-dir", $ModelSetDir)
+}
+if ($UniformModel) {
+    $exportArgs += @("--uniform-model", $UniformModel)
 }
 
 & $pythonCmd @exportArgs

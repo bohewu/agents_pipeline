@@ -17,6 +17,8 @@ TABLE_RE = re.compile(r"^\s*\[([^\[\]]+)\]\s*$")
 ARRAY_TABLE_RE = re.compile(r"^\s*\[\[([^\[\]]+)\]\]\s*$")
 DEFAULT_MAX_THREADS = 6
 DEFAULT_MAX_DEPTH = 2
+DEFAULT_PROFILE_DIR = "opencode/tools/agent-profiles"
+DEFAULT_MODEL_SET_DIR = "codex/tools/model-sets"
 
 
 @dataclass
@@ -196,6 +198,11 @@ def build_export_command(
     max_depth: int,
     job_max_runtime_seconds: Optional[int],
     resolve_opencode_refs_to: Optional[Path],
+    agent_profile: Optional[str] = None,
+    model_set: Optional[str] = None,
+    profile_dir: Optional[Path] = None,
+    model_set_dir: Optional[Path] = None,
+    uniform_model: Optional[str] = None,
 ) -> List[str]:
     command = [
         sys.executable,
@@ -219,6 +226,16 @@ def build_export_command(
         command.extend(
             ["--resolve-opencode-refs-to", resolve_opencode_refs_to.as_posix()]
         )
+    if agent_profile is not None:
+        command.extend(["--agent-profile", agent_profile])
+    if model_set is not None:
+        command.extend(["--model-set", model_set])
+    if profile_dir is not None:
+        command.extend(["--profile-dir", profile_dir.as_posix()])
+    if model_set_dir is not None:
+        command.extend(["--model-set-dir", model_set_dir.as_posix()])
+    if uniform_model is not None:
+        command.extend(["--uniform-model", uniform_model])
     return command
 
 
@@ -239,6 +256,11 @@ def run_export(
     job_max_runtime_seconds: Optional[int],
     temp_root: Path,
     resolve_opencode_refs_to: Optional[Path],
+    agent_profile: Optional[str] = None,
+    model_set: Optional[str] = None,
+    profile_dir: Optional[Path] = None,
+    model_set_dir: Optional[Path] = None,
+    uniform_model: Optional[str] = None,
 ) -> Path:
     try:
         temp_root.mkdir(parents=True, exist_ok=True)
@@ -259,6 +281,11 @@ def run_export(
         max_depth=max_depth,
         job_max_runtime_seconds=job_max_runtime_seconds,
         resolve_opencode_refs_to=resolve_opencode_refs_to,
+        agent_profile=agent_profile,
+        model_set=model_set,
+        profile_dir=profile_dir,
+        model_set_dir=model_set_dir,
+        uniform_model=uniform_model,
     )
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
@@ -415,6 +442,31 @@ def main() -> int:
             "Defaults to `<repo-root>/.tmp` so restricted workspace sandboxes can stay inside the repo."
         ),
     )
+    parser.add_argument(
+        "--agent-profile",
+        default=None,
+        help="Opt-in agent model profile name or JSON path forwarded to export-codex-agents.py.",
+    )
+    parser.add_argument(
+        "--model-set",
+        default=None,
+        help="Runtime model-set name or JSON path forwarded to export-codex-agents.py.",
+    )
+    parser.add_argument(
+        "--profile-dir",
+        default=DEFAULT_PROFILE_DIR,
+        help=f"Directory containing agent model profiles (default: {DEFAULT_PROFILE_DIR}).",
+    )
+    parser.add_argument(
+        "--model-set-dir",
+        default=DEFAULT_MODEL_SET_DIR,
+        help=f"Directory containing Codex model sets (default: {DEFAULT_MODEL_SET_DIR}).",
+    )
+    parser.add_argument(
+        "--uniform-model",
+        default=None,
+        help="Opt-in runtime model to apply uniformly to all generated Codex agents.",
+    )
     args = parser.parse_args()
 
     if args.max_threads < 1:
@@ -433,6 +485,8 @@ def main() -> int:
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
     catalog_path = Path(args.catalog).expanduser()
+    profile_dir = Path(args.profile_dir).expanduser()
+    model_set_dir = Path(args.model_set_dir).expanduser()
     temp_root = resolve_temp_root(repo_root=repo_root, temp_dir=args.temp_dir)
     support_tree_source = repo_root / "opencode"
     support_tree_target = target_dir / "opencode"
@@ -459,6 +513,11 @@ def main() -> int:
             job_max_runtime_seconds=args.job_max_runtime_seconds,
             temp_root=temp_root,
             resolve_opencode_refs_to=support_tree_target,
+            agent_profile=args.agent_profile,
+            model_set=args.model_set,
+            profile_dir=profile_dir,
+            model_set_dir=model_set_dir,
+            uniform_model=args.uniform_model,
         )
         generated_config = read_text(temp_dir / "config.toml")
         generated_role_files = collect_generated_role_files(temp_dir)

@@ -22,7 +22,30 @@ Do not manually maintain a separate Claude-only source tree as the primary defin
 | `temperature` | (removed) | not emitted |
 | body | markdown body | preserved with minimal adaptation |
 
-Model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+By default, model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+
+## Opt-In Agent Model Profiles
+
+Claude Code runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+
+- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
+- The Claude Code tier catalog is loaded from `claude/tools/model-sets/<set>.json` and must have `runtime: "claude"`.
+- Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Claude model set maps each tier to a Claude Code model alias.
+- For each mapped generated subagent, the exporter writes frontmatter `model` using only one of the supported aliases: `inherit`, `sonnet`, `opus`, or `haiku`.
+
+Do not use versioned Claude model IDs such as `claude-...` in Claude Code runtime model sets. `opus` means Claude Code's current runtime alias for Opus, not a pinned dated model ID.
+
+Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Claude Code runtime configuration. Omit the profile flags to keep Claude Code's normal runtime model selection.
+
+Examples from a cloned repo:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -ModelSet default
+```
+
+```bash
+scripts/install-claude.sh --agent-profile balanced --model-set default
+```
 
 ## Tool Mapping
 

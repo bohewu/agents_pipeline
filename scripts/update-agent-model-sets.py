@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Refresh workspace agent model-set catalogs from models.dev metadata."""
+"""Refresh managed agent model-set catalogs.
+
+Anthropic and Google OpenCode catalogs are derived from models.dev metadata.
+Runtime-only catalogs for Codex, Copilot, and Claude Code are static local
+defaults and intentionally do not require network metadata.
+"""
 
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass
 import difflib
 import json
 import re
@@ -18,9 +24,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_SET_DIR = REPO_ROOT / "opencode" / "tools" / "model-sets"
 
 
+@dataclass(frozen=True)
+class ManagedModelSet:
+    name: str
+    path: Path
+    builder: Callable[[dict | None, Path], dict]
+    needs_metadata: bool = False
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Update Anthropic and Google agent model-set JSON files from models.dev."
+        description="Update managed agent model-set JSON files from metadata or static runtime defaults."
     )
     parser.add_argument(
         "--source-url",
@@ -33,14 +47,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--model-set-dir",
-        default=str(DEFAULT_MODEL_SET_DIR),
-        help="Directory containing model-set JSON files.",
+        help=(
+            "Override output directory for the selected model-set JSON file(s). "
+            f"Anthropic/Google default to {DEFAULT_MODEL_SET_DIR}. Runtime catalogs default to their bundled directories."
+        ),
     )
     parser.add_argument(
         "--provider",
-        choices=("anthropic", "google", "all"),
+        choices=("anthropic", "google", "copilot", "codex", "claude", "all"),
         default="all",
-        help="Provider model set to update (default: all).",
+        help=(
+            "Provider or runtime model set to update. For backward compatibility, "
+            "'all' updates only the Anthropic and Google OpenCode catalogs (default: all)."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -109,7 +128,9 @@ def render_json(data: dict) -> str:
     return json.dumps(data, indent=2) + "\n"
 
 
-def build_anthropic(data: dict) -> dict:
+def build_anthropic(data: dict | None, _path: Path) -> dict:
+    if data is None:
+        raise RuntimeError("Anthropic model-set update requires provider metadata.")
     models = data["anthropic"]["models"]
     tiers = {
         "mini": "anthropic/"
@@ -127,7 +148,9 @@ def build_anthropic(data: dict) -> dict:
     }
 
 
-def build_google(data: dict) -> dict:
+def build_google(data: dict | None, _path: Path) -> dict:
+    if data is None:
+        raise RuntimeError("Google model-set update requires provider metadata.")
     models = data["google"]["models"]
     tiers = {
         "mini": "google/"
@@ -159,10 +182,96 @@ def build_google(data: dict) -> dict:
     }
 
 
-BUILDERS = {
-    "anthropic": build_anthropic,
-    "google": build_google,
+def existing_tier(path: Path, tier: str, fallback: object) -> object:
+    if not path.exists():
+        return fallback
+    data = json.loads(path.read_text(encoding="utf-8"))
+    tiers = data.get("tiers")
+    if isinstance(tiers, dict) and tier in tiers:
+        return tiers[tier]
+    return fallback
+
+
+def build_copilot_default(_data: dict | None, path: Path) -> dict:
+    return {
+        "name": "default",
+        "runtime": "copilot",
+        "description": "Copilot/VS Code custom agent model set. Values must match available Copilot/VS Code model picker names.",
+        "tiers": {
+            "mini": existing_tier(path, "mini", "GPT-5 mini"),
+            "standard": "GPT-5.4",
+            "strong": ["Claude Opus 4.7", "GPT-5.5"],
+        },
+    }
+
+
+def build_codex_openai(_data: dict | None, _path: Path) -> dict:
+    return {
+        "name": "openai",
+        "runtime": "codex",
+        "description": "OpenAI model set for Codex exported agent profiles.",
+        "tiers": {
+            "mini": {"model": "gpt-5.4-mini", "model_provider": "openai"},
+            "standard": {"model": "gpt-5.4", "model_provider": "openai"},
+            "strong": {"model": "gpt-5.5", "model_provider": "openai"},
+        },
+    }
+
+
+def build_claude_default(_data: dict | None, _path: Path) -> dict:
+    return {
+        "name": "default",
+        "runtime": "claude",
+        "description": "Default Claude Code model set for exported agent profiles using Claude model aliases.",
+        "tiers": {
+            "mini": "haiku",
+            "standard": "sonnet",
+            "strong": "opus",
+        },
+    }
+
+
+MANAGED_MODEL_SETS = {
+    "anthropic": ManagedModelSet(
+        name="anthropic",
+        path=DEFAULT_MODEL_SET_DIR / "anthropic.json",
+        builder=build_anthropic,
+        needs_metadata=True,
+    ),
+    "google": ManagedModelSet(
+        name="google",
+        path=DEFAULT_MODEL_SET_DIR / "google.json",
+        builder=build_google,
+        needs_metadata=True,
+    ),
+    "copilot": ManagedModelSet(
+        name="copilot",
+        path=REPO_ROOT / "copilot" / "tools" / "model-sets" / "default.json",
+        builder=build_copilot_default,
+    ),
+    "codex": ManagedModelSet(
+        name="codex",
+        path=REPO_ROOT / "codex" / "tools" / "model-sets" / "openai.json",
+        builder=build_codex_openai,
+    ),
+    "claude": ManagedModelSet(
+        name="claude",
+        path=REPO_ROOT / "claude" / "tools" / "model-sets" / "default.json",
+        builder=build_claude_default,
+    ),
 }
+
+
+def selected_model_sets(provider: str) -> list[ManagedModelSet]:
+    if provider == "all":
+        return [MANAGED_MODEL_SETS["anthropic"], MANAGED_MODEL_SETS["google"]]
+    return [MANAGED_MODEL_SETS[provider]]
+
+
+def output_path(model_set: ManagedModelSet, override_dir: str | None) -> Path:
+    if override_dir:
+        return Path(override_dir) / model_set.path.name
+    return model_set.path
 
 
 def update_file(path: Path, rendered: str, *, dry_run: bool, check: bool) -> bool:
@@ -192,14 +301,13 @@ def update_file(path: Path, rendered: str, *, dry_run: bool, check: bool) -> boo
 
 def main() -> int:
     args = parse_args()
-    model_set_dir = Path(args.model_set_dir)
-    data = load_metadata(args)
+    model_sets = selected_model_sets(args.provider)
+    data = load_metadata(args) if any(model_set.needs_metadata for model_set in model_sets) else None
 
-    providers = ["anthropic", "google"] if args.provider == "all" else [args.provider]
     changed = False
-    for provider in providers:
-        path = model_set_dir / f"{provider}.json"
-        rendered = render_json(BUILDERS[provider](data))
+    for model_set in model_sets:
+        path = output_path(model_set, args.model_set_dir)
+        rendered = render_json(model_set.builder(data, path))
         changed = update_file(path, rendered, dry_run=args.dry_run, check=args.check) or changed
 
     if args.check and changed:

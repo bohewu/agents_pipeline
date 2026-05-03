@@ -1,0 +1,19 @@
+{
+  "name": "openai",
+  "runtime": "codex",
+  "description": "OpenAI model set for Codex exported agent profiles.",
+  "tiers": {
+    "mini": {
+      "model": "gpt-5.4-mini",
+      "model_provider": "openai"
+    },
+    "standard": {
+      "model": "gpt-5.4",
+      "model_provider": "openai"
+    },
+    "strong": {
+      "model": "gpt-5.5",
+      "model_provider": "openai"
+    }
+  }
+}

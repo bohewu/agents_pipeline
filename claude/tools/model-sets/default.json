@@ -1,0 +1,10 @@
+{
+  "name": "default",
+  "runtime": "claude",
+  "description": "Default Claude Code model set for exported agent profiles using Claude model aliases.",
+  "tiers": {
+    "mini": "haiku",
+    "standard": "sonnet",
+    "strong": "opus"
+  }
+}

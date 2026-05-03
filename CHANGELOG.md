@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-05-03
+
+### Added
+
+- Added opt-in runtime agent model profiles for Codex, Copilot, and Claude Code exporter/installer output, reusing shared OpenCode profile tier maps while keeping canonical source agents free of `model` and `provider` frontmatter.
+- Added a shared runtime model profile resolver plus runtime-specific Codex, Copilot, and Claude model-set catalogs for tier-to-model mapping and uniform model overrides.
+- Added runtime model profile documentation, README/mapping updates, and regression tests covering resolver validation, exporter model output, source-frontmatter rejection, installer forwarding, and model-set updater behavior.
+
+### Changed
+
+- Extended release/bootstrap installer support and all-local installer flows to forward opt-in agent profile and model-set flags for generated Codex, Copilot, and Claude agent files.
+- Updated the managed model-set updater to refresh static runtime catalogs alongside the existing provider-sourced OpenCode model sets.
+
 ## [0.22.31] - 2026-04-28
 
 ### Changed

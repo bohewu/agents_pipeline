@@ -6,13 +6,23 @@ usage() {
 Install Codex multi-agent role config generated from OpenCode agents.
 
 Usage:
-  scripts/install-codex.sh [--target <path>] [--dry-run] [--no-backup] [--force]
+  scripts/install-codex.sh [--target <path>] [--dry-run] [--no-backup] [--force] [model profile options]
 
 Options:
   --target <path>  Install destination (default: ~/.codex)
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing config.toml and agents/*.toml
   --force          Accepted for backward compatibility; merged install is already enabled by default
+  --agent-profile <name|path>
+                  Opt in to generated per-agent model settings
+  --model-set <name|path>
+                  Runtime model-set to use with --agent-profile
+  --profile-dir <path>
+                  Agent profile directory (default: repo opencode/tools/agent-profiles)
+  --model-set-dir <path>
+                  Codex model-set directory (default: repo codex/tools/model-sets)
+  --uniform-model <model>
+                  Apply one Codex model to all generated agents
   -h, --help       Show this help
 
 Backs up current Codex files, preserves non-agent settings, replaces managed agent definitions, and removes stale managed role files.
@@ -37,6 +47,12 @@ TARGET_DIR="${HOME}/.codex"
 DRY_RUN=0
 NO_BACKUP=0
 FORCE_OVERWRITE=1
+AGENT_PROFILE=""
+MODEL_SET=""
+PROFILE_DIR="${REPO_ROOT}/opencode/tools/agent-profiles"
+MODEL_SET_DIR="${REPO_ROOT}/codex/tools/model-sets"
+UNIFORM_MODEL=""
+MODEL_FLAGS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -59,6 +75,51 @@ while [[ $# -gt 0 ]]; do
     --force)
       FORCE_OVERWRITE=1
       shift
+      ;;
+    --agent-profile)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --agent-profile" >&2
+        exit 2
+      fi
+      AGENT_PROFILE="$2"
+      MODEL_FLAGS=1
+      shift 2
+      ;;
+    --model-set)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set" >&2
+        exit 2
+      fi
+      MODEL_SET="$2"
+      MODEL_FLAGS=1
+      shift 2
+      ;;
+    --profile-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --profile-dir" >&2
+        exit 2
+      fi
+      PROFILE_DIR="$2"
+      MODEL_FLAGS=1
+      shift 2
+      ;;
+    --model-set-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --model-set-dir" >&2
+        exit 2
+      fi
+      MODEL_SET_DIR="$2"
+      MODEL_FLAGS=1
+      shift 2
+      ;;
+    --uniform-model)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --uniform-model" >&2
+        exit 2
+      fi
+      UNIFORM_MODEL="$2"
+      MODEL_FLAGS=1
+      shift 2
       ;;
     -h|--help)
       usage
@@ -148,6 +209,18 @@ EXPORT_CMD=(
 )
 if [[ ${DRY_RUN} -eq 1 ]]; then
   EXPORT_CMD+=(--dry-run)
+fi
+if [[ -n "${AGENT_PROFILE}" ]]; then
+  EXPORT_CMD+=(--agent-profile "${AGENT_PROFILE}")
+fi
+if [[ -n "${MODEL_SET}" ]]; then
+  EXPORT_CMD+=(--model-set "${MODEL_SET}")
+fi
+if [[ ${MODEL_FLAGS} -eq 1 ]]; then
+  EXPORT_CMD+=(--profile-dir "${PROFILE_DIR}" --model-set-dir "${MODEL_SET_DIR}")
+fi
+if [[ -n "${UNIFORM_MODEL}" ]]; then
+  EXPORT_CMD+=(--uniform-model "${UNIFORM_MODEL}")
 fi
 "${EXPORT_CMD[@]}"
 
