@@ -89,9 +89,17 @@ jobs:
           BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
 
           rm -rf dist
-          mkdir -p "dist/${BUNDLE_DIR}/scripts" "dist/${BUNDLE_DIR}/docs"
+          mkdir -p \
+            "dist/${BUNDLE_DIR}/scripts" \
+            "dist/${BUNDLE_DIR}/docs" \
+            "dist/${BUNDLE_DIR}/codex/tools" \
+            "dist/${BUNDLE_DIR}/copilot/tools" \
+            "dist/${BUNDLE_DIR}/claude/tools"
 
           cp -R opencode "dist/${BUNDLE_DIR}/"
+          cp -R codex/tools/model-sets "dist/${BUNDLE_DIR}/codex/tools/"
+          cp -R copilot/tools/model-sets "dist/${BUNDLE_DIR}/copilot/tools/"
+          cp -R claude/tools/model-sets "dist/${BUNDLE_DIR}/claude/tools/"
           cp AGENTS.md "dist/${BUNDLE_DIR}/"
           cp CHANGELOG.md "dist/${BUNDLE_DIR}/"
           cp LICENSE "dist/${BUNDLE_DIR}/"
@@ -133,6 +141,7 @@ jobs:
           cp scripts/bootstrap-install-usage-only.sh "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install-all-local.ps1 "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/bootstrap-install-all-local.sh "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/agent_model_profiles.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-claude-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
@@ -186,7 +195,13 @@ jobs:
           test -f "${BUNDLE_DIR}/opencode/tools/agent-profile.sh"
           test -f "${BUNDLE_DIR}/opencode/tools/agent-profiles/balanced.json"
           test -f "${BUNDLE_DIR}/opencode/tools/model-sets/openai.json"
+          test -f "${BUNDLE_DIR}/codex/tools/model-sets/openai.json"
+          test -f "${BUNDLE_DIR}/copilot/tools/model-sets/default.json"
+          test -f "${BUNDLE_DIR}/claude/tools/model-sets/default.json"
+          test -f "${BUNDLE_DIR}/scripts/agent_model_profiles.py"
+          test -f "${BUNDLE_DIR}/scripts/export-copilot-agents.py"
           test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
+          test -f "${BUNDLE_DIR}/scripts/export-codex-agents.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex-config.py"
           test -f "${BUNDLE_DIR}/scripts/update-agent-model-sets.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
@@ -203,6 +218,30 @@ jobs:
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.zip"
           test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
+
+          python3 -m py_compile \
+            "${BUNDLE_DIR}/scripts/agent_model_profiles.py" \
+            "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
+            "${BUNDLE_DIR}/scripts/export-claude-agents.py" \
+            "${BUNDLE_DIR}/scripts/export-codex-agents.py"
+
+          python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
+            --source-agents "${BUNDLE_DIR}/opencode/agents" \
+            --target-dir "${BUNDLE_DIR}/.tmp-copilot-bundle-smoke" \
+            --catalog "${BUNDLE_DIR}/AGENTS.md" \
+            --strict \
+            --dry-run \
+            --agent-profile balanced \
+            --model-set default \
+            --profile-dir "${BUNDLE_DIR}/opencode/tools/agent-profiles" \
+            --model-set-dir "${BUNDLE_DIR}/copilot/tools/model-sets"
+
+          bash "${BUNDLE_DIR}/scripts/install-copilot.sh" \
+            --target "${BUNDLE_DIR}/.tmp-copilot-install-smoke" \
+            --dry-run \
+            --no-backup \
+            --agent-profile balanced \
+            --model-set default
 
       - name: Generate release bundle artifact attestation
         if: inputs.upload_artifact

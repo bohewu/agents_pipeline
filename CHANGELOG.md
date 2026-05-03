@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-05-03
+
+### Fixed
+
+- Fixed local release-bundle packaging to include `scripts/agent_model_profiles.py` and the Codex, Copilot, and Claude runtime model-set directories.
+- Extended release-bundle validation/smoke coverage so missing profile helper and runtime model-set assets are caught before release.
+
 ## [0.23.0] - 2026-05-03
 
 ### Added
