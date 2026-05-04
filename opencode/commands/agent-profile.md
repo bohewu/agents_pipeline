@@ -10,14 +10,14 @@ Use the deterministic installer instead of asking the model to edit agent files.
 PowerShell:
 
 ```powershell
-pwsh ~/.config/opencode/tools/agent-profile.ps1 list
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet anthropic -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet anthropic -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
 ```
 
 Bash/macOS/Linux:

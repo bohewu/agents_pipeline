@@ -150,12 +150,52 @@ def list_runtime_profiles(runtime: str, profile_dir: Path, model_set_dir: Path) 
         )
 
 
-def runtime_installer_unavailable(runtime: str, installer: Path) -> str:
+def runtime_layout_roots() -> list[tuple[str, Path]]:
+    candidates: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
+    for layout, root in (
+        ("installed", (SCRIPT_DIR / "..").resolve()),
+        ("repo", (SCRIPT_DIR / "../..").resolve()),
+    ):
+        if root in seen:
+            continue
+        seen.add(root)
+        candidates.append((layout, root))
+    return candidates
+
+
+def runtime_asset_unavailable(runtime: str, asset_kind: str, installed_path: Path, repo_path: Path) -> str:
     return (
-        f"Runtime installer script not found for '{runtime}': {installer}. "
-        "Run this tool from a cloned agents_pipeline repo or an extracted release bundle that includes scripts/install-<runtime>.*, "
-        f"or invoke scripts/install-{runtime}.* directly from that repo/bundle."
+        f"Runtime companion {asset_kind} not found for '{runtime}'. "
+        f"Tried installed layout: {installed_path}. "
+        f"Tried repo/bundle layout: {repo_path}. "
+        "If you are using ~/.config/opencode/tools/agent-profile.*, rerun the latest OpenCode installer or bootstrap so the installed config includes companion runtime assets. "
+        f"Otherwise run this tool from a cloned agents_pipeline repo or extracted release bundle, or invoke scripts/install-{runtime}.* directly from that repo/bundle."
     )
+
+
+def resolve_runtime_installer(runtime: str) -> Path:
+    candidates: dict[str, Path] = {}
+    for layout, root in runtime_layout_roots():
+        installer = root / "scripts" / f"install-{runtime}.sh"
+        candidates[layout] = installer
+        if installer.is_file():
+            return installer
+    installed_path = candidates.get("installed", next(iter(candidates.values())))
+    repo_path = candidates.get("repo", installed_path)
+    raise RuntimeError(runtime_asset_unavailable(runtime, "installer script", installed_path, repo_path))
+
+
+def resolve_runtime_model_set_dir(runtime: str) -> Path:
+    candidates: dict[str, Path] = {}
+    for layout, root in runtime_layout_roots():
+        model_set_dir = root / runtime / "tools" / "model-sets"
+        candidates[layout] = model_set_dir
+        if model_set_dir.is_dir():
+            return model_set_dir
+    installed_path = candidates.get("installed", next(iter(candidates.values())))
+    repo_path = candidates.get("repo", installed_path)
+    raise RuntimeError(runtime_asset_unavailable(runtime, "model-set directory", installed_path, repo_path))
 
 
 def runtime_target_from_workspace(runtime: str, workspace: Path) -> Path:
@@ -170,10 +210,7 @@ def runtime_target_from_workspace(runtime: str, workspace: Path) -> Path:
     raise RuntimeError(f"Unsupported runtime: {runtime}")
 
 
-def run_runtime_install(args: argparse.Namespace, repo_root: Path, profile_dir: Path, model_set_dir: Path) -> int:
-    installer = repo_root / "scripts" / f"install-{args.runtime}.sh"
-    if not installer.is_file():
-        raise RuntimeError(runtime_installer_unavailable(args.runtime, installer))
+def run_runtime_install(args: argparse.Namespace, installer: Path, profile_dir: Path, model_set_dir: Path) -> int:
     if not args.profile:
         raise RuntimeError("install requires a profile: frugal, balanced, premium, or uniform.")
     if args.runtime != "claude" and (args.claude_md or args.no_runner):
@@ -325,7 +362,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args(normalize_args(ARGV))
-    repo_root = (SCRIPT_DIR / "../..").resolve()
     source_agents = Path(args.source_agents).expanduser().resolve() if args.source_agents else (SCRIPT_DIR / "../agents").resolve()
     profile_dir = Path(args.profile_dir).expanduser().resolve() if args.profile_dir else (SCRIPT_DIR / "agent-profiles").resolve()
     if args.runtime == "opencode":
@@ -344,7 +380,7 @@ def main() -> int:
             elif args.profile != "uniform":
                 raise RuntimeError("--uniform-model is only valid with the built-in 'uniform' profile.")
     else:
-        model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else (repo_root / args.runtime / "tools" / "model-sets").resolve()
+        model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else resolve_runtime_model_set_dir(args.runtime)
         if args.action == "list":
             list_runtime_profiles(args.runtime, profile_dir, model_set_dir)
             return 0
@@ -353,7 +389,8 @@ def main() -> int:
         workspace = Path(args.workspace or ".").expanduser().resolve()
         if not args.target:
             args.target = str(runtime_target_from_workspace(args.runtime, workspace))
-        return run_runtime_install(args, repo_root, profile_dir, model_set_dir)
+        installer = resolve_runtime_installer(args.runtime)
+        return run_runtime_install(args, installer, profile_dir, model_set_dir)
 
     workspace = Path(workspace_value).expanduser().resolve()
     opencode_dir = workspace / ".opencode"

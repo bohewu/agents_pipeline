@@ -12,7 +12,7 @@ Usage:
 Options:
   --target <path>  Install destination (default: $XDG_CONFIG_HOME/opencode or ~/.config/opencode)
   --dry-run        Print actions without writing files
-  --no-backup      Skip backup of existing agents/commands/protocols/tools/skills
+  --no-backup      Skip backup of existing managed directories/files
   -h, --help       Show this help
 EOF
 }
@@ -21,6 +21,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_ROOT="${REPO_ROOT}/opencode"
 MANIFEST_NAME=".agents-pipeline-manifest.txt"
+MANAGED_DIR_MAPS=(
+  "opencode/agents:agents"
+  "opencode/commands:commands"
+  "opencode/protocols:protocols"
+  "opencode/tools:tools"
+  "opencode/skills:skills"
+  "codex/tools/model-sets:codex/tools/model-sets"
+  "copilot/tools/model-sets:copilot/tools/model-sets"
+  "claude/tools/model-sets:claude/tools/model-sets"
+)
+MANAGED_FILE_MAPS=(
+  "opencode.json.example:opencode.json.example"
+  "scripts/agent_model_profiles.py:scripts/agent_model_profiles.py"
+  "scripts/export-codex-agents.py:scripts/export-codex-agents.py"
+  "scripts/export-copilot-agents.py:scripts/export-copilot-agents.py"
+  "scripts/export-claude-agents.py:scripts/export-claude-agents.py"
+  "scripts/install-codex-config.py:scripts/install-codex-config.py"
+  "scripts/install-codex.sh:scripts/install-codex.sh"
+  "scripts/install-codex.ps1:scripts/install-codex.ps1"
+  "scripts/install-copilot.sh:scripts/install-copilot.sh"
+  "scripts/install-copilot.ps1:scripts/install-copilot.ps1"
+  "scripts/install-claude.sh:scripts/install-claude.sh"
+  "scripts/install-claude.ps1:scripts/install-claude.ps1"
+)
+BACKUP_ITEMS=(agents commands protocols tools skills scripts codex copilot claude)
 
 if [[ ! -d "${SOURCE_ROOT}" ]]; then
   echo "Source directory not found: ${SOURCE_ROOT}" >&2
@@ -157,8 +182,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ITEMS=(agents commands protocols tools skills)
-EXAMPLE_CONFIG="${REPO_ROOT}/opencode.json.example"
 MANIFEST_PATH="${TARGET_DIR}/${MANIFEST_NAME}"
 CURRENT_MANAGED_FILE=""
 
@@ -171,19 +194,26 @@ cleanup() {
 trap cleanup EXIT
 
 CURRENT_MANAGED_FILE="$(mktemp)"
-for item in "${ITEMS[@]}"; do
-  src="${SOURCE_ROOT}/${item}"
+for mapping in "${MANAGED_DIR_MAPS[@]}"; do
+  src_rel="${mapping%%:*}"
+  dst_rel="${mapping#*:}"
+  src="${REPO_ROOT}/${src_rel}"
   if [[ ! -d "${src}" ]]; then
     continue
   fi
   while IFS= read -r path; do
-    rel="${path#${SOURCE_ROOT}/}"
-    printf '%s\n' "${rel}" >> "${CURRENT_MANAGED_FILE}"
+    rel="${path#${src}/}"
+    printf '%s\n' "${dst_rel}/${rel}" >> "${CURRENT_MANAGED_FILE}"
   done < <(find "${src}" -type f | LC_ALL=C sort)
 done
-if [[ -f "${EXAMPLE_CONFIG}" ]]; then
-  printf '%s\n' "opencode.json.example" >> "${CURRENT_MANAGED_FILE}"
-fi
+for mapping in "${MANAGED_FILE_MAPS[@]}"; do
+  src_rel="${mapping%%:*}"
+  dst_rel="${mapping#*:}"
+  src="${REPO_ROOT}/${src_rel}"
+  if [[ -f "${src}" ]]; then
+    printf '%s\n' "${dst_rel}" >> "${CURRENT_MANAGED_FILE}"
+  fi
+done
 LC_ALL=C sort -u "${CURRENT_MANAGED_FILE}" -o "${CURRENT_MANAGED_FILE}"
 
 echo "Source: ${SOURCE_ROOT}"
@@ -191,7 +221,7 @@ echo "Target: ${TARGET_DIR}"
 echo "DryRun: ${DRY_RUN}"
 
 needs_backup=0
-for item in "${ITEMS[@]}"; do
+for item in "${BACKUP_ITEMS[@]}"; do
   if [[ -e "${TARGET_DIR}/${item}" ]]; then
     needs_backup=1
     break
@@ -210,7 +240,7 @@ if [[ ${NO_BACKUP} -eq 0 && ${needs_backup} -eq 1 ]]; then
     echo "Would create backup: ${backup_dir}"
   else
     mkdir -p "${backup_dir}"
-    for item in "${ITEMS[@]}"; do
+    for item in "${BACKUP_ITEMS[@]}"; do
       if [[ -e "${TARGET_DIR}/${item}" ]]; then
         cp -a "${TARGET_DIR}/${item}" "${backup_dir}/"
       fi
@@ -253,9 +283,11 @@ elif [[ ${DRY_RUN} -eq 0 ]]; then
   echo "No previous installer manifest found; stale cleanup starts after this install."
 fi
 
-for item in "${ITEMS[@]}"; do
-  src="${SOURCE_ROOT}/${item}"
-  dst="${TARGET_DIR}/${item}"
+for mapping in "${MANAGED_DIR_MAPS[@]}"; do
+  src_rel="${mapping%%:*}"
+  dst_rel="${mapping#*:}"
+  src="${REPO_ROOT}/${src_rel}"
+  dst="${TARGET_DIR}/${dst_rel}"
   if [[ ! -e "${src}" ]]; then
     continue
   fi
@@ -270,15 +302,22 @@ for item in "${ITEMS[@]}"; do
   echo "Synced: ${src} -> ${dst}"
 done
 
-if [[ -f "${EXAMPLE_CONFIG}" ]]; then
-  dst="${TARGET_DIR}/opencode.json.example"
+for mapping in "${MANAGED_FILE_MAPS[@]}"; do
+  src_rel="${mapping%%:*}"
+  dst_rel="${mapping#*:}"
+  src="${REPO_ROOT}/${src_rel}"
+  dst="${TARGET_DIR}/${dst_rel}"
+  if [[ ! -f "${src}" ]]; then
+    continue
+  fi
   if [[ ${DRY_RUN} -eq 1 ]]; then
-    echo "Would copy: ${EXAMPLE_CONFIG} -> ${dst}"
+    echo "Would copy: ${src} -> ${dst}"
   else
-    cp -a "${EXAMPLE_CONFIG}" "${dst}"
+    mkdir -p "$(dirname "${dst}")"
+    cp -a "${src}" "${dst}"
     echo "Copied: ${dst}"
   fi
-fi
+done
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
   echo "Would write installer manifest: ${MANIFEST_PATH}"

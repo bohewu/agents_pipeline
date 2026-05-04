@@ -55,14 +55,14 @@ Use `--dry-run` to review diffs before writing, and `--check` in validation cont
 ## PowerShell Usage
 
 ```powershell
-pwsh ~/.config/opencode/tools/agent-profile.ps1 list
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace C:\path\to\project
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
-pwsh -NoProfile -File .\opencode\tools\agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
-pwsh ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace C:\path\to\project
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
 ```
 
 ## Bash/macOS/Linux Usage
@@ -75,7 +75,7 @@ bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set open
 bash ~/.config/opencode/tools/agent-profile.sh install frugal --model-set anthropic --workspace /path/to/project
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
-opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
+bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .
 ```

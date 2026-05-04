@@ -7,6 +7,7 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $psInstaller = Join-Path $repoRoot "opencode/tools/agent-profile.ps1"
 $shInstaller = Join-Path $repoRoot "opencode/tools/agent-profile.sh"
+$openCodeInstaller = Join-Path $repoRoot "scripts/install.ps1"
 $sourceAgents = Join-Path $repoRoot "opencode/agents"
 $modelSets = Join-Path $repoRoot "opencode/tools/model-sets"
 
@@ -112,6 +113,37 @@ try {
         $codexWorkspaceDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "codex", "-ModelSet", "openai", "-Workspace", $runtimeWorkspace, "-DryRun")
         Assert-Equal "ps runtime codex dry exit" $codexWorkspaceDry.ExitCode 0
         Assert-Contains "ps runtime workspace codex target" $codexWorkspaceDry.Output "Target: $expectedCodexTarget"
+
+        $installedRoot = Join-Path $tmp "installed-config"
+        $installedHome = Join-Path $tmp "installed-home"
+        New-Item -ItemType Directory -Path $installedHome -Force | Out-Null
+        $previousHome = $env:HOME
+        try {
+            $env:HOME = $installedHome
+            $openCodeInstall = Invoke-Captured @("pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $openCodeInstaller, "-Target", $installedRoot)
+        } finally {
+            $env:HOME = $previousHome
+        }
+        Assert-Equal "ps opencode install exit" $openCodeInstall.ExitCode 0
+        $installedManifest = Join-Path $installedRoot ".agents-pipeline-manifest.txt"
+        $installedAgentProfile = Join-Path $installedRoot "tools/agent-profile.ps1"
+        Assert-FileExists "ps installed manifest exists" $installedManifest
+        Assert-FileExists "ps installed agent-profile exists" $installedAgentProfile
+        Assert-FileExists "ps installed claude installer exists" (Join-Path $installedRoot "scripts/install-claude.ps1")
+        Assert-FileExists "ps installed copilot installer exists" (Join-Path $installedRoot "scripts/install-copilot.ps1")
+        Assert-FileExists "ps installed codex installer exists" (Join-Path $installedRoot "scripts/install-codex.ps1")
+        Assert-FileExists "ps installed claude model set exists" (Join-Path $installedRoot "claude/tools/model-sets/default.json")
+        $installedManifestText = Get-Content -LiteralPath $installedManifest -Raw
+        Assert-Contains "ps installed manifest has claude model set" $installedManifestText "claude/tools/model-sets/default.json"
+        Assert-Contains "ps installed manifest has claude installer" $installedManifestText "scripts/install-claude.ps1"
+        $installedWorkspace = Join-Path $tmp "installed-workspace"
+        New-Item -ItemType Directory -Path $installedWorkspace -Force | Out-Null
+        $installedRuntimeDry = Invoke-Captured @("pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installedAgentProfile, "install", "balanced", "-Runtime", "claude", "-ModelSet", "default", "-Workspace", $installedWorkspace, "-DryRun", "-NoRunner")
+        $installedClaudeTarget = Join-Path (Join-Path $installedWorkspace ".claude") "agents"
+        Assert-Equal "ps installed runtime dry exit" $installedRuntimeDry.ExitCode 0
+        Assert-Contains "ps installed runtime dry dispatch" $installedRuntimeDry.Output "Claude Code subagents directory"
+        Assert-Contains "ps installed runtime dry target" $installedRuntimeDry.Output "Target: $installedClaudeTarget"
+        Assert-Contains "ps installed runtime dry no writes" $installedRuntimeDry.Output "No files were written"
 
         $install = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-ModelSet", "anthropic", "-Workspace", $tmp)
         Assert-Equal "ps install exit" $install.ExitCode 0

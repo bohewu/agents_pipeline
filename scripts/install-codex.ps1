@@ -45,15 +45,22 @@ function Get-PythonInvocation {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$sourceAgents = Join-Path $repoRoot "opencode/agents"
-$mergeScript = Join-Path $repoRoot "scripts/install-codex-config.py"
+$assetRoot = Resolve-Path (Join-Path $scriptRoot "..")
+$installedSourceAgents = Join-Path $assetRoot "agents"
+if (Test-Path -LiteralPath $installedSourceAgents -PathType Container) {
+    $sourceAgents = $installedSourceAgents
+    $defaultProfileDir = Join-Path $assetRoot "tools/agent-profiles"
+} else {
+    $sourceAgents = Join-Path $assetRoot "opencode/agents"
+    $defaultProfileDir = Join-Path $assetRoot "opencode/tools/agent-profiles"
+}
+$mergeScript = Join-Path $assetRoot "scripts/install-codex-config.py"
 $modelFlags = [bool]($AgentProfile -or $ModelSet -or $ProfileDir -or $ModelSetDir -or $UniformModel)
 if (-not $ProfileDir) {
-    $ProfileDir = Join-Path $repoRoot "opencode/tools/agent-profiles"
+    $ProfileDir = $defaultProfileDir
 }
 if (-not $ModelSetDir) {
-    $ModelSetDir = Join-Path $repoRoot "codex/tools/model-sets"
+    $ModelSetDir = Join-Path $assetRoot "codex/tools/model-sets"
 }
 
 if (-not (Test-Path -LiteralPath $sourceAgents -PathType Container)) {

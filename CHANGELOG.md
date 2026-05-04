@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.3] - 2026-05-04
+
+### Fixed
+
+- OpenCode installs now ship the companion runtime installer/model-set assets required for `~/.config/opencode/tools/agent-profile.* install ... --runtime ...`, so installed runtime profile installs work without cloning the repo or extracting a release bundle first.
+- `agent-profile.sh` and `agent-profile.ps1` now discover runtime companion assets from both installed OpenCode layouts and repo/release-bundle layouts while preserving the existing workspace-first default runtime targets.
+- Corrected installed-path docs and examples for PowerShell and Bash runtime profile commands.
+
 ## [0.23.2] - 2026-05-04
 
 ### Changed

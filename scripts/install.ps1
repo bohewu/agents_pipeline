@@ -21,6 +21,31 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $sourceRoot = Join-Path $repoRoot "opencode"
 $manifestName = ".agents-pipeline-manifest.txt"
+$managedDirectories = @(
+    @{ Source = (Join-Path $repoRoot "opencode/agents"); Destination = "agents" },
+    @{ Source = (Join-Path $repoRoot "opencode/commands"); Destination = "commands" },
+    @{ Source = (Join-Path $repoRoot "opencode/protocols"); Destination = "protocols" },
+    @{ Source = (Join-Path $repoRoot "opencode/tools"); Destination = "tools" },
+    @{ Source = (Join-Path $repoRoot "opencode/skills"); Destination = "skills" },
+    @{ Source = (Join-Path $repoRoot "codex/tools/model-sets"); Destination = "codex/tools/model-sets" },
+    @{ Source = (Join-Path $repoRoot "copilot/tools/model-sets"); Destination = "copilot/tools/model-sets" },
+    @{ Source = (Join-Path $repoRoot "claude/tools/model-sets"); Destination = "claude/tools/model-sets" }
+)
+$managedFiles = @(
+    @{ Source = (Join-Path $repoRoot "opencode.json.example"); Destination = "opencode.json.example" },
+    @{ Source = (Join-Path $repoRoot "scripts/agent_model_profiles.py"); Destination = "scripts/agent_model_profiles.py" },
+    @{ Source = (Join-Path $repoRoot "scripts/export-codex-agents.py"); Destination = "scripts/export-codex-agents.py" },
+    @{ Source = (Join-Path $repoRoot "scripts/export-copilot-agents.py"); Destination = "scripts/export-copilot-agents.py" },
+    @{ Source = (Join-Path $repoRoot "scripts/export-claude-agents.py"); Destination = "scripts/export-claude-agents.py" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-codex-config.py"); Destination = "scripts/install-codex-config.py" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-codex.sh"); Destination = "scripts/install-codex.sh" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-codex.ps1"); Destination = "scripts/install-codex.ps1" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-copilot.sh"); Destination = "scripts/install-copilot.sh" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-copilot.ps1"); Destination = "scripts/install-copilot.ps1" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-claude.sh"); Destination = "scripts/install-claude.sh" },
+    @{ Source = (Join-Path $repoRoot "scripts/install-claude.ps1"); Destination = "scripts/install-claude.ps1" }
+)
+$backupItems = @("agents", "commands", "protocols", "tools", "skills", "scripts", "codex", "copilot", "claude")
 
 if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
     throw "Source directory not found: $sourceRoot"
@@ -129,13 +154,33 @@ if (-not $Target) {
     $Target = Get-DefaultTarget
 }
 
+function Copy-ManagedFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourcePath,
+        [Parameter(Mandatory = $true)][string]$DestinationPath
+    )
+
+    $destinationParent = Split-Path -Parent $DestinationPath
+    if ($destinationParent) {
+        New-Item -ItemType Directory -Path $destinationParent -Force | Out-Null
+    }
+    Copy-Item -LiteralPath $SourcePath -Destination $DestinationPath -Force
+
+    if (-not $IsWindows -and $SourcePath.EndsWith('.sh', [System.StringComparison]::OrdinalIgnoreCase)) {
+        try {
+            $mode = [System.IO.File]::GetUnixFileMode($SourcePath)
+            [System.IO.File]::SetUnixFileMode($DestinationPath, $mode)
+        } catch {
+            Write-Verbose "Unable to preserve Unix mode for ${DestinationPath}: $($_.Exception.Message)"
+        }
+    }
+}
+
 if ($Target -match '^-{1,2}[A-Za-z]') {
     throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly if needed."
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
-$items = @("agents", "commands", "protocols", "tools", "skills")
-$exampleConfig = Join-Path $repoRoot "opencode.json.example"
 $manifestPath = Join-Path $targetPath $manifestName
 $skillMirrorRoots = @(
     (Join-Path $HOME ".agents/skills"),
@@ -143,17 +188,20 @@ $skillMirrorRoots = @(
 )
 
 $managedRelativePaths = New-Object System.Collections.Generic.List[string]
-foreach ($item in $items) {
-    $src = Join-Path $sourceRoot $item
+foreach ($entry in $managedDirectories) {
+    $src = $entry.Source
     if (-not (Test-Path -LiteralPath $src -PathType Container)) {
         continue
     }
     Get-ChildItem -LiteralPath $src -Recurse -File | ForEach-Object {
-        $managedRelativePaths.Add((Get-RelativeInstallPath -BasePath $sourceRoot -ChildPath $_.FullName))
+        $relativeChild = Get-RelativeInstallPath -BasePath $src -ChildPath $_.FullName
+        $managedRelativePaths.Add(($entry.Destination.TrimEnd('/') + "/" + $relativeChild).Replace('\\', '/'))
     }
 }
-if (Test-Path -LiteralPath $exampleConfig -PathType Leaf) {
-    $managedRelativePaths.Add("opencode.json.example")
+foreach ($entry in $managedFiles) {
+    if (Test-Path -LiteralPath $entry.Source -PathType Leaf) {
+        $managedRelativePaths.Add($entry.Destination.Replace('\\', '/'))
+    }
 }
 $managedRelativePaths = $managedRelativePaths | Sort-Object -Unique
 
@@ -162,7 +210,7 @@ Write-Host "Target: $targetPath"
 Write-Host "DryRun: $DryRun"
 
 $needsBackup = $false
-foreach ($item in $items) {
+foreach ($item in $backupItems) {
     $dest = Join-Path $targetPath $item
     if (Test-Path -LiteralPath $dest) {
         $needsBackup = $true
@@ -183,7 +231,7 @@ if (-not $NoBackup -and $needsBackup) {
         Write-Host "Would create backup: $backupDir"
     } else {
         New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
-        foreach ($item in $items) {
+        foreach ($item in $backupItems) {
             $dest = Join-Path $targetPath $item
             if (Test-Path -LiteralPath $dest) {
                 Copy-Item -LiteralPath $dest -Destination $backupDir -Recurse -Force
@@ -233,13 +281,13 @@ if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
     Write-Host "No previous installer manifest found; stale cleanup starts after this install."
 }
 
-foreach ($item in $items) {
-    $src = Join-Path $sourceRoot $item
+foreach ($entry in $managedDirectories) {
+    $src = $entry.Source
     if (-not (Test-Path -LiteralPath $src)) {
         continue
     }
 
-    $dest = Join-Path $targetPath $item
+    $dest = Join-Path $targetPath $entry.Destination
     if ($DryRun) {
         Write-Host "Would sync: $src -> $dest"
         continue
@@ -250,13 +298,17 @@ foreach ($item in $items) {
     Write-Host "Synced: $src -> $dest"
 }
 
-$destConfig = Join-Path $targetPath "opencode.json.example"
-if (Test-Path -LiteralPath $exampleConfig) {
+foreach ($entry in $managedFiles) {
+    if (-not (Test-Path -LiteralPath $entry.Source -PathType Leaf)) {
+        continue
+    }
+
+    $destination = Join-Path $targetPath ($entry.Destination.Replace('/', [System.IO.Path]::DirectorySeparatorChar))
     if ($DryRun) {
-        Write-Host "Would copy: $exampleConfig -> $destConfig"
+        Write-Host "Would copy: $($entry.Source) -> $destination"
     } else {
-        Copy-Item -LiteralPath $exampleConfig -Destination $destConfig -Force
-        Write-Host "Copied: $destConfig"
+        Copy-ManagedFile -SourcePath $entry.Source -DestinationPath $destination
+        Write-Host "Copied: $destination"
     }
 }
 

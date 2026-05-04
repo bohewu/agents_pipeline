@@ -30,15 +30,22 @@ function Get-PythonCommand {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$sourceAgents = Join-Path $repoRoot "opencode/agents"
-$exportScript = Join-Path $repoRoot "scripts/export-claude-agents.py"
+$assetRoot = Resolve-Path (Join-Path $scriptRoot "..")
+$installedSourceAgents = Join-Path $assetRoot "agents"
+if (Test-Path -LiteralPath $installedSourceAgents -PathType Container) {
+    $sourceAgents = $installedSourceAgents
+    $defaultProfileDir = Join-Path $assetRoot "tools/agent-profiles"
+} else {
+    $sourceAgents = Join-Path $assetRoot "opencode/agents"
+    $defaultProfileDir = Join-Path $assetRoot "opencode/tools/agent-profiles"
+}
+$exportScript = Join-Path $assetRoot "scripts/export-claude-agents.py"
 $modelFlags = [bool]($AgentProfile -or $ModelSet -or $ProfileDir -or $ModelSetDir -or $UniformModel)
 if (-not $ProfileDir) {
-    $ProfileDir = Join-Path $repoRoot "opencode/tools/agent-profiles"
+    $ProfileDir = $defaultProfileDir
 }
 if (-not $ModelSetDir) {
-    $ModelSetDir = Join-Path $repoRoot "claude/tools/model-sets"
+    $ModelSetDir = Join-Path $assetRoot "claude/tools/model-sets"
 }
 
 if (-not (Test-Path -LiteralPath $sourceAgents -PathType Container)) {

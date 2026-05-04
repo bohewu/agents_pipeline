@@ -30,9 +30,15 @@ EOF
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-SOURCE_AGENTS="${REPO_ROOT}/opencode/agents"
-MERGE_SCRIPT="${REPO_ROOT}/scripts/install-codex-config.py"
+ASSET_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [[ -d "${ASSET_ROOT}/agents" ]]; then
+  SOURCE_AGENTS="${ASSET_ROOT}/agents"
+  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/tools/agent-profiles"
+else
+  SOURCE_AGENTS="${ASSET_ROOT}/opencode/agents"
+  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/opencode/tools/agent-profiles"
+fi
+MERGE_SCRIPT="${ASSET_ROOT}/scripts/install-codex-config.py"
 
 if [[ ! -d "${SOURCE_AGENTS}" ]]; then
   echo "Source agents directory not found: ${SOURCE_AGENTS}" >&2
@@ -49,8 +55,8 @@ NO_BACKUP=0
 FORCE_OVERWRITE=1
 AGENT_PROFILE=""
 MODEL_SET=""
-PROFILE_DIR="${REPO_ROOT}/opencode/tools/agent-profiles"
-MODEL_SET_DIR="${REPO_ROOT}/codex/tools/model-sets"
+PROFILE_DIR="${DEFAULT_PROFILE_DIR}"
+MODEL_SET_DIR="${ASSET_ROOT}/codex/tools/model-sets"
 UNIFORM_MODEL=""
 MODEL_FLAGS=0
 

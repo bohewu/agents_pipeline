@@ -231,9 +231,70 @@ function Write-RuntimeProfileList {
 function Get-RuntimeInstallerUnavailableMessage {
     param(
         [Parameter(Mandatory = $true)][string] $RuntimeName,
-        [Parameter(Mandatory = $true)][string] $InstallerPath
+        [Parameter(Mandatory = $true)][string] $AssetKind,
+        [Parameter(Mandatory = $true)][string] $InstalledPath,
+        [Parameter(Mandatory = $true)][string] $RepoPath
     )
-    return "Runtime installer script not found for '$RuntimeName': $InstallerPath. Run this tool from a cloned agents_pipeline repo or an extracted release bundle that includes scripts/install-<runtime>.*, or invoke scripts/install-$RuntimeName.* directly from that repo/bundle."
+    return "Runtime companion $AssetKind not found for '$RuntimeName'. Tried installed layout: $InstalledPath. Tried repo/bundle layout: $RepoPath. If you are using ~/.config/opencode/tools/agent-profile.*, rerun the latest OpenCode installer or bootstrap so the installed config includes companion runtime assets. Otherwise run this tool from a cloned agents_pipeline repo or extracted release bundle, or invoke scripts/install-$RuntimeName.* directly from that repo/bundle."
+}
+
+function Get-RuntimeLayoutRoots {
+    param([Parameter(Mandatory = $true)][string] $ScriptRoot)
+
+    $roots = @()
+    $seen = @{}
+    foreach ($candidate in @(
+        @{ Layout = "installed"; Root = [System.IO.Path]::GetFullPath((Join-Path $ScriptRoot "..")) },
+        @{ Layout = "repo"; Root = [System.IO.Path]::GetFullPath((Join-Path $ScriptRoot "../..")) }
+    )) {
+        if (-not $seen.ContainsKey($candidate.Root)) {
+            $seen[$candidate.Root] = $true
+            $roots += [pscustomobject]$candidate
+        }
+    }
+    return $roots
+}
+
+function Resolve-RuntimeInstallerPath {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $ScriptRoot
+    )
+
+    $candidates = @{}
+    foreach ($root in @(Get-RuntimeLayoutRoots -ScriptRoot $ScriptRoot)) {
+        $installer = Join-Path $root.Root "scripts/install-$RuntimeName.ps1"
+        $candidates[$root.Layout] = $installer
+        if (Test-Path -LiteralPath $installer -PathType Leaf) {
+            return $installer
+        }
+    }
+
+    $fallbackPath = ($candidates.Values | Select-Object -First 1)
+    $installedPath = if ($candidates.ContainsKey("installed")) { $candidates["installed"] } else { $fallbackPath }
+    $repoPath = if ($candidates.ContainsKey("repo")) { $candidates["repo"] } else { $installedPath }
+    throw (Get-RuntimeInstallerUnavailableMessage -RuntimeName $RuntimeName -AssetKind "installer script" -InstalledPath $installedPath -RepoPath $repoPath)
+}
+
+function Resolve-RuntimeModelSetDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $ScriptRoot
+    )
+
+    $candidates = @{}
+    foreach ($root in @(Get-RuntimeLayoutRoots -ScriptRoot $ScriptRoot)) {
+        $modelSetDir = Join-Path $root.Root "$RuntimeName/tools/model-sets"
+        $candidates[$root.Layout] = $modelSetDir
+        if (Test-Path -LiteralPath $modelSetDir -PathType Container) {
+            return $modelSetDir
+        }
+    }
+
+    $fallbackPath = ($candidates.Values | Select-Object -First 1)
+    $installedPath = if ($candidates.ContainsKey("installed")) { $candidates["installed"] } else { $fallbackPath }
+    $repoPath = if ($candidates.ContainsKey("repo")) { $candidates["repo"] } else { $installedPath }
+    throw (Get-RuntimeInstallerUnavailableMessage -RuntimeName $RuntimeName -AssetKind "model-set directory" -InstalledPath $installedPath -RepoPath $repoPath)
 }
 
 function Get-RuntimeTargetFromWorkspace {
@@ -253,14 +314,11 @@ function Get-RuntimeTargetFromWorkspace {
 function Invoke-RuntimeInstall {
     param(
         [Parameter(Mandatory = $true)][string] $RuntimeName,
-        [Parameter(Mandatory = $true)][string] $RepoRoot,
+        [Parameter(Mandatory = $true)][string] $InstallerPath,
         [Parameter(Mandatory = $true)][string] $ProfileDirPath,
         [Parameter(Mandatory = $true)][string] $ModelSetDirPath
     )
-    $installer = Join-Path $RepoRoot "scripts/install-$RuntimeName.ps1"
-    if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
-        throw (Get-RuntimeInstallerUnavailableMessage -RuntimeName $RuntimeName -InstallerPath $installer)
-    }
+    $installer = $InstallerPath
     if (-not $Profile) {
         throw "install requires a profile: frugal, balanced, premium, or uniform."
     }
@@ -440,7 +498,6 @@ function Patch-AgentFrontmatterModel {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Resolve-Path (Join-Path $scriptRoot "../..")
 if (-not $SourceAgents) {
     $SourceAgents = Join-Path $scriptRoot "../agents"
 }
@@ -451,7 +508,7 @@ if (-not $ModelSetDir -and $Runtime -eq "opencode") {
     $ModelSetDir = Join-Path $scriptRoot "model-sets"
 }
 if (-not $ModelSetDir -and $Runtime -ne "opencode") {
-    $ModelSetDir = Join-Path $repoRoot "$Runtime/tools/model-sets"
+    $ModelSetDir = Resolve-RuntimeModelSetDirectory -RuntimeName $Runtime -ScriptRoot $scriptRoot
 }
 
 $hasExplicitTarget = $PSBoundParameters.ContainsKey("Target")
@@ -499,7 +556,8 @@ if ($Runtime -ne "opencode") {
     if ([string]::IsNullOrWhiteSpace($Target)) {
         $Target = Get-RuntimeTargetFromWorkspace -RuntimeName $Runtime -WorkspacePath $workspacePath
     }
-    Invoke-RuntimeInstall -RuntimeName $Runtime -RepoRoot $repoRoot -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
+    $runtimeInstaller = Resolve-RuntimeInstallerPath -RuntimeName $Runtime -ScriptRoot $scriptRoot
+    Invoke-RuntimeInstall -RuntimeName $Runtime -InstallerPath $runtimeInstaller -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
     return
 }
 
