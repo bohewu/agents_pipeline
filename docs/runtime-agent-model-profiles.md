@@ -11,14 +11,14 @@ Runtime agent model profiles let generated agent files opt into per-agent model 
   - Copilot: `copilot/tools/model-sets/*.json`
   - Claude Code: `claude/tools/model-sets/*.json`
 - Codex, Copilot, and Claude Code profile output is opt-in through installer/exporter flags. If you omit the flags, generated files keep normal runtime-driven model selection.
-- These profiles do not control reasoning effort. Reasoning effort inherits from the parent session, project, or global runtime configuration.
+- These profiles do not control reasoning effort; each runtime keeps its effective runtime configuration for reasoning-effort behavior.
 
 ## Runtime Comparison
 
 | Runtime | How to opt in | Model-set catalog | Generated output | Model fields written | Key limits |
 |---|---|---|---|---|---|
 | OpenCode | `agent-profile.sh` / `agent-profile.ps1` install commands | `opencode/tools/model-sets` | `<workspace>/.opencode/agents/*.md` | OpenCode `model` frontmatter in workspace override copies | Existing feature is unchanged; restart OpenCode after changing profiles |
-| Codex | `scripts/install-codex.sh --agent-profile balanced --model-set openai` | `codex/tools/model-sets` | `.codex/agents/<name>.toml` | `model` and optional `model_provider` in each generated agent TOML | Never writes model fields to root `[agents.<name>]`; no `model_reasoning_effort` or `plan_mode_reasoning_effort` |
+| Codex | `scripts/install-codex.sh --agent-profile balanced --model-set openai` | `codex/tools/model-sets` | `.codex/agents/<name>.toml` | `model` and optional `model_provider` in each generated agent TOML | Never writes model fields to root `[agents.<name>]`; reasoning effort comes from effective Codex runtime config; no `model_reasoning_effort` or `plan_mode_reasoning_effort` |
 | Copilot | `scripts/install-copilot.sh --agent-profile balanced --model-set default` | `copilot/tools/model-sets` | `*.agent.md` | `model` frontmatter as a scalar or prioritized list | Names must match the VS Code/GitHub Copilot model picker |
 | Claude Code | `scripts/install-claude.sh --agent-profile balanced --model-set default` | `claude/tools/model-sets` | `~/.claude/agents/*.md` or project `.claude/agents/*.md` | `model` frontmatter alias | Only `inherit`, `sonnet`, `opus`, and `haiku`; `opus` means the current Claude Code runtime alias |
 

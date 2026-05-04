@@ -89,7 +89,7 @@ bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .
 
 Generated overrides live in `.opencode/agents`; canonical `opencode/agents/*.md` remains unchanged. Restart OpenCode after changing profiles. See [docs/agent-model-profiles.md](docs/agent-model-profiles.md).
 
-The existing OpenCode profile feature is unchanged. Codex, Copilot, and Claude Code runtime profiles are separate opt-in installer/exporter flags: they reuse `opencode/tools/agent-profiles` tier maps with runtime-specific catalogs under `codex/tools/model-sets`, `copilot/tools/model-sets`, and `claude/tools/model-sets`. These runtime flags only select model names or aliases; reasoning effort inherits from the parent/session/global runtime configuration. See [docs/runtime-agent-model-profiles.md](docs/runtime-agent-model-profiles.md).
+The existing OpenCode profile feature is unchanged. Codex, Copilot, and Claude Code runtime profiles are separate opt-in installer/exporter flags: they reuse `opencode/tools/agent-profiles` tier maps with runtime-specific catalogs under `codex/tools/model-sets`, `copilot/tools/model-sets`, and `claude/tools/model-sets`. These runtime flags only select model names or aliases; Codex reasoning effort comes from the effective Codex runtime config, not these profiles. See [docs/runtime-agent-model-profiles.md](docs/runtime-agent-model-profiles.md).
 
 Maintainers can refresh bundled Anthropic and Google model-set catalogs with `python3 scripts/update-agent-model-sets.py --dry-run`.
 

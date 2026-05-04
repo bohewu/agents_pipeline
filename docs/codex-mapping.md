@@ -72,7 +72,7 @@ Codex runtime model profiles are opt-in. When the exporter, or an installer that
 - The exporter does **not** write `model` or `model_provider` into root `config.toml` `[agents.<name>]` tables.
 - The exporter does **not** emit `model_reasoning_effort` or `plan_mode_reasoning_effort`.
 
-Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Codex runtime configuration. Omit the profile flags to keep Codex's normal runtime model selection.
+Reasoning effort is not controlled by these profiles; it is controlled by the effective Codex runtime config, such as root config, session/profile/CLI settings, or any explicit role override. Omit the profile flags to keep Codex's normal runtime model selection.
 
 Examples from a cloned repo:
 
