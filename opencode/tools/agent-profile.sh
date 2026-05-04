@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,12 +25,17 @@ def normalize_args(args: list[str]) -> list[str]:
     mapping = {
         "-Model": "--model",
         "-ModelSet": "--model-set",
+        "-Runtime": "--runtime",
+        "-Target": "--target",
+        "-UniformModel": "--uniform-model",
         "-Workspace": "--workspace",
         "-SourceAgents": "--source-agents",
         "-ProfileDir": "--profile-dir",
         "-ModelSetDir": "--model-set-dir",
+        "-ClaudeMd": "--claude-md",
         "-DryRun": "--dry-run",
         "-NoBackup": "--no-backup",
+        "-NoRunner": "--no-runner",
         "-Force": "--force",
     }
     return [mapping.get(arg, arg) for arg in args]
@@ -93,6 +99,121 @@ def assert_model_set_schema(obj, path: Path) -> None:
         if not isinstance(value, str) or not value.strip():
             raise RuntimeError(f"Invalid model set schema in '{path}': missing tier '{tier}'.")
         assert_safe_model_id(value, f"{path} tier '{tier}'")
+
+
+def assert_runtime_model_set_schema(obj, path: Path, runtime: str) -> None:
+    if not isinstance(obj, dict):
+        raise RuntimeError(f"Invalid model set schema in '{path}': expected object.")
+    for key in ("name", "runtime", "description", "tiers"):
+        if key not in obj or obj[key] in (None, ""):
+            raise RuntimeError(f"Invalid model set schema in '{path}': missing {key}.")
+    if obj["runtime"] != runtime:
+        raise RuntimeError(f"Invalid model set runtime in '{path}': expected '{runtime}'.")
+    if not isinstance(obj["tiers"], dict):
+        raise RuntimeError(f"Invalid model set schema in '{path}': tiers must be an object.")
+    for tier in ("mini", "standard", "strong"):
+        if tier not in obj["tiers"]:
+            raise RuntimeError(f"Invalid model set schema in '{path}': missing tier '{tier}'.")
+        value = obj["tiers"][tier]
+        if value in (None, "") or value == [] or value == {}:
+            raise RuntimeError(f"Invalid model set schema in '{path}': tier '{tier}' is empty.")
+
+
+def format_runtime_tier(value) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+
+
+def list_runtime_profiles(runtime: str, profile_dir: Path, model_set_dir: Path) -> None:
+    if not profile_dir.is_dir():
+        raise RuntimeError(f"Profile directory not found: {profile_dir}")
+    if not model_set_dir.is_dir():
+        raise RuntimeError(f"Model set directory not found for runtime '{runtime}': {model_set_dir}")
+    print(f"Runtime: {runtime}")
+    print("Profiles:")
+    for file in sorted(profile_dir.glob("*.json")):
+        profile = read_json(file)
+        assert_profile_schema(profile, file)
+        print(f"- {profile['name']}: {len(profile['models'])} agents. {profile['description']}")
+    print("- uniform: built-in mode; use --uniform-model or 'uniform --model' to apply one runtime model to every generated agent.")
+    print(f"Model sets ({runtime}):")
+    for file in sorted(model_set_dir.glob("*.json")):
+        model_set = read_json(file)
+        assert_runtime_model_set_schema(model_set, file, runtime)
+        tiers = model_set["tiers"]
+        print(
+            f"- {model_set['name']}: "
+            f"mini={format_runtime_tier(tiers['mini'])}, "
+            f"standard={format_runtime_tier(tiers['standard'])}, "
+            f"strong={format_runtime_tier(tiers['strong'])}"
+        )
+
+
+def runtime_installer_unavailable(runtime: str, installer: Path) -> str:
+    return (
+        f"Runtime installer script not found for '{runtime}': {installer}. "
+        "Run this tool from a cloned agents_pipeline repo or an extracted release bundle that includes scripts/install-<runtime>.*, "
+        f"or invoke scripts/install-{runtime}.* directly from that repo/bundle."
+    )
+
+
+def runtime_target_from_workspace(runtime: str, workspace: Path) -> Path:
+    if runtime == "opencode":
+        return workspace / ".opencode" / "agents"
+    if runtime == "claude":
+        return workspace / ".claude" / "agents"
+    if runtime == "copilot":
+        return workspace / ".copilot" / "agents"
+    if runtime == "codex":
+        return workspace / ".codex"
+    raise RuntimeError(f"Unsupported runtime: {runtime}")
+
+
+def run_runtime_install(args: argparse.Namespace, repo_root: Path, profile_dir: Path, model_set_dir: Path) -> int:
+    installer = repo_root / "scripts" / f"install-{args.runtime}.sh"
+    if not installer.is_file():
+        raise RuntimeError(runtime_installer_unavailable(args.runtime, installer))
+    if not args.profile:
+        raise RuntimeError("install requires a profile: frugal, balanced, premium, or uniform.")
+    if args.runtime != "claude" and (args.claude_md or args.no_runner):
+        raise RuntimeError("--claude-md and --no-runner are only supported with --runtime claude.")
+
+    cmd = ["bash", str(installer)]
+    if args.target:
+        cmd.extend(["--target", args.target])
+    if args.dry_run:
+        cmd.append("--dry-run")
+    if args.no_backup:
+        cmd.append("--no-backup")
+    if args.force and args.runtime == "codex":
+        cmd.append("--force")
+    if args.runtime == "claude":
+        if args.claude_md:
+            cmd.extend(["--claude-md", args.claude_md])
+        if args.no_runner:
+            cmd.append("--no-runner")
+
+    if args.profile == "uniform":
+        uniform_model = args.uniform_model or args.model
+        if not uniform_model:
+            raise RuntimeError("install uniform requires --uniform-model (or --model for compatibility).")
+        if args.model and args.uniform_model and args.model != args.uniform_model:
+            raise RuntimeError("install uniform received different values for --model and --uniform-model.")
+        cmd.extend(["--uniform-model", uniform_model])
+    else:
+        if args.uniform_model:
+            raise RuntimeError("--uniform-model is only valid with the built-in 'uniform' profile.")
+        if args.model:
+            raise RuntimeError("Named runtime profiles are tier-map driven. Use --model-set, or use 'uniform --uniform-model'.")
+        if not args.model_set:
+            raise RuntimeError(f"install {args.profile} --runtime {args.runtime} requires --model-set.")
+        assert_safe_name(args.profile, "profile")
+        cmd.extend(["--agent-profile", args.profile, "--model-set", args.model_set])
+        cmd.extend(["--profile-dir", str(profile_dir), "--model-set-dir", str(model_set_dir)])
+
+    completed = subprocess.run(cmd)
+    return completed.returncode
 
 
 def is_safe_name(value: str) -> bool:
@@ -182,27 +303,59 @@ def backup_file(path: Path, opencode_dir: Path, state: dict, no_backup: bool) ->
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Install workspace-local OpenCode agent model profiles.")
+    parser = argparse.ArgumentParser(description="Install agent model profiles for OpenCode and companion runtimes.")
     parser.add_argument("action", choices=("install", "status", "clear", "list"))
     parser.add_argument("profile", nargs="?")
     parser.add_argument("--model")
     parser.add_argument("--model-set")
-    parser.add_argument("--workspace", default=".")
+    parser.add_argument("--runtime", choices=("opencode", "codex", "copilot", "claude"), default="opencode", type=str.lower)
+    parser.add_argument("--target")
+    parser.add_argument("--uniform-model")
+    parser.add_argument("--workspace")
     parser.add_argument("--source-agents")
     parser.add_argument("--profile-dir")
     parser.add_argument("--model-set-dir")
+    parser.add_argument("--claude-md")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-backup", action="store_true")
+    parser.add_argument("--no-runner", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args(normalize_args(ARGV))
+    repo_root = (SCRIPT_DIR / "../..").resolve()
     source_agents = Path(args.source_agents).expanduser().resolve() if args.source_agents else (SCRIPT_DIR / "../agents").resolve()
     profile_dir = Path(args.profile_dir).expanduser().resolve() if args.profile_dir else (SCRIPT_DIR / "agent-profiles").resolve()
-    model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else (SCRIPT_DIR / "model-sets").resolve()
-    workspace = Path(args.workspace).expanduser().resolve()
+    if args.runtime == "opencode":
+        model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else (SCRIPT_DIR / "model-sets").resolve()
+        workspace_value = args.target or args.workspace or "."
+        if args.target and args.workspace:
+            target_path = Path(args.target).expanduser().resolve()
+            workspace_path = Path(args.workspace).expanduser().resolve()
+            if target_path != workspace_path:
+                raise RuntimeError("--target and --workspace both set different paths for --runtime opencode.")
+        if args.uniform_model:
+            if args.profile == "uniform" and not args.model:
+                args.model = args.uniform_model
+            elif args.model and args.model != args.uniform_model:
+                raise RuntimeError("install uniform received different values for --model and --uniform-model.")
+            elif args.profile != "uniform":
+                raise RuntimeError("--uniform-model is only valid with the built-in 'uniform' profile.")
+    else:
+        model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else (repo_root / args.runtime / "tools" / "model-sets").resolve()
+        if args.action == "list":
+            list_runtime_profiles(args.runtime, profile_dir, model_set_dir)
+            return 0
+        if args.action != "install":
+            raise RuntimeError(f"{args.action} is unsupported for --runtime {args.runtime}; supported actions are install and list.")
+        workspace = Path(args.workspace or ".").expanduser().resolve()
+        if not args.target:
+            args.target = str(runtime_target_from_workspace(args.runtime, workspace))
+        return run_runtime_install(args, repo_root, profile_dir, model_set_dir)
+
+    workspace = Path(workspace_value).expanduser().resolve()
     opencode_dir = workspace / ".opencode"
     target_agents_dir = opencode_dir / "agents"
     manifest_path = opencode_dir / ".agents-pipeline-agent-profile.json"

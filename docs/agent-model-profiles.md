@@ -60,6 +60,7 @@ pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet opena
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace C:\path\to\project
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh -NoProfile -File .\opencode\tools\agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
 ```
@@ -74,9 +75,12 @@ bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set open
 bash ~/.config/opencode/tools/agent-profile.sh install frugal --model-set anthropic --workspace /path/to/project
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
+opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .
 ```
+
+The wrapper defaults to `--runtime opencode`, preserving the workspace-profile behavior above. `--workspace` / `-Workspace` is the primary way to choose the workspace root for every runtime, and omitted workspace means the current directory. When `--target` / `-Target` is omitted, `agent-profile` derives workspace-local targets: `.opencode/agents`, `.claude/agents`, `.copilot/agents`, or `.codex`. Use `--target` / `-Target` only for an explicit override, such as an intentional global runtime install. For `codex`, `copilot`, and `claude`, `install` dispatches to the bundled `scripts/install-<runtime>.*` installers and `list` shows the shared tier profiles plus that runtime's model sets.
 
 ## Safety Behavior
 

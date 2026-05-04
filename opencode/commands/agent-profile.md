@@ -15,6 +15,7 @@ pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet opena
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet anthropic -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
 pwsh ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
 ```
@@ -27,8 +28,10 @@ bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set open
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set anthropic --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
+bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .
 ```
 
 Restart OpenCode after changing profiles.
+For runtime installs, `-Workspace` / `--workspace` is workspace-first and `-Target` / `--target` is only for an explicit override or intentional global install.

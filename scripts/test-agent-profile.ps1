@@ -74,9 +74,45 @@ try {
         Assert-Contains "ps list contains $needle" $list.Output $needle
     }
 
+    $runtimeList = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "list", "-Runtime", "claude")
+    Assert-Equal "ps runtime list exit" $runtimeList.ExitCode 0
+    Assert-Contains "ps runtime list claude" $runtimeList.Output "Runtime: claude"
+    Assert-Contains "ps runtime list model sets" $runtimeList.Output "Model sets (claude)"
+    Assert-Contains "ps runtime list default" $runtimeList.Output "default"
+
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-profile-ps-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tmp -Force | Out-Null
     try {
+        $runtimeTarget = Join-Path $tmp "claude-agents"
+        $runtimeDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "claude", "-ModelSet", "default", "-Target", $runtimeTarget, "-DryRun", "-NoRunner")
+        Assert-Equal "ps runtime dry exit" $runtimeDry.ExitCode 0
+        Assert-Contains "ps runtime dry dispatch" $runtimeDry.Output "Claude Code subagents directory"
+        Assert-Contains "ps runtime dry no writes" $runtimeDry.Output "No files were written"
+
+        $runtimeWorkspace = Join-Path $tmp "runtime-workspace"
+        New-Item -ItemType Directory -Path $runtimeWorkspace -Force | Out-Null
+        $expectedClaudeTarget = Join-Path (Join-Path $runtimeWorkspace ".claude") "agents"
+        Push-Location $runtimeWorkspace
+        try {
+            $runtimeDefaultWorkspaceDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "claude", "-ModelSet", "default", "-DryRun", "-NoRunner")
+        } finally {
+            Pop-Location
+        }
+        Assert-Equal "ps runtime default workspace dry exit" $runtimeDefaultWorkspaceDry.ExitCode 0
+        Assert-Contains "ps runtime default workspace target" $runtimeDefaultWorkspaceDry.Output "Target: $expectedClaudeTarget"
+        $runtimeWorkspaceDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "claude", "-ModelSet", "default", "-Workspace", $runtimeWorkspace, "-DryRun", "-NoRunner")
+        Assert-Equal "ps runtime workspace dry exit" $runtimeWorkspaceDry.ExitCode 0
+        Assert-Contains "ps runtime workspace claude target" $runtimeWorkspaceDry.Output "Target: $expectedClaudeTarget"
+        Assert-Contains "ps runtime workspace no writes" $runtimeWorkspaceDry.Output "No files were written"
+        $expectedCopilotTarget = Join-Path (Join-Path $runtimeWorkspace ".copilot") "agents"
+        $copilotWorkspaceDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "copilot", "-ModelSet", "default", "-Workspace", $runtimeWorkspace, "-DryRun")
+        Assert-Equal "ps runtime copilot dry exit" $copilotWorkspaceDry.ExitCode 0
+        Assert-Contains "ps runtime workspace copilot target" $copilotWorkspaceDry.Output "Target: $expectedCopilotTarget"
+        $expectedCodexTarget = Join-Path $runtimeWorkspace ".codex"
+        $codexWorkspaceDry = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-Runtime", "codex", "-ModelSet", "openai", "-Workspace", $runtimeWorkspace, "-DryRun")
+        Assert-Equal "ps runtime codex dry exit" $codexWorkspaceDry.ExitCode 0
+        Assert-Contains "ps runtime workspace codex target" $codexWorkspaceDry.Output "Target: $expectedCodexTarget"
+
         $install = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "balanced", "-ModelSet", "anthropic", "-Workspace", $tmp)
         Assert-Equal "ps install exit" $install.ExitCode 0
         $manifestPath = Join-Path $tmp ".opencode/.agents-pipeline-agent-profile.json"

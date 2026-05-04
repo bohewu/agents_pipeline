@@ -10,17 +10,24 @@ param(
 
     [string] $Model,
     [string] $ModelSet,
+    [ValidateSet("opencode", "codex", "copilot", "claude")]
+    [string] $Runtime = "opencode",
+    [string] $Target,
+    [string] $UniformModel,
     [string] $Workspace = ".",
     [string] $SourceAgents,
     [string] $ProfileDir,
     [string] $ModelSetDir,
+    [string] $ClaudeMd,
     [switch] $DryRun,
     [switch] $NoBackup,
+    [switch] $NoRunner,
     [switch] $Force
 )
 
 $ErrorActionPreference = "Stop"
 $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$Runtime = $Runtime.ToLowerInvariant()
 
 function Resolve-AbsolutePath {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -159,6 +166,159 @@ function Assert-ModelSetSchema {
     }
 }
 
+function Assert-RuntimeModelSetSchema {
+    param(
+        [Parameter(Mandatory = $true)] $ModelSetObject,
+        [Parameter(Mandatory = $true)][string] $Path,
+        [Parameter(Mandatory = $true)][string] $ExpectedRuntime
+    )
+    if (-not $ModelSetObject.name -or -not $ModelSetObject.runtime -or -not $ModelSetObject.description -or -not $ModelSetObject.tiers) {
+        throw "Invalid model set schema in '$Path': expected name, runtime, description, and tiers."
+    }
+    if ($ModelSetObject.runtime -ne $ExpectedRuntime) {
+        throw "Invalid model set runtime in '$Path': expected '$ExpectedRuntime'."
+    }
+    foreach ($required in @("mini", "standard", "strong")) {
+        if (-not $ModelSetObject.tiers.PSObject.Properties[$required]) {
+            throw "Invalid model set schema in '$Path': missing tier '$required'."
+        }
+        $value = $ModelSetObject.tiers.$required
+        if ($null -eq $value -or ([string]$value).Length -eq 0) {
+            throw "Invalid model set schema in '$Path': tier '$required' is empty."
+        }
+    }
+}
+
+function Format-RuntimeTier {
+    param([Parameter(Mandatory = $true)] $Value)
+    if ($Value -is [string]) {
+        return $Value
+    }
+    return ($Value | ConvertTo-Json -Compress -Depth 20)
+}
+
+function Write-RuntimeProfileList {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $ProfileDirPath,
+        [Parameter(Mandatory = $true)][string] $ModelSetDirPath
+    )
+    if (-not (Test-Path -LiteralPath $ProfileDirPath -PathType Container)) {
+        throw "Profile directory not found: $ProfileDirPath"
+    }
+    if (-not (Test-Path -LiteralPath $ModelSetDirPath -PathType Container)) {
+        throw "Model set directory not found for runtime '$RuntimeName': $ModelSetDirPath"
+    }
+
+    Write-Host "Runtime: $RuntimeName"
+    Write-Host "Profiles:"
+    foreach ($file in @(Get-ChildItem -LiteralPath $ProfileDirPath -Filter "*.json" -File | Sort-Object Name)) {
+        $profileObject = Read-JsonFile -Path $file.FullName
+        Assert-ProfileSchema -ProfileObject $profileObject -Path $file.FullName
+        $count = @(Get-ObjectKeys -Object $profileObject.models).Count
+        Write-Host ("- {0}: {1} agents. {2}" -f $profileObject.name, $count, $profileObject.description)
+    }
+    Write-Host "- uniform: built-in mode; use -UniformModel or 'uniform -Model' to apply one runtime model to every generated agent."
+
+    Write-Host "Model sets ($RuntimeName):"
+    foreach ($file in @(Get-ChildItem -LiteralPath $ModelSetDirPath -Filter "*.json" -File | Sort-Object Name)) {
+        $modelSetObject = Read-JsonFile -Path $file.FullName
+        Assert-RuntimeModelSetSchema -ModelSetObject $modelSetObject -Path $file.FullName -ExpectedRuntime $RuntimeName
+        Write-Host ("- {0}: mini={1}, standard={2}, strong={3}" -f $modelSetObject.name, (Format-RuntimeTier $modelSetObject.tiers.mini), (Format-RuntimeTier $modelSetObject.tiers.standard), (Format-RuntimeTier $modelSetObject.tiers.strong))
+    }
+}
+
+function Get-RuntimeInstallerUnavailableMessage {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $InstallerPath
+    )
+    return "Runtime installer script not found for '$RuntimeName': $InstallerPath. Run this tool from a cloned agents_pipeline repo or an extracted release bundle that includes scripts/install-<runtime>.*, or invoke scripts/install-$RuntimeName.* directly from that repo/bundle."
+}
+
+function Get-RuntimeTargetFromWorkspace {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $WorkspacePath
+    )
+    switch ($RuntimeName) {
+        "opencode" { return (Join-Path (Join-Path $WorkspacePath ".opencode") "agents") }
+        "claude" { return (Join-Path (Join-Path $WorkspacePath ".claude") "agents") }
+        "copilot" { return (Join-Path (Join-Path $WorkspacePath ".copilot") "agents") }
+        "codex" { return (Join-Path $WorkspacePath ".codex") }
+        default { throw "Unsupported runtime: $RuntimeName" }
+    }
+}
+
+function Invoke-RuntimeInstall {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $RepoRoot,
+        [Parameter(Mandatory = $true)][string] $ProfileDirPath,
+        [Parameter(Mandatory = $true)][string] $ModelSetDirPath
+    )
+    $installer = Join-Path $RepoRoot "scripts/install-$RuntimeName.ps1"
+    if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+        throw (Get-RuntimeInstallerUnavailableMessage -RuntimeName $RuntimeName -InstallerPath $installer)
+    }
+    if (-not $Profile) {
+        throw "install requires a profile: frugal, balanced, premium, or uniform."
+    }
+    if ($RuntimeName -ne "claude" -and ($ClaudeMd -or $NoRunner)) {
+        throw "-ClaudeMd and -NoRunner are only supported with -Runtime claude."
+    }
+
+    $installParams = @{}
+    if ($Target) {
+        $installParams["Target"] = $Target
+    }
+    if ($DryRun) {
+        $installParams["DryRun"] = $true
+    }
+    if ($NoBackup) {
+        $installParams["NoBackup"] = $true
+    }
+    if ($Force -and $RuntimeName -eq "codex") {
+        $installParams["Force"] = $true
+    }
+    if ($RuntimeName -eq "claude") {
+        if ($ClaudeMd) {
+            $installParams["ClaudeMd"] = $ClaudeMd
+        }
+        if ($NoRunner) {
+            $installParams["NoRunner"] = $true
+        }
+    }
+
+    if ($Profile -eq "uniform") {
+        $runtimeUniformModel = if ($UniformModel) { $UniformModel } else { $Model }
+        if (-not $runtimeUniformModel) {
+            throw "install uniform requires -UniformModel (or -Model for compatibility)."
+        }
+        if ($Model -and $UniformModel -and $Model -ne $UniformModel) {
+            throw "install uniform received different values for -Model and -UniformModel."
+        }
+        $installParams["UniformModel"] = $runtimeUniformModel
+    } else {
+        if ($UniformModel) {
+            throw "-UniformModel is only valid with the built-in 'uniform' profile."
+        }
+        if ($Model) {
+            throw "Named runtime profiles are tier-map driven. Use -ModelSet, or use 'uniform -UniformModel'."
+        }
+        if (-not $ModelSet) {
+            throw "install $Profile -Runtime $RuntimeName requires -ModelSet."
+        }
+        Assert-SafeName -Name $Profile -Kind "profile"
+        $installParams["AgentProfile"] = $Profile
+        $installParams["ModelSet"] = $ModelSet
+        $installParams["ProfileDir"] = $ProfileDirPath
+        $installParams["ModelSetDir"] = $ModelSetDirPath
+    }
+
+    & $installer @installParams
+}
+
 function Get-ManagedLookup {
     param([string] $ManifestPath)
     $lookup = @{}
@@ -280,14 +440,44 @@ function Patch-AgentFrontmatterModel {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Resolve-Path (Join-Path $scriptRoot "../..")
 if (-not $SourceAgents) {
     $SourceAgents = Join-Path $scriptRoot "../agents"
 }
 if (-not $ProfileDir) {
     $ProfileDir = Join-Path $scriptRoot "agent-profiles"
 }
-if (-not $ModelSetDir) {
+if (-not $ModelSetDir -and $Runtime -eq "opencode") {
     $ModelSetDir = Join-Path $scriptRoot "model-sets"
+}
+if (-not $ModelSetDir -and $Runtime -ne "opencode") {
+    $ModelSetDir = Join-Path $repoRoot "$Runtime/tools/model-sets"
+}
+
+$hasExplicitTarget = $PSBoundParameters.ContainsKey("Target")
+$hasExplicitWorkspace = $PSBoundParameters.ContainsKey("Workspace")
+
+if ($Runtime -eq "opencode") {
+    if ($hasExplicitTarget) {
+        if ($hasExplicitWorkspace) {
+            $targetFull = [System.IO.Path]::GetFullPath((Resolve-AbsolutePath $Target))
+            $workspaceFull = [System.IO.Path]::GetFullPath((Resolve-AbsolutePath $Workspace))
+            if ($targetFull -ne $workspaceFull) {
+                throw "-Target and -Workspace both set different paths for -Runtime opencode."
+            }
+        } else {
+            $Workspace = $Target
+        }
+    }
+    if ($UniformModel) {
+        if ($Profile -eq "uniform" -and -not $Model) {
+            $Model = $UniformModel
+        } elseif ($Model -and $Model -ne $UniformModel) {
+            throw "install uniform received different values for -Model and -UniformModel."
+        } elseif ($Profile -ne "uniform") {
+            throw "-UniformModel is only valid with the built-in 'uniform' profile."
+        }
+    }
 }
 
 $sourceAgentsPath = Resolve-AbsolutePath $SourceAgents
@@ -297,6 +487,21 @@ $workspacePath = Resolve-AbsolutePath $Workspace
 $openCodeDir = Join-Path $workspacePath ".opencode"
 $targetAgentsDir = Join-Path $openCodeDir "agents"
 $manifestPath = Join-Path $openCodeDir ".agents-pipeline-agent-profile.json"
+
+if ($Runtime -ne "opencode") {
+    if ($Action -eq "list") {
+        Write-RuntimeProfileList -RuntimeName $Runtime -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
+        return
+    }
+    if ($Action -ne "install") {
+        throw "$Action is unsupported for -Runtime $Runtime; supported actions are install and list."
+    }
+    if ([string]::IsNullOrWhiteSpace($Target)) {
+        $Target = Get-RuntimeTargetFromWorkspace -RuntimeName $Runtime -WorkspacePath $workspacePath
+    }
+    Invoke-RuntimeInstall -RuntimeName $Runtime -RepoRoot $repoRoot -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
+    return
+}
 
 if ($Action -eq "list") {
     if (-not (Test-Path -LiteralPath $ProfileDirPath -PathType Container)) {

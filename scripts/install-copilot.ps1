@@ -20,9 +20,11 @@ function Get-DefaultTarget {
 function Get-PythonCommand {
     $py = Get-Command -Name py -ErrorAction SilentlyContinue
     if ($py) { return $py.Source }
-    $python = Get-Command -Name python -ErrorAction SilentlyContinue
-    if ($python) { return $python.Source }
-    throw "Python runtime not found. Install python or py launcher."
+    foreach ($name in @("python", "python3")) {
+        $python = Get-Command -Name $name -ErrorAction SilentlyContinue
+        if ($python) { return $python.Source }
+    }
+    throw "Python runtime not found. Install python, python3, or py launcher."
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path

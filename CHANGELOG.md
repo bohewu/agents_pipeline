@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-05-04
+
+### Changed
+
+- `agent-profile.sh` and `agent-profile.ps1` now support workspace-first runtime installs for Codex, Copilot, and Claude via `--runtime`/`-Runtime`, with workspace-derived default targets for runtime-managed profiles.
+- Updated docs/examples and validation coverage for the workspace-first runtime install flow.
+
 ## [0.23.1] - 2026-05-03
 
 ### Fixed
