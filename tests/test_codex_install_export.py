@@ -46,6 +46,59 @@ class CodexInstallExportTest(unittest.TestCase):
             override,
         )
 
+    def test_resolve_asset_layout_uses_installed_support_tree_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            installed_root = Path(temp_dir_name)
+            for dirname in ("agents", "commands", "protocols", "tools", "scripts"):
+                (installed_root / dirname).mkdir(parents=True, exist_ok=True)
+            (installed_root / "scripts" / "install-codex-config.py").write_text(
+                "", encoding="utf-8"
+            )
+            (installed_root / "scripts" / "export-codex-agents.py").write_text(
+                "", encoding="utf-8"
+            )
+
+            layout = INSTALL_MODULE.resolve_asset_layout(
+                installed_root / "scripts" / "install-codex-config.py"
+            )
+
+            self.assertEqual(layout.name, "installed")
+            self.assertEqual(layout.asset_root, installed_root)
+            self.assertEqual(layout.support_tree_source, installed_root)
+            self.assertEqual(
+                layout.export_script,
+                installed_root / "scripts" / "export-codex-agents.py",
+            )
+            self.assertNotEqual(
+                layout.support_tree_source,
+                installed_root / "opencode",
+            )
+
+    def test_resolve_asset_layout_preserves_repo_bundle_support_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            repo_root = Path(temp_dir_name)
+            for dirname in ("agents", "commands", "protocols", "tools"):
+                (repo_root / "opencode" / dirname).mkdir(parents=True, exist_ok=True)
+            (repo_root / "scripts").mkdir(parents=True, exist_ok=True)
+            (repo_root / "scripts" / "install-codex-config.py").write_text(
+                "", encoding="utf-8"
+            )
+            (repo_root / "scripts" / "export-codex-agents.py").write_text(
+                "", encoding="utf-8"
+            )
+
+            layout = INSTALL_MODULE.resolve_asset_layout(
+                repo_root / "scripts" / "install-codex-config.py"
+            )
+
+            self.assertEqual(layout.name, "repo")
+            self.assertEqual(layout.asset_root, repo_root)
+            self.assertEqual(layout.support_tree_source, repo_root / "opencode")
+            self.assertEqual(
+                layout.export_script,
+                repo_root / "scripts" / "export-codex-agents.py",
+            )
+
     def test_run_export_creates_temp_dir_under_requested_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             temp_root = Path(temp_dir_name) / "workspace-temp"

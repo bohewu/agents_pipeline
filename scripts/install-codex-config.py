@@ -19,6 +19,7 @@ DEFAULT_MAX_THREADS = 6
 DEFAULT_MAX_DEPTH = 2
 DEFAULT_PROFILE_DIR = "opencode/tools/agent-profiles"
 DEFAULT_MODEL_SET_DIR = "codex/tools/model-sets"
+SUPPORT_TREE_DIRS = ("agents", "commands", "protocols", "tools")
 
 
 @dataclass
@@ -26,6 +27,14 @@ class Block:
     kind: str
     path: Optional[str]
     lines: List[str]
+
+
+@dataclass(frozen=True)
+class AssetLayout:
+    name: str
+    asset_root: Path
+    support_tree_source: Path
+    export_script: Path
 
 
 def read_text(path: Path) -> str:
@@ -36,6 +45,30 @@ def write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write(content)
+
+
+def has_support_tree(root: Path) -> bool:
+    return all((root / name).is_dir() for name in SUPPORT_TREE_DIRS)
+
+
+def resolve_asset_layout(script_path: Path) -> AssetLayout:
+    asset_root = script_path.parent.parent
+    export_script = asset_root / "scripts" / "export-codex-agents.py"
+
+    if has_support_tree(asset_root):
+        return AssetLayout(
+            name="installed",
+            asset_root=asset_root,
+            support_tree_source=asset_root,
+            export_script=export_script,
+        )
+
+    return AssetLayout(
+        name="repo",
+        asset_root=asset_root,
+        support_tree_source=asset_root / "opencode",
+        export_script=export_script,
+    )
 
 
 def parse_blocks(text: str) -> List[Block]:
@@ -480,15 +513,15 @@ def main() -> int:
         return 2
 
     script_path = Path(__file__).resolve()
-    repo_root = script_path.parent.parent
-    export_script = repo_root / "scripts" / "export-codex-agents.py"
+    asset_layout = resolve_asset_layout(script_path)
+    export_script = asset_layout.export_script
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
     catalog_path = Path(args.catalog).expanduser()
     profile_dir = Path(args.profile_dir).expanduser()
     model_set_dir = Path(args.model_set_dir).expanduser()
-    temp_root = resolve_temp_root(repo_root=repo_root, temp_dir=args.temp_dir)
-    support_tree_source = repo_root / "opencode"
+    temp_root = resolve_temp_root(repo_root=asset_layout.asset_root, temp_dir=args.temp_dir)
+    support_tree_source = asset_layout.support_tree_source
     support_tree_target = target_dir / "opencode"
 
     if not export_script.exists():

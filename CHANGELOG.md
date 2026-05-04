@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.4] - 2026-05-04
+
+### Fixed
+
+- Installed `agent-profile --runtime codex` now correctly supports installed OpenCode layouts because `install-codex-config.py` resolves installed versus repo/bundle asset roots, avoiding the erroneous `<installed-root>/opencode` path on Windows.
+
 ## [0.23.3] - 2026-05-04
 
 ### Fixed
