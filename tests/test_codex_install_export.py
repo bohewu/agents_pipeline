@@ -8,6 +8,11 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPORT_SCRIPT_PATH = REPO_ROOT / "scripts" / "export-codex-agents.py"
 INSTALL_SCRIPT_PATH = REPO_ROOT / "scripts" / "install-codex-config.py"
+RELEASE_BUNDLE_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "release-bundle.yml"
+)
+ROOT_INSTALL_SH_PATH = REPO_ROOT / "scripts" / "install.sh"
+ROOT_INSTALL_PS1_PATH = REPO_ROOT / "scripts" / "install.ps1"
 
 
 def load_module(name: str, path: Path):
@@ -378,6 +383,39 @@ class CodexInstallExportTest(unittest.TestCase):
                 resolved_without_override,
                 target_dir / INSTALL_MODULE.GLOBAL_AGENTS_FILENAME,
             )
+
+    def test_release_bundle_copies_and_smokes_codex_mode_aliases_helper(self) -> None:
+        workflow = RELEASE_BUNDLE_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'cp scripts/codex_mode_aliases.py "dist/${BUNDLE_DIR}/scripts/"',
+            workflow,
+        )
+        self.assertIn(
+            'test -f "${BUNDLE_DIR}/scripts/codex_mode_aliases.py"',
+            workflow,
+        )
+        self.assertIn(
+            'python3 "${BUNDLE_DIR}/scripts/export-codex-agents.py" --help > /dev/null',
+            workflow,
+        )
+        self.assertIn(
+            'python3 "${BUNDLE_DIR}/scripts/install-codex-config.py" --help > /dev/null',
+            workflow,
+        )
+
+    def test_root_installers_manage_codex_mode_aliases_helper(self) -> None:
+        install_sh = ROOT_INSTALL_SH_PATH.read_text(encoding="utf-8")
+        install_ps1 = ROOT_INSTALL_PS1_PATH.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'scripts/codex_mode_aliases.py:scripts/codex_mode_aliases.py',
+            install_sh,
+        )
+        self.assertIn(
+            '@{ Source = (Join-Path $repoRoot "scripts/codex_mode_aliases.py"); Destination = "scripts/codex_mode_aliases.py" },',
+            install_ps1,
+        )
 
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)

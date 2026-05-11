@@ -34,6 +34,7 @@ MANAGED_DIR_MAPS=(
 MANAGED_FILE_MAPS=(
   "opencode.json.example:opencode.json.example"
   "scripts/agent_model_profiles.py:scripts/agent_model_profiles.py"
+  "scripts/codex_mode_aliases.py:scripts/codex_mode_aliases.py"
   "scripts/export-codex-agents.py:scripts/export-codex-agents.py"
   "scripts/export-copilot-agents.py:scripts/export-copilot-agents.py"
   "scripts/export-claude-agents.py:scripts/export-claude-agents.py"

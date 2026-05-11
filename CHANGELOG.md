@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.10] - 2026-05-11
+
+### Fixed
+
+- Release bundles now include `scripts/codex_mode_aliases.py`, so Codex shell installs from extracted bundles no longer fail on that import-time helper.
+- OpenCode `install.sh` and `install.ps1` now include `scripts/codex_mode_aliases.py` in the managed scripts they install.
+- Release-bundle validation now smoke-checks extracted Codex Python entrypoints so missing import-time helpers are caught before release.
+
 ## [0.23.9] - 2026-05-11
 
 ### Changed

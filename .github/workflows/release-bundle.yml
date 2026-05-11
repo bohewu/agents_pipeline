@@ -145,6 +145,7 @@ jobs:
           cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-claude-agents.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
+          cp scripts/codex_mode_aliases.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/install-codex-config.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/update-agent-model-sets.py "dist/${BUNDLE_DIR}/scripts/"
           cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
@@ -202,6 +203,7 @@ jobs:
           test -f "${BUNDLE_DIR}/scripts/export-copilot-agents.py"
           test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
           test -f "${BUNDLE_DIR}/scripts/export-codex-agents.py"
+          test -f "${BUNDLE_DIR}/scripts/codex_mode_aliases.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex-config.py"
           test -f "${BUNDLE_DIR}/scripts/update-agent-model-sets.py"
           test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
@@ -223,7 +225,13 @@ jobs:
             "${BUNDLE_DIR}/scripts/agent_model_profiles.py" \
             "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
             "${BUNDLE_DIR}/scripts/export-claude-agents.py" \
-            "${BUNDLE_DIR}/scripts/export-codex-agents.py"
+            "${BUNDLE_DIR}/scripts/export-codex-agents.py" \
+            "${BUNDLE_DIR}/scripts/codex_mode_aliases.py" \
+            "${BUNDLE_DIR}/scripts/install-codex-config.py"
+
+          python3 "${BUNDLE_DIR}/scripts/export-codex-agents.py" --help > /dev/null
+
+          python3 "${BUNDLE_DIR}/scripts/install-codex-config.py" --help > /dev/null
 
           python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
             --source-agents "${BUNDLE_DIR}/opencode/agents" \
