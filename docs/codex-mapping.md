@@ -17,7 +17,7 @@ Do not manually maintain generated Codex role files as a primary source.
 ## Global-First Install Scope
 
 Use a global Codex install in `~/.codex` by default so the exported roles are available across workspaces.
-When the installer targets a Codex home/global directory, it now auto-merges the managed global routing note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
+When the installer targets a Codex home/global directory, it now auto-merges the managed global mode note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
 If you intentionally target `<workspace>/.codex`, the installer keeps that working and applies the optional managed `AGENTS.md` merge for that workspace only.
 
 ## Global Custom Instructions Snippet
@@ -26,9 +26,19 @@ If you use `scripts/install-codex.ps1` or `scripts/install-codex.sh` for a globa
 Manual copy is still optional for users who are not using the installer; place it in the active global file in the Codex home (`~/.codex/AGENTS.override.md` when you intentionally keep that file non-empty, otherwise `~/.codex/AGENTS.md`) or in the equivalent Codex app setting.
 
 ```text
-## Codex global routing aliases
+## Codex global mode aliases
 
-Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.
+Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as mode aliases for the current/main agent, not generic prose.
+Those aliases tell the current/main agent to adopt the requested mode directly. Do NOT first spawn the same-named orchestrator role just to enter the mode.
+
+Mode summary:
+- `flow`: bounded daily engineering; prefer <=5 atomic tasks; delegate only actual work items; concise final status.
+- `simple`: lightweight build-style execution; smallest safe completion; delegate only when helpful; concise Done/Verified/Notes output.
+- `pipeline`: full/high-risk/CI/PR path; use deeper orchestration and review when needed.
+- `general`: mixed coding/planning/writing/analysis fallback.
+- Other modes: use the installed definition when needed.
+- Installed definitions: `opencode/agents/orchestrator-<mode>.md`.
+If the summary is not enough, read the installed definition and then continue in that mode.
 
 Alias map:
 - `flow` / `run-flow` -> `orchestrator-flow`
@@ -46,6 +56,8 @@ Alias map:
 Higher-priority system, developer, tool, and runtime instructions override this note.
 Project/workspace `AGENTS.md` files may further refine behavior for a specific repo.
 ```
+
+For workspace-local installs under `<workspace>/.codex`, the managed workspace `AGENTS.md` block uses the same wording but points installed definitions at `.codex/opencode/agents/orchestrator-<mode>.md`.
 
 ## Frontmatter Mapping
 
@@ -132,9 +144,11 @@ When Codex role bodies reference repo-managed assets such as `opencode/protocols
 ## Role Invocation In Codex
 
 - Codex docs describe custom roles via `[agents.<name>]` config and prompt-driven routing.
-- Generated roles are intended to be invoked by naming them in prompts, or by using explicit leading aliases after adding the global snippet above; do not rely on `/agent` to enumerate them.
+- Explicit leading aliases after adding the managed AGENTS note tell the current/main agent to adopt that orchestrator mode directly; do not first spawn the same-named orchestrator role just to enter the mode.
+- Direct role-name prompts still work when you explicitly want a generated role, such as `Have reviewer inspect the diff` or `Have orchestrator-pipeline coordinate the implementation plan.`
+- If the managed summary is not enough, read the installed mode definition at `opencode/agents/orchestrator-<mode>.md` for global installs or `.codex/opencode/agents/orchestrator-<mode>.md` for workspace installs, then continue in that mode.
 - In current Codex CLI builds, `/agent` is for switching between existing agent threads and may show no custom roles from `config.toml`.
-- Recommended prompt style: `Have reviewer inspect the diff and have orchestrator-pipeline coordinate the implementation plan.`
+- Recommended prompt styles: `use pipeline to coordinate this PR path` for direct mode adoption, or `Have reviewer inspect the diff and have orchestrator-pipeline coordinate the implementation plan.` when you explicitly want named roles.
 
 ## `/run-*` Input Adaptation
 

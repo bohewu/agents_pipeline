@@ -150,12 +150,28 @@ def build_agents_alias_map_lines(commands_dir: Path) -> List[str]:
     return lines
 
 
+def build_mode_summary_lines(definition_root: str) -> List[str]:
+    return [
+        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as mode aliases for the current/main agent, not generic prose.",
+        "Those aliases tell the current/main agent to adopt the requested mode directly. Do NOT first spawn the same-named orchestrator role just to enter the mode.",
+        "",
+        "Mode summary:",
+        "- `flow`: bounded daily engineering; prefer <=5 atomic tasks; delegate only actual work items; concise final status.",
+        "- `simple`: lightweight build-style execution; smallest safe completion; delegate only when helpful; concise Done/Verified/Notes output.",
+        "- `pipeline`: full/high-risk/CI/PR path; use deeper orchestration and review when needed.",
+        "- `general`: mixed coding/planning/writing/analysis fallback.",
+        "- Other modes: use the installed definition when needed.",
+        f"- Installed definitions: `{definition_root}/orchestrator-<mode>.md`.",
+        "If the summary is not enough, read the installed definition and then continue in that mode.",
+    ]
+
+
 def build_global_agents_managed_block(commands_dir: Path) -> str:
     lines = [
         WORKSPACE_AGENTS_MANAGED_START,
-        "## Codex global routing aliases",
+        "## Codex global mode aliases",
         "",
-        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.",
+        *build_mode_summary_lines("opencode/agents"),
         "",
         *build_agents_alias_map_lines(commands_dir),
         "",
@@ -169,9 +185,9 @@ def build_global_agents_managed_block(commands_dir: Path) -> str:
 def build_workspace_agents_managed_block(commands_dir: Path) -> str:
     lines = [
         WORKSPACE_AGENTS_MANAGED_START,
-        "## Codex routing aliases",
+        "## Codex mode aliases",
         "",
-        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.",
+        *build_mode_summary_lines(".codex/opencode/agents"),
         "",
         *build_agents_alias_map_lines(commands_dir),
         "",

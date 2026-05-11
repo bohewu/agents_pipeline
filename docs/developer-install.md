@@ -294,7 +294,7 @@ Behavior notes:
 - Existing Codex files are backed up by default.
 - The installer preserves unrelated Codex settings already present in `config.toml`, such as model, approval, sandbox, MCP, and profile settings.
 - The installer replaces only the managed Codex agent definitions and removes stale managed agent files/entries that were deleted from this repo.
-- When the target is a global Codex home such as `~/.codex`, the installer also auto-merges the managed global routing note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`; if neither exists, it creates `AGENTS.md`.
+- When the target is a global Codex home such as `~/.codex`, the installer also auto-merges the managed global mode note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`; if neither exists, it creates `AGENTS.md`.
 - Target `<workspace>/.codex` only when you intentionally want a workspace-local override; that is also when the installer applies the optional managed merge into `<workspace>/AGENTS.md`.
 
 Windows (PowerShell):
@@ -319,7 +319,8 @@ Common options:
 Important Codex usage note:
 
 - Generated roles are configured as Codex agent roles in `config.toml`.
-- For global installs, the installer now manages the equivalent routing snippet in the active global AGENTS file automatically. You can also use the manual snippet from `docs/codex-mapping.md#global-custom-instructions-snippet` when you are not using the installer-backed merge.
-- Use them by direct role name in prompts, or by leading aliases such as `use pipeline ...` / `使用flow ...`.
+- For global installs, the installer now manages the equivalent mode-alias snippet in the active global AGENTS file automatically. You can also use the manual snippet from `docs/codex-mapping.md#global-custom-instructions-snippet` when you are not using the installer-backed merge.
+- Leading aliases such as `use pipeline ...` / `使用flow ...` tell the current/main agent to adopt that mode directly. Do not first spawn the same-named orchestrator role just to enter the mode.
+- Direct role-name prompts still work when you explicitly want that behavior.
 - Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
 - Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`

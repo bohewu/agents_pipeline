@@ -23,6 +23,54 @@ INSTALL_MODULE = load_module("install_codex_config", INSTALL_SCRIPT_PATH)
 
 
 class CodexInstallExportTest(unittest.TestCase):
+    def test_build_global_agents_managed_block_uses_mode_simulation_wording(
+        self,
+    ) -> None:
+        managed_block = INSTALL_MODULE.build_global_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+
+        self.assertIn("## Codex global mode aliases", managed_block)
+        self.assertIn(
+            "current/main agent to adopt the requested mode directly", managed_block
+        )
+        self.assertIn(
+            "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
+            managed_block,
+        )
+        self.assertIn("`flow`: bounded daily engineering", managed_block)
+        self.assertIn("`simple`: lightweight build-style execution", managed_block)
+        self.assertIn("`pipeline`: full/high-risk/CI/PR path", managed_block)
+        self.assertIn("`general`: mixed coding/planning/writing/analysis fallback", managed_block)
+        self.assertIn("`opencode/agents/orchestrator-<mode>.md`", managed_block)
+        self.assertIn(
+            "If the summary is not enough, read the installed definition and then continue in that mode.",
+            managed_block,
+        )
+        self.assertNotIn("routing aliases for installed Codex roles", managed_block)
+
+    def test_build_workspace_agents_managed_block_uses_workspace_definition_path(
+        self,
+    ) -> None:
+        managed_block = INSTALL_MODULE.build_workspace_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+
+        self.assertIn("## Codex mode aliases", managed_block)
+        self.assertIn(
+            "current/main agent to adopt the requested mode directly", managed_block
+        )
+        self.assertIn(
+            "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
+            managed_block,
+        )
+        self.assertIn("`flow`: bounded daily engineering", managed_block)
+        self.assertIn("`.codex/opencode/agents/orchestrator-<mode>.md`", managed_block)
+        self.assertIn(
+            "If the summary is not enough, read the installed definition and then continue in that mode.",
+            managed_block,
+        )
+
     def test_merge_global_agents_text_preserves_user_content_and_replaces_block(
         self,
     ) -> None:
@@ -51,6 +99,10 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         self.assertIn(
             "Project/workspace `AGENTS.md` files may further refine behavior",
+            merged,
+        )
+        self.assertIn(
+            "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
             merged,
         )
         self.assertIn(
@@ -95,6 +147,9 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertNotIn("stale managed content", merged)
         self.assertEqual(
             merged.count(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START), 1
+        )
+        self.assertIn(
+            "`.codex/opencode/agents/orchestrator-<mode>.md`", merged
         )
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged

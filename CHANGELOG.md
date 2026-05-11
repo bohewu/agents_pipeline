@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.6] - 2026-05-11
+
+### Changed
+
+- Codex installer-managed global and workspace AGENTS notes now tell the current/main agent to adopt explicit mode aliases such as `use flow` and `使用pipeline` directly, rather than first spawning the same-named orchestrator role.
+- The managed Codex mode note now includes concise summaries for `flow`, `simple`, `pipeline`, and `general`, plus installed-definition fallback paths so users do not need to restate "read the definition first" on every request.
+
 ## [0.23.5] - 2026-05-11
 
 ### Added
