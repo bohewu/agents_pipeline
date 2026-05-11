@@ -38,13 +38,36 @@ class CodexInstallExportTest(unittest.TestCase):
             "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
             managed_block,
         )
-        self.assertIn("`flow`: bounded daily engineering", managed_block)
-        self.assertIn("`simple`: lightweight build-style execution", managed_block)
-        self.assertIn("`pipeline`: full/high-risk/CI/PR path", managed_block)
-        self.assertIn("`general`: mixed coding/planning/writing/analysis fallback", managed_block)
-        self.assertIn("`opencode/agents/orchestrator-<mode>.md`", managed_block)
         self.assertIn(
-            "If the summary is not enough, read the installed definition and then continue in that mode.",
+            "`flow`: bounded daily engineering; current/main agent orchestrates",
+            managed_block,
+        )
+        self.assertIn(
+            "delegate only real work items like implementation/docs/tests",
+            managed_block,
+        )
+        self.assertIn(
+            "`simple`: smallest safe completion path; current/main agent stays lightweight",
+            managed_block,
+        )
+        self.assertIn("one helper lane", managed_block)
+        self.assertIn(
+            "`pipeline`: fuller path for multi-file/high-risk/CI/PR work",
+            managed_block,
+        )
+        self.assertIn(
+            "stronger staging, verification, and review",
+            managed_block,
+        )
+        self.assertIn(
+            "`general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits",
+            managed_block,
+        )
+        self.assertIn("redirect to a stronger mode", managed_block)
+        self.assertIn("`.codex/agents/orchestrator-<mode>.toml`", managed_block)
+        self.assertIn("`~/.codex/agents/orchestrator-<mode>.toml`", managed_block)
+        self.assertIn(
+            "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
             managed_block,
         )
         self.assertNotIn("routing aliases for installed Codex roles", managed_block)
@@ -64,10 +87,26 @@ class CodexInstallExportTest(unittest.TestCase):
             "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
             managed_block,
         )
-        self.assertIn("`flow`: bounded daily engineering", managed_block)
-        self.assertIn("`.codex/opencode/agents/orchestrator-<mode>.md`", managed_block)
         self.assertIn(
-            "If the summary is not enough, read the installed definition and then continue in that mode.",
+            "`flow`: bounded daily engineering; current/main agent orchestrates",
+            managed_block,
+        )
+        self.assertIn(
+            "`simple`: smallest safe completion path; current/main agent stays lightweight",
+            managed_block,
+        )
+        self.assertIn(
+            "`pipeline`: fuller path for multi-file/high-risk/CI/PR work",
+            managed_block,
+        )
+        self.assertIn(
+            "`general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits",
+            managed_block,
+        )
+        self.assertIn("`.codex/agents/orchestrator-<mode>.toml`", managed_block)
+        self.assertIn("`~/.codex/agents/orchestrator-<mode>.toml`", managed_block)
+        self.assertIn(
+            "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
             managed_block,
         )
 
@@ -104,6 +143,12 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn(
             "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
             merged,
+        )
+        self.assertIn(
+            "`.codex/agents/orchestrator-<mode>.toml`", merged
+        )
+        self.assertIn(
+            "`~/.codex/agents/orchestrator-<mode>.toml`", merged
         )
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged
@@ -149,7 +194,10 @@ class CodexInstallExportTest(unittest.TestCase):
             merged.count(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START), 1
         )
         self.assertIn(
-            "`.codex/opencode/agents/orchestrator-<mode>.md`", merged
+            "`.codex/agents/orchestrator-<mode>.toml`", merged
+        )
+        self.assertIn(
+            "`~/.codex/agents/orchestrator-<mode>.toml`", merged
         )
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged

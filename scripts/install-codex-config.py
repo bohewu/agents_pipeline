@@ -150,19 +150,19 @@ def build_agents_alias_map_lines(commands_dir: Path) -> List[str]:
     return lines
 
 
-def build_mode_summary_lines(definition_root: str) -> List[str]:
+def build_mode_summary_lines() -> List[str]:
     return [
         "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as mode aliases for the current/main agent, not generic prose.",
         "Those aliases tell the current/main agent to adopt the requested mode directly. Do NOT first spawn the same-named orchestrator role just to enter the mode.",
         "",
         "Mode summary:",
-        "- `flow`: bounded daily engineering; prefer <=5 atomic tasks; delegate only actual work items; concise final status.",
-        "- `simple`: lightweight build-style execution; smallest safe completion; delegate only when helpful; concise Done/Verified/Notes output.",
-        "- `pipeline`: full/high-risk/CI/PR path; use deeper orchestration and review when needed.",
-        "- `general`: mixed coding/planning/writing/analysis fallback.",
-        "- Other modes: use the installed definition when needed.",
-        f"- Installed definitions: `{definition_root}/orchestrator-<mode>.md`.",
-        "If the summary is not enough, read the installed definition and then continue in that mode.",
+        "- `flow`: bounded daily engineering; current/main agent orchestrates; break work into a small bounded set; prefer <=5 atomic tasks; delegate only real work items like implementation/docs/tests; concise final status.",
+        "- `simple`: smallest safe completion path; current/main agent stays lightweight; use direct execution or one helper lane when useful; avoid heavy orchestration; brief Done/Verified/Notes.",
+        "- `pipeline`: fuller path for multi-file/high-risk/CI/PR work; use stronger staging, verification, and review when needed; keep scope explicit.",
+        "- `general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits; can still redirect to a stronger mode if task risk demands it.",
+        "- Other modes: consult the installed definition and continue in that mode.",
+        "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
+        "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
     ]
 
 
@@ -171,7 +171,7 @@ def build_global_agents_managed_block(commands_dir: Path) -> str:
         WORKSPACE_AGENTS_MANAGED_START,
         "## Codex global mode aliases",
         "",
-        *build_mode_summary_lines("opencode/agents"),
+        *build_mode_summary_lines(),
         "",
         *build_agents_alias_map_lines(commands_dir),
         "",
@@ -187,7 +187,7 @@ def build_workspace_agents_managed_block(commands_dir: Path) -> str:
         WORKSPACE_AGENTS_MANAGED_START,
         "## Codex mode aliases",
         "",
-        *build_mode_summary_lines(".codex/opencode/agents"),
+        *build_mode_summary_lines(),
         "",
         *build_agents_alias_map_lines(commands_dir),
         "",

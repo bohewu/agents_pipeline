@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.7] - 2026-05-11
+
+### Changed
+
+- Codex installer-managed mode guidance now tells the current/main agent to consult installed Codex orchestrator definitions from `.codex/agents/orchestrator-<mode>.toml` first and `~/.codex/agents/orchestrator-<mode>.toml` second, instead of referring to source-repo `opencode/...` paths.
+- Expanded the managed Codex mode summaries for `flow`, `simple`, `pipeline`, and `general` so users can rely on the installed guidance more often without restating "read the definition first" in each prompt.
+
 ## [0.23.6] - 2026-05-11
 
 ### Changed
