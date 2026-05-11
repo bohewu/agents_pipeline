@@ -152,17 +152,25 @@ def build_agents_alias_map_lines(commands_dir: Path) -> List[str]:
 
 def build_mode_summary_lines() -> List[str]:
     return [
-        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as mode aliases for the current/main agent, not generic prose.",
-        "Those aliases tell the current/main agent to adopt the requested mode directly. Do NOT first spawn the same-named orchestrator role just to enter the mode.",
+        "Treat only explicit leading mode phrases such as `use flow`, `use pipeline`, `使用flow`, `使用pipeline`, `用 flow 做...`, and `請用 pipeline 去執行...` as mode aliases for a supported mode in the current/main agent, not generic prose.",
+        "Those aliases tell the current/main agent to adopt the requested mode directly.",
+        "Do NOT first spawn the same-named orchestrator role just to enter the mode.",
+        "Definition-first order for an explicit mode alias in a fresh/new session:",
+        "1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.",
+        "2. The current/main agent simulates that mode itself from the installed definition.",
+        "3. Use subagents according to that installed definition for real work items.",
+        "Same-session reuse rule: repeated use of the same mode in the same session does NOT need to reload the definition when the mode, workspace, and definition source are unchanged.",
+        "Reload/re-read when the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details.",
+        "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
         "",
-        "Mode summary:",
-        "- `flow`: bounded daily engineering; current/main agent orchestrates; break work into a small bounded set; prefer <=5 atomic tasks; delegate only real work items like implementation/docs/tests; concise final status.",
-        "- `simple`: smallest safe completion path; current/main agent stays lightweight; use direct execution or one helper lane when useful; avoid heavy orchestration; brief Done/Verified/Notes.",
-        "- `pipeline`: fuller path for multi-file/high-risk/CI/PR work; use stronger staging, verification, and review when needed; keep scope explicit.",
-        "- `general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits; can still redirect to a stronger mode if task risk demands it.",
+        "Quick orientation:",
+        "- `flow`: bounded daily engineering; small task set; concise final status.",
+        "- `simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.",
+        "- `pipeline`: fuller path for multi-file/high-risk/CI/PR work; use stronger staging, verification, and review when needed.",
+        "- `general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.",
         "- Other modes: consult the installed definition and continue in that mode.",
         "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
-        "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
+        "- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.",
     ]
 
 

@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.8] - 2026-05-11
+
+### Changed
+
+- Codex installer-managed mode guidance now makes definition-first behavior explicit for fresh/new sessions: an explicit mode alias first reads `.codex/agents/orchestrator-<mode>.toml` when available for the current workspace, otherwise `~/.codex/agents/orchestrator-<mode>.toml`, then the current/main agent simulates that mode and uses subagents according to that definition.
+- The same-session reuse rule is now documented: repeated use of the same mode in one session does not need to reload the definition unless the mode, workspace, or definition source changes, the user asks to reload, or the agent is no longer confident it still has the relevant mode details.
+
 ## [0.23.7] - 2026-05-11
 
 ### Changed

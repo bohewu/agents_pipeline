@@ -23,6 +23,19 @@ INSTALL_MODULE = load_module("install_codex_config", INSTALL_SCRIPT_PATH)
 
 
 class CodexInstallExportTest(unittest.TestCase):
+    SAME_SESSION_NO_RELOAD_LINE = (
+        "Same-session reuse rule: repeated use of the same mode in the same session "
+        "does NOT need to reload the definition when the mode, workspace, and "
+        "definition source are unchanged."
+    )
+    SAME_SESSION_EXCEPTIONS_LINE = (
+        "Reload/re-read when the mode changes, the workspace changes, the "
+        "definition source changes between workspace `.codex/agents/...` and "
+        "global `~/.codex/agents/...`, the user explicitly asks to "
+        "reload/refresh/re-read, or the agent is no longer confident it still "
+        "has the relevant mode details."
+    )
+
     def test_build_global_agents_managed_block_uses_mode_simulation_wording(
         self,
     ) -> None:
@@ -39,18 +52,39 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "`flow`: bounded daily engineering; current/main agent orchestrates",
+            "Definition-first order for an explicit mode alias in a fresh/new session:",
             managed_block,
         )
         self.assertIn(
-            "delegate only real work items like implementation/docs/tests",
+            "1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.",
             managed_block,
         )
         self.assertIn(
-            "`simple`: smallest safe completion path; current/main agent stays lightweight",
+            "2. The current/main agent simulates that mode itself from the installed definition.",
             managed_block,
         )
-        self.assertIn("one helper lane", managed_block)
+        self.assertIn(
+            "3. Use subagents according to that installed definition for real work items.",
+            managed_block,
+        )
+        self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, managed_block)
+        self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, managed_block)
+        self.assertIn(
+            "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
+            managed_block,
+        )
+        self.assertIn(
+            "Quick orientation:",
+            managed_block,
+        )
+        self.assertIn(
+            "`flow`: bounded daily engineering; small task set; concise final status.",
+            managed_block,
+        )
+        self.assertIn(
+            "`simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.",
+            managed_block,
+        )
         self.assertIn(
             "`pipeline`: fuller path for multi-file/high-risk/CI/PR work",
             managed_block,
@@ -60,16 +94,18 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "`general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits",
+            "`general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.",
             managed_block,
         )
-        self.assertIn("redirect to a stronger mode", managed_block)
-        self.assertIn("`.codex/agents/orchestrator-<mode>.toml`", managed_block)
-        self.assertIn("`~/.codex/agents/orchestrator-<mode>.toml`", managed_block)
         self.assertIn(
-            "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
+            "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
             managed_block,
         )
+        self.assertIn(
+            "- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.",
+            managed_block,
+        )
+        self.assertNotIn("Available subagents (practical set):", managed_block)
         self.assertNotIn("routing aliases for installed Codex roles", managed_block)
 
     def test_build_workspace_agents_managed_block_uses_workspace_definition_path(
@@ -88,11 +124,33 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "`flow`: bounded daily engineering; current/main agent orchestrates",
+            "Definition-first order for an explicit mode alias in a fresh/new session:",
             managed_block,
         )
         self.assertIn(
-            "`simple`: smallest safe completion path; current/main agent stays lightweight",
+            "1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.",
+            managed_block,
+        )
+        self.assertIn(
+            "2. The current/main agent simulates that mode itself from the installed definition.",
+            managed_block,
+        )
+        self.assertIn(
+            "3. Use subagents according to that installed definition for real work items.",
+            managed_block,
+        )
+        self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, managed_block)
+        self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, managed_block)
+        self.assertIn(
+            "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
+            managed_block,
+        )
+        self.assertIn(
+            "`flow`: bounded daily engineering; small task set; concise final status.",
+            managed_block,
+        )
+        self.assertIn(
+            "`simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.",
             managed_block,
         )
         self.assertIn(
@@ -100,15 +158,18 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "`general`: mixed coding/planning/writing/analysis fallback; use when no other mode clearly fits",
+            "`general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.",
             managed_block,
         )
-        self.assertIn("`.codex/agents/orchestrator-<mode>.toml`", managed_block)
-        self.assertIn("`~/.codex/agents/orchestrator-<mode>.toml`", managed_block)
         self.assertIn(
-            "If the summary is not enough, read the installed definition using that order and then continue in that mode.",
+            "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
             managed_block,
         )
+        self.assertIn(
+            "- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.",
+            managed_block,
+        )
+        self.assertNotIn("Available subagents (practical set):", managed_block)
 
     def test_merge_global_agents_text_preserves_user_content_and_replaces_block(
         self,
@@ -145,11 +206,20 @@ class CodexInstallExportTest(unittest.TestCase):
             merged,
         )
         self.assertIn(
+            "Use subagents according to that installed definition for real work items.",
+            merged,
+        )
+        self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, merged)
+        self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, merged)
+        self.assertNotIn("Available subagents (practical set):", merged)
+        self.assertIn(
             "`.codex/agents/orchestrator-<mode>.toml`", merged
         )
         self.assertIn(
             "`~/.codex/agents/orchestrator-<mode>.toml`", merged
         )
+        self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, merged)
+        self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, merged)
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged
         )
