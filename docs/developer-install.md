@@ -287,13 +287,15 @@ Claude Code limitation note:
 
 ## Codex roles from clone
 
-Default target: `~/.codex`
+Primary/default target: `~/.codex`
 
 Behavior notes:
 
 - Existing Codex files are backed up by default.
 - The installer preserves unrelated Codex settings already present in `config.toml`, such as model, approval, sandbox, MCP, and profile settings.
 - The installer replaces only the managed Codex agent definitions and removes stale managed agent files/entries that were deleted from this repo.
+- When the target is a global Codex home such as `~/.codex`, the installer also auto-merges the managed global routing note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`; if neither exists, it creates `AGENTS.md`.
+- Target `<workspace>/.codex` only when you intentionally want a workspace-local override; that is also when the installer applies the optional managed merge into `<workspace>/AGENTS.md`.
 
 Windows (PowerShell):
 
@@ -312,10 +314,12 @@ Common options:
 - Preview only: `pwsh -NoProfile -File scripts/install-codex.ps1 -DryRun` or `bash scripts/install-codex.sh --dry-run`
 - Custom target: `pwsh -NoProfile -File scripts/install-codex.ps1 -Target C:\path\to\.codex` or `bash scripts/install-codex.sh --target /path/to/.codex`
 - `features.multi_agent` is always set to `true`, and the managed `[agents]` settings are refreshed from this repo; `-Force` / `--force` is accepted only for backward compatibility.
+- The reusable manual snippet still lives in `docs/codex-mapping.md#global-custom-instructions-snippet` for users who are not using the installer-backed global AGENTS merge.
 
 Important Codex usage note:
 
 - Generated roles are configured as Codex agent roles in `config.toml`.
-- Use them by role name in prompts.
+- For global installs, the installer now manages the equivalent routing snippet in the active global AGENTS file automatically. You can also use the manual snippet from `docs/codex-mapping.md#global-custom-instructions-snippet` when you are not using the installer-backed merge.
+- Use them by direct role name in prompts, or by leading aliases such as `use pipeline ...` / `使用flow ...`.
 - Do not expect Codex CLI `/agent` to list these custom roles. In current Codex CLI builds, `/agent` is used for switching between already-created agent threads, not for browsing roles from `config.toml`.
 - Example prompt: `Have reviewer inspect the risks and have orchestrator-pipeline coordinate the implementation steps.`

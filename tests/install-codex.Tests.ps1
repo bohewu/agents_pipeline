@@ -58,6 +58,42 @@ exit /b 0
         }
     }
 
+    It "forwards workspace root to the merge helper" {
+        $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
+        $binDir = Join-Path $TestDrive "bin-workspace"
+        $logPath = Join-Path $TestDrive "workspace.log"
+        $workspaceRoot = Join-Path $TestDrive "workspace"
+        $targetPath = Join-Path $workspaceRoot ".codex"
+        New-Item -ItemType Directory -Path $binDir | Out-Null
+        New-Item -ItemType Directory -Path $workspaceRoot | Out-Null
+        @"
+@echo off
+setlocal
+> "$logPath" echo %*
+exit /b 0
+"@ | Set-Content -Path (Join-Path $binDir "py.cmd") -Encoding Ascii
+
+        $previousPath = $env:PATH
+        try {
+            $env:PATH = "$binDir;$previousPath"
+            & $scriptPath -Target $targetPath -WorkspaceRoot $workspaceRoot -DryRun | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Expected install-codex.ps1 dry-run with workspace root to succeed. Exit code: $LASTEXITCODE"
+            }
+        }
+        finally {
+            $env:PATH = $previousPath
+        }
+
+        $loggedArgs = Get-Content -Path $logPath -Raw
+        if ($loggedArgs -notmatch "--workspace-root") {
+            throw "Expected install-codex.ps1 to forward --workspace-root. Logged args: $loggedArgs"
+        }
+        if ($loggedArgs -notmatch [regex]::Escape($workspaceRoot)) {
+            throw "Expected install-codex.ps1 to forward the workspace root path. Logged args: $loggedArgs"
+        }
+    }
+
     It "fails clearly when only WindowsApps aliases are available" {
         $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         Mock Get-Command { $null } -ParameterFilter { $Name -eq "py" }

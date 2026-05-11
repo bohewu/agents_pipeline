@@ -6,12 +6,14 @@ usage() {
 Install Codex multi-agent role config generated from OpenCode agents.
 
 Usage:
-  scripts/install-codex.sh [--target <path>] [--dry-run] [--no-backup] [--force] [model profile options]
+  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--dry-run] [--no-backup] [--force] [model profile options]
 
 Options:
   --target <path>  Install destination (default: ~/.codex)
+  --workspace-root <path>
+                    Workspace root for safe AGENTS.md managed-block merging when target is <workspace>/.codex
   --dry-run        Print actions without writing files
-  --no-backup      Skip backup of existing config.toml and agents/*.toml
+  --no-backup      Skip backup of existing config.toml, agents/*.toml, and managed AGENTS.md files
   --force          Accepted for backward compatibility; merged install is already enabled by default
   --agent-profile <name|path>
                   Opt in to generated per-agent model settings
@@ -50,6 +52,7 @@ if [[ ! -f "${MERGE_SCRIPT}" ]]; then
 fi
 
 TARGET_DIR="${HOME}/.codex"
+WORKSPACE_ROOT=""
 DRY_RUN=0
 NO_BACKUP=0
 FORCE_OVERWRITE=1
@@ -68,6 +71,14 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       TARGET_DIR="$2"
+      shift 2
+      ;;
+    --workspace-root)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --workspace-root" >&2
+        exit 2
+      fi
+      WORKSPACE_ROOT="$2"
       shift 2
       ;;
     --dry-run)
@@ -148,14 +159,64 @@ if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   exit 1
 fi
 
+resolve_workspace_agents_path() {
+  "${PYTHON_BIN}" - "$1" "$2" <<'PY'
+from pathlib import Path
+import sys
+
+target_dir = Path(sys.argv[1]).expanduser().resolve()
+workspace_root = Path(sys.argv[2]).expanduser().resolve()
+expected_target = (workspace_root / ".codex").resolve()
+if target_dir == expected_target:
+    print((workspace_root / "AGENTS.md").as_posix())
+PY
+}
+
+resolve_global_agents_path() {
+  "${PYTHON_BIN}" - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+target_dir = Path(sys.argv[1]).expanduser().resolve()
+override_path = target_dir / "AGENTS.override.md"
+if override_path.is_file() and override_path.read_text(encoding="utf-8").strip():
+    print(override_path.as_posix())
+else:
+    print((target_dir / "AGENTS.md").as_posix())
+PY
+}
+
+WORKSPACE_AGENTS_PATH=""
+if [[ -n "${WORKSPACE_ROOT}" ]]; then
+  WORKSPACE_AGENTS_PATH="$(resolve_workspace_agents_path "${TARGET_DIR}" "${WORKSPACE_ROOT}")"
+fi
+GLOBAL_AGENTS_MERGE_PATH=""
+if [[ -z "${WORKSPACE_AGENTS_PATH}" ]]; then
+  GLOBAL_AGENTS_MERGE_PATH="$(resolve_global_agents_path "${TARGET_DIR}")"
+fi
+
 echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
+if [[ -n "${WORKSPACE_ROOT}" ]]; then
+  echo "Workspace root: ${WORKSPACE_ROOT}"
+fi
+if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
+  echo "Managed global AGENTS merge: ${GLOBAL_AGENTS_MERGE_PATH}"
+fi
 echo "DryRun: ${DRY_RUN}"
 echo "Managed merge: preserve non-agent Codex settings"
 echo "Cleanup: stale managed Codex agent outputs"
 
-if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
+if [[ ${NO_BACKUP} -eq 0 ]]; then
   backup_needed=0
+  backup_root="${TARGET_DIR}"
+  if [[ ! -d "${backup_root}" ]]; then
+    if [[ -n "${WORKSPACE_ROOT}" && -d "${WORKSPACE_ROOT}" ]]; then
+      backup_root="${WORKSPACE_ROOT}"
+    else
+      backup_root="$(dirname "${TARGET_DIR}")"
+    fi
+  fi
   if [[ -f "${TARGET_DIR}/config.toml" ]]; then
     backup_needed=1
   fi
@@ -173,8 +234,16 @@ if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
   if [[ -d "${TARGET_DIR}/opencode" ]]; then
     backup_needed=1
   fi
+  if [[ -n "${WORKSPACE_AGENTS_PATH}" && -f "${WORKSPACE_AGENTS_PATH}" ]]; then
+    backup_needed=1
+  fi
+  if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
+    if [[ -f "${TARGET_DIR}/AGENTS.md" || -f "${TARGET_DIR}/AGENTS.override.md" ]]; then
+      backup_needed=1
+    fi
+  fi
   if [[ ${backup_needed} -eq 1 ]]; then
-    backup_dir="${TARGET_DIR}/.backup-agents-pipeline-codex-$(date +%Y%m%d-%H%M%S)"
+    backup_dir="${backup_root}/.backup-agents-pipeline-codex-$(date +%Y%m%d-%H%M%S)"
     if [[ ${DRY_RUN} -eq 1 ]]; then
       echo "Would create backup: ${backup_dir}"
     else
@@ -196,6 +265,17 @@ if [[ ${NO_BACKUP} -eq 0 && -d "${TARGET_DIR}" ]]; then
       if [[ -d "${TARGET_DIR}/opencode" ]]; then
         cp -a "${TARGET_DIR}/opencode" "${backup_dir}/"
       fi
+      if [[ -n "${WORKSPACE_AGENTS_PATH}" && -f "${WORKSPACE_AGENTS_PATH}" ]]; then
+        cp -a "${WORKSPACE_AGENTS_PATH}" "${backup_dir}/AGENTS.md"
+      fi
+      if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
+        if [[ -f "${TARGET_DIR}/AGENTS.md" ]]; then
+          cp -a "${TARGET_DIR}/AGENTS.md" "${backup_dir}/AGENTS.md"
+        fi
+        if [[ -f "${TARGET_DIR}/AGENTS.override.md" ]]; then
+          cp -a "${TARGET_DIR}/AGENTS.override.md" "${backup_dir}/AGENTS.override.md"
+        fi
+      fi
       echo "Backup created: ${backup_dir}"
     fi
   fi
@@ -216,6 +296,9 @@ EXPORT_CMD=(
 if [[ ${DRY_RUN} -eq 1 ]]; then
   EXPORT_CMD+=(--dry-run)
 fi
+if [[ -n "${WORKSPACE_ROOT}" ]]; then
+  EXPORT_CMD+=(--workspace-root "${WORKSPACE_ROOT}")
+fi
 if [[ -n "${AGENT_PROFILE}" ]]; then
   EXPORT_CMD+=(--agent-profile "${AGENT_PROFILE}")
 fi
@@ -231,7 +314,13 @@ fi
 "${EXPORT_CMD[@]}"
 
 echo
-echo "Codex usage note: invoke generated roles by name in prompts."
+if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
+  echo "Codex usage note: installer-managed global AGENTS routing lives at ${GLOBAL_AGENTS_MERGE_PATH}."
+  echo "Manual snippet reference remains in docs/codex-mapping.md#global-custom-instructions-snippet if you are not using the installer."
+else
+  echo "Codex usage note: the optional manual snippet is in docs/codex-mapping.md#global-custom-instructions-snippet."
+fi
+echo "Then use aliases like '使用flow ...' / 'use pipeline ...', or direct role-name prompts when needed."
 echo "Example: Have 'orchestrator-general' draft a plan and 'reviewer' validate the outcome."
 
 if [[ ${DRY_RUN} -eq 1 ]]; then

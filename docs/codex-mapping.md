@@ -10,8 +10,42 @@ This document defines how OpenCode agent definitions are mapped to Codex multi-a
   - `<target-dir>/agents/*.toml`
 - Generator: `scripts/export-codex-agents.py`
 - Default target shape: a `.codex`-style directory that Codex can read as project config
+- Primary/default install target: global `~/.codex` (Windows: `%USERPROFILE%\.codex`); workspace `<workspace>/.codex` installs are optional overrides
 
 Do not manually maintain generated Codex role files as a primary source.
+
+## Global-First Install Scope
+
+Use a global Codex install in `~/.codex` by default so the exported roles are available across workspaces.
+When the installer targets a Codex home/global directory, it now auto-merges the managed global routing note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
+If you intentionally target `<workspace>/.codex`, the installer keeps that working and applies the optional managed `AGENTS.md` merge for that workspace only.
+
+## Global Custom Instructions Snippet
+
+If you use `scripts/install-codex.ps1` or `scripts/install-codex.sh` for a global `~/.codex` install, the installer now manages the equivalent of this snippet automatically in the active global AGENTS file.
+Manual copy is still optional for users who are not using the installer; place it in the active global file in the Codex home (`~/.codex/AGENTS.override.md` when you intentionally keep that file non-empty, otherwise `~/.codex/AGENTS.md`) or in the equivalent Codex app setting.
+
+```text
+## Codex global routing aliases
+
+Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.
+
+Alias map:
+- `flow` / `run-flow` -> `orchestrator-flow`
+- `pipeline` / `run-pipeline` -> `orchestrator-pipeline`
+- `general` / `run-general` -> `orchestrator-general`
+- `simple` / `run-simple` -> `orchestrator-simple`
+- `spec` / `run-spec` -> `orchestrator-spec`
+- `ci` / `run-ci` -> `orchestrator-ci`
+- `modernize` / `run-modernize` -> `orchestrator-modernize`
+- `analysis` / `run-analysis` -> `orchestrator-analysis`
+- `ux` / `run-ux` -> `orchestrator-ux`
+- `committee` / `run-committee` -> `orchestrator-committee`
+- `monetize` / `run-monetize` -> `orchestrator-general`
+
+Higher-priority system, developer, tool, and runtime instructions override this note.
+Project/workspace `AGENTS.md` files may further refine behavior for a specific repo.
+```
 
 ## Frontmatter Mapping
 
@@ -98,7 +132,7 @@ When Codex role bodies reference repo-managed assets such as `opencode/protocols
 ## Role Invocation In Codex
 
 - Codex docs describe custom roles via `[agents.<name>]` config and prompt-driven routing.
-- Generated roles are intended to be invoked by naming them in prompts, not by relying on `/agent` to enumerate them.
+- Generated roles are intended to be invoked by naming them in prompts, or by using explicit leading aliases after adding the global snippet above; do not rely on `/agent` to enumerate them.
 - In current Codex CLI builds, `/agent` is for switching between existing agent threads and may show no custom roles from `config.toml`.
 - Recommended prompt style: `Have reviewer inspect the diff and have orchestrator-pipeline coordinate the implementation plan.`
 

@@ -23,6 +23,146 @@ INSTALL_MODULE = load_module("install_codex_config", INSTALL_SCRIPT_PATH)
 
 
 class CodexInstallExportTest(unittest.TestCase):
+    def test_merge_global_agents_text_preserves_user_content_and_replaces_block(
+        self,
+    ) -> None:
+        managed_block = INSTALL_MODULE.build_global_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+        existing = (
+            "# Personal Codex Notes\n\n"
+            "Keep this intro.\n\n"
+            "<!-- BEGIN agents-pipeline-codex-managed -->\n"
+            "stale managed content\n"
+            "<!-- END agents-pipeline-codex-managed -->\n\n"
+            "## Extra Notes\n\n"
+            "Do not remove this.\n"
+        )
+
+        merged = INSTALL_MODULE.merge_global_agents_text(existing, managed_block)
+
+        self.assertIn("# Personal Codex Notes", merged)
+        self.assertIn("Keep this intro.", merged)
+        self.assertIn("## Extra Notes", merged)
+        self.assertIn("Do not remove this.", merged)
+        self.assertNotIn("stale managed content", merged)
+        self.assertEqual(
+            merged.count(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START), 1
+        )
+        self.assertIn(
+            "Project/workspace `AGENTS.md` files may further refine behavior",
+            merged,
+        )
+        self.assertIn(
+            "`monetize` / `run-monetize` -> `orchestrator-general`", merged
+        )
+
+    def test_merge_global_agents_text_creates_minimal_file_when_missing(self) -> None:
+        managed_block = INSTALL_MODULE.build_global_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+
+        merged = INSTALL_MODULE.merge_global_agents_text("", managed_block)
+
+        self.assertTrue(
+            merged.startswith(f"{INSTALL_MODULE.GLOBAL_AGENTS_HEADING}\n\n")
+        )
+        self.assertIn(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START, merged)
+        self.assertIn(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_END, merged)
+
+    def test_merge_workspace_agents_text_preserves_user_content_and_replaces_block(
+        self,
+    ) -> None:
+        managed_block = INSTALL_MODULE.build_workspace_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+        existing = (
+            "# Team Notes\n\n"
+            "Keep this intro.\n\n"
+            "<!-- BEGIN agents-pipeline-codex-managed -->\n"
+            "stale managed content\n"
+            "<!-- END agents-pipeline-codex-managed -->\n\n"
+            "## Local Notes\n\n"
+            "Do not remove this.\n"
+        )
+
+        merged = INSTALL_MODULE.merge_workspace_agents_text(existing, managed_block)
+
+        self.assertIn("# Team Notes", merged)
+        self.assertIn("Keep this intro.", merged)
+        self.assertIn("## Local Notes", merged)
+        self.assertIn("Do not remove this.", merged)
+        self.assertNotIn("stale managed content", merged)
+        self.assertEqual(
+            merged.count(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START), 1
+        )
+        self.assertIn(
+            "`monetize` / `run-monetize` -> `orchestrator-general`", merged
+        )
+
+    def test_merge_workspace_agents_text_creates_minimal_file_when_missing(self) -> None:
+        managed_block = INSTALL_MODULE.build_workspace_agents_managed_block(
+            REPO_ROOT / "opencode" / "commands"
+        )
+
+        merged = INSTALL_MODULE.merge_workspace_agents_text("", managed_block)
+
+        self.assertTrue(
+            merged.startswith(f"{INSTALL_MODULE.WORKSPACE_AGENTS_HEADING}\n\n")
+        )
+        self.assertIn(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_START, merged)
+        self.assertIn(INSTALL_MODULE.WORKSPACE_AGENTS_MANAGED_END, merged)
+
+    def test_resolve_workspace_agents_path_only_for_workspace_codex_installs(
+        self,
+    ) -> None:
+        workspace = Path("/tmp/workspace")
+        self.assertEqual(
+            INSTALL_MODULE.resolve_workspace_agents_path(
+                workspace / ".codex", workspace
+            ),
+            workspace / "AGENTS.md",
+        )
+        self.assertIsNone(
+            INSTALL_MODULE.resolve_workspace_agents_path(
+                workspace / ".codex-alt", workspace
+            )
+        )
+
+    def test_resolve_global_agents_path_prefers_nonempty_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            target_dir = Path(temp_dir_name)
+            (target_dir / "AGENTS.md").write_text("# Base\n", encoding="utf-8")
+            (target_dir / "AGENTS.override.md").write_text(
+                "# Override\n", encoding="utf-8"
+            )
+
+            resolved = INSTALL_MODULE.resolve_global_agents_path(target_dir)
+
+            self.assertEqual(resolved, target_dir / "AGENTS.override.md")
+
+    def test_resolve_global_agents_path_falls_back_to_agents_md(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            target_dir = Path(temp_dir_name)
+            (target_dir / "AGENTS.override.md").write_text("   \n", encoding="utf-8")
+
+            resolved_with_empty_override = INSTALL_MODULE.resolve_global_agents_path(
+                target_dir
+            )
+            self.assertEqual(
+                resolved_with_empty_override,
+                target_dir / INSTALL_MODULE.GLOBAL_AGENTS_FILENAME,
+            )
+
+            (target_dir / "AGENTS.override.md").unlink()
+            resolved_without_override = INSTALL_MODULE.resolve_global_agents_path(
+                target_dir
+            )
+            self.assertEqual(
+                resolved_without_override,
+                target_dir / INSTALL_MODULE.GLOBAL_AGENTS_FILENAME,
+            )
+
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)
 
@@ -205,6 +345,67 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("codex/tools/model-sets", command)
         self.assertIn("--uniform-model", command)
         self.assertIn("gpt-5.5", command)
+
+    def test_discover_run_command_agents_matches_current_repo_aliases(self) -> None:
+        command_agents = EXPORT_MODULE.discover_run_command_agents(
+            REPO_ROOT / "opencode" / "commands"
+        )
+
+        self.assertEqual(
+            set(command_agents),
+            {
+                "run-flow",
+                "run-pipeline",
+                "run-general",
+                "run-simple",
+                "run-spec",
+                "run-ci",
+                "run-modernize",
+                "run-analysis",
+                "run-ux",
+                "run-committee",
+                "run-monetize",
+            },
+        )
+        self.assertEqual(command_agents["run-monetize"], "orchestrator-general")
+
+    def test_input_adapter_includes_natural_language_aliases(self) -> None:
+        adapter = EXPORT_MODULE.make_input_adapter("orchestrator-flow", ["flow"])
+
+        for token in (
+            "/run-flow",
+            "/flow",
+            "use flow",
+            "using flow",
+            "使用 flow",
+            "使用flow",
+            "用 flow",
+            "請用 flow",
+        ):
+            self.assertIn(f"`{token}`", adapter)
+        self.assertIn("Do not infer a mode alias from later mentions", adapter)
+
+    def test_input_adapter_covers_allowlisted_run_command_aliases(self) -> None:
+        command_agents = EXPORT_MODULE.discover_run_command_agents(
+            REPO_ROOT / "opencode" / "commands"
+        )
+        agent_aliases = EXPORT_MODULE.build_agent_mode_aliases(command_agents)
+        adapter = EXPORT_MODULE.make_input_adapter(
+            "orchestrator-general",
+            agent_aliases["orchestrator-general"],
+        )
+
+        self.assertEqual(agent_aliases["orchestrator-general"], ["general", "monetize"])
+        for token in (
+            "/run-general",
+            "/general",
+            "/run-monetize",
+            "/monetize",
+            "use general",
+            "use monetize",
+            "請用 monetize",
+        ):
+            self.assertIn(f"`{token}`", adapter)
 
 
 if __name__ == "__main__":

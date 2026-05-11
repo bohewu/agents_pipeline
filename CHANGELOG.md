@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.5] - 2026-05-11
+
+### Added
+
+- Codex global installs now auto-manage the active global AGENTS file (`AGENTS.override.md` when it exists and is non-empty, otherwise `AGENTS.md`) so installed aliases like `use flow` / `使用pipeline` work without manually pasting custom instructions.
+
+### Changed
+
+- Codex exporter input adapters now recognize conservative natural-language leading aliases for the repo's `run-*` modes, including the allowlisted `run-monetize -> orchestrator-general` mapping.
+- Codex installer dry runs, backups, and docs now distinguish global `~/.codex` installs from optional `<workspace>/.codex` overrides while preserving workspace AGENTS merges for explicit workspace targets.
+
 ## [0.23.4] - 2026-05-04
 
 ### Fixed

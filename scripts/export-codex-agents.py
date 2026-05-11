@@ -27,6 +27,7 @@ AGENT_REF_RE = re.compile(r"@([a-z0-9][a-z0-9-]*(?:\*)?)")
 ROLE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO_MANAGED_REF_RE = re.compile(r"(?<![A-Za-z0-9_./:-])(opencode/[A-Za-z0-9_./-]+)")
 FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})(.*)$")
+SIMPLE_FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 HANDOFF_PROTOCOL_RE = re.compile(
     r"(?ms)^# HANDOFF PROTOCOL \(GLOBAL\)\n.*?(?=^## AGENT RESPONSIBILITY MATRIX|^# )"
 )
@@ -83,6 +84,20 @@ DEFAULT_MAX_THREADS = 6
 DEFAULT_MAX_DEPTH = 2
 DEFAULT_PROFILE_DIR = "opencode/tools/agent-profiles"
 DEFAULT_MODEL_SET_DIR = "codex/tools/model-sets"
+DEFAULT_RUN_COMMAND_AGENTS = {
+    "run-flow": "orchestrator-flow",
+    "run-pipeline": "orchestrator-pipeline",
+    "run-general": "orchestrator-general",
+    "run-simple": "orchestrator-simple",
+    "run-spec": "orchestrator-spec",
+    "run-ci": "orchestrator-ci",
+    "run-modernize": "orchestrator-modernize",
+    "run-analysis": "orchestrator-analysis",
+    "run-ux": "orchestrator-ux",
+    "run-committee": "orchestrator-committee",
+    "run-monetize": "orchestrator-general",
+}
+PREFERRED_RUN_COMMAND_ORDER = tuple(DEFAULT_RUN_COMMAND_AGENTS)
 
 
 @dataclass
@@ -259,6 +274,58 @@ def parse_catalog_agents(catalog_path: Path) -> Set[str]:
     return agents
 
 
+def parse_simple_frontmatter(path: Path) -> Dict[str, str]:
+    lines = read_text(path).splitlines()
+    if not lines or not FRONTMATTER_BOUNDARY.match(lines[0]):
+        return {}
+
+    frontmatter: Dict[str, str] = {}
+    for line in lines[1:]:
+        if FRONTMATTER_BOUNDARY.match(line):
+            break
+        if not line.strip() or line[:1].isspace():
+            continue
+        match = SIMPLE_FRONTMATTER_KEY_RE.match(line)
+        if match is None:
+            continue
+        frontmatter[match.group(1).strip()] = strip_quotes(match.group(2).strip())
+    return frontmatter
+
+
+def discover_run_command_agents(commands_dir: Path) -> Dict[str, str]:
+    command_files = sorted(commands_dir.glob("run-*.md")) if commands_dir.is_dir() else []
+    if not command_files:
+        return dict(DEFAULT_RUN_COMMAND_AGENTS)
+
+    command_agents: Dict[str, str] = {}
+    for command_path in command_files:
+        frontmatter = parse_simple_frontmatter(command_path)
+        agent_name = frontmatter.get("agent", "").strip()
+        if not agent_name:
+            raise ValueError(f"{command_path.as_posix()}: missing frontmatter agent")
+        command_agents[command_path.stem] = agent_name
+    return command_agents
+
+
+def ordered_run_command_items(command_agents: Dict[str, str]) -> List[Tuple[str, str]]:
+    order = {name: idx for idx, name in enumerate(PREFERRED_RUN_COMMAND_ORDER)}
+    return sorted(
+        command_agents.items(),
+        key=lambda item: (order.get(item[0], len(order)), item[0]),
+    )
+
+
+def build_agent_mode_aliases(command_agents: Dict[str, str]) -> Dict[str, List[str]]:
+    aliases: Dict[str, List[str]] = {}
+    for command_name, agent_name in ordered_run_command_items(command_agents):
+        if not command_name.startswith("run-"):
+            continue
+        if not agent_name.startswith(ORCHESTRATOR_PREFIX):
+            continue
+        aliases.setdefault(agent_name, []).append(command_name[len("run-") :])
+    return aliases
+
+
 def ordered_unique(values: Sequence[str]) -> List[str]:
     seen: Set[str] = set()
     out: List[str] = []
@@ -268,6 +335,10 @@ def ordered_unique(values: Sequence[str]) -> List[str]:
         seen.add(value)
         out.append(value)
     return out
+
+
+def inline_code_list(values: Sequence[str]) -> str:
+    return ", ".join(f"`{value}`" for value in values)
 
 
 def compact_markdown(text: str) -> str:
@@ -518,14 +589,33 @@ def extract_subagents(
     return ordered_unique(resolved), ordered_unique(unresolved)
 
 
-def make_input_adapter(agent_name: str) -> str:
-    suffix = agent_name[len(ORCHESTRATOR_PREFIX) :]
-    command_token = f"/run-{suffix}"
-    helper_token = f"/{suffix}"
+def make_input_adapter(agent_name: str, mode_aliases: Optional[Sequence[str]] = None) -> str:
+    aliases = ordered_unique(
+        [alias for alias in (mode_aliases or []) if alias.strip()]
+        or [agent_name[len(ORCHESTRATOR_PREFIX) :]]
+    )
+    slash_aliases = ordered_unique(
+        [f"/run-{alias}" for alias in aliases] + [f"/{alias}" for alias in aliases]
+    )
+    natural_aliases = ordered_unique(
+        phrase
+        for alias in aliases
+        for phrase in (
+            f"use {alias}",
+            f"using {alias}",
+            f"使用 {alias}",
+            f"使用{alias}",
+            f"用 {alias}",
+            f"請用 {alias}",
+        )
+    )
     return (
         "## Codex Input Adapter\n\n"
         "Use the user's latest message as `raw_input`.\n"
-        f"If it starts with `{command_token}` or `{helper_token}`, strip that first token, then apply the existing flag parsing unchanged.\n"
+        f"Recognize only these explicit leading mode aliases: {inline_code_list(slash_aliases)}.\n"
+        f"Also accept only these conservative natural-language leading phrases: {inline_code_list(natural_aliases)}.\n"
+        "If `raw_input` starts with one of them, strip only that leading token/phrase, then apply the existing flag parsing unchanged.\n"
+        "Do not infer a mode alias from later mentions or generic prose.\n"
     )
 
 
@@ -556,13 +646,14 @@ def adapt_body(
     original_body: str,
     has_subagents: bool,
     *,
+    mode_aliases: Optional[Sequence[str]] = None,
     opencode_root_ref: Optional[str] = None,
 ) -> str:
     body = original_body.replace("$ARGUMENTS", "raw_input")
     body = minify_orchestrator_runtime_body(agent_name, body)
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):
-        blocks.append(make_input_adapter(agent_name))
+        blocks.append(make_input_adapter(agent_name, mode_aliases))
     if has_subagents:
         blocks.append(make_role_reference_adapter())
     blocks.append(body.lstrip("\n"))
@@ -873,12 +964,14 @@ def main() -> int:
 
     try:
         source_agents = parse_source_agents(source_agents_dir)
+        command_agents = discover_run_command_agents(source_agents_dir.parent / "commands")
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
     available_agent_names = {agent.name for agent in source_agents}
     catalog_agents = parse_catalog_agents(catalog_path)
+    agent_mode_aliases = build_agent_mode_aliases(command_agents)
     try:
         model_settings = resolve_runtime_model_settings(
             [agent.name for agent in source_agents], args, runtime="codex"
@@ -933,6 +1026,7 @@ def main() -> int:
             agent.name,
             agent.body,
             has_subagents=bool(subagents),
+            mode_aliases=agent_mode_aliases.get(agent.name),
             opencode_root_ref=opencode_root_ref,
         )
         content = build_role_config(agent, body, model_settings.get(agent.name))

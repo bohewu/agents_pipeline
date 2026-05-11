@@ -20,6 +20,27 @@ DEFAULT_MAX_DEPTH = 2
 DEFAULT_PROFILE_DIR = "opencode/tools/agent-profiles"
 DEFAULT_MODEL_SET_DIR = "codex/tools/model-sets"
 SUPPORT_TREE_DIRS = ("agents", "commands", "protocols", "tools")
+SIMPLE_FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
+DEFAULT_RUN_COMMAND_AGENTS = {
+    "run-flow": "orchestrator-flow",
+    "run-pipeline": "orchestrator-pipeline",
+    "run-general": "orchestrator-general",
+    "run-simple": "orchestrator-simple",
+    "run-spec": "orchestrator-spec",
+    "run-ci": "orchestrator-ci",
+    "run-modernize": "orchestrator-modernize",
+    "run-analysis": "orchestrator-analysis",
+    "run-ux": "orchestrator-ux",
+    "run-committee": "orchestrator-committee",
+    "run-monetize": "orchestrator-general",
+}
+PREFERRED_RUN_COMMAND_ORDER = tuple(DEFAULT_RUN_COMMAND_AGENTS)
+GLOBAL_AGENTS_FILENAME = "AGENTS.md"
+GLOBAL_AGENTS_OVERRIDE_FILENAME = "AGENTS.override.md"
+GLOBAL_AGENTS_HEADING = "# Codex Global Agent Notes"
+WORKSPACE_AGENTS_HEADING = "# Workspace Agent Notes"
+WORKSPACE_AGENTS_MANAGED_START = "<!-- BEGIN agents-pipeline-codex-managed -->"
+WORKSPACE_AGENTS_MANAGED_END = "<!-- END agents-pipeline-codex-managed -->"
 
 
 @dataclass
@@ -47,8 +68,164 @@ def write_text(path: Path, content: str) -> None:
         handle.write(content)
 
 
+def strip_quotes(value: str) -> str:
+    if len(value) >= 2 and (
+        (value[0] == value[-1] == '"') or (value[0] == value[-1] == "'")
+    ):
+        return value[1:-1]
+    return value
+
+
 def has_support_tree(root: Path) -> bool:
     return all((root / name).is_dir() for name in SUPPORT_TREE_DIRS)
+
+
+def parse_simple_frontmatter(path: Path) -> Dict[str, str]:
+    lines = read_text(path).splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    frontmatter: Dict[str, str] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if not line.strip() or line[:1].isspace():
+            continue
+        match = SIMPLE_FRONTMATTER_KEY_RE.match(line)
+        if match is None:
+            continue
+        frontmatter[match.group(1).strip()] = strip_quotes(match.group(2).strip())
+    return frontmatter
+
+
+def discover_run_command_agents(commands_dir: Path) -> Dict[str, str]:
+    command_files = sorted(commands_dir.glob("run-*.md")) if commands_dir.is_dir() else []
+    if not command_files:
+        return dict(DEFAULT_RUN_COMMAND_AGENTS)
+
+    command_agents: Dict[str, str] = {}
+    for command_path in command_files:
+        frontmatter = parse_simple_frontmatter(command_path)
+        agent_name = frontmatter.get("agent", "").strip()
+        if not agent_name:
+            raise ValueError(f"{command_path.as_posix()}: missing frontmatter agent")
+        command_agents[command_path.stem] = agent_name
+    return command_agents
+
+
+def ordered_run_command_items(command_agents: Dict[str, str]) -> List[tuple[str, str]]:
+    order = {name: idx for idx, name in enumerate(PREFERRED_RUN_COMMAND_ORDER)}
+    return sorted(
+        command_agents.items(),
+        key=lambda item: (order.get(item[0], len(order)), item[0]),
+    )
+
+
+def resolve_workspace_agents_path(
+    target_dir: Path, workspace_root: Optional[Path]
+) -> Optional[Path]:
+    if workspace_root is None:
+        return None
+
+    resolved_workspace = workspace_root.expanduser().resolve()
+    resolved_target = target_dir.expanduser().resolve()
+    if resolved_target != (resolved_workspace / ".codex").resolve():
+        return None
+    return resolved_workspace / "AGENTS.md"
+
+
+def resolve_global_agents_path(target_dir: Path) -> Path:
+    override_path = target_dir / GLOBAL_AGENTS_OVERRIDE_FILENAME
+    if override_path.is_file() and read_text(override_path).strip():
+        return override_path
+    return target_dir / GLOBAL_AGENTS_FILENAME
+
+
+def build_agents_alias_map_lines(commands_dir: Path) -> List[str]:
+    command_agents = discover_run_command_agents(commands_dir)
+    lines = ["Alias map:"]
+    for command_name, agent_name in ordered_run_command_items(command_agents):
+        alias = command_name[len("run-") :] if command_name.startswith("run-") else command_name
+        lines.append(f"- `{alias}` / `{command_name}` -> `{agent_name}`")
+    return lines
+
+
+def build_global_agents_managed_block(commands_dir: Path) -> str:
+    lines = [
+        WORKSPACE_AGENTS_MANAGED_START,
+        "## Codex global routing aliases",
+        "",
+        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.",
+        "",
+        *build_agents_alias_map_lines(commands_dir),
+        "",
+        "Higher-priority system, developer, tool, and runtime instructions override this note.",
+        "Project/workspace `AGENTS.md` files may further refine behavior for a specific repo.",
+        WORKSPACE_AGENTS_MANAGED_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def build_workspace_agents_managed_block(commands_dir: Path) -> str:
+    lines = [
+        WORKSPACE_AGENTS_MANAGED_START,
+        "## Codex routing aliases",
+        "",
+        "Treat only explicit leading mode phrases such as `使用flow`, `使用pipeline`, `用 flow 做...`, `請用 pipeline 去執行...`, `use flow`, and `use pipeline` as routing aliases for installed Codex roles, not generic prose.",
+        "",
+        *build_agents_alias_map_lines(commands_dir),
+        "",
+        "Higher-priority system, developer, tool, and runtime instructions override this note.",
+        WORKSPACE_AGENTS_MANAGED_END,
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def merge_agents_text(existing_text: str, managed_block: str, *, heading: str) -> str:
+    normalized = existing_text.replace("\r\n", "\n")
+    start_token = WORKSPACE_AGENTS_MANAGED_START
+    end_token = WORKSPACE_AGENTS_MANAGED_END
+    managed = managed_block.rstrip()
+
+    lines = normalized.split("\n")
+    start_idx: Optional[int] = None
+    end_idx: Optional[int] = None
+    for idx, line in enumerate(lines):
+        if line.strip() == start_token:
+            start_idx = idx
+            break
+    if start_idx is not None:
+        for idx in range(start_idx + 1, len(lines)):
+            if lines[idx].strip() == end_token:
+                end_idx = idx
+                break
+
+    if start_idx is not None and end_idx is not None and start_idx < end_idx:
+        before = "\n".join(lines[:start_idx]).rstrip()
+        after = "\n".join(lines[end_idx + 1 :]).strip()
+        parts = [part for part in (before, managed, after) if part]
+        return "\n\n".join(parts).rstrip() + "\n"
+
+    cleaned = normalized.strip()
+    if not cleaned:
+        return f"{heading}\n\n{managed}\n"
+    return cleaned.rstrip() + "\n\n" + managed + "\n"
+
+
+def merge_global_agents_text(existing_text: str, managed_block: str) -> str:
+    return merge_agents_text(
+        existing_text,
+        managed_block,
+        heading=GLOBAL_AGENTS_HEADING,
+    )
+
+
+def merge_workspace_agents_text(existing_text: str, managed_block: str) -> str:
+    return merge_agents_text(
+        existing_text,
+        managed_block,
+        heading=WORKSPACE_AGENTS_HEADING,
+    )
 
 
 def resolve_asset_layout(script_path: Path) -> AssetLayout:
@@ -439,6 +616,15 @@ def main() -> int:
         help="Target `.codex`-style directory where the merged config will be installed.",
     )
     parser.add_argument(
+        "--workspace-root",
+        default=None,
+        help=(
+            "Optional workspace root. When target-dir resolves to `<workspace>/.codex`, "
+            "merge a managed block into `<workspace>/AGENTS.md` instead of managing "
+            "the target-dir global AGENTS file."
+        ),
+    )
+    parser.add_argument(
         "--catalog",
         default="AGENTS.md",
         help="Optional AGENTS catalog used for strict all-agent coverage checks.",
@@ -517,12 +703,26 @@ def main() -> int:
     export_script = asset_layout.export_script
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
+    workspace_root = Path(args.workspace_root).expanduser() if args.workspace_root else None
     catalog_path = Path(args.catalog).expanduser()
     profile_dir = Path(args.profile_dir).expanduser()
     model_set_dir = Path(args.model_set_dir).expanduser()
     temp_root = resolve_temp_root(repo_root=asset_layout.asset_root, temp_dir=args.temp_dir)
     support_tree_source = asset_layout.support_tree_source
     support_tree_target = target_dir / "opencode"
+    workspace_agents_path = resolve_workspace_agents_path(target_dir, workspace_root)
+    global_agents_path = None
+    global_agents_block = None
+    workspace_agents_block = None
+    if workspace_agents_path is not None:
+        workspace_agents_block = build_workspace_agents_managed_block(
+            support_tree_source / "commands"
+        )
+    else:
+        global_agents_path = resolve_global_agents_path(target_dir)
+        global_agents_block = build_global_agents_managed_block(
+            support_tree_source / "commands"
+        )
 
     if not export_script.exists():
         print(f"Export script not found: {export_script.as_posix()}", file=sys.stderr)
@@ -607,6 +807,16 @@ def main() -> int:
                 + " -> "
                 + support_tree_target.as_posix()
             )
+            if global_agents_path is not None:
+                print(
+                    "- merge managed global AGENTS block: "
+                    + global_agents_path.as_posix()
+                )
+            if workspace_agents_path is not None:
+                print(
+                    "- merge managed workspace AGENTS block: "
+                    + workspace_agents_path.as_posix()
+                )
             print(f"- write merged config: {config_path.as_posix()}")
             print(f"- write manifest: {manifest_path.as_posix()}")
             return 0
@@ -623,6 +833,36 @@ def main() -> int:
             write_text(target_dir / relative_path, content)
 
         sync_support_tree(support_tree_source, support_tree_target)
+        if global_agents_path is not None and global_agents_block is not None:
+            existing_global_agents = (
+                read_text(global_agents_path) if global_agents_path.exists() else ""
+            )
+            write_text(
+                global_agents_path,
+                merge_global_agents_text(
+                    existing_global_agents,
+                    global_agents_block,
+                ),
+            )
+            print(
+                "Merged managed global AGENTS block into "
+                + global_agents_path.as_posix()
+            )
+        if workspace_agents_path is not None and workspace_agents_block is not None:
+            existing_workspace_agents = (
+                read_text(workspace_agents_path) if workspace_agents_path.exists() else ""
+            )
+            write_text(
+                workspace_agents_path,
+                merge_workspace_agents_text(
+                    existing_workspace_agents,
+                    workspace_agents_block,
+                ),
+            )
+            print(
+                "Merged managed workspace AGENTS block into "
+                + workspace_agents_path.as_posix()
+            )
         write_text(config_path, merged_config_text)
         write_manifest(
             manifest_path,

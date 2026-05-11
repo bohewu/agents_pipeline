@@ -2,6 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$Target,
+    [string]$WorkspaceRoot,
     [switch]$DryRun,
     [switch]$NoBackup,
     [switch]$Force,
@@ -16,6 +17,20 @@ $ErrorActionPreference = "Stop"
 
 function Get-DefaultTarget {
     return Join-Path $HOME ".codex"
+}
+
+function Get-GlobalAgentsMergePath {
+    param([string]$TargetPath)
+
+    $overridePath = Join-Path $TargetPath "AGENTS.override.md"
+    if (Test-Path -LiteralPath $overridePath -PathType Leaf) {
+        $overrideContent = Get-Content -LiteralPath $overridePath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($overrideContent)) {
+            return $overridePath
+        }
+    }
+
+    return (Join-Path $TargetPath "AGENTS.md")
 }
 
 function Test-WindowsAppsPythonAlias {
@@ -79,6 +94,19 @@ if ($Target -match '^-{1,2}[A-Za-z]') {
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
+$workspaceRootPath = $null
+$workspaceAgentsPath = $null
+$globalAgentsMergePath = $null
+if ($WorkspaceRoot) {
+    $workspaceRootPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($WorkspaceRoot)
+    $expectedWorkspaceTarget = [System.IO.Path]::GetFullPath((Join-Path $workspaceRootPath ".codex"))
+    if ([System.IO.Path]::GetFullPath($targetPath) -eq $expectedWorkspaceTarget) {
+        $workspaceAgentsPath = Join-Path $workspaceRootPath "AGENTS.md"
+    }
+}
+if (-not $workspaceAgentsPath) {
+    $globalAgentsMergePath = Get-GlobalAgentsMergePath -TargetPath $targetPath
+}
 $pythonInvocation = @(Get-PythonInvocation)
 $pythonCmd = $pythonInvocation[0]
 $pythonArgs = @()
@@ -88,6 +116,12 @@ if ($pythonInvocation.Count -gt 1) {
 
 Write-Host "Source agents: $sourceAgents"
 Write-Host "Target: $targetPath"
+if ($workspaceRootPath) {
+    Write-Host "Workspace root: $workspaceRootPath"
+}
+if ($globalAgentsMergePath) {
+    Write-Host "Managed global AGENTS merge: $globalAgentsMergePath"
+}
 Write-Host "DryRun: $DryRun"
 Write-Host "Managed merge: preserve non-agent Codex settings"
 Write-Host "Cleanup: stale managed Codex agent outputs"
@@ -96,6 +130,8 @@ $existingConfig = $null
 $existingRoles = @()
 $existingManifest = $null
 $existingSupportTree = $null
+$existingWorkspaceAgents = $null
+$existingGlobalAgents = @()
 if (Test-Path -LiteralPath $targetPath -PathType Container) {
     $configPath = Join-Path $targetPath "config.toml"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
@@ -116,11 +152,30 @@ if (Test-Path -LiteralPath $targetPath -PathType Container) {
     if (Test-Path -LiteralPath $supportTree -PathType Container) {
         $existingSupportTree = Get-Item -LiteralPath $supportTree
     }
+
+    if ($globalAgentsMergePath) {
+        foreach ($globalAgentsName in @("AGENTS.md", "AGENTS.override.md")) {
+            $candidate = Join-Path $targetPath $globalAgentsName
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $existingGlobalAgents += Get-Item -LiteralPath $candidate
+            }
+        }
+    }
+}
+if ($workspaceAgentsPath -and (Test-Path -LiteralPath $workspaceAgentsPath -PathType Leaf)) {
+    $existingWorkspaceAgents = Get-Item -LiteralPath $workspaceAgentsPath
 }
 
-if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0 -or $existingSupportTree)) {
+if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0 -or $existingSupportTree -or $existingWorkspaceAgents -or $existingGlobalAgents.Count -gt 0)) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $backupDir = Join-Path $targetPath ".backup-agents-pipeline-codex-$stamp"
+    $backupBase = if (Test-Path -LiteralPath $targetPath -PathType Container) {
+        $targetPath
+    } elseif ($workspaceRootPath) {
+        $workspaceRootPath
+    } else {
+        Split-Path -Parent $targetPath
+    }
+    $backupDir = Join-Path $backupBase ".backup-agents-pipeline-codex-$stamp"
     if ($DryRun) {
         Write-Host "Would create backup: $backupDir"
     } else {
@@ -141,6 +196,12 @@ if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRole
         if ($existingSupportTree) {
             Copy-Item -LiteralPath $existingSupportTree.FullName -Destination $backupDir -Recurse -Force
         }
+        if ($existingWorkspaceAgents) {
+            Copy-Item -LiteralPath $existingWorkspaceAgents.FullName -Destination (Join-Path $backupDir "AGENTS.md") -Force
+        }
+        foreach ($item in $existingGlobalAgents) {
+            Copy-Item -LiteralPath $item.FullName -Destination (Join-Path $backupDir $item.Name) -Force
+        }
         Write-Host "Backup created: $backupDir"
     }
 }
@@ -159,6 +220,9 @@ $exportArgs = @(
 )
 if ($DryRun) {
     $exportArgs += "--dry-run"
+}
+if ($WorkspaceRoot) {
+    $exportArgs += @("--workspace-root", $WorkspaceRoot)
 }
 if ($AgentProfile) {
     $exportArgs += @("--agent-profile", $AgentProfile)
@@ -179,7 +243,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ""
-Write-Host "Codex usage note: invoke generated roles by name in prompts."
+if ($globalAgentsMergePath) {
+    Write-Host "Codex usage note: installer-managed global AGENTS routing lives at $globalAgentsMergePath."
+    Write-Host "Manual snippet reference remains in docs/codex-mapping.md#global-custom-instructions-snippet if you are not using the installer."
+} else {
+    Write-Host "Codex usage note: the optional manual snippet is in docs/codex-mapping.md#global-custom-instructions-snippet."
+}
+Write-Host "Then use aliases like '使用flow ...' / 'use pipeline ...', or direct role-name prompts when needed."
 Write-Host "Example: Have 'orchestrator-general' draft a plan and 'reviewer' validate the outcome."
 
 if ($DryRun) {
