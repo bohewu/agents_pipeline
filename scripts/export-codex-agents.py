@@ -18,6 +18,20 @@ from agent_model_profiles import (  # noqa: E402
     load_profile,
     resolve_agent_model_settings,
 )
+from codex_mode_aliases import (  # noqa: E402
+    IGNORE_OPENCODE_DETAILS_LINE,
+    MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
+    MODE_ALIAS_DEFINITION_LOOKUP_SENTENCE,
+    MODE_ALIAS_DO_NOT_SPAWN_LINE,
+    MODE_ALIAS_NO_BYPASS_SENTENCE,
+    MODE_ALIAS_OBEY_DEFINITION_SENTENCE,
+    SAME_SESSION_EXCEPTIONS_LINE,
+    SAME_SESSION_NO_RELOAD_LINE,
+    build_natural_language_mode_aliases,
+    build_slash_mode_aliases,
+    inline_code_list,
+    ordered_unique,
+)
 
 
 FRONTMATTER_BOUNDARY = re.compile(r"^\s*---\s*$")
@@ -326,21 +340,6 @@ def build_agent_mode_aliases(command_agents: Dict[str, str]) -> Dict[str, List[s
     return aliases
 
 
-def ordered_unique(values: Sequence[str]) -> List[str]:
-    seen: Set[str] = set()
-    out: List[str] = []
-    for value in values:
-        if value in seen:
-            continue
-        seen.add(value)
-        out.append(value)
-    return out
-
-
-def inline_code_list(values: Sequence[str]) -> str:
-    return ", ".join(f"`{value}`" for value in values)
-
-
 def compact_markdown(text: str) -> str:
     lines = text.splitlines()
     compacted: List[str] = []
@@ -594,27 +593,22 @@ def make_input_adapter(agent_name: str, mode_aliases: Optional[Sequence[str]] = 
         [alias for alias in (mode_aliases or []) if alias.strip()]
         or [agent_name[len(ORCHESTRATOR_PREFIX) :]]
     )
-    slash_aliases = ordered_unique(
-        [f"/run-{alias}" for alias in aliases] + [f"/{alias}" for alias in aliases]
-    )
-    natural_aliases = ordered_unique(
-        phrase
-        for alias in aliases
-        for phrase in (
-            f"use {alias}",
-            f"using {alias}",
-            f"使用 {alias}",
-            f"使用{alias}",
-            f"用 {alias}",
-            f"請用 {alias}",
-        )
-    )
+    slash_aliases = build_slash_mode_aliases(aliases)
+    natural_aliases = build_natural_language_mode_aliases(aliases)
     return (
         "## Codex Input Adapter\n\n"
         "Use the user's latest message as `raw_input`.\n"
-        f"Recognize only these explicit leading mode aliases: {inline_code_list(slash_aliases)}.\n"
-        f"Also accept only these conservative natural-language leading phrases: {inline_code_list(natural_aliases)}.\n"
-        "If `raw_input` starts with one of them, strip only that leading token/phrase, then apply the existing flag parsing unchanged.\n"
+        f"Recognize only these explicit leading slash mode aliases: {inline_code_list(slash_aliases)}.\n"
+        f"Also accept only these allowlisted natural-language leading phrases: {inline_code_list(natural_aliases)}.\n"
+        f"{MODE_ALIAS_AUTHORIZATION_GUARD_LINE}\n"
+        f"{MODE_ALIAS_DO_NOT_SPAWN_LINE}\n"
+        f"{MODE_ALIAS_DEFINITION_LOOKUP_SENTENCE}\n"
+        f"{MODE_ALIAS_OBEY_DEFINITION_SENTENCE}\n"
+        f"{MODE_ALIAS_NO_BYPASS_SENTENCE}\n"
+        f"{SAME_SESSION_NO_RELOAD_LINE}\n"
+        f"{SAME_SESSION_EXCEPTIONS_LINE}\n"
+        f"{IGNORE_OPENCODE_DETAILS_LINE}\n"
+        "If `raw_input` starts with one of them, strip only that leading token/phrase after applying the definition, then apply the existing flag parsing unchanged.\n"
         "Do not infer a mode alias from later mentions or generic prose.\n"
     )
 

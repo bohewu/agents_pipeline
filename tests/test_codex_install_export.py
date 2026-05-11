@@ -23,6 +23,47 @@ INSTALL_MODULE = load_module("install_codex_config", INSTALL_SCRIPT_PATH)
 
 
 class CodexInstallExportTest(unittest.TestCase):
+    MODE_ALIAS_AUTHORIZATION_GUARD_LINE = (
+        "A mode alias changes the current/main agent's working style only. It does "
+        "not automatically spawn subagents and does not override higher-priority "
+        "rules for `spawn_agent` authorization."
+    )
+    MODE_ALIAS_DEFINITION_LOOKUP_LINE = (
+        "1. On a recognized mode alias, first consult "
+        "`.codex/agents/orchestrator-<mode>.toml` in the workspace; if absent, "
+        "consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that "
+        "definition."
+    )
+    MODE_ALIAS_OBEY_DEFINITION_LINE = (
+        "3. After applying that definition, the current/main agent must obey "
+        "that definition's hard constraints and delegation rules as if it were "
+        "that orchestrator."
+    )
+    MODE_ALIAS_NO_BYPASS_LINE = (
+        "4. If the applied definition forbids direct implementation or routes "
+        "scouting/implementation to helper roles, the current/main agent must "
+        "not bypass those helpers by doing that work inline. It should delegate "
+        "those work items when separately authorized."
+    )
+    MODE_ALIAS_SUBAGENT_LINE = (
+        "5. Use subagents according to that installed definition for real work "
+        "items when separately authorized."
+    )
+    MODE_ALIAS_SUBAGENT_SENTENCE = (
+        "Use subagents according to that installed definition for real work items "
+        "when separately authorized."
+    )
+    MODE_ALIAS_OBEY_DEFINITION_SENTENCE = (
+        "After applying that definition, the current/main agent must obey that "
+        "definition's hard constraints and delegation rules as if it were that "
+        "orchestrator."
+    )
+    MODE_ALIAS_NO_BYPASS_SENTENCE = (
+        "If the applied definition forbids direct implementation or routes "
+        "scouting/implementation to helper roles, the current/main agent must "
+        "not bypass those helpers by doing that work inline. It should delegate "
+        "those work items when separately authorized."
+    )
     SAME_SESSION_NO_RELOAD_LINE = (
         "Same-session reuse rule: repeated use of the same mode in the same session "
         "does NOT need to reload the definition when the mode, workspace, and "
@@ -56,52 +97,48 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.",
+            self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
+            managed_block,
+        )
+        self.assertIn(
+            self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
         )
         self.assertIn(
             "2. The current/main agent simulates that mode itself from the installed definition.",
             managed_block,
         )
-        self.assertIn(
-            "3. Use subagents according to that installed definition for real work items.",
-            managed_block,
-        )
+        self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_LINE, managed_block)
+        self.assertIn(self.MODE_ALIAS_NO_BYPASS_LINE, managed_block)
+        self.assertIn(self.MODE_ALIAS_SUBAGENT_LINE, managed_block)
         self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, managed_block)
         self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, managed_block)
         self.assertIn(
             "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
             managed_block,
         )
-        self.assertIn(
-            "Quick orientation:",
-            managed_block,
-        )
-        self.assertIn(
+        self.assertNotIn("Quick orientation:", managed_block)
+        self.assertNotIn(
             "`flow`: bounded daily engineering; small task set; concise final status.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "`simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "`pipeline`: fuller path for multi-file/high-risk/CI/PR work",
             managed_block,
         )
-        self.assertIn(
-            "stronger staging, verification, and review",
-            managed_block,
-        )
-        self.assertIn(
+        self.assertNotIn(
             "`general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.",
             managed_block,
         )
@@ -128,44 +165,48 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(
-            "1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.",
+            self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
+            managed_block,
+        )
+        self.assertIn(
+            self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
         )
         self.assertIn(
             "2. The current/main agent simulates that mode itself from the installed definition.",
             managed_block,
         )
-        self.assertIn(
-            "3. Use subagents according to that installed definition for real work items.",
-            managed_block,
-        )
+        self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_LINE, managed_block)
+        self.assertIn(self.MODE_ALIAS_NO_BYPASS_LINE, managed_block)
+        self.assertIn(self.MODE_ALIAS_SUBAGENT_LINE, managed_block)
         self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, managed_block)
         self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, managed_block)
         self.assertIn(
             "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn("Quick orientation:", managed_block)
+        self.assertNotIn(
             "`flow`: bounded daily engineering; small task set; concise final status.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "`simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "`pipeline`: fuller path for multi-file/high-risk/CI/PR work",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "`general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.",
             managed_block,
         )
-        self.assertIn(
+        self.assertNotIn(
             "- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.",
             managed_block,
         )
@@ -206,9 +247,11 @@ class CodexInstallExportTest(unittest.TestCase):
             merged,
         )
         self.assertIn(
-            "Use subagents according to that installed definition for real work items.",
+            self.MODE_ALIAS_SUBAGENT_SENTENCE,
             merged,
         )
+        self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_SENTENCE, merged)
+        self.assertIn(self.MODE_ALIAS_NO_BYPASS_SENTENCE, merged)
         self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, merged)
         self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, merged)
         self.assertNotIn("Available subagents (practical set):", merged)
@@ -553,9 +596,24 @@ class CodexInstallExportTest(unittest.TestCase):
             "使用 flow",
             "使用flow",
             "用 flow",
+            "用 flow 做",
             "請用 flow",
+            "請用 flow 去執行",
         ):
             self.assertIn(f"`{token}`", adapter)
+        self.assertIn(self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE, adapter)
+        self.assertIn(
+            "On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` in the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that definition.",
+            adapter,
+        )
+        self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_SENTENCE, adapter)
+        self.assertIn(self.MODE_ALIAS_NO_BYPASS_SENTENCE, adapter)
+        self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, adapter)
+        self.assertIn(self.SAME_SESSION_EXCEPTIONS_LINE, adapter)
+        self.assertIn(
+            "When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.",
+            adapter,
+        )
         self.assertIn("Do not infer a mode alias from later mentions", adapter)
 
     def test_input_adapter_covers_allowlisted_run_command_aliases(self) -> None:

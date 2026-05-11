@@ -18,7 +18,7 @@ Do not manually maintain generated Codex role files as a primary source.
 
 Use a global Codex install in `~/.codex` by default so the exported roles are available across workspaces.
 When the installer targets a Codex home/global directory, it now auto-merges the managed global mode note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
-That managed note tells the current/main agent that, in a fresh/new session using an explicit mode alias, the default order is: read the installed definition in this order — `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present, otherwise `~/.codex/agents/orchestrator-<mode>.toml`; simulate that mode in the current/main agent; then use subagents according to that definition. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. It keeps only a short summary for orientation and says Codex mode simulation can ignore OpenCode-only plugin/command details that do not apply in the current runtime.
+That managed note tells the current/main agent that a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization. In a fresh/new session using an explicit mode alias, first consult the installed definition in this order — `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present, otherwise `~/.codex/agents/orchestrator-<mode>.toml` — then apply that definition. After applying it, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator. If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline and should delegate those work items when separately authorized. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. It also says Codex mode simulation can ignore OpenCode-only plugin/command details that do not apply in the current runtime.
 If you intentionally target `<workspace>/.codex`, the installer keeps that working and applies the optional managed `AGENTS.md` merge for that workspace only, with the same definition-precedence rule.
 
 ## Global Custom Instructions Snippet
@@ -29,25 +29,19 @@ Manual copy is still optional for users who are not using the installer; place i
 ```text
 ## Codex global mode aliases
 
-Treat only explicit leading mode phrases such as `use flow`, `use pipeline`, `使用flow`, `使用pipeline`, `用 flow 做...`, and `請用 pipeline 去執行...` as mode aliases for a supported mode in the current/main agent, not generic prose.
+Treat only explicit leading mode phrases from this allowlisted pattern family — `use <mode>`, `using <mode>`, `使用 <mode>`, `使用<mode>`, `用 <mode>`, `用 <mode> 做...`, `請用 <mode>`, and `請用 <mode> 去執行...` — as mode aliases for a supported mode in the current/main agent, not generic prose.
 Those aliases tell the current/main agent to adopt the requested mode directly.
+A mode alias changes the current/main agent's working style only. It does not automatically spawn subagents and does not override higher-priority rules for `spawn_agent` authorization.
 Do NOT first spawn the same-named orchestrator role just to enter the mode.
 Definition-first order for an explicit mode alias in a fresh/new session:
-1. Load/read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when available; otherwise load/read `~/.codex/agents/orchestrator-<mode>.toml`.
+1. On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` in the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that definition.
 2. The current/main agent simulates that mode itself from the installed definition.
-3. Use subagents according to that installed definition for real work items.
+3. After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
+4. If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline. It should delegate those work items when separately authorized.
+5. Use subagents according to that installed definition for real work items when separately authorized.
 Same-session reuse rule: repeated use of the same mode in the same session does NOT need to reload the definition when the mode, workspace, and definition source are unchanged.
 Reload/re-read when the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details.
 When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.
-
-Quick orientation:
-- `flow`: bounded daily engineering; small task set; concise final status.
-- `simple`: smallest safe completion path; stay lightweight; use direct execution or one helper lane when useful.
-- `pipeline`: fuller path for multi-file/high-risk/CI/PR work; use stronger staging, verification, and review when needed.
-- `general`: mixed coding/planning/writing/analysis fallback; can redirect to a stronger mode when task risk demands it.
-- Other modes: consult the installed definition and continue in that mode.
-- Installed definition precedence: `.codex/agents/orchestrator-<mode>.toml` first for the current workspace when available, then `~/.codex/agents/orchestrator-<mode>.toml`.
-- Summary is quick orientation only; for explicit mode aliases in fresh/new sessions, the installed definition remains the default source of truth.
 
 Alias map:
 - `flow` / `run-flow` -> `orchestrator-flow`
@@ -66,7 +60,7 @@ Higher-priority system, developer, tool, and runtime instructions override this 
 Project/workspace `AGENTS.md` files may further refine behavior for a specific repo.
 ```
 
-For workspace-local installs under `<workspace>/.codex`, the managed workspace `AGENTS.md` block uses the same wording and the same default-behavior rule because it is emitted into `AGENTS.md`: for an explicit mode alias in a fresh/new session, first read `.codex/agents/orchestrator-<mode>.toml` for that workspace, then `~/.codex/agents/orchestrator-<mode>.toml`, simulate that mode in the current/main agent, then use subagents according to that definition. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. Ignore OpenCode-only plugin/command details when they are not relevant to Codex mode simulation.
+For workspace-local installs under `<workspace>/.codex`, the managed workspace `AGENTS.md` block uses the same wording and the same default-behavior rule because it is emitted into `AGENTS.md`: a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization; in a fresh/new session, first consult `.codex/agents/orchestrator-<mode>.toml` for that workspace, then `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition. After applying it, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator, and it must not bypass helper-role scouting or implementation work inline when the applied definition routes that work to helpers; delegate those work items only when separately authorized. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. Ignore OpenCode-only plugin/command details when they are not relevant to Codex mode simulation.
 
 ## Frontmatter Mapping
 
@@ -153,8 +147,11 @@ When Codex role bodies reference repo-managed assets such as `opencode/protocols
 ## Role Invocation In Codex
 
 - Codex docs describe custom roles via `[agents.<name>]` config and prompt-driven routing.
-- Explicit leading aliases after adding the managed AGENTS note tell the current/main agent to adopt that orchestrator mode directly; do not first spawn the same-named orchestrator role just to enter the mode.
-- For explicit mode aliases in fresh/new sessions, first read `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present; otherwise read `~/.codex/agents/orchestrator-<mode>.toml`, then have the current/main agent simulate that mode itself and use subagents according to that definition. Treat the summary as quick orientation, not the primary source of truth.
+- Explicit leading aliases after adding the managed AGENTS note tell the current/main agent to adopt that orchestrator mode directly; they do not first spawn the same-named orchestrator role just to enter the mode, do not automatically spawn subagents, and do not override higher-priority `spawn_agent` authorization.
+- For explicit mode aliases in fresh/new sessions, first consult `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present; otherwise consult `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition.
+- After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
+- If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline; it should delegate those work items when separately authorized.
+- Use subagents according to that installed definition for real work items when separately authorized.
 - In the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details.
 - Direct role-name prompts still work when you explicitly want a generated role, such as `Have reviewer inspect the diff` or `Have orchestrator-pipeline coordinate the implementation plan.`
 - When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.
@@ -168,7 +165,12 @@ OpenCode orchestrator prompts rely on `$ARGUMENTS` parsing. Codex roles do not p
 For orchestrator agents, the generator prepends a Codex input adapter block:
 
 - Use the user's latest message as `raw_input`.
-- If it starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), remove that first token.
+- Recognize only matching slash aliases plus the same allowlisted natural-language mode-alias family used by the managed AGENTS note.
+- On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` for the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that definition.
+- A recognized mode alias changes only the current agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization.
+- After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
+- If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline; it should delegate those work items when separately authorized.
+- If it starts with one of those aliases, remove only that leading token/phrase after applying the definition.
 - Apply the existing flag parsing logic unchanged.
 
 `$ARGUMENTS` is replaced with `raw_input` in generated `developer_instructions`.

@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.9] - 2026-05-11
+
+### Changed
+
+- Codex managed AGENTS guidance and exported input adapters now make mode-alias authorization explicit.
+- After applying a mode definition, the current/main agent must obey that orchestrator's hard constraints and delegation rules.
+- When an applied mode routes scouting or implementation through helper roles, the current/main agent must not bypass those helpers inline.
+- Added a shared Codex alias helper so installer-managed notes and exported input adapters stay in sync.
+
 ## [0.23.8] - 2026-05-11
 
 ### Changed
