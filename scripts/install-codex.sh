@@ -231,9 +231,8 @@ if [[ ${NO_BACKUP} -eq 0 ]]; then
       backup_needed=1
     fi
   fi
-  if [[ -d "${TARGET_DIR}/opencode" ]]; then
-    backup_needed=1
-  fi
+  # The opencode support tree is generated and re-synced on every install; backing
+  # it up makes repeated installs grow quickly without preserving user state.
   if [[ -n "${WORKSPACE_AGENTS_PATH}" && -f "${WORKSPACE_AGENTS_PATH}" ]]; then
     backup_needed=1
   fi
@@ -261,9 +260,6 @@ if [[ ${NO_BACKUP} -eq 0 ]]; then
           cp -a "${f}" "${backup_dir}/agents/"
         done
         shopt -u nullglob
-      fi
-      if [[ -d "${TARGET_DIR}/opencode" ]]; then
-        cp -a "${TARGET_DIR}/opencode" "${backup_dir}/"
       fi
       if [[ -n "${WORKSPACE_AGENTS_PATH}" && -f "${WORKSPACE_AGENTS_PATH}" ]]; then
         cp -a "${WORKSPACE_AGENTS_PATH}" "${backup_dir}/AGENTS.md"

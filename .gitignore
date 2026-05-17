@@ -45,3 +45,4 @@ test-results/
 
 # Root-local scratch space
 /.tmp/
+/tmp/

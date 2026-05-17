@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.23.11] - 2026-05-17
+
+### Fixed
+
+- `install-codex` no longer backs up the generated `.codex/opencode` support tree on every run, keeping repeated installer backups small while still re-syncing the support files.
+
 ## [0.23.10] - 2026-05-11
 
 ### Fixed

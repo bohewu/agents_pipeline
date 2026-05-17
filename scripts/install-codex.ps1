@@ -129,7 +129,6 @@ Write-Host "Cleanup: stale managed Codex agent outputs"
 $existingConfig = $null
 $existingRoles = @()
 $existingManifest = $null
-$existingSupportTree = $null
 $existingWorkspaceAgents = $null
 $existingGlobalAgents = @()
 if (Test-Path -LiteralPath $targetPath -PathType Container) {
@@ -148,11 +147,6 @@ if (Test-Path -LiteralPath $targetPath -PathType Container) {
         $existingRoles = Get-ChildItem -Path $agentsDir -Filter "*.toml" -File -ErrorAction SilentlyContinue
     }
 
-    $supportTree = Join-Path $targetPath "opencode"
-    if (Test-Path -LiteralPath $supportTree -PathType Container) {
-        $existingSupportTree = Get-Item -LiteralPath $supportTree
-    }
-
     if ($globalAgentsMergePath) {
         foreach ($globalAgentsName in @("AGENTS.md", "AGENTS.override.md")) {
             $candidate = Join-Path $targetPath $globalAgentsName
@@ -166,7 +160,9 @@ if ($workspaceAgentsPath -and (Test-Path -LiteralPath $workspaceAgentsPath -Path
     $existingWorkspaceAgents = Get-Item -LiteralPath $workspaceAgentsPath
 }
 
-if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0 -or $existingSupportTree -or $existingWorkspaceAgents -or $existingGlobalAgents.Count -gt 0)) {
+# The opencode support tree is generated and re-synced on every install; backing
+# it up makes repeated installs grow quickly without preserving user state.
+if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRoles.Count -gt 0 -or $existingWorkspaceAgents -or $existingGlobalAgents.Count -gt 0)) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $backupBase = if (Test-Path -LiteralPath $targetPath -PathType Container) {
         $targetPath
@@ -192,9 +188,6 @@ if (-not $NoBackup -and ($existingConfig -or $existingManifest -or $existingRole
             foreach ($item in $existingRoles) {
                 Copy-Item -LiteralPath $item.FullName -Destination $backupAgentsDir -Force
             }
-        }
-        if ($existingSupportTree) {
-            Copy-Item -LiteralPath $existingSupportTree.FullName -Destination $backupDir -Recurse -Force
         }
         if ($existingWorkspaceAgents) {
             Copy-Item -LiteralPath $existingWorkspaceAgents.FullName -Destination (Join-Path $backupDir "AGENTS.md") -Force
