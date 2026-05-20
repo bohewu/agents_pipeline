@@ -66,6 +66,21 @@ def _contracts(repo_root: Path) -> List[ContractSpec]:
             ),
         ),
         ContractSpec(
+            name="run-goal",
+            quick_ref=SectionSpec(
+                path=repo_root / "opencode" / "commands" / "run-goal.md",
+                start=r"^### Supported flags \(quick reference\)$",
+                stop=r"^## Notes",
+                label="run-goal quick reference",
+            ),
+            source_of_truth=SectionSpec(
+                path=repo_root / "opencode" / "agents" / "orchestrator-goal.md",
+                start=r"^Supported flags:$",
+                stop=r"^If no `--orchestrator` is provided:$",
+                label="orchestrator-goal flag semantics",
+            ),
+        ),
+        ContractSpec(
             name="run-modernize",
             quick_ref=SectionSpec(
                 path=repo_root / "opencode" / "commands" / "run-modernize.md",

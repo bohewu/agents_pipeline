@@ -100,6 +100,7 @@ DEFAULT_PROFILE_DIR = "opencode/tools/agent-profiles"
 DEFAULT_MODEL_SET_DIR = "codex/tools/model-sets"
 DEFAULT_RUN_COMMAND_AGENTS = {
     "run-flow": "orchestrator-flow",
+    "run-goal": "orchestrator-goal",
     "run-pipeline": "orchestrator-pipeline",
     "run-general": "orchestrator-general",
     "run-simple": "orchestrator-simple",

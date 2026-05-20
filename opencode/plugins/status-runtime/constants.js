@@ -52,6 +52,7 @@ const CLEANUP_STATUSES = ["not_required", "pending", "in_progress", "cleaned", "
 const ORCHESTRATORS = [
   "orchestrator-pipeline",
   "orchestrator-flow",
+  "orchestrator-goal",
   "orchestrator-ci",
   "orchestrator-analysis",
   "orchestrator-modernize",

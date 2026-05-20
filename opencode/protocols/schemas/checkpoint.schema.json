@@ -29,6 +29,7 @@
       "enum": [
         "orchestrator-pipeline",
         "orchestrator-flow",
+        "orchestrator-goal",
         "orchestrator-spec",
         "orchestrator-simple",
         "orchestrator-ci",

@@ -1,0 +1,71 @@
+{
+  "protocol_version": "1.0",
+  "goal_id": "goal-auth-hardening",
+  "goal": "Ship the auth hardening work in resumable batches",
+  "user_prompt": "Ship the auth hardening work in resumable batches with one reviewed cleanup batch at the end.",
+  "input_mode": "explicit_batches",
+  "default_orchestrator": "orchestrator-flow",
+  "status": "running",
+  "current_batch_id": "b2",
+  "next_recommended_action": "Resume batch b2 with /run-goal --resume --goal-id=goal-auth-hardening",
+  "goal_dir": ".pipeline-output/goals/goal-auth-hardening",
+  "flags": [
+    "--commit=after",
+    "--kanban=auto",
+    "--full-auto"
+  ],
+  "created_at": "2026-05-20T08:45:00Z",
+  "updated_at": "2026-05-20T09:25:00Z",
+  "batches": [
+    {
+      "id": "b1",
+      "summary": "Harden login validation and rate limiting",
+      "main_task_prompt": "Implement the approved login validation and rate-limit hardening changes without broad auth redesign.",
+      "orchestrator": "orchestrator-flow",
+      "status": "completed",
+      "forwarded_flags": [
+        "--full-auto",
+        "--commit=after"
+      ],
+      "definition_of_done": [
+        "Validation handles the approved edge cases.",
+        "Evidence includes changed paths and focused verification."
+      ],
+      "linked_run_id": "run-20260520-090100",
+      "linked_run_dir": ".pipeline-output/run-20260520-090100",
+      "artifact_paths": [
+        ".pipeline-output/run-20260520-090100/flow/task-list.json",
+        ".pipeline-output/run-20260520-090100/status/run-status.json"
+      ],
+      "notes": "Committed after batch completion.",
+      "started_at": "2026-05-20T09:01:00Z",
+      "updated_at": "2026-05-20T09:12:00Z",
+      "completed_at": "2026-05-20T09:12:00Z"
+    },
+    {
+      "id": "b2",
+      "summary": "Execute reviewed invite flow cleanup",
+      "main_task_prompt": "Run the reviewed invite flow cleanup with stronger validation and evidence collection.",
+      "orchestrator": "orchestrator-pipeline",
+      "status": "running",
+      "depends_on": [
+        "b1"
+      ],
+      "forwarded_flags": [
+        "--autopilot"
+      ],
+      "definition_of_done": [
+        "Reviewed invite flow changes are implemented.",
+        "Validation and review artifacts are linked from the batch state."
+      ],
+      "linked_run_id": "run-20260520-091500",
+      "linked_run_dir": ".pipeline-output/run-20260520-091500",
+      "artifact_paths": [
+        ".pipeline-output/run-20260520-091500/pipeline/task-list.json",
+        ".pipeline-output/run-20260520-091500/status/run-status.json"
+      ],
+      "started_at": "2026-05-20T09:15:00Z",
+      "updated_at": "2026-05-20T09:25:00Z"
+    }
+  ]
+}

@@ -30,6 +30,7 @@ SUPPORT_TREE_DIRS = ("agents", "commands", "protocols", "tools")
 SIMPLE_FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 DEFAULT_RUN_COMMAND_AGENTS = {
     "run-flow": "orchestrator-flow",
+    "run-goal": "orchestrator-goal",
     "run-pipeline": "orchestrator-pipeline",
     "run-general": "orchestrator-general",
     "run-simple": "orchestrator-simple",

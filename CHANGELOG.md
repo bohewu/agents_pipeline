@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-05-20
+
+### Added
+
+- Added `/run-goal` plus the new `orchestrator-goal` primary orchestrator for resumable multi-batch goal sessions that persist outer goal state and resume by `--goal-id`.
+- Added `goal-manifest.schema.json` and a valid example fixture for the outer goal-session state model.
+
+### Changed
+
+- Goal-session defaults now route unspecified batches to Flow while allowing per-batch override to existing orchestrators.
+- Release-facing orchestrator allowlists, Codex fallback run-command mappings, and flag-contract validation now include the new `run-goal` / `orchestrator-goal` surfaces.
+
 ## [0.23.11] - 2026-05-17
 
 ### Fixed

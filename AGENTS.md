@@ -9,6 +9,7 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 |------|------|------|-------|
 | orchestrator-ci | CI/CD planning pipeline (docs-first, optional generation) | primary | Docs-first |
 | orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
+| orchestrator-goal | Goal-session wrapper around existing orchestrators with batch persistence and resume by goal id | primary | Defaults batches to Flow |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and no reviewer | primary | Bounded flow, no retry loops |
