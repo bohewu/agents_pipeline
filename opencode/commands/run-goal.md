@@ -39,12 +39,16 @@ $ARGUMENTS
 
 - Use for multi-batch goals that need durable progress, resumable state, and optional carryover sync.
 - Prompt file input is intentionally out of scope for v1.
+- `run-goal` does not call other slash commands internally.
 - The command accepts either:
   - a freeform goal prompt, or
   - an inline explicit batch set in Markdown/JSON-like form where each batch may optionally specify its own orchestrator.
 - Default batch orchestrator is `orchestrator-flow` unless the user or batch explicitly overrides it.
 - Goal-session state is persisted under `<output_root>/goals/<goal_id>/goal-manifest.json`.
 - Inner Flow/Pipeline run status remains canonical in the existing status runtime layout under `<output_root>/<run_id>/`.
+- When the runtime supports orchestrator-to-orchestrator agent dispatch, `orchestrator-goal` may hand a batch to the selected inner orchestrator directly.
+- When direct delegation is unavailable but the runtime supports definition-driven mode adoption in the current/main agent, `orchestrator-goal` may read the selected `orchestrator-*` definition file and simulate that inner orchestrator behavior from the loaded definition.
+- When neither direct delegation nor supported mode simulation is available, `orchestrator-goal` should persist state and return an exact human-facing `/run-flow`, `/run-pipeline`, `/run-general`, or `/run-simple` continuation command.
 - Root-tracked helper artifacts stay in the project root:
   - `todo-ledger.json` is the canonical kanban source
   - `kanban.md` is the rendered board view
@@ -66,3 +70,4 @@ $ARGUMENTS
 - Compatible with OpenCode official command system.
 - The outer goal manifest is the source of truth for goal-session progress and batch ordering.
 - Existing inner orchestrators retain ownership of their own checkpoints, status files, and task semantics.
+- If direct inner-orchestrator dispatch is not available, the goal session should prefer definition-driven mode simulation when the runtime formally supports it; otherwise it should degrade to a persisted handoff instead of ad hoc reimplementation.

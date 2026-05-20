@@ -18,10 +18,12 @@ FOCUS: Persist a multi-batch goal session, delegate each batch to an existing or
 
 - Do NOT modify application/business code directly. Delegate all implementation work to inner orchestrators.
 - Do NOT duplicate Flow or Pipeline execution logic. Reuse existing orchestrators for batch execution.
+- Do NOT invoke `/run-*` slash commands internally.
 - Default inner orchestrator is `orchestrator-flow` unless the user or a batch explicitly overrides it.
 - Supported inner orchestrators for v1 are exactly: `orchestrator-flow`, `orchestrator-pipeline`, `orchestrator-general`, and `orchestrator-simple`.
 - Do NOT treat `todo-ledger.json` as the canonical goal-session store. Persist outer goal state in `goal-manifest.json`.
 - Keep outer batches sequential by default in v1, even if an inner orchestrator parallelizes internally.
+- If runtime agent-to-agent dispatch to an inner orchestrator is unavailable, prefer installed-definition mode simulation in the current/main agent only when that runtime formally supports mode adoption from orchestrator definition files. Use this lookup order for simulation: workspace-installed orchestrator definition, user/global installed orchestrator definition, then source-repo `opencode/agents/orchestrator-*.md` as a last resort when installed definitions are unavailable in the current runtime. If neither direct delegation nor definition-driven mode simulation is available, persist goal state and provide a precise human-facing continuation handoff instead.
 - Do NOT infer missing requirements. Surface assumptions explicitly.
 - Use existing agents only. Do not invent new agent identities.
 
@@ -160,6 +162,7 @@ It MUST conform to `opencode/protocols/schemas/goal-manifest.schema.json` and tr
 - outer session `status`
 - the ordered `batches[]`
 - current/next batch pointer state
+- per-batch execution path metadata (`execution_mode`, optional `definition_source`)
 - linked inner `run_id` / run dir when a batch has started
 - timestamps and next recommended action
 
@@ -229,8 +232,20 @@ Input normalization rules:
   - `main_task_prompt`
   - `orchestrator`
   - `status = pending|ready|running|blocked|completed|partial|failed|skipped`
+   - `execution_mode = delegated|simulated|handoff|unresolved`
   - `definition_of_done`
   - optional `forwarded_flags[]`
+
+Initialize `execution_mode = unresolved` when writing the initial manifest. Only change it after the actual batch execution path is known.
+
+Execution mode meaning is strict:
+
+- `delegated` means a distinct inner orchestrator agent/run/session was actually launched as the batch owner.
+- `simulated` means the current/main agent read the inner orchestrator definition and then carried out that behavior itself, including any downstream helper/executor/task dispatch.
+- `handoff` means no inner execution happened and the user was given a continuation command.
+- `unresolved` means the execution path is not known yet.
+
+Never mark `delegated` merely because the batch names an inner orchestrator or because the current/main agent dispatched an `@executor`, `@peon`, task tool, or other helper while following that inner orchestrator's rules.
 
 The initial manifest status should be:
 
@@ -255,9 +270,26 @@ For each batch:
    - the batch summary and `main_task_prompt`
    - the batch definition of done
    - any user-specified constraints
-   - explicit instruction that the inner orchestrator owns its own checkpoint/status semantics
-4. Record the linked inner `run_id` and run directory in the manifest once known.
-5. Reconcile the batch result:
+   - explicit instruction that the inner orchestrator owns its own checkpoint/status semantics when delegated dispatch is available
+4. Before attempting execution, set batch `status = running` and keep `execution_mode = unresolved` until the concrete execution path below is chosen.
+5. Prefer one of these execution paths, in order:
+   - direct delegation to `@<inner orchestrator>` when the runtime supports agent-to-agent dispatch for that orchestrator and a distinct inner orchestrator run/session is actually launched
+   - installed-definition mode simulation in the current/main agent when the runtime explicitly supports that model (for example Codex mode aliases that load installed orchestrator definitions)
+   - persisted human-facing continuation handoff when neither of the above is available
+   - Do NOT convert the batch into a slash command invocation.
+6. If direct delegation is used:
+   - persist `execution_mode = delegated`
+   - record the linked inner `run_id` and run directory in the manifest once known
+7. If mode simulation is used:
+   - first load the selected inner orchestrator definition from the best available definition file in this order: workspace-installed agent definition, user/global installed agent definition, then source-repo `opencode/agents/orchestrator-*.md` when no installed definition is available to the current runtime
+   - treat the selected inner orchestrator definition as the source of truth for behavior, task decomposition, delegation rules, and output style
+   - ignore OpenCode-only plugin/command details that are not relevant in the current runtime
+   - do NOT bypass helper-role delegation rules from the simulated definition
+   - keep the outer goal manifest as the source of truth for batch ordering and resume state while the current/main agent temporarily adopts the inner orchestrator behavior for that batch
+   - if the current/main agent is the one dispatching downstream helper/executor tasks under the adopted inner orchestrator rules, persist `execution_mode = simulated`, not `delegated`
+   - persist the best-known `definition_source`
+   - Example: if `orchestrator-flow` behavior is simulated and the current/main agent launches one executor task that creates `notes.txt`, the batch is `simulated`, not `delegated`
+8. Reconcile the batch result:
    - `completed` if the inner orchestrator completed successfully
    - `partial` if some value was delivered but follow-up remains
    - `blocked` if an unresolved blocker prevents continuation
@@ -266,6 +298,11 @@ For each batch:
 Batch continuation policy:
 
 - In v1, stop on the first `blocked` or `failed` batch unless the user explicitly supplied independent later batches and continuing would still be safe.
+- If neither direct delegation nor supported mode simulation is available for the selected inner orchestrator, stop and provide:
+   - a concise reason
+   - the batch-scoped `main_task_prompt`
+   - an exact human-facing continuation command using the selected `/run-*` entrypoint and compatible flags
+   - persist `execution_mode = handoff`
 - If `commit_mode = after`, after any inner handoff/kanban helper actions dispatch one bounded `@peon` git helper to create at most one commit for that completed batch. Treat it as a workflow helper, not a batch itself. If the helper cannot safely separate batch-generated changes from unrelated pre-existing dirty state, skip the commit and record that manual review is required.
 - If `kanban_mode = auto`, sync carryover after each terminal batch outcome using `@kanban-manager`.
 

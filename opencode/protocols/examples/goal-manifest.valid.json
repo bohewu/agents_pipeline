@@ -23,6 +23,7 @@
       "main_task_prompt": "Implement the approved login validation and rate-limit hardening changes without broad auth redesign.",
       "orchestrator": "orchestrator-flow",
       "status": "completed",
+      "execution_mode": "delegated",
       "forwarded_flags": [
         "--full-auto",
         "--commit=after"
@@ -48,6 +49,8 @@
       "main_task_prompt": "Run the reviewed invite flow cleanup with stronger validation and evidence collection.",
       "orchestrator": "orchestrator-pipeline",
       "status": "running",
+      "execution_mode": "simulated",
+      "definition_source": "workspace-installed",
       "depends_on": [
         "b1"
       ],

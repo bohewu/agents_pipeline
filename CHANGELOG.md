@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-05-20
+
+### Fixed
+
+- `orchestrator-goal` now records batch execution paths more accurately in goal-session state, distinguishing true inner-orchestrator delegation from definition-driven simulation in the current/main agent.
+- `goal-manifest` schema/examples now expose execution-path metadata (`execution_mode`, optional `definition_source`) so resumable goal sessions can persist how each batch actually ran.
+
 ## [0.24.0] - 2026-05-20
 
 ### Added

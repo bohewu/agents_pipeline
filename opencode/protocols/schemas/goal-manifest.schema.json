@@ -126,6 +126,23 @@
               "skipped"
             ]
           },
+          "execution_mode": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "delegated",
+              "simulated",
+              "handoff"
+            ]
+          },
+          "definition_source": {
+            "type": "string",
+            "enum": [
+              "workspace-installed",
+              "user-installed",
+              "source-repo"
+            ]
+          },
           "depends_on": {
             "type": "array",
             "items": {
