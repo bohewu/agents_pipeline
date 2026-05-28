@@ -18,6 +18,8 @@ generated/
 
 # Local tooling
 .opencode/
+.codegraph/
+.cursor/
 .vscode/
 .idea/
 .DS_Store
