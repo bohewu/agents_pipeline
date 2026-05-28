@@ -1,17 +1,19 @@
 # Design Brief Template
 
-Surface:
+Surface type:
+Preserve vs modernize:
 Primary user:
-Primary user goal:
+Primary user task:
 Primary action:
 Secondary actions:
 Upstream source of truth:
 Key content/data:
 Brand/product signals:
-Design direction:
 Layout archetype:
-Density:
-Responsive priorities:
+Visual style:
+Visual risk:
+Responsive risk:
+State coverage risk:
 Accessibility risks:
 Implementation constraints:
 Verification plan:

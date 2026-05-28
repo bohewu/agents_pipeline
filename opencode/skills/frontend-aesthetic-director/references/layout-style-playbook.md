@@ -1,6 +1,53 @@
 # Layout and Style Playbook
 
-Use this reference after the skill activates. Pick one layout archetype and one visual style. Do not combine many archetypes without a clear reason.
+Use this reference after the skill activates. Pick one layout archetype and one visual style. For existing UI cleanup, choose one polish-first correction strategy first, then still choose the closest layout archetype and visual style profile. Do not combine many archetypes without a clear reason.
+
+## Polish-First Selection
+
+When the task is an existing UI cleanup instead of a greenfield build, choose a correction strategy before choosing the layout archetype and visual style profile.
+
+### Preserve And Clarify
+
+Best for: "polish this", "fix spacing", "clean up mobile", "improve states", "do not change the flow".
+
+Focus on:
+- clearer type hierarchy
+- spacing rhythm
+- CTA emphasis
+- state coverage
+- contrast and affordance repair
+
+Avoid:
+- changing the layout family unless the current scan path is broken
+- replacing the design system just to look newer
+
+### Selective Modernize
+
+Best for: generic but salvageable surfaces that need stronger grouping, cleaner tokens, and more deliberate hierarchy.
+
+Focus on:
+- reducing visual noise
+- removing decorative card soup
+- strengthening grouping and section rhythm
+- refreshing surfaces, borders, and accents without changing the product model
+
+Avoid:
+- introducing a second unrelated aesthetic language
+- moving primary actions away from their original task context
+
+### Stronger Refresh Without Flow Change
+
+Best for: pages that feel dated, untrustworthy, or incoherent, but whose flow and IA still basically work.
+
+Focus on:
+- a cleaner dominant style profile
+- clearer focal points
+- more intentional first-viewport composition
+- stronger state and status semantics
+
+Avoid:
+- turning a cleanup request into a full redesign
+- using motion, gradients, or novelty as a substitute for structure
 
 ## Layout Archetypes
 
@@ -258,3 +305,6 @@ Avoid:
 - Product analytics: dashboard shell + quiet SaaS or data command center.
 - API documentation: docs layout + developer tool.
 - Checkout/onboarding: wizard + consumer warmth or quiet SaaS.
+- Existing dashboard cleanup: preserve and clarify + dashboard shell + quiet SaaS or dense enterprise.
+- Existing landing page cleanup: selective modernize + split hero or full-bleed narrative hero + one restrained style profile.
+- Existing workflow UI cleanup: preserve and clarify + workflow command center + developer tool.

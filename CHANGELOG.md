@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-05-28
+
+### Changed
+
+- Updated `frontend-aesthetic-director` guidance with a preserve-vs-modernize polish dial, anti-slop checklist reference, aligned polish brief template, and clearer routing between conceptual UI critique and implementation-facing UI polish.
+
 ## [0.24.1] - 2026-05-20
 
 ### Fixed

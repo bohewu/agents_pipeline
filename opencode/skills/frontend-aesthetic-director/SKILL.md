@@ -1,20 +1,28 @@
 ---
 name: frontend-aesthetic-director
-description: "Use this skill for frontend implementation or review work that changes visible UI: landing pages, dashboards, components, forms, data tables, responsive polish, visual hierarchy, accessibility states, design-system alignment, screenshot/Figma implementation, or requests like make it beautiful, improve UI, polish dashboard, modernize page, UI/UX, interface, layout, visual design. Do not use for pure backend work, non-visual logic changes, or conceptual-only /uiux outputs."
+description: "Use this skill for frontend implementation or review work that changes visible UI: landing pages, dashboards, components, forms, data tables, existing UI polish, visual cleanup, anti-slop passes, responsive cleanup, accessibility states, design-system alignment, screenshot/Figma implementation, or implementation of an approved UI concept while preserving the current flow. Do not use for pure backend work, non-visual logic changes, conceptual-only /uiux outputs, or screenshot/wireframe critique that has not yet reached implementation."
 license: See repository license
 compatibility: Implementation-facing UI guidance. Pair with /uiux for upstream concepts and with devtools-ux-audit or Playwright/browser tooling for rendered visual evidence.
 ---
 
 # Frontend Aesthetic Director
 
-Use this skill when implementing or reviewing visible frontend UI. The goal is intentional, usable, responsive UI with a clear design direction, not generic component assembly.
+Use this skill when implementing or reviewing visible frontend UI. The goal is intentional, usable, responsive UI with a clear design direction, especially when an existing surface needs polish without drifting into a full redesign.
 
 ## Boundary
 
 - This is an implementation-facing skill for UI code changes and rendered visual QA.
 - It does not replace `/uiux`; `/uiux` remains the conceptual workflow, wireframe, communication, and handoff layer.
 - It does not replace `/run-ux`; `/run-ux` remains the formal audit and scoring workflow.
-- It does not require high or xhigh reasoning by default. For a landing-page section, dashboard polish, or component UI task, start with medium or high effort and spend budget on design-system scan, content realism, responsive checks, and browser evidence.
+- It does not replace `ui-communication-designer`; screenshot, wireframe, or copy critique should stay conceptual until the user asks for implementation.
+- It should preserve the current flow, IA, CTA priority, and trust posture unless the existing structure clearly blocks comprehension or task completion.
+- It does not require high or xhigh reasoning by default. For polish, cleanup, or approved redesign-without-flow-change implementation work, spend budget on repo scan, state coverage, responsive checks, and rendered evidence.
+
+## Pairing
+
+- Use `references/layout-style-playbook.md` to choose one polish-first correction strategy when relevant, then one concrete layout archetype and visual style profile.
+- Use `references/polish-checklist.md` for anti-slop guardrails, state coverage audit, responsive checks, contrast sanity checks, and pre-flight review.
+- Use `references/ui-quality-rubric.md` when browser evidence is unavailable and you still need a disciplined self-review.
 
 ## Upstream /uiux Handoff Rule
 
@@ -22,7 +30,7 @@ If a `/uiux` bundle, wireframe, screenshot, Figma note, or conceptual handoff is
 
 Preserve:
 - user flow and information architecture
-- screen or surface structure
+- screen or surface structure unless it clearly blocks comprehension
 - primary action and priority order
 - copy intent, trust posture, and state intent
 
@@ -48,27 +56,55 @@ Inspect the repository before changing files:
 - product context from copy, routes, README, screenshots, tests, or existing UI
 - any upstream `/uiux` output or design handoff
 
-Before implementation, form a short internal design brief:
+Before implementation, form a short internal polish brief:
 
 ```text
-Surface: landing page | dashboard | CRUD app | form | docs | workflow builder | chat UI | other
-Primary user goal:
+Surface type: landing page | dashboard | CRUD app | form | docs | workflow builder | chat UI | other
+Preserve vs modernize: preserve | selective modernize | stronger refresh
+Primary user task:
 Primary action:
 Upstream source of truth: none | /uiux bundle | wireframe | screenshot | Figma | other
-Visual direction:
 Layout archetype:
-Density target: spacious | balanced | dense
+Visual style:
+Visual risk:
+Responsive risk:
+State coverage risk:
 Design-system constraints:
-Responsive priorities:
-Design risks:
 Verification plan:
 ```
 
 Ask the user only if the task is impossible without more information. Otherwise make conservative assumptions and report them in the final summary.
 
-### 2. Choose One Layout And Style Direction
+### 2. Decide Polish Scope Before Redesign
 
-Use `references/layout-style-playbook.md` when choosing the layout archetype and visual style. Choose exactly one dominant visual direction.
+Default to existing-UI polish, not reinvention.
+
+Start with:
+- hierarchy
+- spacing
+- typography
+- contrast
+- states
+- responsive behavior
+- accessibility
+
+Only make layout changes when:
+- the current structure hides the primary task
+- the scan path is broken
+- key actions are detached from their context
+- responsive collapse cannot be fixed with local adjustments
+
+When layout changes are needed, make the smallest viable change that restores clarity. Do not use "polish" as cover for a full redesign.
+
+### 3. Choose One Layout And Style Direction
+
+Use `references/layout-style-playbook.md`.
+
+For existing surfaces:
+- choose one polish-first correction strategy first
+- then choose one layout archetype and one visual style profile
+
+For greenfield or approved concept implementation, choose one layout archetype and one visual style profile. A correction strategy is not a substitute for a concrete layout and style direction.
 
 Good pairings:
 - marketing homepage for a dev tool: split hero + developer tool + quiet SaaS
@@ -77,11 +113,19 @@ Good pairings:
 - API docs: docs/developer tool layout + developer tool style
 - onboarding or checkout: wizard + quiet SaaS or consumer warmth
 
-Do not combine unrelated trends such as glassmorphism, brutalism, gradients, neumorphism, dense enterprise UI, and editorial layout in the same surface.
+Do not combine unrelated trends such as glassmorphism, brutalism, gradients, neumorphism, dense enterprise UI, and editorial layout in the same surface without a clear reason from the brief.
 
-### 3. Work From Tokens
+### 4. Verify Dependencies Before Adding UI Surface Area
 
-Reuse the existing design system first. If one does not exist, create the smallest local token set needed for this task.
+Before importing any new font, icon package, animation library, UI library, or major utility:
+- check `package.json` first
+- reuse the existing stack when possible
+- if a dependency is missing, present the install command before assuming it can be imported
+- avoid adding a library when a token, utility class, or local component solves the problem cleanly
+
+### 5. Work From Tokens And Product Reality
+
+Reuse the existing design system first. If one does not exist, create the smallest local token set needed for the task.
 
 Recommended token coverage:
 
@@ -104,61 +148,27 @@ Recommended token coverage:
 --shadow-strong
 ```
 
-Typography roles:
-- display: hero or page-level emphasis
-- headline: section or card title
-- body: readable content
-- caption: metadata and helper text
-- code: technical text when needed
-
-Spacing rules:
+Rules:
 - Use a 4px or 8px base rhythm.
 - Keep section spacing larger than component spacing.
-- Keep related controls close; separate unrelated groups clearly.
 - Use alignment and whitespace before adding borders or shadows.
-
-### 4. Content And Product Realism
-
-- Replace placeholder copy with product-specific copy when the repository gives enough context.
+- Replace placeholder copy with product-specific copy when the repo gives enough context.
 - Use realistic sample data for dashboards, tables, logs, and empty states.
 - Avoid KPI cards unless each number supports a decision or action.
-- Keep the primary action discoverable within a few seconds.
-- Use visual references or mood-board language when helpful, but encode the result as project tokens and components, not as copied artwork or an unrelated style.
 
-### 5. Composition Rules
+### 6. Apply Anti-Slop Guardrails
 
-For the first viewport or primary surface:
-- one clear focal point
-- one obvious primary action
-- no more than two competing high-emphasis regions
-- cards only when they clarify grouping or interaction
-- hierarchy created with contrast, type, placement, and whitespace
+Use `references/polish-checklist.md` as the detailed checklist. These are defaults, not universal bans; override them only when the brief clearly justifies it.
 
-For dashboards and dense apps:
-- scan path: page title -> key status -> primary action -> core data
-- filters near the data they affect
-- numeric values aligned for comparison
-- useful empty, loading, error, stale-data, disabled, and long-content states
+Do not:
+- ship generic gradient plus card soup and call it polish
+- add unreadable hero art, browser mockups, or decorative UI screenshots
+- leave CTA, link, or focus contrast obviously weak
+- invent fake KPIs or decorative status indicators that do not support a task
+- over-round everything, stack heavy shadows, or add motion with no communication job
+- polish only the happy path while ignoring empty, loading, error, disabled, stale, or long-content states
 
-For workflow, agent, or pipeline UIs:
-- show stage, status, owner or agent, last run, duration, logs, retry/cancel controls, and failure reason where relevant
-- use progressive disclosure for logs/details
-- distinguish queued/running/succeeded/failed/blocked states by more than color
-- keep destructive actions visually secondary and confirmed
-
-### 6. Implementation Rules
-
-- Reuse existing components and utilities before adding new ones.
-- Keep component boundaries meaningful: layout shell, navigation, content sections, reusable primitives.
-- Prefer CSS variables/design tokens over repeated magic values.
-- Use responsive primitives such as `minmax`, `clamp`, fluid grids, wrapping flex, and container constraints.
-- Do not cause horizontal overflow on mobile.
-- Avoid fixed heights for content-heavy cards.
-- Keep floating/fixed elements from covering text, buttons, forms, or navigation.
-- Respect reduced-motion preferences.
-- Add microinteractions only when they clarify state or hierarchy.
-
-### 7. Accessibility Gate
+### 7. Accessibility And State Gate
 
 Before finalizing, verify:
 - headings are hierarchical and meaningful
@@ -169,7 +179,7 @@ Before finalizing, verify:
 - touch targets are practical
 - keyboard flow follows visual flow
 - important states are not communicated by color alone
-- loading, empty, error, success, disabled, and long-content states are handled where relevant
+- loading, empty, error, success, disabled, stale-data, and long-content states are handled where relevant
 
 ### 8. Visual QA Loop
 
@@ -184,7 +194,18 @@ When browser tooling or Playwright is available:
 When browser tooling is unavailable:
 - run build, typecheck, lint, or tests when available
 - review markup/CSS against `references/ui-quality-rubric.md`
+- use `references/polish-checklist.md` for the pre-flight audit
 - explicitly report which visual checks were not performed
+
+## Pre-Flight Ship Checklist
+
+Before shipping, honestly confirm:
+- desktop, tablet, and mobile have no obvious overflow or broken collapse
+- the primary task is identifiable within a few seconds
+- heading, CTA, and section hierarchy are clear
+- button, link, and focus contrast pass a quick sanity check
+- relevant empty, loading, error, disabled, and long-content states are covered
+- any meaningful browser or rendered QA loop has been completed, or the gap is reported
 
 ## Final Response Shape
 
@@ -193,7 +214,7 @@ Report concisely:
 ```text
 Design direction: <one sentence>
 Changed files: <files>
-UX improvements: <3-5 bullets>
+Polish actions: <3-5 bullets>
 Visual QA: <what was verified>
 Assumptions / not verified: <only if relevant>
 ```
