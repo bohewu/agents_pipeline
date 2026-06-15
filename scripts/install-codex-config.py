@@ -149,6 +149,15 @@ def resolve_global_agents_path(target_dir: Path) -> Path:
     return target_dir / GLOBAL_AGENTS_FILENAME
 
 
+def resolve_catalog_path(catalog_arg: str, *, asset_root: Path) -> Path:
+    catalog_path = Path(catalog_arg).expanduser()
+    if catalog_path.is_absolute():
+        return catalog_path
+    if catalog_arg == "AGENTS.md":
+        return asset_root / catalog_path
+    return catalog_path
+
+
 def build_agents_alias_map_lines(commands_dir: Path) -> List[str]:
     command_agents = discover_run_command_agents(commands_dir)
     lines = ["Alias map:"]
@@ -712,7 +721,7 @@ def main() -> int:
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
     workspace_root = Path(args.workspace_root).expanduser() if args.workspace_root else None
-    catalog_path = Path(args.catalog).expanduser()
+    catalog_path = resolve_catalog_path(args.catalog, asset_root=asset_layout.asset_root)
     profile_dir = Path(args.profile_dir).expanduser()
     model_set_dir = Path(args.model_set_dir).expanduser()
     temp_root = resolve_temp_root(repo_root=asset_layout.asset_root, temp_dir=args.temp_dir)

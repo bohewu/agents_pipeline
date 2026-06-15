@@ -362,6 +362,19 @@ class CodexInstallExportTest(unittest.TestCase):
 
             self.assertEqual(resolved, target_dir / "AGENTS.override.md")
 
+    def test_resolve_catalog_path_anchors_default_to_asset_root(self) -> None:
+        asset_root = Path("/tmp/agents-pipeline")
+
+        resolved_default = INSTALL_MODULE.resolve_catalog_path(
+            "AGENTS.md", asset_root=asset_root
+        )
+        resolved_explicit_relative = INSTALL_MODULE.resolve_catalog_path(
+            "docs/custom-catalog.md", asset_root=asset_root
+        )
+
+        self.assertEqual(resolved_default, asset_root / "AGENTS.md")
+        self.assertEqual(resolved_explicit_relative, Path("docs/custom-catalog.md"))
+
     def test_resolve_global_agents_path_falls_back_to_agents_md(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             target_dir = Path(temp_dir_name)

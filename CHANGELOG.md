@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-06-15
+
+### Fixed
+
+- Codex workspace installs no longer treat the caller project's `AGENTS.md` as the strict export catalog when `install-codex-config.py` resolves its default catalog path.
+- `agent-profile --runtime codex` now succeeds for workspace installs in repos that maintain their own project-specific `AGENTS.md` files.
+
 ## [0.24.2] - 2026-05-28
 
 ### Changed
