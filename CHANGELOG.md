@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-06-22
+
+### Fixed
+
+- Installed OpenCode layouts now include the root `AGENTS.md` catalog so runtime Codex profile installs keep strict source/catalog validation without reading the caller project's `AGENTS.md`.
+- `agent-profile --runtime codex --workspace ...` now forwards the workspace root to the Codex installer, so workspace `.codex` installs merge the managed mode-alias block into the workspace `AGENTS.md` instead of treating `.codex/AGENTS.md` as a global target.
+
 ## [0.25.0] - 2026-06-22
 
 ### Added

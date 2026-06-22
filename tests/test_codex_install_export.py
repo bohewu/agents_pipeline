@@ -421,6 +421,11 @@ class CodexInstallExportTest(unittest.TestCase):
         install_sh = ROOT_INSTALL_SH_PATH.read_text(encoding="utf-8")
         install_ps1 = ROOT_INSTALL_PS1_PATH.read_text(encoding="utf-8")
 
+        self.assertIn("AGENTS.md:AGENTS.md", install_sh)
+        self.assertIn(
+            '@{ Source = (Join-Path $repoRoot "AGENTS.md"); Destination = "AGENTS.md" },',
+            install_ps1,
+        )
         self.assertIn(
             'scripts/codex_mode_aliases.py:scripts/codex_mode_aliases.py',
             install_sh,
@@ -429,6 +434,22 @@ class CodexInstallExportTest(unittest.TestCase):
             '@{ Source = (Join-Path $repoRoot "scripts/codex_mode_aliases.py"); Destination = "scripts/codex_mode_aliases.py" },',
             install_ps1,
         )
+
+    def test_agent_profile_forwards_workspace_root_to_codex_installers(self) -> None:
+        agent_profile_sh = (REPO_ROOT / "opencode/tools/agent-profile.sh").read_text(
+            encoding="utf-8"
+        )
+        agent_profile_ps1 = (REPO_ROOT / "opencode/tools/agent-profile.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('"--workspace-root"', agent_profile_sh)
+        self.assertIn(
+            'str(Path(args.workspace or ".").expanduser().resolve())',
+            agent_profile_sh,
+        )
+        self.assertIn('$installParams["WorkspaceRoot"] = $WorkspacePath', agent_profile_ps1)
+        self.assertIn("-WorkspacePath $workspacePath", agent_profile_ps1)
 
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)

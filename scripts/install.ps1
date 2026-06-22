@@ -32,6 +32,7 @@ $managedDirectories = @(
     @{ Source = (Join-Path $repoRoot "claude/tools/model-sets"); Destination = "claude/tools/model-sets" }
 )
 $managedFiles = @(
+    @{ Source = (Join-Path $repoRoot "AGENTS.md"); Destination = "AGENTS.md" },
     @{ Source = (Join-Path $repoRoot "opencode.json.example"); Destination = "opencode.json.example" },
     @{ Source = (Join-Path $repoRoot "scripts/agent_model_profiles.py"); Destination = "scripts/agent_model_profiles.py" },
     @{ Source = (Join-Path $repoRoot "scripts/codex_mode_aliases.py"); Destination = "scripts/codex_mode_aliases.py" },

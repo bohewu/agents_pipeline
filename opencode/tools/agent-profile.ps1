@@ -316,7 +316,8 @@ function Invoke-RuntimeInstall {
         [Parameter(Mandatory = $true)][string] $RuntimeName,
         [Parameter(Mandatory = $true)][string] $InstallerPath,
         [Parameter(Mandatory = $true)][string] $ProfileDirPath,
-        [Parameter(Mandatory = $true)][string] $ModelSetDirPath
+        [Parameter(Mandatory = $true)][string] $ModelSetDirPath,
+        [Parameter(Mandatory = $true)][string] $WorkspacePath
     )
     $installer = $InstallerPath
     if (-not $Profile) {
@@ -329,6 +330,9 @@ function Invoke-RuntimeInstall {
     $installParams = @{}
     if ($Target) {
         $installParams["Target"] = $Target
+    }
+    if ($RuntimeName -eq "codex") {
+        $installParams["WorkspaceRoot"] = $WorkspacePath
     }
     if ($DryRun) {
         $installParams["DryRun"] = $true
@@ -557,7 +561,7 @@ if ($Runtime -ne "opencode") {
         $Target = Get-RuntimeTargetFromWorkspace -RuntimeName $Runtime -WorkspacePath $workspacePath
     }
     $runtimeInstaller = Resolve-RuntimeInstallerPath -RuntimeName $Runtime -ScriptRoot $scriptRoot
-    Invoke-RuntimeInstall -RuntimeName $Runtime -InstallerPath $runtimeInstaller -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
+    Invoke-RuntimeInstall -RuntimeName $Runtime -InstallerPath $runtimeInstaller -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath -WorkspacePath $workspacePath
     return
 }
 

@@ -32,6 +32,7 @@ MANAGED_DIR_MAPS=(
   "claude/tools/model-sets:claude/tools/model-sets"
 )
 MANAGED_FILE_MAPS=(
+  "AGENTS.md:AGENTS.md"
   "opencode.json.example:opencode.json.example"
   "scripts/agent_model_profiles.py:scripts/agent_model_profiles.py"
   "scripts/codex_mode_aliases.py:scripts/codex_mode_aliases.py"
