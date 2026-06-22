@@ -85,6 +85,8 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("`autopilot_mode = false`", adapted, label)
             self.assertIn("`confirm_mode` (when not autopilot): after each stage, pause", adapted, label)
             self.assertIn("`verbose_mode` (implies confirm): pause after each task in Stage 3.", adapted, label)
+            self.assertIn("`--review=off|on`", adapted, label)
+            self.assertIn("ONE bounded repair cycle", adapted, label)
 
 
 if __name__ == "__main__":

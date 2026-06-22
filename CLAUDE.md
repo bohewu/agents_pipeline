@@ -109,7 +109,7 @@ In Claude Code, the top-level Claude Code instance acts as the pipeline runtime.
 
 ### When to Use
 
-- Use `@orchestrator-flow` for daily engineering tasks (max 5 atomic tasks, no reviewer).
+- Use `@orchestrator-flow` for daily engineering tasks (max 5 atomic tasks, optional single reviewer gate).
 - Use `@orchestrator-pipeline` for CI/PR/high-risk work (full pipeline with review gates).
 - For simple single-file tasks, skip the orchestrator and spawn `@executor` directly.
 

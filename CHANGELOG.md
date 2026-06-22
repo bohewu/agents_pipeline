@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-06-22
+
+### Added
+
+- `orchestrator-flow` now supports an optional `--review=off|on` post-synthesis reviewer gate with at most one bounded repair and re-review pass.
+- `/run-flow` documents the new `--review=on` path, including `--commit=after` waiting for a passing review when review mode is enabled.
+
+### Fixed
+
+- Flow no longer emits terminal run status before the optional review gate can fail or request a bounded repair.
+
 ## [0.24.3] - 2026-06-15
 
 ### Fixed

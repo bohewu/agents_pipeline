@@ -622,6 +622,7 @@ class CodexInstallExportTest(unittest.TestCase):
             set(command_agents),
             {
                 "run-flow",
+                "run-goal",
                 "run-pipeline",
                 "run-general",
                 "run-simple",
