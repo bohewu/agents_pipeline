@@ -435,7 +435,7 @@ class CodexInstallExportTest(unittest.TestCase):
             install_ps1,
         )
 
-    def test_agent_profile_forwards_workspace_root_to_codex_installers(self) -> None:
+    def test_agent_profile_does_not_forward_workspace_root_to_codex_installers(self) -> None:
         agent_profile_sh = (REPO_ROOT / "opencode/tools/agent-profile.sh").read_text(
             encoding="utf-8"
         )
@@ -443,13 +443,15 @@ class CodexInstallExportTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn('"--workspace-root"', agent_profile_sh)
-        self.assertIn(
-            'str(Path(args.workspace or ".").expanduser().resolve())',
-            agent_profile_sh,
-        )
-        self.assertIn('$installParams["WorkspaceRoot"] = $WorkspacePath', agent_profile_ps1)
-        self.assertIn("-WorkspacePath $workspacePath", agent_profile_ps1)
+        self.assertNotIn('"--workspace-root"', agent_profile_sh)
+        self.assertNotIn("WorkspaceRoot", agent_profile_ps1)
+        invoke_runtime_lines = [
+            line
+            for line in agent_profile_ps1.splitlines()
+            if "Invoke-RuntimeInstall" in line and "-RuntimeName $Runtime" in line
+        ]
+        self.assertEqual(1, len(invoke_runtime_lines))
+        self.assertNotIn("WorkspacePath", invoke_runtime_lines[0])
 
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)

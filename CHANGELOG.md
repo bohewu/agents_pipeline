@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-06-23
+
+### Fixed
+
+- `agent-profile --runtime codex --workspace ...` no longer forwards the workspace root to the Codex installer, so workspace model-profile installs do not merge managed Codex notes into the caller repo's root `AGENTS.md`.
+
 ## [0.25.1] - 2026-06-22
 
 ### Fixed
