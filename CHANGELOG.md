@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.4] - 2026-06-23
+
+### Changed
+
+- Codex mode-alias generation now reserves native goal entry points by omitting `/goal` and `use goal` style aliases; use `/run-goal` when explicitly invoking the agents-pipeline goal orchestrator.
+
 ## [0.25.3] - 2026-06-23
 
 ### Fixed

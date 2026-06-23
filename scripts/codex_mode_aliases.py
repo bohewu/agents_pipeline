@@ -75,6 +75,7 @@ NATURAL_LANGUAGE_MODE_ALIAS_PATTERNS = (
     "請用 {alias}",
     "請用 {alias} 去執行",
 )
+RUN_COMMAND_ONLY_MODE_ALIASES = {"goal"}
 
 
 def ordered_unique(values: Sequence[str]) -> List[str]:
@@ -93,15 +94,19 @@ def inline_code_list(values: Sequence[str]) -> str:
 
 
 def build_slash_mode_aliases(aliases: Sequence[str]) -> List[str]:
-    return ordered_unique(
-        [f"/run-{alias}" for alias in aliases] + [f"/{alias}" for alias in aliases]
-    )
+    out: List[str] = []
+    for alias in aliases:
+        out.append(f"/run-{alias}")
+        if alias not in RUN_COMMAND_ONLY_MODE_ALIASES:
+            out.append(f"/{alias}")
+    return ordered_unique(out)
 
 
 def build_natural_language_mode_aliases(aliases: Sequence[str]) -> List[str]:
     return ordered_unique(
         pattern.format(alias=alias)
         for alias in aliases
+        if alias not in RUN_COMMAND_ONLY_MODE_ALIASES
         for pattern in NATURAL_LANGUAGE_MODE_ALIAS_PATTERNS
     )
 

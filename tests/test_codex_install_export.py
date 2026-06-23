@@ -271,6 +271,8 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged
         )
+        self.assertIn("`run-goal` -> `orchestrator-goal`", merged)
+        self.assertNotIn("`goal` / `run-goal`", merged)
 
     def test_merge_global_agents_text_creates_minimal_file_when_missing(self) -> None:
         managed_block = INSTALL_MODULE.build_global_agents_managed_block(
@@ -320,6 +322,8 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn(
             "`monetize` / `run-monetize` -> `orchestrator-general`", merged
         )
+        self.assertIn("`run-goal` -> `orchestrator-goal`", merged)
+        self.assertNotIn("`goal` / `run-goal`", merged)
 
     def test_merge_workspace_agents_text_creates_minimal_file_when_missing(self) -> None:
         managed_block = INSTALL_MODULE.build_workspace_agents_managed_block(
@@ -731,6 +735,14 @@ class CodexInstallExportTest(unittest.TestCase):
             "請用 monetize",
         ):
             self.assertIn(f"`{token}`", adapter)
+
+    def test_input_adapter_reserves_native_goal_aliases(self) -> None:
+        adapter = EXPORT_MODULE.make_input_adapter("orchestrator-goal", ["goal"])
+
+        self.assertIn("`/run-goal`", adapter)
+        self.assertNotIn("`/goal`", adapter)
+        self.assertNotIn("`use goal`", adapter)
+        self.assertNotIn("`請用 goal`", adapter)
 
 
 if __name__ == "__main__":
