@@ -79,6 +79,37 @@ assert_contains "runtime dry copilot workspace target" "${copilot_workspace_dry}
 codex_workspace_dry="$(bash "${INSTALLER}" install balanced --runtime codex --model-set openai --workspace "${runtime_workspace}" --dry-run)"
 assert_contains "runtime dry codex workspace target" "${codex_workspace_dry}" "Target: ${runtime_workspace}/.codex"
 
+runtime_status_home="${tmp}/runtime-status-home"
+runtime_status_workspace="${tmp}/runtime-status-workspace"
+mkdir -p "${runtime_status_home}" "${runtime_status_workspace}"
+HOME="${runtime_status_home}" bash "${INSTALLER}" install premium --runtime codex --model-set openai --workspace "${runtime_status_workspace}" >"${tmp}/runtime-codex-install.out"
+assert_file_exists "runtime codex wrapper manifest" "${runtime_status_workspace}/.codex/.agents-pipeline-runtime-profile.json"
+assert_file_exists "runtime codex exporter manifest" "${runtime_status_workspace}/.codex/.agents-pipeline-codex-manifest.json"
+assert_file_exists "runtime codex global agents" "${runtime_status_home}/.codex/AGENTS.md"
+if [[ -f "${runtime_status_workspace}/.codex/AGENTS.md" ]]; then
+  echo "FAIL runtime codex workspace agents - unexpected workspace .codex/AGENTS.md" >&2
+  exit 1
+fi
+codex_status="$(HOME="${runtime_status_home}" bash "${INSTALLER}" status --runtime codex --workspace "${runtime_status_workspace}")"
+assert_contains "runtime codex status runtime" "${codex_status}" "Runtime: codex"
+assert_contains "runtime codex status profile" "${codex_status}" "Profile: premium"
+assert_contains "runtime codex status model set" "${codex_status}" "Model set: openai"
+assert_contains "runtime codex status managed files" "${codex_status}" "Managed files:"
+
+bash "${INSTALLER}" install premium --runtime copilot --model-set default --workspace "${runtime_status_workspace}" >"${tmp}/runtime-copilot-install.out"
+assert_file_exists "runtime copilot wrapper manifest" "${runtime_status_workspace}/.copilot/agents/.agents-pipeline-runtime-profile.json"
+copilot_status="$(bash "${INSTALLER}" status --runtime copilot --workspace "${runtime_status_workspace}")"
+assert_contains "runtime copilot status runtime" "${copilot_status}" "Runtime: copilot"
+assert_contains "runtime copilot status profile" "${copilot_status}" "Profile: premium"
+assert_contains "runtime copilot status model set" "${copilot_status}" "Model set: default"
+
+bash "${INSTALLER}" install premium --runtime claude --model-set default --workspace "${runtime_status_workspace}" --no-runner >"${tmp}/runtime-claude-install.out"
+assert_file_exists "runtime claude wrapper manifest" "${runtime_status_workspace}/.claude/agents/.agents-pipeline-runtime-profile.json"
+claude_status="$(bash "${INSTALLER}" status --runtime claude --workspace "${runtime_status_workspace}")"
+assert_contains "runtime claude status runtime" "${claude_status}" "Runtime: claude"
+assert_contains "runtime claude status profile" "${claude_status}" "Profile: premium"
+assert_contains "runtime claude status model set" "${claude_status}" "Model set: default"
+
 installed_config="${tmp}/installed-config"
 installed_home="${tmp}/installed-home"
 installed_workspace="${tmp}/installed-workspace"
@@ -105,6 +136,7 @@ test -f "${tmp}/.opencode/agents/reviewer.md"
 assert_contains "reviewer google model" "$(<"${tmp}/.opencode/agents/reviewer.md")" "model: $(model_tier google strong)"
 
 status="$(bash "${INSTALLER}" status --workspace "${tmp}")"
+assert_contains "status opencode runtime" "${status}" "Runtime: opencode"
 assert_contains "status balanced" "${status}" "balanced"
 assert_contains "status google" "${status}" "google"
 

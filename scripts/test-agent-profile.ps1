@@ -114,6 +114,47 @@ try {
         Assert-Equal "ps runtime codex dry exit" $codexWorkspaceDry.ExitCode 0
         Assert-Contains "ps runtime workspace codex target" $codexWorkspaceDry.Output "Target: $expectedCodexTarget"
 
+        $runtimeStatusHome = Join-Path $tmp "runtime-status-home"
+        $runtimeStatusWorkspace = Join-Path $tmp "runtime-status-workspace"
+        New-Item -ItemType Directory -Path $runtimeStatusHome, $runtimeStatusWorkspace -Force | Out-Null
+        $previousHome = $env:HOME
+        try {
+            $env:HOME = $runtimeStatusHome
+            $codexInstall = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "premium", "-Runtime", "codex", "-ModelSet", "openai", "-Workspace", $runtimeStatusWorkspace)
+            Assert-Equal "ps runtime codex install exit" $codexInstall.ExitCode 0
+            $codexTarget = Join-Path $runtimeStatusWorkspace ".codex"
+            Assert-FileExists "ps runtime codex wrapper manifest" (Join-Path $codexTarget ".agents-pipeline-runtime-profile.json")
+            Assert-FileExists "ps runtime codex exporter manifest" (Join-Path $codexTarget ".agents-pipeline-codex-manifest.json")
+            Assert-FileExists "ps runtime codex global agents" (Join-Path (Join-Path $runtimeStatusHome ".codex") "AGENTS.md")
+            Assert-FileNotExists "ps runtime codex workspace agents" (Join-Path $codexTarget "AGENTS.md")
+            $codexStatus = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Runtime", "codex", "-Workspace", $runtimeStatusWorkspace)
+            Assert-Equal "ps runtime codex status exit" $codexStatus.ExitCode 0
+            Assert-Contains "ps runtime codex status runtime" $codexStatus.Output "Runtime: codex"
+            Assert-Contains "ps runtime codex status profile" $codexStatus.Output "Profile: premium"
+            Assert-Contains "ps runtime codex status model set" $codexStatus.Output "Model set: openai"
+            Assert-Contains "ps runtime codex status managed files" $codexStatus.Output "Managed files:"
+        } finally {
+            $env:HOME = $previousHome
+        }
+
+        $copilotInstall = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "premium", "-Runtime", "copilot", "-ModelSet", "default", "-Workspace", $runtimeStatusWorkspace)
+        Assert-Equal "ps runtime copilot install exit" $copilotInstall.ExitCode 0
+        Assert-FileExists "ps runtime copilot wrapper manifest" (Join-Path (Join-Path (Join-Path $runtimeStatusWorkspace ".copilot") "agents") ".agents-pipeline-runtime-profile.json")
+        $copilotStatus = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Runtime", "copilot", "-Workspace", $runtimeStatusWorkspace)
+        Assert-Equal "ps runtime copilot status exit" $copilotStatus.ExitCode 0
+        Assert-Contains "ps runtime copilot status runtime" $copilotStatus.Output "Runtime: copilot"
+        Assert-Contains "ps runtime copilot status profile" $copilotStatus.Output "Profile: premium"
+        Assert-Contains "ps runtime copilot status model set" $copilotStatus.Output "Model set: default"
+
+        $claudeInstall = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "install", "premium", "-Runtime", "claude", "-ModelSet", "default", "-Workspace", $runtimeStatusWorkspace, "-NoRunner")
+        Assert-Equal "ps runtime claude install exit" $claudeInstall.ExitCode 0
+        Assert-FileExists "ps runtime claude wrapper manifest" (Join-Path (Join-Path (Join-Path $runtimeStatusWorkspace ".claude") "agents") ".agents-pipeline-runtime-profile.json")
+        $claudeStatus = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Runtime", "claude", "-Workspace", $runtimeStatusWorkspace)
+        Assert-Equal "ps runtime claude status exit" $claudeStatus.ExitCode 0
+        Assert-Contains "ps runtime claude status runtime" $claudeStatus.Output "Runtime: claude"
+        Assert-Contains "ps runtime claude status profile" $claudeStatus.Output "Profile: premium"
+        Assert-Contains "ps runtime claude status model set" $claudeStatus.Output "Model set: default"
+
         $installedRoot = Join-Path $tmp "installed-config"
         $installedHome = Join-Path $tmp "installed-home"
         New-Item -ItemType Directory -Path $installedHome -Force | Out-Null
@@ -163,6 +204,7 @@ try {
 
         $status = Invoke-Captured @("pwsh", "-NoProfile", "-File", $psInstaller, "status", "-Workspace", $tmp)
         Assert-Equal "ps status exit" $status.ExitCode 0
+        Assert-Contains "ps status opencode runtime" $status.Output "Runtime: opencode"
         Assert-Contains "ps status balanced" $status.Output "balanced"
         Assert-Contains "ps status anthropic" $status.Output "anthropic"
 

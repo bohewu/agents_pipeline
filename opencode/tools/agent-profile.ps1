@@ -381,7 +381,101 @@ function Invoke-RuntimeInstall {
         $installParams["ModelSetDir"] = $ModelSetDirPath
     }
 
+    $global:LASTEXITCODE = 0
     & $installer @installParams
+    $runtimeExitCode = $global:LASTEXITCODE
+    if (-not $?) {
+        throw "$RuntimeName runtime install failed."
+    }
+    if ($runtimeExitCode -ne 0) {
+        throw "$RuntimeName runtime install failed with exit code $runtimeExitCode."
+    }
+    if (-not $DryRun) {
+        Write-RuntimeProfileManifest -RuntimeName $RuntimeName -TargetPath (Resolve-AbsolutePath $Target)
+    }
+}
+
+function Get-RuntimeProfileManifestPath {
+    param([Parameter(Mandatory = $true)][string] $TargetPath)
+    return (Join-Path $TargetPath ".agents-pipeline-runtime-profile.json")
+}
+
+function Write-RuntimeProfileManifest {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $TargetPath
+    )
+    $runtimeUniformModel = $null
+    if ($Profile -eq "uniform") {
+        $runtimeUniformModel = if ($UniformModel) { $UniformModel } else { $Model }
+    }
+    $manifest = [pscustomobject]@{
+        tool = "agents_pipeline.agent-profile.runtime"
+        version = 1
+        runtime = $RuntimeName
+        profile = $Profile
+        mode = if ($Profile -eq "uniform") { "uniform" } else { "profile" }
+        modelSet = $ModelSet
+        uniformModel = $runtimeUniformModel
+        workspace = [System.IO.Path]::GetFullPath($workspacePath)
+        target = [System.IO.Path]::GetFullPath($TargetPath)
+        generatedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    }
+    Write-TextFile -Path (Get-RuntimeProfileManifestPath -TargetPath $TargetPath) -Text (($manifest | ConvertTo-Json -Depth 20) + "`n")
+}
+
+function Write-RuntimeProfileStatus {
+    param(
+        [Parameter(Mandatory = $true)][string] $RuntimeName,
+        [Parameter(Mandatory = $true)][string] $TargetPath
+    )
+    $manifestPath = Get-RuntimeProfileManifestPath -TargetPath $TargetPath
+    $codexManifestPath = Join-Path $TargetPath ".agents-pipeline-codex-manifest.json"
+    Write-Host "Runtime: $RuntimeName"
+    Write-Host "Target: $TargetPath"
+    $codexManifest = $null
+    if ($RuntimeName -eq "codex" -and (Test-Path -LiteralPath $codexManifestPath -PathType Leaf)) {
+        $codexManifest = Read-JsonFile -Path $codexManifestPath
+    }
+    if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+        $manifest = Read-JsonFile -Path $manifestPath
+    } elseif ($codexManifest) {
+        $manifest = $codexManifest
+    } else {
+        Write-Host "No $RuntimeName runtime profile manifest installed for target: $TargetPath"
+        return
+    }
+    $managedAgentNames = if ($manifest.managed_agent_names) { $manifest.managed_agent_names } elseif ($codexManifest) { $codexManifest.managed_agent_names } else { $null }
+    $managedAgentFiles = if ($manifest.managed_agent_files) { $manifest.managed_agent_files } elseif ($codexManifest) { $codexManifest.managed_agent_files } else { $null }
+    $names = if ($managedAgentNames) { @($managedAgentNames) } else { @() }
+    $files = if ($managedAgentFiles) { @($managedAgentFiles) } else { @() }
+    Write-Host "Profile: $($manifest.profile)"
+    Write-Host "Mode: $($manifest.mode)"
+    $manifestModelSet = if ($manifest.modelSet) { $manifest.modelSet } else { $manifest.model_set }
+    $manifestUniformModel = if ($manifest.uniformModel) { $manifest.uniformModel } else { $manifest.uniform_model }
+    $manifestSourceAgents = if ($manifest.sourceAgentsDir) { $manifest.sourceAgentsDir } else { $manifest.source_agents_dir }
+    $manifestTarget = if ($manifest.target) { $manifest.target } else { $manifest.target_dir }
+    if ($manifestModelSet) {
+        Write-Host "Model set: $manifestModelSet"
+    }
+    if ($manifestUniformModel) {
+        Write-Host "Uniform model: $manifestUniformModel"
+    }
+    if ($manifest.generatedAt) {
+        Write-Host "Generated at: $($manifest.generatedAt)"
+    }
+    if ($manifestSourceAgents) {
+        Write-Host "Source agents: $manifestSourceAgents"
+    }
+    if ($manifestTarget) {
+        Write-Host "Target dir: $manifestTarget"
+    }
+    if ($names.Count -gt 0) {
+        Write-Host "Managed agents: $($names.Count)"
+    }
+    if ($files.Count -gt 0) {
+        Write-Host "Managed files: $($files.Count)"
+    }
 }
 
 function Get-ManagedLookup {
@@ -553,15 +647,19 @@ $targetAgentsDir = Join-Path $openCodeDir "agents"
 $manifestPath = Join-Path $openCodeDir ".agents-pipeline-agent-profile.json"
 
 if ($Runtime -ne "opencode") {
+    if ([string]::IsNullOrWhiteSpace($Target)) {
+        $Target = Get-RuntimeTargetFromWorkspace -RuntimeName $Runtime -WorkspacePath $workspacePath
+    }
     if ($Action -eq "list") {
         Write-RuntimeProfileList -RuntimeName $Runtime -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
         return
     }
-    if ($Action -ne "install") {
-        throw "$Action is unsupported for -Runtime $Runtime; supported actions are install and list."
+    if ($Action -eq "status") {
+        Write-RuntimeProfileStatus -RuntimeName $Runtime -TargetPath (Resolve-AbsolutePath $Target)
+        return
     }
-    if ([string]::IsNullOrWhiteSpace($Target)) {
-        $Target = Get-RuntimeTargetFromWorkspace -RuntimeName $Runtime -WorkspacePath $workspacePath
+    if ($Action -ne "install") {
+        throw "$Action is unsupported for -Runtime $Runtime; supported actions are install, status, and list."
     }
     $runtimeInstaller = Resolve-RuntimeInstallerPath -RuntimeName $Runtime -ScriptRoot $scriptRoot
     Invoke-RuntimeInstall -RuntimeName $Runtime -InstallerPath $runtimeInstaller -ProfileDirPath $profileDirPath -ModelSetDirPath $modelSetDirPath
@@ -595,6 +693,7 @@ if ($Action -eq "list") {
 }
 
 if ($Action -eq "status") {
+    Write-Host "Runtime: opencode"
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         Write-Host "No agent model profile installed for workspace: $workspacePath"
         return

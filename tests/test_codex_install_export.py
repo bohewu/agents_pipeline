@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -475,6 +476,45 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("[string]$GlobalAgentsTarget", install_ps1)
         self.assertIn('"--global-agents-target"', install_ps1)
         self.assertIn("--global-agents-target", install_py)
+
+    def test_codex_manifest_records_runtime_profile_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            target_dir = Path(temp_dir_name) / ".codex"
+            manifest_path = target_dir / INSTALL_MODULE.MANIFEST_FILENAME
+
+            INSTALL_MODULE.write_manifest(
+                manifest_path,
+                agent_names=["orchestrator-flow"],
+                agent_files=["agents/orchestrator-flow.toml"],
+                profile="premium",
+                model_set="openai",
+                uniform_model=None,
+                source_agents_dir=REPO_ROOT / "opencode" / "agents",
+                target_dir=target_dir,
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["profile"], "premium")
+            self.assertEqual(manifest["mode"], "profile")
+            self.assertEqual(manifest["model_set"], "openai")
+            self.assertEqual(
+                manifest["managed_agent_names"], ["orchestrator-flow"]
+            )
+
+    def test_agent_profile_wrappers_support_runtime_status_manifests(self) -> None:
+        agent_profile_sh = (REPO_ROOT / "opencode/tools/agent-profile.sh").read_text(
+            encoding="utf-8"
+        )
+        agent_profile_ps1 = (REPO_ROOT / "opencode/tools/agent-profile.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(".agents-pipeline-runtime-profile.json", agent_profile_sh)
+        self.assertIn("write_runtime_profile_manifest", agent_profile_sh)
+        self.assertIn("print_runtime_status(args.runtime", agent_profile_sh)
+        self.assertIn(".agents-pipeline-runtime-profile.json", agent_profile_ps1)
+        self.assertIn("Write-RuntimeProfileManifest", agent_profile_ps1)
+        self.assertIn("Write-RuntimeProfileStatus", agent_profile_ps1)
 
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)

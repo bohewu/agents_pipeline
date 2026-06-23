@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.5] - 2026-06-23
+
+### Fixed
+
+- `agent-profile status --runtime <runtime>` now reports the selected runtime target instead of only showing the default OpenCode workspace profile state.
+- Runtime profile installs through `agent-profile` now write a small runtime manifest for Codex, Copilot, and Claude Code so status can report the installed profile/model set.
+
 ## [0.25.4] - 2026-06-23
 
 ### Changed

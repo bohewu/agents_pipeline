@@ -252,7 +252,70 @@ def run_runtime_install(args: argparse.Namespace, installer: Path, profile_dir: 
         cmd.extend(["--profile-dir", str(profile_dir), "--model-set-dir", str(model_set_dir)])
 
     completed = subprocess.run(cmd)
+    if completed.returncode == 0 and not args.dry_run:
+        write_runtime_profile_manifest(args, Path(args.target).expanduser().resolve())
     return completed.returncode
+
+
+def runtime_profile_manifest_path(target: Path) -> Path:
+    return target / ".agents-pipeline-runtime-profile.json"
+
+
+def write_runtime_profile_manifest(args: argparse.Namespace, target: Path) -> None:
+    uniform_model = args.uniform_model or (args.model if args.profile == "uniform" else None)
+    manifest = {
+        "tool": "agents_pipeline.agent-profile.runtime",
+        "version": 1,
+        "runtime": args.runtime,
+        "profile": args.profile,
+        "mode": "uniform" if args.profile == "uniform" else "profile",
+        "modelSet": args.model_set,
+        "uniformModel": uniform_model,
+        "workspace": str(Path(args.workspace or ".").expanduser().resolve()),
+        "target": str(target),
+        "generatedAt": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    write_text(runtime_profile_manifest_path(target), json.dumps(manifest, indent=2) + "\n")
+
+
+def print_runtime_status(runtime: str, target: Path) -> int:
+    manifest_path = runtime_profile_manifest_path(target)
+    codex_manifest_path = target / ".agents-pipeline-codex-manifest.json"
+    print(f"Runtime: {runtime}")
+    print(f"Target: {target}")
+    codex_manifest = {}
+    if runtime == "codex" and codex_manifest_path.is_file():
+        codex_manifest = read_json(codex_manifest_path)
+    if manifest_path.is_file():
+        manifest = read_json(manifest_path)
+    elif codex_manifest:
+        manifest = codex_manifest
+    else:
+        print(f"No {runtime} runtime profile manifest installed for target: {target}")
+        return 0
+    names = manifest.get("managed_agent_names") or codex_manifest.get("managed_agent_names")
+    files = manifest.get("managed_agent_files") or codex_manifest.get("managed_agent_files")
+    print(f"Profile: {manifest.get('profile')}")
+    print(f"Mode: {manifest.get('mode')}")
+    model_set = manifest.get("modelSet") or manifest.get("model_set")
+    uniform_model = manifest.get("uniformModel") or manifest.get("uniform_model")
+    source_agents = manifest.get("sourceAgentsDir") or manifest.get("source_agents_dir")
+    target_dir = manifest.get("target") or manifest.get("target_dir")
+    if model_set:
+        print(f"Model set: {model_set}")
+    if uniform_model:
+        print(f"Uniform model: {uniform_model}")
+    if manifest.get("generatedAt"):
+        print(f"Generated at: {manifest.get('generatedAt')}")
+    if source_agents:
+        print(f"Source agents: {source_agents}")
+    if target_dir:
+        print(f"Target dir: {target_dir}")
+    if isinstance(names, list):
+        print(f"Managed agents: {len(names)}")
+    if isinstance(files, list):
+        print(f"Managed files: {len(files)}")
+    return 0
 
 
 def is_safe_name(value: str) -> bool:
@@ -383,14 +446,16 @@ def main() -> int:
                 raise RuntimeError("--uniform-model is only valid with the built-in 'uniform' profile.")
     else:
         model_set_dir = Path(args.model_set_dir).expanduser().resolve() if args.model_set_dir else resolve_runtime_model_set_dir(args.runtime)
-        if args.action == "list":
-            list_runtime_profiles(args.runtime, profile_dir, model_set_dir)
-            return 0
-        if args.action != "install":
-            raise RuntimeError(f"{args.action} is unsupported for --runtime {args.runtime}; supported actions are install and list.")
         workspace = Path(args.workspace or ".").expanduser().resolve()
         if not args.target:
             args.target = str(runtime_target_from_workspace(args.runtime, workspace))
+        if args.action == "list":
+            list_runtime_profiles(args.runtime, profile_dir, model_set_dir)
+            return 0
+        if args.action == "status":
+            return print_runtime_status(args.runtime, Path(args.target).expanduser().resolve())
+        if args.action != "install":
+            raise RuntimeError(f"{args.action} is unsupported for --runtime {args.runtime}; supported actions are install, status, and list.")
         installer = resolve_runtime_installer(args.runtime)
         return run_runtime_install(args, installer, profile_dir, model_set_dir)
 
@@ -419,6 +484,7 @@ def main() -> int:
         return 0
 
     if args.action == "status":
+        print("Runtime: opencode")
         if not manifest_path.is_file():
             print(f"No agent model profile installed for workspace: {workspace}")
             return 0

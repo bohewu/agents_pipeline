@@ -378,9 +378,30 @@ def parse_manifest(path: Path) -> Optional[Dict[str, List[str]]]:
 
 
 def write_manifest(
-    path: Path, *, agent_names: Sequence[str], agent_files: Sequence[str]
+    path: Path,
+    *,
+    agent_names: Sequence[str],
+    agent_files: Sequence[str],
+    profile: Optional[str],
+    model_set: Optional[str],
+    uniform_model: Optional[str],
+    source_agents_dir: Path,
+    target_dir: Path,
 ) -> None:
+    mode = "default"
+    if uniform_model:
+        mode = "uniform"
+    elif profile:
+        mode = "profile"
     payload = {
+        "tool": "agents_pipeline.install-codex-config",
+        "version": 2,
+        "profile": profile or ("uniform" if uniform_model else None),
+        "mode": mode,
+        "model_set": model_set,
+        "uniform_model": uniform_model,
+        "source_agents_dir": source_agents_dir.resolve().as_posix(),
+        "target_dir": target_dir.resolve().as_posix(),
         "managed_agent_names": sorted(agent_names),
         "managed_agent_files": sorted(agent_files),
     }
@@ -911,6 +932,11 @@ def main() -> int:
             manifest_path,
             agent_names=current_names,
             agent_files=current_files,
+            profile=args.agent_profile,
+            model_set=args.model_set,
+            uniform_model=args.uniform_model,
+            source_agents_dir=source_agents_dir,
+            target_dir=target_dir,
         )
 
         print(f"Merged Codex config into {target_dir.as_posix()}")

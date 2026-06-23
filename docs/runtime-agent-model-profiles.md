@@ -28,6 +28,7 @@ Runtime agent model profiles let generated agent files opt into per-agent model 
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list -Runtime claude
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime codex -ModelSet openai -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Runtime codex -Workspace .
 pwsh -NoProfile -File .\scripts\install-codex.ps1 -AgentProfile balanced -ModelSet openai
 pwsh -NoProfile -File .\scripts\install-copilot.ps1 -AgentProfile balanced -ModelSet default
 pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -ModelSet default
@@ -39,6 +40,7 @@ pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -Model
 bash ~/.config/opencode/tools/agent-profile.sh list --runtime claude
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime codex --model-set openai --workspace .
+bash ~/.config/opencode/tools/agent-profile.sh status --runtime codex --workspace .
 scripts/install-codex.sh --agent-profile balanced --model-set openai
 scripts/install-copilot.sh --agent-profile balanced --model-set default
 scripts/install-claude.sh --agent-profile balanced --model-set default
@@ -46,4 +48,4 @@ scripts/install-claude.sh --agent-profile balanced --model-set default
 
 When invoked through `agent-profile`, runtime installs are workspace-first: omitted `--workspace` / `-Workspace` means the current directory, and omitted `--target` / `-Target` derives the runtime target from that workspace (`.claude/agents`, `.copilot/agents`, or `.codex`). Codex profile installs through `agent-profile` keep generated agent TOML in the workspace `.codex` target but route managed global Codex notes to the default global Codex home (`~/.codex/AGENTS.override.md` when active, otherwise `~/.codex/AGENTS.md`); they do not update the caller repo's root `AGENTS.md` or workspace `.codex/AGENTS.md`. Use the direct Codex installer with its explicit workspace-root option only when repo-root `AGENTS.md` merging is intentional. Use `--target` / `-Target` only for an explicit override, such as an intentional global install to `$HOME/.claude/agents`.
 
-Use `agent-profile.* install uniform --runtime <runtime> --uniform-model <model>` to apply one runtime model to every generated agent. For compatibility with the OpenCode profile UX, `install uniform --runtime <runtime> --model <model>` also maps to the runtime installer's uniform-model option. `status` and `clear` remain OpenCode-only actions.
+Use `agent-profile.* install uniform --runtime <runtime> --uniform-model <model>` to apply one runtime model to every generated agent. For compatibility with the OpenCode profile UX, `install uniform --runtime <runtime> --model <model>` also maps to the runtime installer's uniform-model option. `status --runtime <runtime>` reports the selected runtime target; omitted runtime still means OpenCode. `clear` remains OpenCode-only.
