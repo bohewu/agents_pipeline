@@ -6,7 +6,7 @@ const http = require("http");
 const net = require("net");
 const os = require("os");
 const path = require("path");
-const { spawn, spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const FIXTURE_DIR = path.join(__dirname, "fixtures", "local-preview-smoke");
@@ -14,9 +14,6 @@ const HOST = "127.0.0.1";
 const START_TIMEOUT_MS = 15000;
 const STOP_TIMEOUT_MS = 15000;
 const POLL_INTERVAL_MS = 200;
-const PYTHON_CANDIDATES = process.platform === "win32"
-  ? [["py", ["-3"]], ["python", []], ["python3", []]]
-  : [["python3", []], ["python", []]];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,19 +57,6 @@ function formatError(error, captures = []) {
     parts.push(capture.render());
   }
   return new Error(parts.join("\n\n"));
-}
-
-function resolvePythonCommand() {
-  for (const [command, prefix] of PYTHON_CANDIDATES) {
-    const probe = spawnSync(command, [...prefix, "--version"], {
-      cwd: REPO_ROOT,
-      encoding: "utf8"
-    });
-    if (!probe.error && probe.status === 0) {
-      return { command, prefix };
-    }
-  }
-  throw new Error("Could not find python3/python runtime required for local-preview smoke validation.");
 }
 
 function resolveNpmCommand() {
@@ -304,19 +288,20 @@ async function waitForPidFile(pidFile) {
   }, START_TIMEOUT_MS, `Listener pid-file check for ${pidFile}`);
 }
 
-async function runDirectPreviewScenario(python) {
+async function runDirectPreviewScenario() {
   const port = await getFreePort();
   const url = `http://${HOST}:${port}/`;
+  const serverScript = path.join(FIXTURE_DIR, "server.js");
   let child = null;
   let capture = null;
   let scenarioError = null;
 
   try {
     child = spawn(
-      python.command,
-      [...python.prefix, "-m", "http.server", String(port), "--bind", HOST],
+      process.execPath,
+      [serverScript, `--host=${HOST}`, `--port=${port}`],
       {
-        cwd: REPO_ROOT,
+        cwd: FIXTURE_DIR,
         stdio: ["ignore", "pipe", "pipe"]
       }
     );
@@ -441,10 +426,9 @@ async function runNpmWrapperScenario() {
 }
 
 async function main() {
-  const python = resolvePythonCommand();
-  console.log(`INFO using python command: ${python.command} ${python.prefix.join(" ")}`.trim());
+  console.log(`INFO using node command: ${process.execPath}`);
   console.log(`INFO using npm command: ${resolveNpmCommand()}`);
-  await runDirectPreviewScenario(python);
+  await runDirectPreviewScenario();
   await runNpmWrapperScenario();
   console.log("OK local-preview lifecycle smoke validation completed");
 }

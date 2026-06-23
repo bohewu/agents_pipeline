@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Fixed
+
+- Stabilized the local-preview lifecycle smoke validation on macOS by using the shared Node fixture for the direct preview listener instead of Python `http.server`.
+
 ## [0.25.5] - 2026-06-23
 
 ### Fixed
