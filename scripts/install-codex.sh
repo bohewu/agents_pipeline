@@ -6,12 +6,14 @@ usage() {
 Install Codex multi-agent role config generated from OpenCode agents.
 
 Usage:
-  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--dry-run] [--no-backup] [--force] [model profile options]
+  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--dry-run] [--no-backup] [--force] [model profile options]
 
 Options:
   --target <path>  Install destination (default: ~/.codex)
   --workspace-root <path>
                     Workspace root for safe AGENTS.md managed-block merging when target is <workspace>/.codex
+  --global-agents-target <path>
+                    Codex home directory whose AGENTS file receives the managed global block
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing config.toml, agents/*.toml, and managed AGENTS.md files
   --force          Accepted for backward compatibility; merged install is already enabled by default
@@ -53,6 +55,7 @@ fi
 
 TARGET_DIR="${HOME}/.codex"
 WORKSPACE_ROOT=""
+GLOBAL_AGENTS_TARGET=""
 DRY_RUN=0
 NO_BACKUP=0
 FORCE_OVERWRITE=1
@@ -79,6 +82,14 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       WORKSPACE_ROOT="$2"
+      shift 2
+      ;;
+    --global-agents-target)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --global-agents-target" >&2
+        exit 2
+      fi
+      GLOBAL_AGENTS_TARGET="$2"
       shift 2
       ;;
     --dry-run)
@@ -187,12 +198,16 @@ PY
 }
 
 WORKSPACE_AGENTS_PATH=""
-if [[ -n "${WORKSPACE_ROOT}" ]]; then
+if [[ -z "${GLOBAL_AGENTS_TARGET}" && -n "${WORKSPACE_ROOT}" ]]; then
   WORKSPACE_AGENTS_PATH="$(resolve_workspace_agents_path "${TARGET_DIR}" "${WORKSPACE_ROOT}")"
 fi
 GLOBAL_AGENTS_MERGE_PATH=""
-if [[ -z "${WORKSPACE_AGENTS_PATH}" ]]; then
-  GLOBAL_AGENTS_MERGE_PATH="$(resolve_global_agents_path "${TARGET_DIR}")"
+GLOBAL_AGENTS_MERGE_DIR="${TARGET_DIR}"
+if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
+  GLOBAL_AGENTS_MERGE_DIR="${GLOBAL_AGENTS_TARGET}"
+fi
+if [[ -n "${GLOBAL_AGENTS_TARGET}" || -z "${WORKSPACE_AGENTS_PATH}" ]]; then
+  GLOBAL_AGENTS_MERGE_PATH="$(resolve_global_agents_path "${GLOBAL_AGENTS_MERGE_DIR}")"
 fi
 
 echo "Source agents: ${SOURCE_AGENTS}"
@@ -237,7 +252,7 @@ if [[ ${NO_BACKUP} -eq 0 ]]; then
     backup_needed=1
   fi
   if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
-    if [[ -f "${TARGET_DIR}/AGENTS.md" || -f "${TARGET_DIR}/AGENTS.override.md" ]]; then
+    if [[ -f "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.md" || -f "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.override.md" ]]; then
       backup_needed=1
     fi
   fi
@@ -265,11 +280,11 @@ if [[ ${NO_BACKUP} -eq 0 ]]; then
         cp -a "${WORKSPACE_AGENTS_PATH}" "${backup_dir}/AGENTS.md"
       fi
       if [[ -n "${GLOBAL_AGENTS_MERGE_PATH}" ]]; then
-        if [[ -f "${TARGET_DIR}/AGENTS.md" ]]; then
-          cp -a "${TARGET_DIR}/AGENTS.md" "${backup_dir}/AGENTS.md"
+        if [[ -f "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.md" ]]; then
+          cp -a "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.md" "${backup_dir}/AGENTS.md"
         fi
-        if [[ -f "${TARGET_DIR}/AGENTS.override.md" ]]; then
-          cp -a "${TARGET_DIR}/AGENTS.override.md" "${backup_dir}/AGENTS.override.md"
+        if [[ -f "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.override.md" ]]; then
+          cp -a "${GLOBAL_AGENTS_MERGE_DIR}/AGENTS.override.md" "${backup_dir}/AGENTS.override.md"
         fi
       fi
       echo "Backup created: ${backup_dir}"
@@ -294,6 +309,9 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
 fi
 if [[ -n "${WORKSPACE_ROOT}" ]]; then
   EXPORT_CMD+=(--workspace-root "${WORKSPACE_ROOT}")
+fi
+if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
+  EXPORT_CMD+=(--global-agents-target "${GLOBAL_AGENTS_TARGET}")
 fi
 if [[ -n "${AGENT_PROFILE}" ]]; then
   EXPORT_CMD+=(--agent-profile "${AGENT_PROFILE}")

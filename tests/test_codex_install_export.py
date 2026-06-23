@@ -435,7 +435,7 @@ class CodexInstallExportTest(unittest.TestCase):
             install_ps1,
         )
 
-    def test_agent_profile_does_not_forward_workspace_root_to_codex_installers(self) -> None:
+    def test_agent_profile_routes_codex_agents_merge_to_global_target(self) -> None:
         agent_profile_sh = (REPO_ROOT / "opencode/tools/agent-profile.sh").read_text(
             encoding="utf-8"
         )
@@ -445,6 +445,10 @@ class CodexInstallExportTest(unittest.TestCase):
 
         self.assertNotIn('"--workspace-root"', agent_profile_sh)
         self.assertNotIn("WorkspaceRoot", agent_profile_ps1)
+        self.assertIn('"--global-agents-target"', agent_profile_sh)
+        self.assertIn('str(Path.home() / ".codex")', agent_profile_sh)
+        self.assertIn('"GlobalAgentsTarget"', agent_profile_ps1)
+        self.assertIn("Get-DefaultCodexTarget", agent_profile_ps1)
         invoke_runtime_lines = [
             line
             for line in agent_profile_ps1.splitlines()
@@ -452,6 +456,21 @@ class CodexInstallExportTest(unittest.TestCase):
         ]
         self.assertEqual(1, len(invoke_runtime_lines))
         self.assertNotIn("WorkspacePath", invoke_runtime_lines[0])
+
+    def test_codex_installers_support_explicit_global_agents_target(self) -> None:
+        install_sh = (REPO_ROOT / "scripts/install-codex.sh").read_text(
+            encoding="utf-8"
+        )
+        install_ps1 = (REPO_ROOT / "scripts/install-codex.ps1").read_text(
+            encoding="utf-8"
+        )
+        install_py = INSTALL_SCRIPT_PATH.read_text(encoding="utf-8")
+
+        self.assertIn("--global-agents-target", install_sh)
+        self.assertIn("GLOBAL_AGENTS_TARGET", install_sh)
+        self.assertIn("[string]$GlobalAgentsTarget", install_ps1)
+        self.assertIn('"--global-agents-target"', install_ps1)
+        self.assertIn("--global-agents-target", install_py)
 
     def test_exporter_default_max_depth_is_two(self) -> None:
         self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)

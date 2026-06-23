@@ -219,6 +219,8 @@ def run_runtime_install(args: argparse.Namespace, installer: Path, profile_dir: 
     cmd = ["bash", str(installer)]
     if args.target:
         cmd.extend(["--target", args.target])
+    if args.runtime == "codex":
+        cmd.extend(["--global-agents-target", str(Path.home() / ".codex")])
     if args.dry_run:
         cmd.append("--dry-run")
     if args.no_backup:

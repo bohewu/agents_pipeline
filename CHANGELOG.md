@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.3] - 2026-06-23
+
+### Fixed
+
+- Codex runtime model-profile installs through `agent-profile` now keep managed global Codex notes in the default global Codex home (`~/.codex/AGENTS.override.md` when active, otherwise `~/.codex/AGENTS.md`) instead of writing `AGENTS.md` under the workspace `.codex` target.
+
 ## [0.25.2] - 2026-06-23
 
 ### Fixed

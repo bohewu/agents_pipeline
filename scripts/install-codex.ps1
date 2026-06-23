@@ -3,6 +3,7 @@
 param(
     [string]$Target,
     [string]$WorkspaceRoot,
+    [string]$GlobalAgentsTarget,
     [switch]$DryRun,
     [switch]$NoBackup,
     [switch]$Force,
@@ -94,10 +95,15 @@ if ($Target -match '^-{1,2}[A-Za-z]') {
 }
 
 $targetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Target)
+$globalAgentsTargetPath = $null
+if ($GlobalAgentsTarget) {
+    $globalAgentsTargetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GlobalAgentsTarget)
+}
 $workspaceRootPath = $null
 $workspaceAgentsPath = $null
 $globalAgentsMergePath = $null
-if ($WorkspaceRoot) {
+$globalAgentsMergeDir = if ($globalAgentsTargetPath) { $globalAgentsTargetPath } else { $targetPath }
+if (-not $globalAgentsTargetPath -and $WorkspaceRoot) {
     $workspaceRootPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($WorkspaceRoot)
     $expectedWorkspaceTarget = [System.IO.Path]::GetFullPath((Join-Path $workspaceRootPath ".codex"))
     if ([System.IO.Path]::GetFullPath($targetPath) -eq $expectedWorkspaceTarget) {
@@ -105,7 +111,7 @@ if ($WorkspaceRoot) {
     }
 }
 if (-not $workspaceAgentsPath) {
-    $globalAgentsMergePath = Get-GlobalAgentsMergePath -TargetPath $targetPath
+    $globalAgentsMergePath = Get-GlobalAgentsMergePath -TargetPath $globalAgentsMergeDir
 }
 $pythonInvocation = @(Get-PythonInvocation)
 $pythonCmd = $pythonInvocation[0]
@@ -147,12 +153,12 @@ if (Test-Path -LiteralPath $targetPath -PathType Container) {
         $existingRoles = Get-ChildItem -Path $agentsDir -Filter "*.toml" -File -ErrorAction SilentlyContinue
     }
 
-    if ($globalAgentsMergePath) {
-        foreach ($globalAgentsName in @("AGENTS.md", "AGENTS.override.md")) {
-            $candidate = Join-Path $targetPath $globalAgentsName
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                $existingGlobalAgents += Get-Item -LiteralPath $candidate
-            }
+}
+if ($globalAgentsMergePath -and (Test-Path -LiteralPath $globalAgentsMergeDir -PathType Container)) {
+    foreach ($globalAgentsName in @("AGENTS.md", "AGENTS.override.md")) {
+        $candidate = Join-Path $globalAgentsMergeDir $globalAgentsName
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $existingGlobalAgents += Get-Item -LiteralPath $candidate
         }
     }
 }
@@ -216,6 +222,9 @@ if ($DryRun) {
 }
 if ($WorkspaceRoot) {
     $exportArgs += @("--workspace-root", $WorkspaceRoot)
+}
+if ($globalAgentsTargetPath) {
+    $exportArgs += @("--global-agents-target", $globalAgentsTargetPath)
 }
 if ($AgentProfile) {
     $exportArgs += @("--agent-profile", $AgentProfile)

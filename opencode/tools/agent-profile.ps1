@@ -311,6 +311,10 @@ function Get-RuntimeTargetFromWorkspace {
     }
 }
 
+function Get-DefaultCodexTarget {
+    return (Join-Path $HOME ".codex")
+}
+
 function Invoke-RuntimeInstall {
     param(
         [Parameter(Mandatory = $true)][string] $RuntimeName,
@@ -329,6 +333,9 @@ function Invoke-RuntimeInstall {
     $installParams = @{}
     if ($Target) {
         $installParams["Target"] = $Target
+    }
+    if ($RuntimeName -eq "codex") {
+        $installParams["GlobalAgentsTarget"] = Get-DefaultCodexTarget
     }
     if ($DryRun) {
         $installParams["DryRun"] = $true

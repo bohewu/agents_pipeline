@@ -642,6 +642,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--global-agents-target",
+        default=None,
+        help=(
+            "Optional Codex home directory whose AGENTS file receives the managed "
+            "global block. When provided, this overrides the default target-dir "
+            "global AGENTS merge and disables workspace AGENTS merging."
+        ),
+    )
+    parser.add_argument(
         "--catalog",
         default="AGENTS.md",
         help="Optional AGENTS catalog used for strict all-agent coverage checks.",
@@ -721,17 +730,31 @@ def main() -> int:
     source_agents_dir = Path(args.source_agents).expanduser()
     target_dir = Path(args.target_dir).expanduser()
     workspace_root = Path(args.workspace_root).expanduser() if args.workspace_root else None
+    global_agents_target = (
+        Path(args.global_agents_target).expanduser()
+        if args.global_agents_target
+        else None
+    )
     catalog_path = resolve_catalog_path(args.catalog, asset_root=asset_layout.asset_root)
     profile_dir = Path(args.profile_dir).expanduser()
     model_set_dir = Path(args.model_set_dir).expanduser()
     temp_root = resolve_temp_root(repo_root=asset_layout.asset_root, temp_dir=args.temp_dir)
     support_tree_source = asset_layout.support_tree_source
     support_tree_target = target_dir / "opencode"
-    workspace_agents_path = resolve_workspace_agents_path(target_dir, workspace_root)
+    workspace_agents_path = (
+        None
+        if global_agents_target is not None
+        else resolve_workspace_agents_path(target_dir, workspace_root)
+    )
     global_agents_path = None
     global_agents_block = None
     workspace_agents_block = None
-    if workspace_agents_path is not None:
+    if global_agents_target is not None:
+        global_agents_path = resolve_global_agents_path(global_agents_target)
+        global_agents_block = build_global_agents_managed_block(
+            support_tree_source / "commands"
+        )
+    elif workspace_agents_path is not None:
         workspace_agents_block = build_workspace_agents_managed_block(
             support_tree_source / "commands"
         )
