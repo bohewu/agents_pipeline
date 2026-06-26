@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.25.7] - 2026-06-26
+
+### Added
+
+- Added branch-first repo-local modernization guidance for `/run-modernize --mode=branch`, including branch naming, dirty-worktree handling, branch-local docs, and optional selected-phase execution handoff.
+
 ## [0.25.6] - 2026-06-23
 
 ### Fixed

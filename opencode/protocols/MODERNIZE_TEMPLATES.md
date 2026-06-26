@@ -3,9 +3,15 @@
 Use these templates for `/run-modernize` outputs to keep structure consistent.
 See `opencode/protocols/MODERNIZE_EXAMPLE.md` for a concrete example.
 
-All artifacts follow a **Source-to-Target migration model**:
+By default, artifacts follow a **Source-to-Target migration model**:
 - **Source Project (A):** The legacy system being analyzed (read-only).
 - **Target Project (B):** The new project where the modernized system will be built.
+
+When `/run-modernize --mode=branch` is used, artifacts instead follow a **repo-local branch model**:
+- **Source Project:** The current repository being modernized.
+- **Base Branch:** The branch the modernization branch was created from.
+- **Target Branch:** The new `modernize/...` branch where docs and optional implementation happen.
+- In branch mode, do not invent a separate project B. Treat target references as "same repository on `<target branch>`."
 
 ## Format Requirements
 
@@ -14,7 +20,7 @@ Every artifact MUST be human-readable and include:
 2. **Table of Contents** (for long artifacts, typically more than 5 sections)
 3. **Section Structure** (consistent headings; numbering optional)
 4. **Narrative Context** (add prose where needed, not just headers)
-5. **Source/Target References** (every artifact must reference both project paths)
+5. **Source/Target References** (every artifact must reference both project paths; in branch mode, every artifact must reference source path, base branch, and target branch)
 
 If a section is not applicable, write `N/A` with a short reason.
 
@@ -72,11 +78,12 @@ If the user provides scope exclusions (features to remove, controllers to defer,
 
 Source: <source project path>
 Target: <target project path>
+Branch Mode (when applicable): <base branch> -> <target branch>
 
 ## Documents
 
 1. [Source Assessment](modernize-source-assessment.md) — Current state analysis of project A
-2. [Target Design](modernize-target-design.md) — Architecture and structure of project B
+2. [Target Design](modernize-target-design.md) — Architecture and structure of project B or the target branch
 3. [Migration Strategy](modernize-migration-strategy.md) — How to build B while A runs
 4. [Migration Roadmap](modernize-migration-roadmap.md) — Timeline, phases, and milestones
 5. [Migration Risks](modernize-migration-risks.md) — Risk register and governance
@@ -100,6 +107,7 @@ Target: <target project path>
 
 > **Source:** <source project path>
 > **Target:** <target project path>
+> **Branch Mode:** <base branch> -> <target branch, if applicable>
 
 <Executive summary: 1-2 sentences describing the current state of project A, primary stack, and migration readiness.>
 
@@ -170,8 +178,9 @@ Target: <target project path>
 
 > **Source:** <source project path>
 > **Target:** <target project path>
+> **Branch Mode:** <base branch> -> <target branch, if applicable>
 
-<Executive summary: 1-2 sentences describing the target project B, key architectural choices, and relationship to project A.>
+<Executive summary: 1-2 sentences describing the target project B or target branch, key architectural choices, and relationship to project A/current code.>
 
 ## Table of Contents
 
@@ -193,7 +202,7 @@ Target: <target project path>
 
 ## 2. Target Architecture
 
-<High-level architecture of project B. Layers, services, data flow. Include a logical architecture diagram in text/ASCII if helpful. Explain how the architecture addresses the pain points identified in the source assessment.>
+<High-level architecture of project B or the target branch direction. Layers, services, data flow. Include a logical architecture diagram in text/ASCII if helpful. Explain how the architecture addresses the pain points identified in the source assessment.>
 
 ## 3. Directory Layout
 
@@ -221,7 +230,7 @@ Target: <target project path>
 
 ## 8. Observability Strategy
 
-<Logging, monitoring, alerting, tracing approach for project B. What gets instrumented and why.>
+<Logging, monitoring, alerting, tracing approach for project B or the target branch. What gets instrumented and why.>
 
 ## 9. API Contract with Source (During Migration)
 
@@ -245,6 +254,7 @@ Target: <target project path>
 
 > **Source:** <source project path>
 > **Target:** <target project path>
+> **Branch Mode:** <base branch> -> <target branch, if applicable>
 
 <Executive summary: 1-2 sentences on the chosen migration approach and why.>
 
@@ -326,6 +336,7 @@ The following table maps each legacy component area to a refactor-vs-rewrite rec
 
 > **Source:** <source project path>
 > **Target:** <target project path>
+> **Branch Mode:** <base branch> -> <target branch, if applicable>
 
 <Executive summary: 1-2 sentences on timeline, phase count, estimated duration, and key milestones.>
 
@@ -353,7 +364,7 @@ The following table maps each legacy component area to a refactor-vs-rewrite rec
 
 ## 2. Phase 0: Target Scaffold
 
-<Initial setup of project B — repo creation, CI/CD, base infrastructure, container baseline. Concrete deliverables and exit criteria.>
+<Initial setup of project B, or branch-local foundation work when using branch mode — repo creation when applicable, CI/CD, base infrastructure, container baseline. Concrete deliverables and exit criteria.>
 
 ## 3. Phase 1–N: Component Migration
 
@@ -414,6 +425,7 @@ If the user specified scope exclusions, list them here with rationale and future
 
 > **Source:** <source project path>
 > **Target:** <target project path>
+> **Branch Mode:** <base branch> -> <target branch, if applicable>
 
 <Executive summary: 1-2 sentences on top risks and the governance model used to manage them.>
 

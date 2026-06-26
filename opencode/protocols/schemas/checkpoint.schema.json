@@ -86,8 +86,11 @@
         },
         "modernize_mode": {
           "type": "string",
-          "enum": ["plan", "plan+handoff", "phase-exec", "full-exec"]
+          "enum": ["plan", "plan+handoff", "phase-exec", "full-exec", "branch"]
         },
+        "base_branch": { "type": "string" },
+        "target_branch": { "type": "string" },
+        "branch_created_before_artifacts": { "type": "boolean" },
         "execute_phase_id": { "type": "string" },
         "forwarded_pipeline_flags": {
           "type": "array",

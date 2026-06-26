@@ -19,7 +19,21 @@ Immediate delegated execution works best when the runtime can honor the target r
 
 If the target project directory does not exist yet, create it manually before running execution modes.
 
-### Path B: Later manual execution in a new session
+### Path B: Branch-first repo-local modernization
+
+Use `/run-modernize` with branch mode when the modernization should happen in the current repository rather than in a separate target project:
+
+- `--mode=branch` -> create/switch to a modernization branch before planning docs are written
+- `--branch=<name>` -> optional exact branch name; if it already exists, stop instead of suffixing or reusing it
+- `--execute-phase=<phase-id>` -> optional same-branch implementation of one selected roadmap phase
+
+Branch mode is designed for runtimes that can create ordinary git branches but may not support separate worktrees. It must create the branch before writing modernize docs, checkpoints, status files, handoff files, or code changes.
+
+If no `--execute-phase` is provided, branch mode stops after planning and renders a branch-local `/run-pipeline` continuation command. It should not guess which roadmap phase to implement.
+
+Branch mode should stop before branch creation if the current worktree is dirty. The orchestrator should not stash, commit, discard, or otherwise hide pre-existing changes automatically.
+
+### Path C: Later manual execution in a new session
 
 You can close the session after `/run-modernize`, then later run `/run-pipeline` manually.
 
@@ -54,6 +68,15 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - In same-session delegated execution, target-local `.pipeline-output/` should be created immediately; do not wait for a later manual session before switching artifact ownership.
 - Execution-enabled modernize runs should mirror `latest-handoff.json` and `phase-<phase_id>.handoff.json` into the target project's `.pipeline-output/modernize/` when the target directory exists.
 - After the first execution handoff exists, treat the target project as the default starting point for later implementation sessions.
+
+## Branch Mode Ownership
+
+- `run-modernize --mode=branch` starts and stays in the current project.
+- The current project owns `.pipeline-output/modernize/` and delegated `.pipeline-output/pipeline/`.
+- The branch must be created before any modernize artifact is written.
+- Handoff files stay in the current repo; do not mirror them to a separate target project.
+- Later `/run-pipeline` continuation should run from the same repo after switching to the modernization branch.
+- Branch mode isolates tracked changes in Git history. Ignored or untracked files such as `.pipeline-output/` may remain on disk after switching branches.
 
 ## If The Target Project Does Not Exist Yet
 
@@ -95,6 +118,32 @@ Semantics:
 - execution prefers deeper analysis, more retries, and stronger safe bounded in-scope blocker recovery
 - hard blockers still stop execution
 
+### Plan on a new branch, then implement one phase
+
+```text
+/run-modernize Modernize legacy auth in place --mode=branch --execute-phase=P1 --pipeline-flag=--effort=balanced
+```
+
+Semantics:
+
+- creates a branch such as `modernize/modernize-legacy-auth-in-place-20260626`
+- writes modernize docs on that branch
+- delegates one same-repo `/run-pipeline`-equivalent execution for phase `P1`
+- keeps code changes, checkpoints, and pipeline artifacts in the current repo on that branch
+
+### Plan on a named new branch without immediate implementation
+
+```text
+/run-modernize Modernize legacy auth in place --mode=branch --branch=modernize/auth-cleanup-20260626
+```
+
+Semantics:
+
+- creates and switches to the exact branch before planning
+- stops if that exact branch already exists
+- writes branch-local modernize docs
+- stops with a branch-local `/run-pipeline` continuation command because no `--execute-phase` was provided
+
 ## Copyable Command Patterns
 
 ### Target missing, create it manually first
@@ -131,6 +180,15 @@ Start a fresh session in the target project and run:
 
 If the handoff file lives in the source repository instead of the target repository, reference it explicitly in the prompt, but still start the execution session from the target project.
 
+### Continue branch-mode work later
+
+From the same repo:
+
+```text
+git switch <modernize-branch>
+/run-pipeline Implement modernization roadmap phase P1 using .pipeline-output/modernize/phase-P1.handoff.json as the execution contract.
+```
+
 ## How `/run-pipeline` Should Treat These Inputs
 
 - Use the handoff JSON as the execution source of truth.
@@ -138,7 +196,9 @@ If the handoff file lives in the source repository instead of the target reposit
 - Use the referenced modernize docs in `context_paths` as constraints.
 - Do not expand beyond the selected phase.
 - Treat the target project as the working repo for edits, tests, checkpoints, and review artifacts.
+- For branch-mode handoffs, treat the current repo on the modernization branch as the working repo for edits, tests, checkpoints, and review artifacts.
 - Default delegated `output_root` to the target project's `.pipeline-output/` when no explicit pipeline `--output-dir=*` override is provided.
+- For branch-mode handoffs, default delegated `output_root` to the current repo's `.pipeline-output/`.
 - If a delegated pipeline `--output-dir=*` override is relative, resolve it from the target project, not the source project.
 - Preserve `working_project_dir` in every OpenCode `status_runtime_event` payload so the status-runtime plugin resolves relative status/checkpoint paths under the target project as well.
 - Worktree-aware runtimes should also honor `working_project_dir` as the actual delegated run worktree/cwd. If they cannot, they should stop and surface the target-project handoff command instead of attempting implementation in the source repo.
