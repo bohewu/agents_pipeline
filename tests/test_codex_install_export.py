@@ -685,7 +685,7 @@ class CodexInstallExportTest(unittest.TestCase):
             model_set="openai",
             profile_dir=Path("opencode/tools/agent-profiles"),
             model_set_dir=Path("codex/tools/model-sets"),
-            uniform_model="gpt-5.5",
+            uniform_model="gpt-5.6-terra",
         )
 
         self.assertIn("--agent-profile", command)
@@ -697,7 +697,7 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("--model-set-dir", command)
         self.assertIn("codex/tools/model-sets", command)
         self.assertIn("--uniform-model", command)
-        self.assertIn("gpt-5.5", command)
+        self.assertIn("gpt-5.6-terra", command)
 
     def test_discover_run_command_agents_matches_current_repo_aliases(self) -> None:
         command_agents = EXPORT_MODULE.discover_run_command_agents(

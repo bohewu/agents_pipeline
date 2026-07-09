@@ -40,9 +40,9 @@ def profile_payload(models: dict, runtime: str = "opencode") -> dict:
 
 def codex_tiers() -> dict:
     return {
-        "mini": {"model": "gpt-5.4-mini"},
-        "standard": {"model": "gpt-5.4"},
-        "strong": {"model": "gpt-5.5"},
+        "mini": {"model": "gpt-5.6-luna"},
+        "standard": {"model": "gpt-5.6-terra"},
+        "strong": {"model": "gpt-5.6-sol"},
     }
 
 
@@ -73,8 +73,8 @@ class AgentModelProfilesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir_name:
             model_set_dir = Path(temp_dir_name)
             tiers = {
-                "mini": {"model": "gpt-5.4-mini"},
-                "standard": {"model": "gpt-5.4"},
+                "mini": {"model": "gpt-5.6-luna"},
+                "standard": {"model": "gpt-5.6-terra"},
             }
             write_json(model_set_dir, "openai", model_set_payload("codex", tiers))
 
@@ -90,8 +90,8 @@ class AgentModelProfilesTest(unittest.TestCase):
             write_json(profile_dir, "copilot-only", profile_payload({"executor": "standard"}, runtime="copilot"))
             write_json(model_set_dir, "copilot", model_set_payload("copilot", {
                 "mini": "GPT-5 mini",
-                "standard": "GPT-5.4",
-                "strong": ["Claude Opus 4.7", "GPT-5.5"],
+                "standard": "GPT-5.5",
+                "strong": ["GPT-5.5", "Claude Opus 4.8"],
             }))
 
             shared = RESOLVER.load_profile("shared", profile_dir, "codex")
@@ -118,7 +118,7 @@ class AgentModelProfilesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir_name:
             model_set_dir = Path(temp_dir_name)
             tiers = codex_tiers()
-            tiers["mini"] = {"model": "gpt-5.4-mini", "model_reasoning_effort": "low"}
+            tiers["mini"] = {"model": "gpt-5.6-luna", "model_reasoning_effort": "low"}
             write_json(model_set_dir, "openai", model_set_payload("codex", tiers))
 
             with self.assertRaisesRegex(ValueError, "unsupported key.*model_reasoning_effort"):
@@ -129,8 +129,8 @@ class AgentModelProfilesTest(unittest.TestCase):
             model_set_dir = Path(temp_dir_name)
             tiers = {
                 "mini": "GPT-5 mini",
-                "standard": ["GPT-5.4", "bad\nmodel"],
-                "strong": ["Claude Opus 4.7", "GPT-5.5"],
+                "standard": ["GPT-5.5", "bad\nmodel"],
+                "strong": ["GPT-5.5", "Claude Opus 4.8"],
             }
             write_json(model_set_dir, "default", model_set_payload("copilot", tiers))
 
@@ -140,7 +140,7 @@ class AgentModelProfilesTest(unittest.TestCase):
     def test_invalid_claude_alias_and_versioned_id_fail(self) -> None:
         cases = {
             "bad-alias": "banana",
-            "versioned": "claude-sonnet-4-5",
+            "versioned": "claude-sonnet-5",
         }
         for case_name, standard_value in cases.items():
             with self.subTest(case_name=case_name):
@@ -165,8 +165,8 @@ class AgentModelProfilesTest(unittest.TestCase):
             write_json(codex_dir, "openai", model_set_payload("codex", codex_tiers()))
             write_json(copilot_dir, "default", model_set_payload("copilot", {
                 "mini": "GPT-5 mini",
-                "standard": "GPT-5.4",
-                "strong": ["Claude Opus 4.7", "GPT-5.5"],
+                "standard": "GPT-5.5",
+                "strong": ["GPT-5.5", "Claude Opus 4.8"],
             }))
             write_json(claude_dir, "default", model_set_payload("claude", {
                 "mini": "haiku",
@@ -180,15 +180,15 @@ class AgentModelProfilesTest(unittest.TestCase):
 
             self.assertEqual(
                 RESOLVER.resolve_agent_model_settings(
-                    ["executor", "reviewer"], None, codex, uniform_model="gpt-5.5"
+                    ["executor", "reviewer"], None, codex, uniform_model="gpt-5.6-sol"
                 ),
-                {"executor": {"model": "gpt-5.5"}, "reviewer": {"model": "gpt-5.5"}},
+                {"executor": {"model": "gpt-5.6-sol"}, "reviewer": {"model": "gpt-5.6-sol"}},
             )
             self.assertEqual(
                 RESOLVER.resolve_agent_model_settings(
-                    ["executor"], None, copilot, uniform_model="GPT-5.4"
+                    ["executor"], None, copilot, uniform_model="GPT-5.5"
                 ),
-                {"executor": "GPT-5.4"},
+                {"executor": "GPT-5.5"},
             )
             self.assertEqual(
                 RESOLVER.resolve_agent_model_settings(
@@ -198,7 +198,7 @@ class AgentModelProfilesTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "versioned model IDs"):
                 RESOLVER.resolve_agent_model_settings(
-                    ["executor"], None, claude, uniform_model="claude-sonnet-4-5"
+                    ["executor"], None, claude, uniform_model="claude-sonnet-5"
                 )
 
     def test_no_flags_returns_empty_mapping(self) -> None:
@@ -227,7 +227,7 @@ class AgentModelProfilesTest(unittest.TestCase):
                     ["executor", "reviewer"], profile, model_set
                 )
 
-            self.assertEqual(resolved, {"executor": {"model": "gpt-5.4"}})
+            self.assertEqual(resolved, {"executor": {"model": "gpt-5.6-terra"}})
             self.assertEqual(len(captured), 1)
             self.assertIn(profile_path.as_posix(), str(captured[0].message))
             self.assertIn("missing-agent", str(captured[0].message))

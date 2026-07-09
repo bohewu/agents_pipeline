@@ -14,7 +14,7 @@ pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet anthropic -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.6-terra -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
@@ -27,7 +27,7 @@ bash ~/.config/opencode/tools/agent-profile.sh list
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set openai --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set anthropic --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
+bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.6-terra --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .

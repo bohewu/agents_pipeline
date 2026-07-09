@@ -13,6 +13,8 @@ Runtime agent model profiles let generated agent files opt into per-agent model 
 - Codex, Copilot, and Claude Code profile output is opt-in through installer/exporter flags. If you omit the flags, generated files keep normal runtime-driven model selection.
 - These profiles do not control reasoning effort; each runtime keeps its effective runtime configuration for reasoning-effort behavior.
 
+OpenAI is the primary default family: the OpenCode and Codex `openai` catalogs map `mini`, `standard`, and `strong` to GPT-5.6 Luna, Terra, and Sol. Copilot remains GPT-first too; its `strong` tier uses the first available GPT picker model before the Claude fallback. Provider-specific model sets remain available, and profile tier assignments do not depend on a provider's concrete version identifiers.
+
 ## Runtime Comparison
 
 | Runtime | How to opt in | Model-set catalog | Generated output | Model fields written | Key limits |

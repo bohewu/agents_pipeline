@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-07-10
+
+### Changed
+
+- Refreshed workspace model-set catalogs with GPT-5.6 Luna/Terra/Sol as the OpenAI-first OpenCode and Codex defaults, current Anthropic and stable Google text models, and GPT-first Copilot fallback ordering.
+- The model-set updater now manages every bundled catalog with `--provider all`, including a static policy-backed OpenAI target and collision-free mirrored output when an all-catalog output directory is supplied.
+
 ## [0.25.7] - 2026-06-26
 
 ### Added

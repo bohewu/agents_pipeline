@@ -38,19 +38,24 @@ Bundled model sets live in `opencode/tools/model-sets`:
 - `anthropic`: maps tiers to Anthropic model IDs.
 - `google`: maps tiers to Google model IDs.
 
+OpenAI is the primary bundled model family. Its policy-backed catalog maps `mini`, `standard`, and `strong` to GPT-5.6 Luna, Terra, and Sol respectively. GPT-5.6 access is currently scoped to the OpenAI API organizations and Codex workspaces approved for its preview, so select a provider-specific catalog when that access is unavailable. Anthropic and Google provider-specific catalogs remain available. The `frugal`, `balanced`, and `premium` profiles remain provider-independent logical tier maps; normal provider version changes should update a catalog, not rewrite a profile. `balanced` remains the default profile.
+
 Model IDs must match your OpenCode provider configuration. The installer does not call providers or validate remote model availability; it writes the strings from the selected model set exactly as configured.
 
 ## Model Set Maintenance
 
-Maintainers can refresh bundled Anthropic and Google model-set catalogs from `models.dev` metadata:
+Maintainers can refresh every managed model-set catalog:
 
 ```bash
 python3 scripts/update-agent-model-sets.py --dry-run
 python3 scripts/update-agent-model-sets.py --check
 python3 scripts/update-agent-model-sets.py --provider google
+python3 scripts/update-agent-model-sets.py --provider openai
 ```
 
-Use `--dry-run` to review diffs before writing, and `--check` in validation contexts to fail when managed model-set files are stale. For offline or pinned validation, pass `--source-file /path/to/models.dev-api.json`. The OpenAI model set is currently maintained manually because the bundled tier choices are workspace policy rather than provider-family selection.
+`--provider all` is the default and refreshes OpenCode, Codex, Copilot, and Claude Code catalogs as well as metadata-backed Anthropic and Google catalogs. When used with `--model-set-dir`, it writes a repository-layout mirror below that directory so runtime catalogs with the same filename cannot collide. Use `--dry-run` to review diffs before writing, and `--check` in validation contexts to fail when managed model-set files are stale. For offline or pinned validation, pass `--source-file /path/to/models.dev-api.json`.
+
+OpenAI, Codex, Copilot, and Claude Code use static policy-backed builders: their runtime IDs, picker labels, and aliases need deliberate review rather than generic provider-family selection. Anthropic and Google use `models.dev` metadata and filter out unsuitable image, audio, live, embedding, experimental, and unrelated variants. No updater behavior runs during normal profile installation.
 
 ## PowerShell Usage
 
@@ -59,7 +64,7 @@ pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install frugal -ModelSet anthropic -Workspace C:\path\to\project
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install premium -ModelSet google -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.4 -Workspace .
+pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install uniform -Model openai/gpt-5.6-terra -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Workspace .
 pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 clear -Workspace .
@@ -74,7 +79,7 @@ bash ~/.config/opencode/tools/agent-profile.sh list
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set openai --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install frugal --model-set anthropic --workspace /path/to/project
 bash ~/.config/opencode/tools/agent-profile.sh install premium --model-set google --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.4 --workspace .
+bash ~/.config/opencode/tools/agent-profile.sh install uniform --model openai/gpt-5.6-terra --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh status --workspace .
 bash ~/.config/opencode/tools/agent-profile.sh clear --workspace .

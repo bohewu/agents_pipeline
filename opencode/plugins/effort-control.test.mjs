@@ -29,7 +29,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "test-runner",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -41,7 +41,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "specifier",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -53,7 +53,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "flow-splitter",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -65,7 +65,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "codex-account-manager",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -77,7 +77,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "planner",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -89,7 +89,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "router",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -101,7 +101,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "repo-scout",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -113,7 +113,7 @@ test("OpenAI and Copilot GPT-5 models floor selected agents while leaving exclud
   assert.equal(
     resolveDesiredEffort({
       providerId: "github-copilot",
-      modelId: "gpt-5.2",
+      modelId: "gpt-5.5",
       agent: "executor",
       sessionEffort: undefined,
       projectEffort: undefined,
@@ -139,7 +139,7 @@ test("project defaults raise delegated effort without downgrading stronger exist
   assert.equal(
     resolveDesiredEffort({
       providerId: "openai",
-      modelId: "gpt-5.4",
+      modelId: "gpt-5.6-terra",
       agent: "build",
       sessionEffort: "high",
       projectEffort: "medium",
@@ -163,7 +163,7 @@ test("project defaults raise delegated effort without downgrading stronger exist
   assert.equal(
     resolveDesiredEffort({
       providerId: "github-copilot",
-      modelId: "gpt-5.2",
+      modelId: "gpt-5.5",
       agent: "build",
       sessionEffort: "xhigh",
       projectEffort: "high",

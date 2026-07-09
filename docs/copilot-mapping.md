@@ -36,6 +36,8 @@ Copilot runtime model profiles are opt-in. When the exporter, or an installer th
 
 Copilot model names are written exactly as configured and must match model names available in the VS Code/GitHub Copilot model picker. The exporter does not validate remote availability.
 
+The default catalog is GPT-first: its `strong` list preserves ordered fallback support and puts the available GPT picker model before `Claude Opus 4.8`. Review this catalog when GitHub adds GPT-5.6 Luna, Terra, or Sol to the picker; do not use names that the picker does not yet advertise.
+
 Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Copilot/VS Code runtime configuration. Omit the profile flags to keep Copilot's normal runtime model selection.
 
 Examples from a cloned repo:

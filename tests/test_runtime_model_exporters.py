@@ -94,9 +94,9 @@ class RuntimeModelExporterTest(unittest.TestCase):
                     "name": "default",
                     "runtime": "codex",
                     "tiers": {
-                        "mini": {"model": "gpt-5.4-mini", "model_provider": "openai"},
-                        "standard": {"model": "gpt-5.4", "model_provider": "openai"},
-                        "strong": {"model": "gpt-5.5", "model_provider": "openai"},
+                        "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
+                        "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
+                        "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
                     },
                 },
             )
@@ -123,7 +123,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
                 job_max_runtime_seconds=None,
             )
 
-            self.assertIn('description = "Execute one task."\nmodel = "gpt-5.5"', role_content)
+            self.assertIn('description = "Execute one task."\nmodel = "gpt-5.6-sol"', role_content)
             self.assertIn('model_provider = "openai"', role_content)
             self.assertNotIn("reasoning", role_content)
             self.assertNotIn("model =", root_config)
@@ -181,13 +181,13 @@ class RuntimeModelExporterTest(unittest.TestCase):
             )
 
             self.assertIn('model: "GPT-5 mini"', frontmatter(executor_content))
-            self.assertIn("model: GPT-5.4", frontmatter(doc_writer_content))
+            self.assertIn("model: GPT-5.5", frontmatter(doc_writer_content))
             self.assertIn(
-                'model:\n  - "Claude Opus 4.7"\n  - GPT-5.5',
+                'model:\n  - GPT-5.5\n  - "Claude Opus 4.8"',
                 frontmatter(orchestrator_content),
             )
             self.assertIn(
-                'model:\n  - "Claude Opus 4.7"\n  - GPT-5.5',
+                'model:\n  - GPT-5.5\n  - "Claude Opus 4.8"',
                 frontmatter(solo_content),
             )
 
@@ -227,7 +227,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
                     "runtime": "claude",
                     "tiers": {
                         "mini": "haiku",
-                        "standard": "claude-sonnet-4-5",
+                        "standard": "claude-sonnet-5",
                         "strong": "opus",
                     },
                 },
