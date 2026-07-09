@@ -363,6 +363,32 @@ def upsert_assignment(block: Block, key: str, value: str) -> None:
     block.lines = output
 
 
+def remove_assignment_if_value(block: Block, key: str, value: str) -> bool:
+    assign_re = re.compile(rf"^\s*{re.escape(key)}\s*=\s*{re.escape(value)}\s*(?:#.*)?$")
+    output = [block.lines[0]]
+    removed = False
+
+    for line in block.lines[1:]:
+        if assign_re.match(line) and not line.lstrip().startswith("#"):
+            removed = True
+            continue
+        output.append(line)
+
+    block.lines = output
+    return removed
+
+
+def is_workspace_profile_target(
+    target_dir: Path, global_agents_target: Optional[Path]
+) -> bool:
+    """Whether the profile wrapper is writing a project-local Codex config."""
+    return (
+        global_agents_target is not None
+        and target_dir.expanduser().resolve()
+        != global_agents_target.expanduser().resolve()
+    )
+
+
 def parse_manifest(path: Path) -> Optional[Dict[str, List[str]]]:
     if not path.exists():
         return None
@@ -578,6 +604,8 @@ def merge_config_text(
     max_threads: int,
     max_depth: int,
     job_max_runtime_seconds: Optional[int],
+    manage_agent_limits: bool,
+    remove_legacy_agent_limits: bool,
 ) -> str:
     blocks = parse_blocks(existing_text)
     managed_headers = {
@@ -594,8 +622,14 @@ def merge_config_text(
     upsert_assignment(features_block, "multi_agent", "true")
 
     agents_block = ensure_root_table(blocks, "agents")
-    upsert_assignment(agents_block, "max_threads", str(max_threads))
-    upsert_assignment(agents_block, "max_depth", str(max_depth))
+    if manage_agent_limits:
+        upsert_assignment(agents_block, "max_threads", str(max_threads))
+        upsert_assignment(agents_block, "max_depth", str(max_depth))
+    elif remove_legacy_agent_limits:
+        remove_assignment_if_value(
+            agents_block, "max_threads", str(DEFAULT_MAX_THREADS)
+        )
+        remove_assignment_if_value(agents_block, "max_depth", str(DEFAULT_MAX_DEPTH))
     if job_max_runtime_seconds is not None:
         upsert_assignment(
             agents_block,
@@ -759,6 +793,9 @@ def main() -> int:
         if args.global_agents_target
         else None
     )
+    workspace_profile_target = is_workspace_profile_target(
+        target_dir, global_agents_target
+    )
     catalog_path = resolve_catalog_path(args.catalog, asset_root=asset_layout.asset_root)
     profile_dir = Path(args.profile_dir).expanduser()
     model_set_dir = Path(args.model_set_dir).expanduser()
@@ -821,6 +858,7 @@ def main() -> int:
         generated_agent_blocks = extract_generated_agent_blocks(generated_config)
 
         previous_manifest = infer_previous_managed(target_dir)
+        previous_manifest_exists = (target_dir / MANIFEST_FILENAME).exists()
         previous_names = previous_manifest["managed_agent_names"]
         previous_files = previous_manifest["managed_agent_files"]
 
@@ -839,6 +877,10 @@ def main() -> int:
             max_threads=args.max_threads,
             max_depth=args.max_depth,
             job_max_runtime_seconds=args.job_max_runtime_seconds,
+            manage_agent_limits=not workspace_profile_target,
+            remove_legacy_agent_limits=(
+                workspace_profile_target and previous_manifest_exists
+            ),
         )
 
         manifest_path = target_dir / MANIFEST_FILENAME
@@ -846,8 +888,16 @@ def main() -> int:
         if args.dry_run:
             print(f"Dry run: would merge Codex config into {target_dir.as_posix()}")
             print("- set features.multi_agent = true")
-            print(f"- set agents.max_threads = {args.max_threads}")
-            print(f"- set agents.max_depth = {args.max_depth}")
+            if workspace_profile_target:
+                print("- preserve agents.max_threads/max_depth from global Codex config")
+                if previous_manifest_exists:
+                    print(
+                        "- remove legacy agents.max_threads/max_depth when they match "
+                        "the previous managed defaults"
+                    )
+            else:
+                print(f"- set agents.max_threads = {args.max_threads}")
+                print(f"- set agents.max_depth = {args.max_depth}")
             if args.job_max_runtime_seconds is not None:
                 print(
                     "- set agents.job_max_runtime_seconds = "

@@ -18,6 +18,7 @@ generated/
 
 # Local tooling
 .opencode/
+.codex/
 .codegraph/
 .cursor/
 .vscode/

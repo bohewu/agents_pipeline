@@ -97,6 +97,8 @@ Use flags to adjust this output when needed:
 - `--job-max-runtime-seconds=<n>`
 - `--no-enable-feature-flag`
 
+When `agent-profile` installs a workspace-local Codex profile, it does not write `agents.max_threads` or `agents.max_depth` into `<workspace>/.codex/config.toml`; those limits inherit from `~/.codex/config.toml`. Set global `agents.max_depth = 2` when nested pipeline orchestration is required. Direct exporter output and direct global Codex installs retain the generated `6`/`2` defaults.
+
 ## Role Config Generation
 
 Each generated `agents/<name>.toml` file includes:

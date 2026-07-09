@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.26.1] - 2026-07-10
+
+### Fixed
+
+- Workspace Codex profile installs now inherit `agents.max_threads` and `agents.max_depth` from the global Codex configuration instead of overriding them with generated defaults.
+
 ## [0.26.0] - 2026-07-10
 
 ### Changed

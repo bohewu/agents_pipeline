@@ -522,6 +522,38 @@ class CodexInstallExportTest(unittest.TestCase):
     def test_installer_default_max_depth_is_two(self) -> None:
         self.assertEqual(INSTALL_MODULE.DEFAULT_MAX_DEPTH, 2)
 
+    def test_workspace_profile_target_inherits_global_agent_limits(self) -> None:
+        workspace_target = Path("/work/repo/.codex")
+        global_target = Path("/home/user/.codex")
+        self.assertTrue(
+            INSTALL_MODULE.is_workspace_profile_target(workspace_target, global_target)
+        )
+        self.assertFalse(
+            INSTALL_MODULE.is_workspace_profile_target(global_target, global_target)
+        )
+
+        merged = INSTALL_MODULE.merge_config_text(
+            "[agents]\nmax_threads = 6\nmax_depth = 2\ninterrupt_message = false\n",
+            {
+                "executor": INSTALL_MODULE.Block(
+                    "table",
+                    "agents.executor",
+                    ["[agents.executor]", 'description = "Execute work."'],
+                )
+            },
+            previous_agent_names=[],
+            max_threads=6,
+            max_depth=2,
+            job_max_runtime_seconds=None,
+            manage_agent_limits=False,
+            remove_legacy_agent_limits=True,
+        )
+
+        self.assertNotIn("max_threads", merged)
+        self.assertNotIn("max_depth", merged)
+        self.assertIn("interrupt_message = false", merged)
+        self.assertIn("[agents.executor]", merged)
+
     def test_resolve_temp_root_defaults_to_repo_tmp(self) -> None:
         repo_root = Path("C:/tmp/repo")
         self.assertEqual(
