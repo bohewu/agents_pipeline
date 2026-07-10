@@ -2,7 +2,17 @@ const path = require("path");
 
 const { PROTOCOL_VERSION, TASK_COUNT_ORDER } = require("./constants");
 const { canonicalizeTaskCounts } = require("./schema-lite");
-const { assert, cloneJson, nowIso, toRelativeStatusPath } = require("./utils");
+const { assert, cloneJson, isObject, nowIso, toRelativeStatusPath } = require("./utils");
+
+function mergeFlags(currentFlags, incomingFlags) {
+  if (!isObject(incomingFlags)) {
+    return isObject(currentFlags) ? currentFlags : {};
+  }
+  return {
+    ...(isObject(currentFlags) ? currentFlags : {}),
+    ...cloneJson(incomingFlags)
+  };
+}
 
 function isTaskActive(status) {
   return status !== "done" && status !== "failed" && status !== "skipped";
@@ -74,7 +84,7 @@ class StatusProjector {
       pipeline_id: payload.run_id,
       orchestrator: payload.orchestrator,
       user_prompt: payload.user_prompt,
-      flags: payload.flags || {},
+      flags: isObject(payload.flags) ? cloneJson(payload.flags) : {},
       current_stage: -1,
       completed_stages: [],
       stage_artifacts: {},
@@ -124,9 +134,7 @@ class StatusProjector {
       }
     }
 
-    if (payload.flags && typeof payload.flags === "object") {
-      state.checkpoint.flags = cloneJson(payload.flags);
-    }
+    state.checkpoint.flags = mergeFlags(state.checkpoint.flags, payload.flags);
     state.checkpoint.updated_at = timestamp;
 
     return this.recompute(state, timestamp);
@@ -176,6 +184,7 @@ class StatusProjector {
         ...cloneJson(payload.stage_artifacts)
       };
     }
+    state.checkpoint.flags = mergeFlags(state.checkpoint.flags, payload.flags);
     state.checkpoint.updated_at = timestamp;
 
     return this.recompute(state, timestamp);

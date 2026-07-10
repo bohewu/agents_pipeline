@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that status event emission guidance stays conservative and batched."""
+"""Validate status emission, derived-flag persistence, and resume guidance."""
 
 from __future__ import annotations
 
@@ -14,16 +14,23 @@ CHECKS = {
         "roughly no more than once per 15 seconds per active agent",
         "skip the heartbeat and flush the final batch instead",
         'prefer one `event = "batch"` call',
+        "runtime MUST merge these overrides over persisted `checkpoint.flags`",
+        "Required derived-flag persistence points",
     ],
     Path("opencode/agents/orchestrator-pipeline.md"): [
         "roughly no more than once per 15 seconds",
         "skip redundant heartbeats when completion or a richer batched delta is likely soon",
         'event = "batch"',
+        "hydrate the persisted effective flags from `checkpoint.flags` first",
+        "Stage 3 completion event MUST persist the risk-derived `max_retry_rounds`",
     ],
     Path("opencode/agents/orchestrator-flow.md"): [
         "roughly >=15 seconds",
         "only emit standalone heartbeats when the task is still active",
         'event = "batch"',
+        "legacy task with `effort` but without required `risk` / `review_required`",
+        "Start a fresh run with a new `run_id`",
+        "Stage 2 completion event MUST persist the risk-derived `review_mode`",
     ],
     Path("opencode/commands/run-pipeline.md"): [
         "coarse standalone heartbeat cadence",
@@ -53,7 +60,7 @@ def main() -> int:
             print(f"- {line}", file=sys.stderr)
         return 1
 
-    print("OK: status emission guidance keeps batched flushes and coarse heartbeat cadence")
+    print("OK: status guidance keeps batching, derived flags, and safe resume semantics")
     return 0
 
 

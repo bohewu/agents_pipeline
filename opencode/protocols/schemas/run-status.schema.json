@@ -25,7 +25,6 @@
       "enum": [
         "orchestrator-pipeline",
         "orchestrator-flow",
-        "orchestrator-goal",
         "orchestrator-ci",
         "orchestrator-analysis",
         "orchestrator-modernize",

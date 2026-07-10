@@ -15,7 +15,7 @@ Options:
   --plugin-target <path>       Override OpenCode status plugin entry file target
   --usage-plugin-target <path> Override OpenCode usage-status plugin entry file target
   --effort-plugin-target <path>
-                               Override OpenCode effort-control plugin entry file target
+                               Deprecated: locate a legacy effort-control entry for retirement cleanup only
   --copilot-target <path>      Override Copilot agents install target
   --claude-target <path>       Override Claude agents install target
   --codex-target <path>        Override Codex config install target
@@ -31,7 +31,7 @@ Options:
   --verbose                    Show attestation verification details
   -h, --help                   Show this help
 
-Includes supported repo deliverables installable from the release bundle, including the OpenCode-only status-runtime, usage-status, and effort-control plugins.
+Includes supported repo deliverables installable from the release bundle, including the OpenCode-only status-runtime and usage-status plugins.
 EOF
 }
 
@@ -42,12 +42,10 @@ verify_bundle() {
     "${bundle_dir}/opencode/plugins/status-runtime"
     "${bundle_dir}/opencode/plugins/usage-status.js"
     "${bundle_dir}/opencode/plugins/usage-status"
-    "${bundle_dir}/opencode/plugins/effort-control.js"
-    "${bundle_dir}/opencode/plugins/effort-control"
     "${bundle_dir}/scripts/install-all-local.sh"
     "${bundle_dir}/scripts/install-plugin-status-runtime.sh"
     "${bundle_dir}/scripts/install-plugin-usage-status.sh"
-    "${bundle_dir}/scripts/install-plugin-effort-control.sh"
+    "${bundle_dir}/scripts/remove-plugin-effort-control.sh"
     "${bundle_dir}/scripts/install.sh"
     "${bundle_dir}/scripts/install-copilot.sh"
     "${bundle_dir}/scripts/install-claude.sh"

@@ -29,20 +29,19 @@ $ARGUMENTS
 - `--loose-review` — allow unverified outputs with warning
 - `--decision-only` — planning/design only, no execution
 - `--scout=auto|skip|force`, `--skip-scout`, `--force-scout`
-- `--effort=low|balanced|high`
 - `--max-retry=<int>` — override retry rounds (0-5)
 - `--compress` — write a reusable `context-pack.json` at the end of the run; trivial successful runs use an inline minimal pack instead of dispatching `@compressor`
 - `--commit=off|before|after` — optional git helper lane; runs outside the canonical TaskList and does not affect task/reviewer/retry quotas
 - `--handoff` — write run-local handoff artifacts at the end of the run
 - `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior
 - `--output-dir=<path>`, `--resume`, `--confirm`, `--verbose`, `--autopilot`
-- `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults to `--effort=high` and `--max-retry=5`, and explicit flags still override those defaults
+- `--full-auto` — hands-off preset: implies `--autopilot`, disables pauses, defaults to `--max-retry=5`, and an explicit `--max-retry` still overrides that default
 
 ## Examples
 
 ```
 /run-pipeline Fix login bug --dry
-/run-pipeline Implement OAuth2 login --effort=low
+/run-pipeline Implement OAuth2 login --max-retry=1
 /run-pipeline Refactor cache layer --no-test
 /run-pipeline Run tests only --test-only
 /run-pipeline Quick doc update --skip-scout

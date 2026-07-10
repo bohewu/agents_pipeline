@@ -20,7 +20,7 @@ FOCUS: Explicit task dispatching with bounded flow, bounded parallelism, and an 
 - Do NOT create ad-hoc agents. Use the existing flow helpers and executors only.
 - Do NOT exceed 5 tasks under any circumstance.
 - Do NOT create task DAGs or dependency graphs.
-- Reviewer is OFF by default. Only one optional post-synthesis reviewer gate is allowed when `review_mode = on`.
+- Reviewer need is risk-derived by default. Only one optional post-synthesis reviewer gate is allowed when `review_mode = on`; an explicit `--review=off|on` overrides the derived default.
 - No delta tasks or multi-round retry loops.
 
 # RESPONSE MODE (DEFAULT)
@@ -57,7 +57,7 @@ Flow:
 - Daily engineering
 - Max 5 atomic tasks
 - Parallel execution
-- Reviewer optional (`--review=on`)
+- Reviewer risk-derived (`--review=off|on` overrides)
 - No delta tasks / no retry loops
 
 Flow-Full:
@@ -120,7 +120,7 @@ If no commit flag is provided:
 
 If no review flag is provided:
 
-- review_mode = off.
+- review_mode = auto until the FlowTaskList is available.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -162,7 +162,7 @@ If an invalid `--commit` value is provided:
 If an invalid `--review` value is provided:
 
 - Warn the user.
-- Fall back to review_mode = off.
+- Fall back to review_mode = auto.
 
 ## FLOW FLAGS (QUICK REFERENCE)
 
@@ -186,16 +186,19 @@ If an invalid `--review` value is provided:
 2. **Gitignore check**: Verify `output_dir` is listed in the project's `.gitignore`. If missing, warn the user.
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-flow`; on mismatch, treat checkpoint as invalid.
+   - If the checkpoint completed Stage 2 or later (`current_stage >= 2` or an equivalent completed-stage entry), require `<run_output_dir>/flow/task-list.json` to exist and validate it against the current `opencode/protocols/schemas/flow-task-list.schema.json` before skipping any completed stage.
+   - A missing or incompatible persisted FlowTaskList—including a legacy task with `effort` but without required `risk` / `review_required`—makes the checkpoint incompatible. Do not translate the old task list and do not reuse its run id. Start a fresh run with a new `run_id`; for resume-only, reuse `checkpoint.user_prompt` when it is available, otherwise stop and require a new prompt.
+   - For a valid compatible checkpoint, hydrate persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
-   - If checkpoint is missing/invalid, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
+   - For any other missing/invalid checkpoint, warn and start fresh. If this was a resume-only invocation (`main_task_prompt` still empty), require a new prompt for the fresh run.
 4. **Commit helper normalization**: If the prompt clearly asks to commit before work starts or after work finishes, normalize that request into `commit_mode = before|after` when no explicit `--commit=*` flag was provided. Strip workflow-only commit wording from the scoped prompt passed to Stage 1 and Stage 2 so it does not consume one of Flow's 5 tasks.
 5. **Optional pre-run commit helper**: If `commit_mode = before`, dispatch one bounded `@peon` git helper before Stage 0 to inspect git state and create at most one commit when there are changes. This helper action is not part of the `FlowTaskList` and does not count toward the max-5 task cap.
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, call the `status_runtime_event` plugin tool so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema).
+After each stage completes successfully, call the `status_runtime_event` plugin tool so runtime/plugin can write/update `<run_output_dir>/checkpoint.json` (see `opencode/protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object in `stage.completed` whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode`.
 
 ## STATUS ARTIFACT PROTOCOL
 
@@ -206,6 +209,8 @@ If a delegated caller or runtime provides `working_project_dir`, include it unch
 If an upstream caller/runtime expects this Flow run to execute against `working_project_dir`, worktree-aware runtimes SHOULD launch the Flow orchestrator in that repo. If the runtime cannot honor the delegated worktree safely, stop and report BLOCKED instead of silently running against the caller repo.
 
 Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required, and keep standalone heartbeats coarse (roughly >=15 seconds) unless a semantic state change makes an earlier heartbeat useful.
+
+For `run.resumed`, send current-invocation flag overrides in `payload.flags`; the runtime merges that delta over persisted checkpoint flags rather than replacing the complete object.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -253,11 +258,14 @@ Stage 2 — Flow Task Split (@flow-splitter)
 - Each task MUST already include:
   - `assigned_agent`
   - `primary_output`
-  - `effort`
+  - `risk`
   - `verification`
+  - `review_required`
   - `repair_budget`
   - `resource_class`
   - `definition_of_done`
+- If `review_mode = auto`, resolve it after task splitting: set `review_mode = on` when any task has `review_required = true`; otherwise set it to `off`.
+- Persist the resolved `review_mode` in the Stage 2 `stage.completed.flags` payload before any later stage can be skipped on resume.
 - No DAGs. No hidden dependencies. Keep tasks execution-ready.
 - After writing the flow task artifact, emit task-registration events for every task, request `RunStatus.layout = expanded`, and provide enough semantic data for runtime/plugin to refresh task refs, `task_counts`, and any ready/pending task ids.
 
@@ -267,7 +275,7 @@ Stage 3 — Dispatch & Execution
   - sequential_tasks (if ordering is required or the task is resource-heavy)
 - Default behavior is one execution attempt per task.
 - A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done.
-- If an executor returns `blocked` for a non-hard blocker and the task's `repair_budget > 0`, Flow may attempt ONE bounded recovery pass by clarifying the handoff or re-dispatching the SAME task once with stronger `effort` / `verification` settings.
+- If an executor returns `blocked` for a non-hard blocker and the task's `repair_budget > 0`, Flow may attempt ONE bounded recovery pass by clarifying the handoff or re-dispatching the SAME task once with stronger `verification` and, when warranted, `review_required = true`. If review was risk-derived rather than explicitly disabled, raising `review_required` also sets `review_mode = on`.
 - Flow still MUST NOT generate new user-visible tasks, delta tasks, or multi-round reviewer loops.
 - Classify each task conservatively as `light`, `process`, `server`, or `browser` using the Stage 2 task metadata.
 - `browser` and `server` tasks MUST stay in `sequential_tasks` with effective `max_parallelism = 1`.
@@ -276,7 +284,7 @@ Stage 3 — Dispatch & Execution
 - For each task handoff, include:
   - Task details
   - Expected output
-  - `effort`, `verification`, and `repair_budget`
+  - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
   - Artifact output contract (below)
 - For visible frontend UI implementation or polish tasks, include `opencode/skills/frontend-aesthetic-director/SKILL.md` in the handoff when relevant. If `/uiux` output or wireframes are present, treat them as upstream source of truth rather than asking the executor to redesign the flow.
 - For each task handoff, include runtime-status instructions: executors may report updates only for their assigned task and their own agent attempt via runtime APIs, should use standalone heartbeats only for genuinely long-running active work, should keep them coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), and must reflect cleanup state before reporting success.

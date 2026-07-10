@@ -21,6 +21,10 @@ async function writeJson(filePath, value) {
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+async function readJson(filePath) {
+  return JSON.parse(await fs.readFile(filePath, "utf8"));
+}
+
 async function setMtime(filePath, seconds) {
   await fs.utimes(filePath, seconds, seconds);
 }
@@ -259,6 +263,93 @@ test("status projector rejects ambiguous heartbeat updates when reused agent ids
       }),
     /Ambiguous agent_id: executor/
   );
+});
+
+test("stage.completed persists derived flags without dropping existing checkpoint flags", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-stage-flags-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-stage-flags",
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Persist derived retry policy",
+    flags: {
+      full_auto_mode: false,
+      scout_mode: "auto"
+    },
+    timestamp: "2026-04-18T01:00:00.000Z"
+  });
+
+  const result = await runtime.applyEvent("stage.completed", {
+    output_root: tempRoot,
+    run_id: "run-stage-flags",
+    stage: 3,
+    name: "Atomicization",
+    status: "completed",
+    flags: {
+      max_retry_rounds: 3
+    },
+    timestamp: "2026-04-18T01:01:00.000Z"
+  });
+
+  const checkpoint = await readJson(result.checkpoint_path);
+  assert.deepEqual(checkpoint.flags, {
+    full_auto_mode: false,
+    max_retry_rounds: 3,
+    scout_mode: "auto"
+  });
+});
+
+test("run.resumed overlays invocation flags and preserves unrelated derived flags", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-resume-flags-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-resume-flags",
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Persist derived review policy",
+    flags: {
+      confirm_mode: false,
+      scout_mode: "skip"
+    },
+    timestamp: "2026-04-18T01:10:00.000Z"
+  });
+  await runtime.applyEvent("stage.completed", {
+    output_root: tempRoot,
+    run_id: "run-resume-flags",
+    stage: 2,
+    name: "Flow Task Split",
+    status: "completed",
+    flags: {
+      review_mode: "on"
+    },
+    timestamp: "2026-04-18T01:11:00.000Z"
+  });
+
+  const result = await runtime.applyEvent("run.resumed", {
+    output_root: tempRoot,
+    run_id: "run-resume-flags",
+    orchestrator: "orchestrator-flow",
+    flags: {
+      confirm_mode: true
+    },
+    timestamp: "2026-04-18T01:12:00.000Z"
+  });
+
+  const checkpoint = await readJson(result.checkpoint_path);
+  assert.deepEqual(checkpoint.flags, {
+    confirm_mode: true,
+    review_mode: "on",
+    scout_mode: "skip"
+  });
 });
 
 test("status runtime rejects agent.started without agent_id and agent before registry work", async () => {

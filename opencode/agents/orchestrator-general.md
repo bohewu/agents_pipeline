@@ -66,7 +66,7 @@ These rules apply to **all agents**.
 | doc-writer | Documentation outputs | Implementation |
 | generalist | Mixed-scope execution | Scope expansion |
 | peon | Low-cost execution | Scope expansion |
-| executor | Atomic task execution with bounded effort | Scope expansion |
+| executor | Atomic task execution with bounded risk and verification controls | Scope expansion |
 | test-runner | Test/build/lint verification | Code changes |
 | reviewer | Lightweight quality gate review | Direct fixes |
 | summarizer | User summary | Technical decisions |

@@ -14,7 +14,7 @@ Options:
   --usage-plugin-target <path>
                             Override OpenCode usage-status plugin entry file target
   --effort-plugin-target <path>
-                            Override OpenCode effort-control plugin entry file target
+                            Deprecated: locate a legacy effort-control entry for retirement cleanup only
   --copilot-target <path>   Override Copilot agents install target
   --claude-target <path>    Override Claude agents install target
   --codex-target <path>     Override Codex config install target
@@ -33,7 +33,7 @@ Includes:
   - OpenCode core assets
   - OpenCode status-runtime plugin only (OpenCode-only; not for Claude/Copilot/Codex)
   - OpenCode usage-status plugin only (OpenCode-only; not for Claude/Copilot/Codex)
-  - OpenCode effort-control plugin only (OpenCode-only; not for Claude/Copilot/Codex)
+  - One-release cleanup of any legacy OpenCode effort-control plugin install
   - Copilot agents
   - Claude agents
   - Codex config
@@ -73,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --effort-plugin-target)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --effort-plugin-target" >&2
+        exit 2
+      fi
       EFFORT_PLUGIN_TARGET="$2"
       shift 2
       ;;
@@ -155,7 +159,7 @@ done
 OPEN_CODE_CMD=(bash "${SCRIPT_DIR}/install.sh")
 PLUGIN_CMD=(bash "${SCRIPT_DIR}/install-plugin-status-runtime.sh")
 USAGE_PLUGIN_CMD=(bash "${SCRIPT_DIR}/install-plugin-usage-status.sh")
-EFFORT_PLUGIN_CMD=(bash "${SCRIPT_DIR}/install-plugin-effort-control.sh")
+EFFORT_RETIRE_CMD=(bash "${SCRIPT_DIR}/remove-plugin-effort-control.sh")
 COPILOT_CMD=(bash "${SCRIPT_DIR}/install-copilot.sh")
 CLAUDE_CMD=(bash "${SCRIPT_DIR}/install-claude.sh")
 CODEX_CMD=(bash "${SCRIPT_DIR}/install-codex.sh")
@@ -164,7 +168,7 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
   OPEN_CODE_CMD+=(--dry-run)
   PLUGIN_CMD+=(--dry-run)
   USAGE_PLUGIN_CMD+=(--dry-run)
-  EFFORT_PLUGIN_CMD+=(--dry-run)
+  EFFORT_RETIRE_CMD+=(--dry-run)
   COPILOT_CMD+=(--dry-run)
   CLAUDE_CMD+=(--dry-run)
   CODEX_CMD+=(--dry-run)
@@ -173,7 +177,7 @@ if [[ ${NO_BACKUP} -eq 1 ]]; then
   OPEN_CODE_CMD+=(--no-backup)
   PLUGIN_CMD+=(--no-backup)
   USAGE_PLUGIN_CMD+=(--no-backup)
-  EFFORT_PLUGIN_CMD+=(--no-backup)
+  EFFORT_RETIRE_CMD+=(--no-backup)
   COPILOT_CMD+=(--no-backup)
   CLAUDE_CMD+=(--no-backup)
   CODEX_CMD+=(--no-backup)
@@ -195,11 +199,11 @@ elif [[ -n "${OPENCODE_TARGET}" ]]; then
   USAGE_PLUGIN_CMD+=(--target "${OPENCODE_TARGET}/plugins/usage-status.js")
 fi
 if [[ -n "${EFFORT_PLUGIN_TARGET}" ]]; then
-  EFFORT_PLUGIN_CMD+=(--target "${EFFORT_PLUGIN_TARGET}")
+  EFFORT_RETIRE_CMD+=(--target "${EFFORT_PLUGIN_TARGET}")
 elif [[ -n "${PLUGIN_TARGET}" ]]; then
-  EFFORT_PLUGIN_CMD+=(--target "$(dirname "${PLUGIN_TARGET}")/effort-control.js")
+  EFFORT_RETIRE_CMD+=(--target "$(dirname "${PLUGIN_TARGET}")/effort-control.js")
 elif [[ -n "${OPENCODE_TARGET}" ]]; then
-  EFFORT_PLUGIN_CMD+=(--target "${OPENCODE_TARGET}/plugins/effort-control.js")
+  EFFORT_RETIRE_CMD+=(--target "${OPENCODE_TARGET}/plugins/effort-control.js")
 fi
 if [[ -n "${COPILOT_TARGET}" ]]; then
   COPILOT_CMD+=(--target "${COPILOT_TARGET}")
@@ -245,7 +249,7 @@ echo
 echo
 "${USAGE_PLUGIN_CMD[@]}"
 echo
-"${EFFORT_PLUGIN_CMD[@]}"
+"${EFFORT_RETIRE_CMD[@]}"
 echo
 "${COPILOT_CMD[@]}"
 echo

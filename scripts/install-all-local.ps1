@@ -41,12 +41,12 @@ function Invoke-InstallScript {
 $openCodeParams = @{}
 $pluginParams = @{}
 $usagePluginParams = @{}
-$effortPluginParams = @{}
+$effortRetireParams = @{}
 $copilotParams = @{}
 $claudeParams = @{}
 $codexParams = @{}
 
-foreach ($params in @($openCodeParams, $pluginParams, $usagePluginParams, $effortPluginParams, $copilotParams, $claudeParams, $codexParams)) {
+foreach ($params in @($openCodeParams, $pluginParams, $usagePluginParams, $effortRetireParams, $copilotParams, $claudeParams, $codexParams)) {
     if ($DryRun) {
         $params.DryRun = $true
     }
@@ -71,11 +71,11 @@ if ($UsagePluginTarget) {
     $usagePluginParams.Target = Join-Path $OpenCodeTarget "plugins/usage-status.js"
 }
 if ($EffortPluginTarget) {
-    $effortPluginParams.Target = $EffortPluginTarget
+    $effortRetireParams.Target = $EffortPluginTarget
 } elseif ($PluginTarget) {
-    $effortPluginParams.Target = Join-Path (Split-Path -Parent $PluginTarget) "effort-control.js"
+    $effortRetireParams.Target = Join-Path (Split-Path -Parent $PluginTarget) "effort-control.js"
 } elseif ($OpenCodeTarget) {
-    $effortPluginParams.Target = Join-Path $OpenCodeTarget "plugins/effort-control.js"
+    $effortRetireParams.Target = Join-Path $OpenCodeTarget "plugins/effort-control.js"
 }
 if ($CopilotTarget) {
     $copilotParams.Target = $CopilotTarget
@@ -117,7 +117,7 @@ Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-status-r
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-usage-status.ps1") -Params $usagePluginParams
 Write-Host ""
-Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-plugin-effort-control.ps1") -Params $effortPluginParams
+Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "remove-plugin-effort-control.ps1") -Params $effortRetireParams
 Write-Host ""
 Invoke-InstallScript -ScriptPath (Join-Path $scriptRoot "install-copilot.ps1") -Params $copilotParams
 Write-Host ""

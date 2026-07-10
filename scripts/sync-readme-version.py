@@ -10,13 +10,13 @@ MANAGED_REPLACEMENTS = (
     (
         r'\$tag = "v\d+\.\d+\.\d+"',
         lambda version, tag: f'$tag = "{tag}"',
-        7,
+        3,
         "$tag PowerShell snippets",
     ),
     (
         r'tag="v\d+\.\d+\.\d+"',
         lambda version, tag: f'tag="{tag}"',
-        8,
+        4,
         "tag shell snippets",
     ),
     (
@@ -69,9 +69,50 @@ MANAGED_REPLACEMENTS = (
     ),
 )
 
+FROZEN_BLOCKS = (
+    (
+        "<!-- BEGIN legacy-opencode-v0.26.1 -->",
+        "<!-- END legacy-opencode-v0.26.1 -->",
+        "legacy OpenCode v0.26.1 block",
+    ),
+)
+
 
 class ReadmeVersionSyncError(RuntimeError):
     pass
+
+
+def mask_frozen_blocks(readme_text: str) -> tuple[str, list[tuple[str, str]]]:
+    masked = readme_text
+    frozen_blocks: list[tuple[str, str]] = []
+
+    for index, (start_marker, end_marker, label) in enumerate(FROZEN_BLOCKS):
+        if masked.count(start_marker) != 1 or masked.count(end_marker) != 1:
+            raise ReadmeVersionSyncError(
+                f"README must contain exactly one {label} marker pair."
+            )
+
+        start_index = masked.index(start_marker)
+        end_index = masked.index(end_marker, start_index) + len(end_marker)
+        block = masked[start_index:end_index]
+        placeholder = f"__README_VERSION_FROZEN_BLOCK_{index}__"
+        masked = masked[:start_index] + placeholder + masked[end_index:]
+        frozen_blocks.append((placeholder, block))
+
+    return masked, frozen_blocks
+
+
+def restore_frozen_blocks(
+    readme_text: str, frozen_blocks: list[tuple[str, str]]
+) -> str:
+    restored = readme_text
+    for placeholder, block in frozen_blocks:
+        if restored.count(placeholder) != 1:
+            raise ReadmeVersionSyncError(
+                f"README frozen-block placeholder is missing or duplicated: {placeholder}"
+            )
+        restored = restored.replace(placeholder, block, 1)
+    return restored
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,7 +150,7 @@ def sync_readme_text(
     readme_text: str, version: str
 ) -> tuple[str, list[tuple[str, int, int]]]:
     tag = f"v{version}"
-    updated = readme_text
+    updated, frozen_blocks = mask_frozen_blocks(readme_text)
     counts = []
 
     for pattern, replacement, expected_count, label in MANAGED_REPLACEMENTS:
@@ -127,12 +168,12 @@ def sync_readme_text(
             for label, expected_count, actual_count in mismatches
         )
         raise ReadmeVersionSyncError(
-            "README pinned-version structure no longer matches the managed sync patterns.\n"
+            "README current-release structure no longer matches the managed sync patterns.\n"
             "Update scripts/sync-readme-version.py to cover the new README layout.\n"
             f"{details}"
         )
 
-    return updated, counts
+    return restore_frozen_blocks(updated, frozen_blocks), counts
 
 
 def main() -> int:

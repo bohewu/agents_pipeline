@@ -7,8 +7,9 @@
       "description": "Update the existing login validation path without broad auth redesign.",
       "primary_output": "implementation",
       "assigned_agent": "executor",
-      "effort": "medium",
+      "risk": "medium",
       "verification": "basic",
+      "review_required": false,
       "repair_budget": 1,
       "resource_class": "process",
       "definition_of_done": [
@@ -23,8 +24,9 @@
       "description": "Capture the remaining callback verification work in a human-readable artifact.",
       "primary_output": "analysis",
       "assigned_agent": "doc-writer",
-      "effort": "low",
+      "risk": "low",
       "verification": "none",
+      "review_required": false,
       "repair_budget": 0,
       "resource_class": "light",
       "definition_of_done": [

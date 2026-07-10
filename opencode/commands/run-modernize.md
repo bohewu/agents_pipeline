@@ -32,7 +32,7 @@ $ARGUMENTS
 - `--branch=<name>` — exact branch name for `--mode=branch`; if omitted, branch names are generated as `modernize/<slug>-<YYYYMMDD>` with a collision suffix
 - `--depth=lite|standard|deep` — control doc verbosity (default: standard)
 - `--execute-phase=<phase-id>` — required in `phase-exec`; optional in `branch` to implement one selected roadmap phase in the current repo/branch
-- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--effort=balanced`)
+- `--pipeline-flag=<flag>` — optional; repeatable pipeline flag forwarded to orchestrator-pipeline semantics (e.g. `--pipeline-flag=--max-retry=2`)
 
 ## Examples
 
@@ -43,11 +43,11 @@ $ARGUMENTS
 /run-modernize Assess legacy .NET monolith --iterate
 /run-modernize Assess legacy .NET monolith --target=../my-app-v2
 /run-modernize Assess legacy .NET monolith --mode=plan+handoff --target=../my-app-v2
-/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--effort=balanced --pipeline-flag=--confirm
-/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
+/run-modernize Modernize legacy .NET monolith --mode=phase-exec --execute-phase=1 --target=../my-app-v2 --pipeline-flag=--max-retry=2 --pipeline-flag=--confirm
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --autopilot
 /run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --full-auto
 /run-modernize Modernize legacy auth in place --mode=branch --branch=modernize/auth-cleanup-20260626
-/run-modernize Modernize legacy auth in place --mode=branch --execute-phase=P1 --pipeline-flag=--effort=balanced
+/run-modernize Modernize legacy auth in place --mode=branch --execute-phase=P1
 /run-modernize Continue previous assessment --resume
 /run-modernize Assess with review --confirm
 ```

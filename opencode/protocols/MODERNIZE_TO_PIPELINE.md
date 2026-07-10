@@ -96,7 +96,7 @@ These files should conform to `opencode/protocols/schemas/modernize-exec-handoff
 ### Run all phases non-interactively
 
 ```text
-/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --pipeline-flag=--effort=balanced --autopilot
+/run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-app-v2 --autopilot
 ```
 
 Semantics:
@@ -115,13 +115,13 @@ Semantics:
 
 - modernize planning runs non-interactively
 - delegated pipeline phases inherit `--full-auto`
-- execution prefers deeper analysis, more retries, and stronger safe bounded in-scope blocker recovery
+- execution uses risk-derived verification, more retries, and stronger safe bounded in-scope blocker recovery
 - hard blockers still stop execution
 
 ### Plan on a new branch, then implement one phase
 
 ```text
-/run-modernize Modernize legacy auth in place --mode=branch --execute-phase=P1 --pipeline-flag=--effort=balanced
+/run-modernize Modernize legacy auth in place --mode=branch --execute-phase=P1
 ```
 
 Semantics:

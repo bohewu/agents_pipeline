@@ -26,7 +26,7 @@ $ARGUMENTS
   - `--skip-scout`
   - `--force-scout`
   - `--commit=off|before|after` — optional git helper lane; helper actions do not count toward Flow's max-5 task budget
-  - `--review=off|on` — optional post-synthesis reviewer gate; `--commit=after` waits for a passing review when review is enabled
+  - `--review=off|on` — explicitly override the risk-derived post-synthesis reviewer decision; without this flag, any task with `review_required = true` enables review, and `--commit=after` waits for that review to pass
   - `--handoff` — write run-local handoff artifacts at the end of the run
   - `--kanban=off|manual|auto` — control root-tracked `todo-ledger.json` / `kanban.md` behavior
   - `--output-dir=<path>` — Override the base artifact output root (default: `.pipeline-output/`); fresh runs use a run-specific subdirectory under it, and resume searches that root for the newest compatible run unless a specific run dir is targeted
@@ -61,7 +61,7 @@ Flow:
 - Daily engineering
 - Max 5 atomic tasks
 - Parallel execution
-- Reviewer optional (`--review=on`)
+- Reviewer risk-derived (`--review=off|on` overrides)
 - No delta tasks / no retry loops
 
 Flow-Full:

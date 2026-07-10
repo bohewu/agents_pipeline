@@ -29,8 +29,13 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Prefer `peon` only for clearly mechanical work.
 - Prefer `generalist` only when the task is mixed-scope but non-coding.
 - Treat routine version-control actions (`git status`, `git add`, `git commit`, `git push`) as orchestrator helper work, not Flow tasks, unless version-control management is the user's primary requested outcome.
-- Set `repair_budget = 1` only when one bounded retry of the SAME task is likely to help.
-- `repair_budget` MUST be `0` or `1`; never higher.
+- Set `risk` from concrete impact: `low` for localized/reversible work, `medium` for behavior or integration changes with bounded blast radius, and `high` for security, data, migration, destructive, or broad cross-surface risk.
+- Derive `verification`, `review_required`, and `repair_budget` from risk and the Definition of Done:
+  - low -> `verification = none | basic`, normally `review_required = false`, `repair_budget = 0`
+  - medium -> at least `verification = basic`, set `review_required = true` when behavior crosses an integration or user-critical boundary, `repair_budget = 1`
+  - high -> `verification = strong`, `review_required = true`, `repair_budget = 1`
+- Medium- and high-risk tasks MUST use `repair_budget = 1`; this permits at most one bounded retry of the SAME task and never permits scope expansion.
+- Low-risk tasks use `repair_budget = 0`.
 - `resource_class = browser` or `server` should be used only when the task clearly requires those heavy resources.
 - Every task in the output must satisfy the FlowTaskList schema.
 
@@ -38,8 +43,8 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 
 - For visible frontend implementation or polish tasks, include `opencode/skills/frontend-aesthetic-director/SKILL.md` in the executor handoff when it is relevant.
 - If the prompt references `/uiux` output, wireframes, screenshots, or Figma, make the implementation task preserve that upstream structure and copy intent rather than redesigning the flow.
-- Use `effort = medium` for localized landing page edits, dashboard polish, component styling, forms, tables, and visual hierarchy improvements.
-- Use `effort = high` only for multi-surface UI changes, design-system changes, complex responsive behavior, or risky interactive states.
+- Classify localized landing page edits, dashboard polish, component styling, forms, tables, and visual hierarchy improvements by their concrete user impact rather than model reasoning needs.
+- Use `risk = high` only for multi-surface UI changes, design-system changes, complex responsive behavior, security-sensitive flows, or risky interactive states.
 - Prefer `verification = strong` when visual QA requires a local preview, screenshot, Playwright, or browser inspection loop.
 - Use `resource_class = browser` only when the same task clearly requires browser automation or screenshot inspection; otherwise keep implementation as `light` or `process` and let normal build/lint verification cover it.
 
@@ -52,8 +57,9 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
       "description": "",
       "primary_output": "design | plan | spec | checklist | analysis | implementation",
       "assigned_agent": "executor | doc-writer | peon | generalist",
-      "effort": "low | medium | high",
+      "risk": "low | medium | high",
       "verification": "none | basic | strong",
+      "review_required": false,
       "repair_budget": 0,
       "resource_class": "light | process | server | browser",
       "definition_of_done": [],

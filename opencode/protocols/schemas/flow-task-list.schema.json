@@ -22,8 +22,9 @@
           "description",
           "primary_output",
           "assigned_agent",
-          "effort",
+          "risk",
           "verification",
+          "review_required",
           "repair_budget",
           "resource_class",
           "definition_of_done",
@@ -61,7 +62,7 @@
               "generalist"
             ]
           },
-          "effort": {
+          "risk": {
             "type": "string",
             "enum": [
               "low",
@@ -76,6 +77,9 @@
               "basic",
               "strong"
             ]
+          },
+          "review_required": {
+            "type": "boolean"
           },
           "repair_budget": {
             "type": "integer",
@@ -102,6 +106,58 @@
             "const": true
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "risk": {
+                  "const": "medium"
+                }
+              },
+              "required": [
+                "risk"
+              ]
+            },
+            "then": {
+              "properties": {
+                "verification": {
+                  "enum": [
+                    "basic",
+                    "strong"
+                  ]
+                },
+                "repair_budget": {
+                  "const": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "risk": {
+                  "const": "high"
+                }
+              },
+              "required": [
+                "risk"
+              ]
+            },
+            "then": {
+              "properties": {
+                "verification": {
+                  "const": "strong"
+                },
+                "review_required": {
+                  "const": true
+                },
+                "repair_budget": {
+                  "const": 1
+                }
+              }
+            }
+          }
+        ],
         "additionalProperties": false
       }
     }

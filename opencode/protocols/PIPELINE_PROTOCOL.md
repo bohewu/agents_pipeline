@@ -136,6 +136,17 @@ Input: Task scope
 Output: `TestReport` JSON
 Schema: `./protocols/schemas/test-report.schema.json`
 
+### Risk-Derived Execution Rigor
+
+- Pipeline TaskList entries explicitly provide `risk` and `complexity`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides `resource_class`. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
+- FlowTaskList entries explicitly provide `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts.
+- Model, provider, and model reasoning selection are owned by the runtime and are not workflow rigor controls.
+- Low-risk/S tasks normally use basic verification and no repair pass; low-risk Flow tasks may use `verification = none` for bounded non-executable outputs.
+- Medium-risk or M tasks use at least basic verification and one bounded repair pass; Flow review becomes required when they cross an integration or user-critical boundary.
+- High-risk or L tasks use strong verification and one bounded repair pass; high-risk Flow tasks require review, while Pipeline review is already global.
+- Resource class reflects actual process/browser/server lifecycle needs and must not be inferred from risk alone.
+- Retry-round precedence is deterministic: explicit `--max-retry` wins; `--full-auto` defaults to 5; otherwise derive 1/2/3 rounds from the highest TaskList risk (`low`/`medium`/`high`), using 2 provisionally before TaskList risk is available.
+
 **Stage 8: Compressor**
 Agent: `compressor`
 Input: Repo findings and outcomes
@@ -317,8 +328,11 @@ Minimal payload skeleton guidance:
 
 - Common envelope for every event: `{ "output_root": "...", "run_id": "..." }`
 - Cross-repo OpenCode envelope extension: add `"working_project_dir": "..."` when status/checkpoint files must be anchored to a delegated target repo.
-- `run.started` / `run.resumed`: add `orchestrator`; include `user_prompt` when known and `flags` when available.
-- `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed.
+- `run.started`: add `orchestrator`; include `user_prompt` when known and the initial effective `flags` when available.
+- `run.resumed`: add `orchestrator`; include `user_prompt` when known and current-invocation flag overrides in `flags`. The runtime MUST merge these overrides over persisted `checkpoint.flags`, preserving unrelated persisted and derived values.
+- Resume flag precedence: hydrate persisted effective `checkpoint.flags` first, then apply only flags explicitly supplied by the current invocation. Parser defaults for omitted invocation flags MUST NOT overwrite persisted effective values.
+- `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
+- Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode`.
 - `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
@@ -631,7 +645,6 @@ Pipeline runs support step-by-step user review via `--confirm` and `--verbose` f
 - **`--full-auto`** (default: `false`): Stronger hands-off execution preset.
   - Implies `--autopilot`.
   - Disables interactive pauses.
-  - Defaults to `--effort=high` unless `--effort=*` is explicitly provided.
   - Defaults to `--max-retry=5` unless `--max-retry=*` is explicitly provided.
   - Prefer the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker.
   - Still stops on hard blockers and does not permit scope expansion or leaving resources running.

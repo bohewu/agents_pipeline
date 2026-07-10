@@ -44,7 +44,9 @@ These gates define minimal acceptance for each stage output.
 
 - Flow task lists must validate against `./protocols/schemas/flow-task-list.schema.json`.
 - Flow task lists must contain 1-5 tasks only.
-- Every Flow task must include `assigned_agent`, `effort`, `verification`, `repair_budget`, `resource_class`, and `atomic = true`.
+- Every Flow task must include `assigned_agent`, `risk`, `verification`, `review_required`, `repair_budget`, `resource_class`, and `atomic = true`.
+- Medium-risk Flow tasks require `verification = basic | strong` and `repair_budget = 1`.
+- High-risk Flow tasks require `verification = strong`, `review_required = true`, and `repair_budget = 1`.
 
 ## Evidence Gate
 

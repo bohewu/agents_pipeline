@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-07-10
+
+### Changed
+
+- Declared Codex the Tier 1, first-class runtime; Claude Code and GitHub Copilot remain Tier 2 best-effort export targets, while OpenCode is deprecated and frozen at the `v0.26.1` OpenCode-first release.
+- Replaced workflow `effort` controls with explicit, risk-derived verification, review, repair, retry, and resource policies. Model reasoning is now entirely runtime-owned.
+
+### Removed
+
+- Removed `/run-goal`, `orchestrator-goal`, and the GoalManifest protocol surface. Long-running execution now uses each runtime's native goal/autopilot capability instead of a cross-runtime wrapper.
+- Removed the OpenCode effort-control plugin and its dedicated installers. A one-release cleanup helper removes legacy files and TUI registrations during all-local upgrades.
+- Removed Pipeline `--effort`, checkpoint `effort_mode`, and Flow task `effort`; Flow tasks now carry explicit `risk` and `review_required` fields.
+
 ## [0.26.1] - 2026-07-10
 
 ### Fixed

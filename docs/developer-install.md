@@ -3,7 +3,16 @@
 Use this when you are modifying this repo, validating local changes, or you specifically want installers from your working tree instead of the latest release bundle.
 Most users should use the published release bundle commands in `README.md` instead.
 
-## OpenCode core from clone
+## Runtime Scope
+
+- Codex is Tier 1 and the primary developer-install target. Start with [Codex roles from clone](#codex-roles-from-clone).
+- Claude Code and GitHub Copilot are Tier 2 best-effort targets. Their exporters/installers receive smoke validation but do not promise Codex feature parity.
+- OpenCode is deprecated and frozen. Use `v0.26.1` for user-facing OpenCode installs; current-tree OpenCode installers remain only for migration maintenance during v0.27.
+- The reusable source still lives under `opencode/` temporarily. Those paths remain canonical until the coordinated v0.28 neutral-core move.
+
+## OpenCode core from clone (deprecated)
+
+Do not use the current working tree as a supported OpenCode distribution. These commands are retained for maintainers testing the v0.27 migration boundary; normal OpenCode users should install the frozen `v0.26.1` release.
 
 Default target: `~/.config/opencode`
 
@@ -31,7 +40,7 @@ Common options:
 - Custom target: `pwsh -NoProfile -File scripts/install.ps1 -Target C:\path\to\opencode-config` or `bash scripts/install.sh --target /path/to/opencode-config`
 - Skip backup: `pwsh -NoProfile -File scripts/install.ps1 -NoBackup` or `bash scripts/install.sh --no-backup`
 
-## Status plugin only from clone
+## Status plugin only from clone (deprecated)
 
 Use this when OpenCode is already set up and you only want the status runtime plugin.
 The installer writes `~/.config/opencode/plugins/status-runtime.js` plus its sibling support directory at `~/.config/opencode/plugins/status-runtime/`.
@@ -72,7 +81,7 @@ Common options:
 
 ## All local assets from clone
 
-Use this when you want the OpenCode core config, the OpenCode-only status-runtime plugin, the OpenCode-only usage-status plugin, the OpenCode-only effort-control plugin, Copilot agents, Claude agents, and Codex config installed together from your working tree.
+Use this maintainer convenience when you need Codex config plus every retained Claude Code, Copilot, and transitional OpenCode compatibility asset from the working tree. It is not the recommended Codex-only install path.
 
 Windows (PowerShell):
 
@@ -89,10 +98,11 @@ bash scripts/install-all-local.sh
 Common options:
 
 - Preview only: `pwsh -NoProfile -File scripts/install-all-local.ps1 -DryRun` or `bash scripts/install-all-local.sh --dry-run`
-- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js -EffortPluginTarget C:\path\to\opencode-config\plugins\effort-control.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
-- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js --effort-plugin-target /path/to/opencode-config/plugins/effort-control.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
+- Per-target overrides: `pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget C:\path\to\opencode-config -PluginTarget C:\path\to\opencode-config\plugins\status-runtime.js -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js -CopilotTarget C:\path\to\copilot\agents -ClaudeTarget C:\path\to\project\.claude\agents -CodexTarget C:\path\to\.codex`
+- Per-target overrides: `bash scripts/install-all-local.sh --opencode-target /path/to/opencode-config --plugin-target /path/to/opencode-config/plugins/status-runtime.js --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js --copilot-target /path/to/copilot/agents --claude-target /path/to/project/.claude/agents --codex-target /path/to/.codex`
+- v0.27 retirement cleanup: all-local removes a legacy `effort-control` install. If it was previously installed at a custom entry path, pass that old path with cleanup-only `-EffortPluginTarget` / `--effort-plugin-target`; the parameter never installs or enables the retired plugin.
 
-## Usage only from clone
+## Usage only from clone (deprecated)
 
 Use this when you want just the `/usage` command/tool and the usage-status TUI plugin from your working tree, without installing the rest of the pipeline.
 The installer copies the usage command/tool files into `~/.config/opencode`, installs the plugin files under `plugins/usage-status/`, and ensures `tui.json` contains `./plugins/usage-status/index.js`.
@@ -114,7 +124,7 @@ Common options:
 - Preview only: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -DryRun` or `bash scripts/install-usage-only.sh --dry-run`
 - Custom targets: `pwsh -NoProfile -File scripts/install-usage-only.ps1 -OpenCodeTarget C:\path\to\opencode-config -UsagePluginTarget C:\path\to\opencode-config\plugins\usage-status.js` or `bash scripts/install-usage-only.sh --opencode-target /path/to/opencode-config --usage-plugin-target /path/to/opencode-config/plugins/usage-status.js`
 
-## Usage status plugin only from clone
+## Usage status plugin only from clone (deprecated)
 
 Use this when OpenCode core assets are already installed and you want the toggleable TUI usage footer plugin.
 The installer writes `~/.config/opencode/plugins/usage-status.js` plus its sibling support directory at `~/.config/opencode/plugins/usage-status/`.
@@ -185,57 +195,9 @@ Example `tui.json` with explicit plugin options:
 - What is the difference between `tui.json` and `opencode.json`?
   `opencode.json` is for OpenCode runtime config and server-side plugins. `tui.json` is where OpenCode loads TUI plugins like `usage-status`.
 
-## Effort-control plugin only from clone
-
-Use this when you want an OpenCode-only reasoning-effort controller for OpenAI or GitHub Copilot GPT-5 sessions without changing the rest of the pipeline install.
-The installer writes `~/.config/opencode/plugins/effort-control.js` plus its sibling support directory at `~/.config/opencode/plugins/effort-control/`.
-The installer also ensures `~/.config/opencode/tui.json` contains `./plugins/effort-control/index.js`.
-
-Behavior notes:
-
-- The server plugin is active immediately after install. For OpenAI and GitHub Copilot `gpt-5*`, it floors most non-mechanical agents to at least `medium`.
-- `/effort-medium`, `/effort-high`, and `/effort-max` set a reasoning floor. On the home screen they set a project default; inside a session they set a session override.
-- `/effort-clear` removes the current session override or the project default.
-- The plugin only applies OpenAI `reasoningEffort` overrides. Other providers are left untouched.
-- State and verification traces are written under the active project at `.opencode/effort-control.sessions.json` and `.opencode/effort-control.trace.jsonl`.
-- This installer is intentionally separate from `install-all-local`; it changes runtime behavior and should stay opt-in.
-
-Installed file layout:
-
-```text
-~/.config/opencode/
-├─ plugins/
-│  ├─ effort-control.js
-│  └─ effort-control/
-│     ├─ index.js
-│     ├─ state.js
-│     └─ tui.jsx
-└─ tui.json
-```
-
-Windows (PowerShell):
-
-```powershell
-pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1
-```
-
-macOS/Linux:
-
-```bash
-bash scripts/install-plugin-effort-control.sh
-```
-
-Common options:
-
-- Preview only: `pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -DryRun` or `bash scripts/install-plugin-effort-control.sh --dry-run`
-- Custom target entry file: `pwsh -NoProfile -File scripts/install-plugin-effort-control.ps1 -Target C:\path\to\opencode-config\plugins\effort-control.js` or `bash scripts/install-plugin-effort-control.sh --target /path/to/opencode-config/plugins/effort-control.js`
-
-Quick verification after install:
-
-- Open OpenCode with an OpenAI or GitHub Copilot `gpt-5*` model, run `/effort-high`, then start a new session and dispatch a delegated flow.
-- Inspect `.opencode/effort-control.trace.jsonl` in the active project. `source: "project_default"` or `source: "session_override"` confirms the override path.
-
 ## Copilot agents from clone
+
+This is a Tier 2 best-effort output. Validate the concrete workflow you rely on; a successful export does not imply Codex feature parity.
 
 Default target: `~/.copilot/agents`
 
@@ -261,7 +223,7 @@ Common options:
 
 Default target: `~/.claude/agents`
 
-Claude Code support is file-based today. Treat `opencode/agents/*.md` as the source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
+Claude Code support is a Tier 2 best-effort file export. Treat `opencode/agents/*.md` as the transitional source of truth, install generated copies into Claude's global agents directory by default, and use a project-local `.claude/agents/` target only when you explicitly want repo-scoped overrides.
 
 Windows (PowerShell):
 
@@ -288,6 +250,8 @@ Claude Code limitation note:
 ## Codex roles from clone
 
 Primary/default target: `~/.codex`
+
+This is the Tier 1 developer-install path.
 
 Behavior notes:
 

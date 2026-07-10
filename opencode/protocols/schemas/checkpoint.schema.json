@@ -29,7 +29,6 @@
       "enum": [
         "orchestrator-pipeline",
         "orchestrator-flow",
-        "orchestrator-goal",
         "orchestrator-spec",
         "orchestrator-simple",
         "orchestrator-ci",
@@ -47,7 +46,7 @@
     },
     "flags": {
       "type": "object",
-      "description": "All parsed flag values for this run.",
+      "description": "All effective parsed and workflow-derived flag values for this run.",
       "properties": {
         "dry_run": { "type": "boolean", "default": false },
         "skip_tests": { "type": "boolean", "default": false },
@@ -63,11 +62,11 @@
           "type": "string",
           "enum": ["low", "medium", "high"]
         },
-        "effort_mode": {
-          "type": "string",
-          "enum": ["low", "balanced", "high"]
-        },
         "max_retry_rounds": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "review_mode": {
+          "type": "string",
+          "enum": ["auto", "off", "on"]
+        },
         "handoff_mode": { "type": "boolean", "default": false },
         "kanban_mode": {
           "type": "string",

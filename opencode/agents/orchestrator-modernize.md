@@ -399,7 +399,7 @@ Phase Resolution Protocol (required for `phase-exec` / `full-exec`, and for `bra
 
 Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - `--pipeline-flag=<flag>` is pass-through for `@orchestrator-pipeline` flags only.
-- Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--effort=*`, `--max-retry=*`, `--autopilot`, `--full-auto`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
+- Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--max-retry=*`, `--autopilot`, `--full-auto`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
 - Forbidden forwarded flags:
   - `--decision-only` (contradicts execution intent)
   - any `run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
@@ -452,7 +452,7 @@ working_project_dir: <target_project_dir>
 runtime_metadata:
   dispatch_worktree: <target_project_dir>
 pipeline_flags:
-  - --effort=balanced
+  - --max-retry=2
   - --confirm
 
 main_task_prompt: Implement modernization roadmap phase <phase_id> in the delegated working project using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.

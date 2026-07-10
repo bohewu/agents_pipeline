@@ -1,6 +1,6 @@
 ---
 name: orchestrator-pipeline
-description: Primary orchestrator for the full pipeline with effort-aware routing, review gates, retries, and context compression.
+description: Primary orchestrator for the full pipeline with risk-derived execution rigor, review gates, retries, and context compression.
 mode: primary
 temperature: 0.2
 tools:
@@ -106,7 +106,6 @@ Flag semantics:
 - `--scout=auto|skip|force` -> scout_mode
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
-- `--effort=low|balanced|high` -> effort_mode
 - `--max-retry=<int>` -> max_retry_rounds
 - `--compress` -> compress_mode = true
 - `--commit=off|before|after` -> commit_mode
@@ -158,7 +157,6 @@ If `--full-auto` is provided:
 - Set `full_auto_mode = true`.
 - Set `autopilot_mode = true`.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
-- If `--effort=*` was not provided explicitly, set `effort_mode = high`.
 - If `--max-retry=*` was not provided explicitly, default to `max_retry_rounds = 5`.
 - Explicit flags still override these preset defaults.
 - Prefer the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker.
@@ -224,6 +222,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 2. **Gitignore check**: Verify the resolved delegated `output_root` is listed in the working project's `.gitignore` (target project for modernize-exec, current project otherwise). If missing, warn the user: "Warning: `<output_root>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
+   - For a valid checkpoint, hydrate the persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
@@ -251,12 +250,13 @@ After each stage completes successfully:
     - `pipeline_id`: unique identifier for this run
     - `orchestrator`: "orchestrator-pipeline"
     - `user_prompt`: the original main_task_prompt
-   - `flags`: all parsed flag values
+   - `flags`: current effective parsed and workflow-derived flag values
    - `current_stage`: the stage number just completed
    - `completed_stages[]`: array of `{ stage, name, status, artifact_key, timestamp }`
    - `stage_artifacts`: map of stage outputs (the JSON produced at each stage)
     - `created_at` / `updated_at`: ISO 8601 timestamps
 2. The checkpoint file MUST conform to `opencode/protocols/schemas/checkpoint.schema.json`.
+3. Include the current effective `flags` object in `stage.completed` whenever a stage derives or changes a flag value. In particular, the Stage 3 completion event MUST persist the risk-derived `max_retry_rounds` when no explicit `--max-retry` or `--full-auto` default already controls it.
 
 # STATUS ARTIFACT PROTOCOL
 
@@ -267,6 +267,8 @@ If `working_project_dir` is present, include it unchanged in every `status_runti
 Use the expanded status layout (`tasks/<task_id>.json`, `agents/<agent_id>.json`) once task decomposition begins at Stage 3.
 
 Minimum required events: `run.started` (or `run.resumed`), `stage.completed` after every stage, `tasks.registered` after Stage 3, `task.updated` on task state changes, `agent.started`/`agent.heartbeat`/`agent.finished` for visible subagents, `run.finished` on terminal outcome.
+
+For `run.resumed`, send current-invocation flag overrides in `payload.flags`; the runtime merges that delta over persisted checkpoint flags rather than replacing the complete object.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -334,22 +336,23 @@ Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor / @peon / @generalist / @doc-writer as specified
-- For `@executor` tasks, include a bounded execution profile in the handoff. Use task `risk` / `complexity` as the default signal:
-  - low + S -> `effort = low`, `verification = basic`, `repair_budget = 0`
-  - medium + M -> `effort = medium`, `verification = basic`, `repair_budget = 1`
-  - high + L -> `effort = high`, `verification = strong`, `repair_budget = 1`
+- For `@executor` tasks, include an explicit bounded execution profile in the handoff. Derive rigor from task `risk` / `complexity`; never use workflow rigor to select model reasoning:
+  - low risk + S complexity -> `verification = basic`, `repair_budget = 0`
+  - medium risk or M complexity -> `verification = basic`, `repair_budget = 1`
+  - high risk or L complexity -> `verification = strong`, `repair_budget = 1`
+  - derive `resource_class` from the actual commands/tools and lifecycle needs (`light | process | server | browser`), not from risk alone
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
 - For visible frontend UI implementation or polish tasks, include `opencode/skills/frontend-aesthetic-director/SKILL.md` in the executor handoff when relevant. If `/uiux` output or wireframes are present, treat them as upstream source of truth; preserve flow, structure, primary action, and copy intent while refining visual hierarchy, tokens, responsive behavior, component states, accessibility, and rendered defects.
-- For localized landing page, dashboard polish, or component UI work, prefer medium or high execution effort plus rendered visual QA over any assumption that the task needs extra-high reasoning.
+- For localized landing page, dashboard polish, or component UI work, prefer explicit rendered visual QA and an appropriate `resource_class` over increasing model reasoning.
 - Include runtime-status expectations in every task handoff: executors may report updates only for the assigned task plus their own agent attempt through runtime APIs, should use standalone heartbeats only for genuinely long-running active work that still needs liveness visibility, should keep heartbeats coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), must record heavy-resource fields for browser/server/process work, and must not claim success until required cleanup is reflected in status.
 - If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
 - If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one `status_runtime_event` call with `event = "batch"` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`.
 Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
@@ -414,7 +417,7 @@ If `decision_only = true`:
   3) attempt one bounded recovery pass per blocked task
 - Allowed recovery actions (must stay within the original ProblemSpec / optional DevSpec / phase execution contract):
   - clarify the handoff using existing repo evidence or prior pipeline artifacts
-  - reroute the same task with higher `effort` or stronger `verification` settings when the task still fits the single-executor contract
+  - reroute the same task with stronger `verification` or a more conservative `resource_class` when the task still fits the single-executor contract
   - generate narrow unblock delta tasks via @atomizer + @router when additional in-scope work is required to unblock the original task
   - re-dispatch the original blocked task once after the unblock step completes
 - Recovery MUST NOT:
@@ -438,11 +441,8 @@ If `decision_only = true`:
 - Determine max_retry_rounds (integer; clamp to 0..5):
   - If `--max-retry=N` is provided: parse N, clamp to 0..5.
   - Else if `full_auto_mode = true`: max_retry_rounds = 5
-  - Else if effort_mode is set:
-    - low: max_retry_rounds = 1
-    - balanced: max_retry_rounds = 2
-    - high: max_retry_rounds = 3
-  - Else: max_retry_rounds = 2
+  - Else after TaskList exists, derive from the highest task risk: low = 1, medium = 2, high = 3.
+  - Before TaskList/risk is available, use max_retry_rounds = 2 as the provisional fallback and recompute it after Stage 3.
 - `--max-retry=0` disables Stage 7 retries entirely.
 - Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry round, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED.
 - Retry classification rules:
@@ -471,14 +471,11 @@ If `decision_only = true`:
   - original acceptance criterion
 - If scope cannot be satisfied, executor must STOP and report BLOCKED.
 
-# COST / EFFORT RULES
+# RISK / EXECUTION RIGOR RULES
 
-- Model/provider selection is runtime-driven by OpenCode configuration.
-- effort_mode controls execution depth:
-  - low: favor the smallest viable path with fewer retries and lighter validation
-  - balanced: use the practical default depth with standard validation
-  - high: allow deeper analysis, broader validation, and stricter quality checks
-- Route high-risk or complex reasoning tasks to `@executor` with higher `effort` and stronger `verification` settings.
+- Model, provider, and model reasoning selection are runtime-owned and MUST NOT be inferred from workflow rigor.
+- Derive execution rigor from TaskList `risk` / `complexity`, then make `verification` and `repair_budget` explicit in executor handoffs and preserve routed `resource_class` from the DispatchPlan.
+- Route high-risk or complex tasks to `@executor` with stronger verification, required review attention, and bounded repair settings.
 - Route mechanical/documentation/formatting tasks to lower-cost executor profiles.
 
 # QUALITY GATES

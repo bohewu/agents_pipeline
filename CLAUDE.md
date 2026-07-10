@@ -28,9 +28,6 @@ python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-
 # Status runtime plugin test (Node.js)
 node --test opencode/plugins/status-runtime/run-registry.test.js
 
-# Effort-control plugin test (Node.js)
-node --test opencode/plugins/effort-control.test.mjs
-
 # Status runtime smoke test
 node scripts/validate-status-runtime-smoke.cjs
 
