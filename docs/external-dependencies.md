@@ -1,160 +1,132 @@
-# External Dependencies And Risk Notes
+# External Dependencies And Release-Install Risk Notes
 
 ## Scope
 
-This document explains which features talk to external services, what auth they expect, what they do on failure, and what data they may surface.
+The current repository contains no helper that directly calls provider quota, image-generation, skill-catalog, or model APIs. Exporters, direct installers, schema validation, and the neutral status writer operate on local files.
 
-## `provider-usage`
+Network access is used by the supported release bootstraps to discover and download published GitHub release bundles. Generated agents subsequently use their selected runtime's own authentication, network, billing, and policy boundary.
 
-Files:
+## Supported release bootstraps
 
-- `opencode/tools/provider-usage.py`
-- `opencode/tools/provider-usage.ts`
+The current networked bootstrap entry points are:
 
-External services used:
+- `scripts/bootstrap-install-codex.sh`
+- `scripts/bootstrap-install-codex.ps1`
+- `scripts/bootstrap-install-claude.sh`
+- `scripts/bootstrap-install-claude.ps1`
+- `scripts/bootstrap-install-copilot.sh`
+- `scripts/bootstrap-install-copilot.ps1`
 
-- OpenAI auth/token refresh: `https://auth.openai.com/oauth/token`
-- Codex usage endpoint: `https://chatgpt.com/backend-api/wham/usage`
+Each bootstrap downloads a release bundle into a temporary directory, verifies it, runs the corresponding local installer from that bundle, and removes the temporary directory unless `--keep-temp` / `-KeepTemp` is selected.
 
-Local auth/state inputs:
+These neutral-bundle bootstraps support `v0.28.0` and newer. For an older tag, use the bootstrap file shipped at that tag because pre-v0.28 releases used a different bundle layout.
 
-- OpenCode/Codex auth files under user config locations
+## GitHub services used
 
-Expected failure modes:
+The bootstraps use:
 
-- no local OpenCode/Codex auth files
-- expired or revoked refresh/access tokens
-- rate limits, 403/404 access failures, or endpoint changes
+- GitHub Releases REST API to resolve `latest` or an explicit tag
+- release-asset download URLs for the archive and checksum manifest
+- optional GitHub Artifact Attestation verification through `gh attestation verify`
 
-Fallback behavior:
+Release discovery is anonymous; the scripts do not read `GITHUB_TOKEN` or `GH_TOKEN`. Anonymous GitHub API rate limits therefore apply.
 
-- cached provider data may be reused when a live lookup previously succeeded and a later lookup fails.
+No project source files, prompts, runtime credentials, or generated artifacts are uploaded by these bootstrap scripts. Ordinary GitHub request metadata such as IP address and user agent remains visible to GitHub.
 
-Privacy notes:
+## Integrity checks
 
-- The tool intentionally avoids printing raw tokens and credential blobs.
-- `--include-sensitive` exposes less-redacted account identifiers; avoid sharing that output in public issues or PRs.
+The release install sequence is:
 
-## `codex-imagegen`
+1. Resolve one published release.
+2. Select the platform archive and its `SHA256SUMS` asset.
+3. Download both assets.
+4. Compute SHA-256 locally and require an exact checksum match.
+5. If a compatible `gh` CLI is available, verify the archive attestation against:
+   - repository `bohewu/agents_pipeline`
+   - signer workflow `.github/workflows/release-bundle.yml`
+   - the resolved tag source ref
+   - GitHub-hosted runners only
+6. Verify the extracted bundle contains the files required by the selected runtime installer.
+7. Run the installer.
 
-Files:
+Checksum verification is mandatory. Attestation verification is opportunistic: it is skipped when `gh` is unavailable or lacks `gh attestation verify`. When attestation verification is attempted and fails, the bootstrap fails.
 
-- `opencode/tools/codex-imagegen.ts`
-- `opencode/commands/codex-imagegen.md`
-- `opencode/skills/codex-imagegen/SKILL.md`
+Use `--verbose` / `-Verbose` to see attestation decisions and additional bootstrap details.
 
-External services used:
+## Reproducibility
 
-- Codex CLI's built-in `$imagegen` path, using the local Codex CLI account and Codex usage limits.
-- Delegated Codex CLI image-generation runs default to `sandbox=danger-full-access` so generated files can be copied back from Codex's generated-images area into the requested project output path.
+Prefer an explicit immutable release tag:
 
-Local auth/state inputs:
+```bash
+bash scripts/bootstrap-install-codex.sh --version v0.28.0 --dry-run
+```
 
-- local Codex CLI login state, normally under the user's Codex config directory
-- generated image files that Codex CLI may stage under its own generated-images directory before the delegated run copies or saves them into the requested project output directory
+`--version latest` is convenient but mutable: two runs can resolve different releases. A pinned tag plus mandatory checksum and successful attestation provides the strongest supported release-install evidence.
 
-Expected failure modes:
+Dry-run resolves and reports the intended actions without modifying the install target. It may still require GitHub network access to resolve release metadata.
 
-- Codex CLI is missing, not on `PATH`, or cannot start
-- OpenCode was launched without shell-specific PATH entries; use `codex_command`,
-  `CODEX_IMAGEGEN_CODEX_COMMAND`, or the tool's Windows npm/fnm auto-discovery
-- requested `output_path` is missing a supported image extension
-- local Codex CLI login is missing or expired
-- the Codex CLI `image_generation` feature is unavailable or renamed in the installed build
-- `$imagegen` returns no new image file
-- output directory creation or file copying fails
-- Codex service, quota, rate-limit, or policy failures
+## Platform dependencies
 
-Fallback behavior:
+macOS/Linux bootstraps require:
 
-- There is intentionally no direct OpenAI Images API fallback.
-- There is intentionally no alternate provider, browser, local-renderer, or manual asset fallback.
-- Failures return a warning with `fallback_used: false`.
+- `bash`
+- `curl`
+- `python3`
+- `tar`
+- `sha256sum` or `shasum`
 
-Privacy and billing notes:
+Windows bootstraps require:
 
-- The tool deletes `CODEX_API_KEY` from the delegated process environment so normal use relies on the signed-in Codex CLI account instead of direct API-key billing.
-- Prompts and generated images are sent through Codex CLI's built-in image generation path and should be treated according to the user's Codex account terms and retention settings.
-- Per-run disable flags reduce non-actionable Codex plugin/analytics/shell-snapshot warning noise, but successful image generation may still emit Codex CLI service warnings that are not image-generation failures.
+- PowerShell 7+
+- `Invoke-RestMethod`, `Invoke-WebRequest`, `Get-FileHash`, and archive extraction support supplied by PowerShell/.NET
+- Python 3.11 or newer available to the selected runtime installer
 
-## `skill-manager`
+Optional on every platform:
 
-Files:
+- GitHub CLI with `gh attestation verify` support
+- authenticated `gh` state when GitHub requires it for attestation lookup
 
-- `opencode/tools/skill-manager.py`
-- `opencode/tools/skill-manager.ts`
+The target runtime CLI is required to use generated roles but is not required merely to inspect a dry-run.
 
-Remote catalogs:
+## Expected failure modes
 
-- `anthropics/skills`
-- `github/awesome-copilot`
-
-External services used:
-
-- GitHub Contents API
-- raw GitHub download URLs returned by that API
-
-Auth:
-
-- anonymous GitHub access works for many cases, but is subject to low rate limits
-- `GITHUB_TOKEN` or `GH_TOKEN` is recommended for reliability
-
-Reproducibility and auditability:
-
-- If `--ref` is omitted, remote catalog lookups/installations use the source repo's default branch HEAD.
-- Default-branch HEAD is mutable and therefore less reproducible.
-- Prefer `--ref=<tag|sha>` for reviewable installs and bug reports.
-
-Expected failure modes:
-
-- GitHub API rate limiting
-- network/proxy failures
-- missing skill name at the selected ref
-- remote repo layout changes
-- destination already exists and `--force` was not provided
-
-Data and trust boundary:
-
-- Remote installs copy the selected skill directory contents into repo/global skill locations.
-- There is no manifest or hash verification layer yet; the current safety improvement is ref pinning plus explicit output showing whether the install used a pinned ref or mutable HEAD.
-
-## Bootstrap And Release Installers
-
-Files:
-
-- `scripts/bootstrap-install*.sh`
-- `scripts/bootstrap-install*.ps1`
-
-External services used:
-
-- GitHub Releases API
-- published release assets
-- optional GitHub Artifact Attestation verification when `gh` is available
-
-Safety posture:
-
-- preferred path: pinned release version + bundle checksum verification
-- stronger path: pinned release version + checksum + attestation verification
-- less auditable path: piping `main` bootstrap scripts directly into a shell
-
-Expected failure modes:
-
-- release/tag not found
-- asset download failure
+- GitHub API rate limiting or service outage
+- proxy, TLS, DNS, or firewall failure
+- requested tag or expected release asset missing
+- incomplete or malformed release metadata
+- archive/checksum download failure
+- missing local checksum utility
 - checksum mismatch
-- `gh` unavailable, unauthenticated, or unable to verify attestation
+- attestation verification failure when verification is available
+- malformed archive or missing required bundle files
+- insufficient permission to write the selected install target
+- an install target containing control or shell-interpolation characters that cannot be represented safely in portable generated command snippets
+- missing Python, Node.js, Bash, or PowerShell runtime required by the selected path
 
-Guidance:
+Never bypass a checksum or attestation failure by manually running an unverified extracted installer. Re-download the pinned release and investigate the publication chain.
 
-- Prefer pinned release examples from `README.md`.
-- Use dry-run options when available before changing install targets.
-- Treat direct `main` pipe-to-shell examples as convenience-only, not the default audited path.
+## Runtime trust boundaries
 
-## Reporting Problems
+The supported installers generate configuration for runtimes that have their own external dependencies:
 
-When filing a bug or PR about an external dependency problem, include:
+- Codex uses the user's Codex installation, login, provider access, permissions, sandbox, and service terms.
+- Claude Code uses the user's Claude Code installation, login, permissions, and service terms.
+- GitHub Copilot uses the user's selected Copilot surface, authentication, model availability, permissions, and service terms.
 
-- which command/tool/script you ran
-- whether auth was configured
-- whether the failure was live lookup, rate limit, permissions, or missing local files
-- whether the problem reproduces with a pinned ref/tag or only against mutable HEAD
+This repository does not proxy those runtime calls or copy runtime credentials. Optional model profiles name runtime models but do not verify entitlement or current availability.
+
+The neutral status writer (`tools/status-event.js`) performs local filesystem work only. It does not send status, checkpoint, prompt, task, agent, or evidence data to an external service.
+
+## Reporting problems
+
+Include the following when reporting a release-install dependency failure:
+
+- selected runtime and platform
+- exact bootstrap command with secrets removed
+- pinned tag or `latest`
+- whether failure occurred during release lookup, download, checksum, attestation, extraction, or local installation
+- whether `gh attestation verify --help` is available
+- whether the same pinned release reproduces after removing proxy/cache effects
+- dry-run output and non-sensitive stderr
+
+Do not attach runtime tokens, auth files, cookies, or private prompt/artifact contents.

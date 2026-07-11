@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Flow"
+  short_description: "Run a bounded multi-task engineering flow"
+  default_prompt: "Use $run-flow to implement this change as a bounded engineering flow."
+policy:
+  allow_implicit_invocation: false

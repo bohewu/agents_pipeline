@@ -1,141 +1,325 @@
 # Multi-Agent Pipeline
 
-Multi-agent workflows for OpenCode with companion agent docs for Claude Code, VS Code Copilot, and Codex.
-This repository (`bohewu/agents_pipeline`) contains the workflow assets, protocols, tools, and plugins for **Multi-Agent Pipeline**, with `opencode/agents/*.md` as the single source of truth.
-See the **How To Use** section below for usage instructions.
+Codex-first multi-agent workflow assets with a runtime-neutral source core and best-effort exports for Claude Code and GitHub Copilot.
 
-## Contents
+## Quick links
 
-- [TL;DR](#tldr)
-- [Project Docs](#project-docs)
-- [Usage Prerequisites](#usage-prerequisites)
-- [Install (Recommended)](#install-recommended)
-- [Developer Install (Clone Repo)](#developer-install-clone-repo)
-- [How To Use](#how-to-use)
-- [Quick Start](#quick-start)
-- [VS Code Copilot Agents](#vs-code-copilot-agents)
-- [Claude Code Subagents](#claude-code-subagents)
-- [Codex Agent Roles](#codex-agent-roles)
-- [Conceptual UI/UX Layer](#conceptual-uiux-layer)
-- [Frontend UI Implementation](#frontend-ui-implementation)
-- [Workspace Agent Model Profiles](#workspace-agent-model-profiles)
-- [Protocol Validation](#protocol-validation)
-- [Config Example](#config-example)
-- [Flags](#flags)
-- [Orchestrators](#orchestrators)
-- [Versioning](#versioning)
+- [Install globally once](#install-globally-once-from-a-release)
+- [Interactive profile manager](#interactive-runtime-and-model-profile-setup)
+- [Codex workspace profile](#codex-workspace-profile)
+- [Workspace trust and eligibility](#workspace-trust-and-eligibility)
+- [Modes and Pipeline entry points](#modes)
+- [Runtime profile details](docs/runtime-agent-model-profiles.md#codex-workspace-profile)
+- [Compatibility matrix](COMPATIBILITY.md#runtime-profile-manager-compatibility)
+- [Explicit full workspace materialization](docs/developer-install.md#explicit-workspace-materialization-compatibility)
 
-## TL;DR
+## Support policy
 
-- Most users should use the published release bundle install commands in `Install (Recommended)`.
-- Fastest Ubuntu/macOS/Linux all-in-one path: paste the one-liner in `All local assets`; no extra `chmod` step is needed for that path.
-- If you are editing this repo or testing local changes from your working tree, use `Developer Install (Clone Repo)`.
-- Most common run: `/run-pipeline Implement OAuth2 login --effort=balanced`
-- Optional workspace model routing: use `agent-profile.ps1` or `agent-profile.sh` to generate `.opencode/agents` overrides from tiered profiles and provider model sets.
+| Runtime | Level | Contract |
+|---|---|---|
+| Codex | Tier 1 | Primary installer, documentation, workflow development, and CI validation |
+| Claude Code | Tier 2 | Generated subagent files and export/install smoke validation |
+| GitHub Copilot | Tier 2 | Generated custom agents and export/install smoke validation |
+| OpenCode | Ended | Use the frozen `v0.26.1` release; it is not built from current main |
 
-## Project Docs
+Tier 2 is intentionally bounded: the adapters preserve useful prompt behavior and mode aliases, but do not promise Codex feature parity.
 
-- `CONTRIBUTING.md` for repo layout, single-source-of-truth rules, local validation, and release expectations.
-- `SECURITY.md` for private vulnerability reporting and token/supply-chain handling guidance.
-- `COMPATIBILITY.md` for runtime and host-environment assumptions.
-- `docs/external-dependencies.md` for network/auth/rate-limit/fallback/privacy notes on `provider-usage`, `skill-manager`, and bootstrap installers.
-- `docs/art-generation-scaffold.md` for the bounded 2D asset brief/prompt scaffold, standardized External Handoff Package, Direct Use Prompt, and optional `/artgen --gen-provider=codex` bridge used by the repo-managed `artgen-scaffold` skill, `art-director`, and the normal `/artgen` surface.
-- `opencode/skills/codex-imagegen/SKILL.md` for the Codex CLI `$imagegen` bridge used by `/codex-imagegen` when OpenCode should generate images through Codex quota without direct API or provider fallback.
-- `opencode/protocols/UI_UX_WORKFLOW.md` for the thin conceptual UI/UX layer, non-expert design/interaction guidance, communication-first overlay, intake/review rubric, and the `ui-ux-bundle` schema/example bundle used by `/uiux`, `ui-ux-designer`, and the repo-managed `ui-ux-workflow` and `ui-communication-designer` skills.
-- `opencode/skills/frontend-aesthetic-director/SKILL.md` for frontend implementation and polish tasks that need visual direction, design-token alignment, responsive behavior, accessibility states, and rendered browser/Playwright QA.
-- `docs/agent-model-profiles.md` for workspace-local OpenCode agent model profiles, provider model sets, and safe generated overrides under `.opencode/agents`.
-- `docs/runtime-agent-model-profiles.md` for opt-in runtime agent model profile output behavior across OpenCode, Codex, Copilot, and Claude Code.
+## What changed in v0.28
 
-## Usage Prerequisites
+- Canonical sources moved from the runtime-named tree to `agents/`, `protocols/`, `skills/`, and `tools/`.
+- `modes.json` replaced runtime command files as the mode-routing source of truth.
+- Ten formal `run-*` skills provide the primary Codex workflow entry points; natural-language `use <mode>` forms remain compatibility aliases.
+- Codex installs mirror the marker-owned neutral support tree under `.codex/agents-pipeline`, including the scripts and runtime catalogs needed to run the installed profile manager.
+- Status/checkpoint writing is a portable Node CLI instead of a runtime plugin.
+- A runtime-neutral profile manager provides interactive or scripted `set`/`status`/`clear`/`list` flows. Runtime assets are installed globally once; Codex workspace profiles materialize only profile-specific role TOML plus a managed config block and manifest, without copying skills, scripts, protocols, or the support tree.
+- OpenCode commands, plugins, tools, installers, model catalogs, and release targets were removed from main.
+- Claude Code and Copilot remain inexpensive Tier 2 adapters; Codex remains the only first-class runtime.
 
-This repo assumes you have configured the required model providers in OpenCode.
-If no model/provider is available in your OpenCode runtime config, update `opencode.json` (or your global OpenCode config) before running any commands.
-Compatibility assumptions and optional dependencies are documented in `COMPATIBILITY.md`.
+There is no `$run-goal` skill, and `run-goal` is not part of the mode manifest. Use the host runtime's native task/session/goal facilities for long-running work.
 
-### Required Tools
+## Repository layout
 
-- OpenCode (with model providers configured)
-- Claude Code (optional; default install target: `~/.claude/agents`)
-- VS Code with GitHub Copilot (for Copilot custom-agent usage)
-- Codex CLI (optional; for Codex multi-agent usage)
-- Python 3.9+ (required for `opencode/tools/validate-schema.py`, `opencode/tools/agent-profile.sh`, `scripts/export-copilot-agents.py`, and `scripts/export-codex-agents.py`)
-- PowerShell 7+ (for `scripts/install.ps1` on Windows) or Bash (for `scripts/install.sh` on macOS/Linux)
-- `curl` + `tar` + `sha256sum` (or `shasum`) for release-bundle bootstrap install on macOS/Linux
-- GitHub CLI (`gh`) is optional, but bootstrap installers use it to verify GitHub Artifact Attestations when available
+```text
+agents/                         canonical agent Markdown
+modes.json                      mode names, aliases, orchestrator targets
+protocols/                      contracts, schemas, and fixtures
+skills/                         portable repo-managed skills
+skills/run-*/                   formal Codex workflow entry skills
+tools/status-event.js           runtime-neutral status/checkpoint CLI
+tools/status-runtime/           reusable status projection core
+tools/agent-profile.py          interactive/runtime-neutral profile manager
+tools/agent-profiles/           neutral mini/standard/strong profiles
+runtimes/<runtime>/model-sets/  runtime-specific model mappings
+scripts/agent-profile.*         Bash/PowerShell profile-manager entrypoints
+scripts/codex-project-profile.py Codex workspace role/profile helper
+scripts/export-*.py             Codex/Claude/Copilot adapters
+scripts/install-*               local and release-bundle installers
+```
 
-## Workspace Agent Model Profiles
+Canonical agent frontmatter contains only `name`, `description`, and `kind`. Model, provider, reasoning, sandbox, tool, visibility, and temperature controls belong to runtime projections—not the neutral source.
 
-OpenCode core installs include deterministic workspace profile installers for per-agent model routing. Profiles map agents to logical tiers (`mini`, `standard`, `strong`), and model sets map those tiers to concrete provider model IDs so provider changes or model version updates stay centralized.
+## Install globally once from a release
 
-OpenAI is the primary bundled model family: its OpenCode and Codex catalogs use GPT-5.6 Luna, Terra, and Sol. Provider-specific Anthropic and Google catalogs remain available, while the tier profiles stay provider-independent.
+Bootstrap installers download the pinned neutral release bundle, verify its checksum, and use GitHub Artifact Attestation when `gh` is available. Run the bootstrap once per runtime on a machine. A new project does not need another runtime installation.
 
-Workspace-first installs write generated profile overrides under the selected workspace. Use `-Workspace .` / `--workspace .` for the current repo; when `-Runtime` / `--runtime` is omitted, OpenCode remains the default runtime.
+<!-- BEGIN current-release -->
 
-PowerShell:
+### Codex (recommended)
+
+Windows (PowerShell):
 
 ```powershell
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -ModelSet openai -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime codex -ModelSet openai -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime copilot -ModelSet default -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
+$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
-Bash/macOS/Linux:
+macOS/Linux (Bash):
 
 ```bash
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set openai --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime codex --model-set openai --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime copilot --model-set default --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh status --runtime codex --workspace .
+tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
-Generated overrides live in `.opencode/agents`; canonical `opencode/agents/*.md` remains unchanged. Restart OpenCode after changing profiles. See [docs/agent-model-profiles.md](docs/agent-model-profiles.md).
+### Claude Code (best effort)
 
-The same wrapper can also dispatch opt-in Codex, Copilot, and Claude Code profile installs with `--runtime` / `-Runtime`; by default it derives workspace-local targets from `--workspace` / `-Workspace` (or the current directory): `.opencode/agents`, `.claude/agents`, `.copilot/agents`, or `.codex`. Codex profile installs through this wrapper write generated agent TOML to the workspace `.codex` target while keeping managed global Codex notes in the default global Codex home (`~/.codex/AGENTS.override.md` when active, otherwise `~/.codex/AGENTS.md`); they do not update the caller repo's root `AGENTS.md` or workspace `.codex/AGENTS.md`. `--target` / `-Target` is not needed for workspace use; pass it only for an explicit override, such as an intentional global install. These runtime flags only select model names or aliases; Codex reasoning effort comes from the effective Codex runtime config, not these profiles. See [docs/runtime-agent-model-profiles.md](docs/runtime-agent-model-profiles.md).
+Windows (PowerShell):
 
-Maintainers can refresh every managed model-set catalog with `python3 scripts/update-agent-model-sets.py --dry-run`.
+```powershell
+$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+```
 
-## Install (Recommended)
+macOS/Linux (Bash):
 
-These commands install from the published release bundle and are the default path for most users.
+```bash
+tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+```
 
-Bootstrap installers download a release bundle, verify the archive checksum against the release `SHA256SUMS` asset, and, when `gh` is available, verify the GitHub Artifact Attestation before installing only the target you choose.
-See `docs/external-dependencies.md` for external fetch, auth, and supply-chain notes for bootstrap/release installs.
+### GitHub Copilot (best effort)
 
-Attestation details stay quiet by default. Use `--verbose` on Bash bootstrap scripts or `-Verbose` on PowerShell bootstrap scripts if you want to see the attestation verification steps.
+Windows (PowerShell):
 
-Most common choices:
+```powershell
+$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+```
 
-- Want everything in one step: start with `All local assets`.
-- Already have OpenCode and only need the runtime status plugin: use `Status plugin only`.
-- Only want `/usage` plus the usage footer plugin: use `Usage only`.
-- Want OpenAI or GitHub Copilot GPT-5 reasoning floor controls in OpenCode: use `Effort-control plugin only`.
-- Only need one editor/CLI integration: jump to `Copilot agents`, `Claude Code subagents`, or `Codex roles`.
+macOS/Linux (Bash):
 
-Pick the install target that matches what you want:
+```bash
+tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+```
 
-- [OpenCode core](#opencode-core): install the main OpenCode config only.
-- [Status plugin only](#status-plugin-only): install just the OpenCode status runtime plugin.
-- [Usage only](#usage-only): install just the usage command/tool and the usage-status plugin.
-- [Effort-control plugin only](#effort-control-plugin-only): install just the OpenCode GPT-5 reasoning-effort controller for OpenAI and GitHub Copilot.
-- [All local assets](#all-local-assets): install OpenCode core + status/usage/effort plugins + Copilot + Claude + Codex in one step.
-- [Copilot agents](#copilot-agents): install only VS Code Copilot custom agents.
-- [Claude Code subagents](#claude-code-subagents): install only Claude Code agent markdown files.
-- [Codex roles](#codex-roles): install only Codex role config.
+Release invariant: `VERSION=0.28.0` must release as `v0.28.0`.
 
-PowerShell tips:
+<!-- END current-release -->
 
-- Prefer pinned tags over `main`.
-- Pass `-Target` explicitly when you know the install location.
-- When combining PowerShell switch flags with other arguments, prefer `-Flag:$true` form for clarity.
-- Bootstrap installers create backups by default when they detect existing installed files.
+Use each bootstrap's dry-run option before changing a non-default global target. See [external dependency notes](docs/external-dependencies.md) for download, checksum, and attestation behavior.
 
-### OpenCode core
+The normal global layout is:
 
-Copy-paste commands (recommended):
+| Runtime | Generated definitions | Global support assets |
+|---|---|---|
+| Codex | `~/.codex/agents/`, `~/.codex/config.toml`, and the active `~/.codex/AGENTS.md` or `AGENTS.override.md` | `~/.codex/agents-pipeline/` |
+| Claude Code | `~/.claude/agents/` and `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
+| GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-Existing OpenCode files are backed up by default. The installer refreshes the managed repo files, removes stale managed files that were deleted from this repo, and leaves unrelated user-created files in place.
+For the default `~/.codex` target, the Codex global installer also publishes exactly ten managed workflow skills under `~/.agents/skills/run-*/`; a custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each skill has an ownership marker; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt, linked, or junction-backed same-named skill directories are preserved and cause a safe refusal instead of being overwritten.
+
+Direct workspace targets remain available only as explicit materialization compatibility. They copy complete generated agents and support assets into a project; they are not the normal profile workflow. See [developer install](docs/developer-install.md#explicit-workspace-materialization-compatibility).
+
+## Developer install from a clone
+
+```bash
+bash scripts/install-codex.sh --dry-run
+bash scripts/install-codex.sh
+```
+
+Optional Tier 2 outputs:
+
+```bash
+bash scripts/install-claude.sh --dry-run
+bash scripts/install-copilot.sh --dry-run
+```
+
+PowerShell equivalents use `scripts/install-*.ps1` with `-DryRun`.
+
+## Interactive runtime and model-profile setup
+
+After the one-time global Codex install, use the installed profile manager from any directory:
+
+```bash
+bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+```
+
+```powershell
+pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
+```
+
+The menu selects the action, runtime, scope, profile, and runtime-specific model set. The public actions are `set`, `status`, `clear`, and `list`; `install` remains only as a deprecated compatibility alias for `set`. Codex is the recommended runtime and global is the default scope. Codex also offers a workspace **project profile override**. Claude Code and Copilot profiles are global-only.
+
+If a new Codex project should use the global profile, do nothing: it inherits the global roles and support installation.
+
+### Codex workspace profile
+
+When a project needs a different resource tier, `set --scope workspace` materializes only the profile-specific role layer:
+
+```text
+<project>/.codex/config.toml
+<project>/.codex/agents/*.toml
+<project>/.codex/.agents-pipeline-project-profile.json
+```
+
+The managed block in `config.toml` points to those workspace-local role files. The globally installed exporter renders them from the installed neutral agent sources, selected profile, and Codex model catalog. It does not read or copy the active global roles, so selecting a workspace profile cannot change the active global profile. Existing unrelated project configuration is preserved.
+
+#### Workspace trust and eligibility
+
+Codex loads project `.codex/config.toml` only after the repository is trusted. Workspace `set` deliberately does not grant trust or edit global trust settings. If the project is not yet trusted, open it in Codex and approve the normal trust prompt, then run workspace `status` again. JSON status keeps file integrity and trust eligibility separate through `health`, `project_trust`, and `profile_eligibility`; `eligible` means the trust gate is open, not that every unrelated preserved Codex setting is semantically valid. Actual routing remains owned by Codex's effective configuration. See the official [Codex project-config trust behavior](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml).
+
+The profile manager and reusable runtime assets remain global. A workspace profile never copies `agents-pipeline/`, `skills/`, `scripts/`, `protocols/`, `tools/`, or the full support tree into the project. Top-level source directories in this repository are release inputs, not per-project installation instructions.
+
+Automation and redirected input are deliberately non-interactive. Supply every required choice explicitly:
+
+```bash
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+
+# Optional per-project profile override; this is not an install.
+bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai
+bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
+bash "$profile_tool" clear --runtime codex --scope workspace --workspace /path/to/project
+
+# Global profile management.
+bash "$profile_tool" set balanced --runtime codex --scope global --model-set openai
+bash "$profile_tool" status --runtime codex --scope global
+bash "$profile_tool" list --runtime codex
+```
+
+`status` reports model-profile file health and trust eligibility, not workflow run progress or a full native Codex config evaluation. A Codex workspace with no overlay reports that it inherits the global profile. Workspace `clear` removes the installer-owned workspace role files, managed config block, and project-profile manifest, preserving unrelated `.codex/config.toml` content and every global asset. Codex global status validates its native manifest, role registrations, active managed `AGENTS.md` block, generated roles, and critical global support assets; Claude Code and Copilot validate their common runtime-profile manifest, generated agents, and sibling support tree. None of these commands reads OpenCode settings.
+
+Codex workspace profiles use local role definitions while inheriting global support assets, `agents.max_threads`, and `agents.max_depth`; modes that use nested orchestration require an effective global `agents.max_depth` of at least `2`. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
+
+The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. The formal `run-*` skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
+
+Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. Omit profile flags to inherit normal runtime model selection. Profiles never control reasoning effort. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
+
+## Modes
+
+The primary Codex entry points are formal skills installed globally under `~/.agents/skills/`. Each skill adopts the globally installed orchestrator workflow in the current/main agent and never manually loads a raw repository role. Every invocation checks current-workspace profile status: a normal unconfigured workspace inherits global roles, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. Rerun workspace `set` to repair it or `clear` to inherit global roles. A healthy but ineligible profile warns and uses global routing. Only a healthy, eligible profile lets Codex's effective trusted project configuration apply workspace-specific models to dispatched role names. Invoking a skill does not spawn the same-named orchestrator merely to enter the workflow.
+
+| Primary skill | Compatibility alias | Typical use |
+|---|---|---|
+| `$run-simple` | `use simple` | One small, clear delivery with minimal ceremony |
+| `$run-flow` | `use flow` | Daily engineering, at most five bounded tasks |
+| `$run-pipeline` | `use pipeline` | High-risk or multi-module work with reviewer/retry gates |
+| `$run-general` | `use general` | Mixed work and adaptive dispatch; also handles monetization requests |
+| `$run-spec` | `use spec` | Review-ready development specification |
+| `$run-ci` | `use ci` | CI/CD planning and optional generation |
+| `$run-modernize` | `use modernize` | Modernization planning and bounded phase handoff |
+| `$run-analysis` | `use analysis` | Post-hoc correctness/complexity/robustness analysis |
+| `$run-ux` | `use ux` | Profile-aware UX audit |
+| `$run-committee` | `use committee` | Multi-perspective decision support |
+
+Examples:
+
+```text
+$run-flow Fix the parser bug and add focused tests
+$run-pipeline 實作跨模組權限變更
+$run-committee Compare the two migration designs
+```
+
+The managed AGENTS note retains `use <mode>` and the documented Chinese leading forms as compatibility aliases for the matching formal skill. They follow the same workspace-profile preflight, definition-first, and current-agent adoption behavior, but the explicit `$run-*` skills are the recommended interface. `use monetize` remains a compatibility alias for the general workflow; use `$run-general` as the formal skill entry. Compatibility alias routing lives in `modes.json`; skill behavior lives in `skills/run-*/SKILL.md`. There is no `$run-goal` skill or goal mode.
+
+## Workflow controls
+
+Workflow rigor is risk-derived. Model reasoning belongs to the active runtime.
+
+Common controls include:
+
+- `--resume`: resume from a compatible checkpoint.
+- `--review=off|on`: Flow's optional bounded reviewer gate.
+- `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
+- `--confirm` / `--verbose`: add stage/task pauses.
+- `--autopilot` / `--full-auto`: non-interactive bounded execution with hard-blocker safeguards.
+- `--commit=off|before|after`: optional bounded Git helper lane.
+- `--compress`: write a reusable context pack.
+- `--force-scout` / `--skip-scout`: override evidence-driven repo scouting.
+
+The canonical semantics live in each orchestrator definition and `protocols/PIPELINE_PROTOCOL.md`.
+
+## Runtime-neutral status writer
+
+Orchestrators emit semantic events through one CLI:
+
+```bash
+node tools/status-event.js \
+  --event run.started \
+  --payload-json '{"output_root":".pipeline-output","run_id":"run-1","orchestrator":"orchestrator-flow","user_prompt":"Implement the requested change"}'
+```
+
+Batch task/agent deltas with `--event batch`. The CLI also accepts `--payload-file <path|->` and `--stdin`. Successful output is JSON; exit code `2` is an input error and `3` is a runtime/projection/filesystem error.
+
+IDs are safe filesystem basenames, fresh starts cannot reuse an existing `run_id`, and resume validates the persisted run identity plus expected orchestrator.
+
+Canonical files remain:
+
+```text
+<output_root>/<run_id>/checkpoint.json
+<output_root>/<run_id>/status/run-status.json
+<output_root>/<run_id>/status/tasks/<task_id>.json
+<output_root>/<run_id>/status/agents/<agent_id>.json
+```
+
+See [status writer spec](docs/status-writer-spec.md).
+
+## Validation
+
+The full commands below are for a source checkout. Published installer bundles intentionally omit the repository test suite and test-only root fixtures; the release workflow runs this full cross-platform CI before it builds and publishes a bundle.
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+python3 scripts/validate-orchestrator-contracts.py
+python3 scripts/validate-helper-contracts.py
+python3 scripts/validate-reviewer-retry-guidance.py
+python3 scripts/validate-status-emission-guidance.py
+python3 scripts/validate-skill-frontmatter.py
+python3 scripts/update-agent-model-sets.py --check
+node --test tests/status-runtime.test.js
+node scripts/validate-status-runtime-smoke.cjs
+```
+
+Exporter smoke checks:
+
+```bash
+python3 scripts/export-codex-agents.py --source-agents agents --target-dir .tmp-codex --strict --dry-run
+python3 scripts/export-claude-agents.py --source-agents agents --target-dir .tmp-claude --strict --dry-run
+python3 scripts/export-copilot-agents.py --source-agents agents --target-dir .tmp-copilot --strict --dry-run
+```
+
+Schema example:
+
+```bash
+python3 tools/validate-schema.py \
+  --schema protocols/schemas/run-status.schema.json \
+  --input protocols/examples/status-layout.run-only.valid/run-status.json \
+  --require-jsonschema
+```
+
+## Documentation
+
+- [Contributing](CONTRIBUTING.md)
+- [Codex mapping](docs/codex-mapping.md)
+- [Claude Code mapping](docs/claude-mapping.md)
+- [Copilot mapping](docs/copilot-mapping.md)
+- [Developer install](docs/developer-install.md)
+- [Compatibility](COMPATIBILITY.md)
+- [Protocol summary](protocols/PROTOCOL_SUMMARY.md)
+- [Security policy](SECURITY.md)
+
+## OpenCode frozen release
+
+Current main no longer contains an OpenCode runtime. The following commands are intentionally pinned to the last supported OpenCode-first release and are excluded from current-version synchronization.
+
+<!-- BEGIN legacy-opencode-v0.26.1 -->
+
+### OpenCode core (deprecated)
+
+OpenCode support is frozen at `v0.26.1`. These commands intentionally stay pinned to that release; do not substitute `main` or a newer tag and expect supported OpenCode behavior.
 
 Windows (PowerShell):
 
@@ -143,28 +327,13 @@ Windows (PowerShell):
 $tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
 ```
 
-macOS/Linux:
+macOS/Linux (Bash):
 
 ```bash
 tag="v0.26.1" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
 ```
 
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install.sh | bash
-```
-
-### Status plugin only
-
-Install only the OpenCode status runtime plugin from the release bundle.
-The target must be the plugin entry file path, not a directory.
-
-Copy-paste commands (recommended):
+### Status plugin only (deprecated)
 
 Windows (PowerShell):
 
@@ -172,27 +341,13 @@ Windows (PowerShell):
 $tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
 ```
 
-macOS/Linux:
+macOS/Linux (Bash):
 
 ```bash
 tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
 ```
 
-Dry-run preview (resolves release metadata only):
-
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js" -DryRun
-```
-
-```bash
-bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js" --dry-run
-```
-
-### Usage only
-
-Install only the `/usage` command/tool and the toggleable OpenCode usage-status plugin from the release bundle.
-The usage footer plugin defaults to `off`; enable it from OpenCode with `/usage-status` or `/usage-status-on` after install.
-The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in `opencode.json`.
+### Usage only (deprecated)
 
 Windows (PowerShell):
 
@@ -200,980 +355,16 @@ Windows (PowerShell):
 $tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
 ```
 
-macOS/Linux:
+macOS/Linux (Bash):
 
 ```bash
 tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
 ```
 
-Dry-run preview (resolves release metadata only):
+<!-- END legacy-opencode-v0.26.1 -->
 
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js" -DryRun
-```
+## Release
 
-```bash
-bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js" --dry-run
-```
+The release workflow builds `agents-pipeline-bundle-v<version>.tar.gz` and `.zip`, plus checksums and attestations. The bundle contains the neutral source, retained runtime adapters, model catalogs, interactive profile manager, and status writer; it contains no `opencode/` tree.
 
-Behavior notes:
-
-- When enabled, the footer refreshes immediately and then every `300` seconds.
-- If you want the latest values on demand, use `/usage-status-refresh` or run `/usage`.
-- Use `/usage-status-short` for a compact one-line summary or `/usage-status-detail` for the richer sidebar card view.
-- Use `/usage-status-codex` to keep the footer scoped to Codex usage.
-- If a live lookup fails after a previous success, the footer reuses cached data and prefixes the summary with `~`.
-- The footer is intentionally compact; `/usage --json` remains the detailed/debug view.
-
-### Effort-control plugin only
-
-Install only the OpenCode effort-control plugin from the release bundle.
-Use this when you want the reasoning controller without installing the rest of the all-in bundle.
-The installer registers the TUI plugin in `~/.config/opencode/tui.json`, not in `opencode.json`.
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-effort-control.ps1" -OutFile .\bootstrap-install-plugin-effort-control.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-plugin-effort-control.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-effort-control.sh" && bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js"
-```
-
-Dry-run preview (resolves release metadata only):
-
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-plugin-effort-control.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\effort-control.js" -DryRun
-```
-
-```bash
-bash ./bootstrap-install-plugin-effort-control.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/effort-control.js" --dry-run
-```
-
-Behavior notes:
-
-- For OpenAI and GitHub Copilot `gpt-5*`, the plugin floors most execution/review-style agents to at least `medium`, but leaves structured low-reasoning roles such as `specifier`, `planner`, `router`, `repo-scout`, `flow-splitter`, `codex-account-manager`, and `test-runner` excluded.
-- Frontend UI work is not escalated to xhigh by default. For page, dashboard, or component polish, pair medium/high effort with `opencode/skills/frontend-aesthetic-director/SKILL.md` and rendered QA instead of relying on reasoning effort alone.
-- `/effort-medium`, `/effort-high`, and `/effort-max` set a reasoning floor. On the home screen they set a project default; inside a session they set a session override.
-- `/effort-clear` removes the current session override or the project default.
-- Verification traces are written under the active project at `.opencode/effort-control.trace.jsonl`.
-
-### All local assets
-
-Install OpenCode core assets, the OpenCode-only status-runtime plugin, the OpenCode-only usage-status plugin, the OpenCode-only effort-control plugin, Copilot agents, Claude agents, and Codex config together from one release bundle.
-
-Copy-paste commands (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-all-local.ps1" -OutFile .\bootstrap-install-all-local.ps1; pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.26.1" && tmp="$(mktemp)" && curl -fsSL -o "$tmp" "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh" && bash "$tmp" --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" && rm -f "$tmp"
-```
-
-Ubuntu/macOS/Linux notes if you prefer downloading the script first:
-
-- The easiest copy-paste path is to pipe the pinned bootstrap script into `bash`; this avoids the downloaded-file executable-bit problem entirely.
-- If you download the bootstrap script first, run it as `bash ./bootstrap-install-all-local.sh ...`.
-- A script fetched with `curl -o ./bootstrap-install-all-local.sh ...` usually does **not** have the executable bit on Ubuntu, so `./bootstrap-install-all-local.sh ...` can fail with `permission denied`.
-- If you specifically want `./bootstrap-install-all-local.sh ...`, run `chmod +x ./bootstrap-install-all-local.sh` first.
-
-Download-then-run version:
-
-```bash
-tag="v0.26.1"
-curl -fsSL -o ./bootstrap-install-all-local.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-all-local.sh"
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex"
-```
-
-Dry-run preview (resolves release metadata only):
-
-```powershell
-pwsh -NoProfile -File .\bootstrap-install-all-local.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -PluginTarget "$HOME\.config\opencode\plugins\status-runtime.js" -EffortPluginTarget "$HOME\.config\opencode\plugins\effort-control.js" -CopilotTarget "$HOME\.copilot\agents" -ClaudeTarget "$HOME\.claude\agents" -CodexTarget "$HOME\.codex" -DryRun
-```
-
-```bash
-bash ./bootstrap-install-all-local.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --plugin-target "$HOME/.config/opencode/plugins/status-runtime.js" --effort-plugin-target "$HOME/.config/opencode/plugins/effort-control.js" --copilot-target "$HOME/.copilot/agents" --claude-target "$HOME/.claude/agents" --codex-target "$HOME/.codex" --dry-run
-```
-
-### Copilot agents
-
-Copy-paste commands (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}"
-```
-
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-copilot.sh | bash
-```
-
-Opt-in runtime agent model profile when installing from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-copilot.ps1 -AgentProfile balanced -ModelSet default
-```
-
-```bash
-scripts/install-copilot.sh --agent-profile balanced --model-set default
-```
-
-### Claude Code subagents
-
-Use a tagged release bundle to install Claude Code subagents.
-
-Copy-paste commands (recommended):
-
-Windows (PowerShell):
-
-```powershell
-$release = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "$HOME\.claude\agents"
-```
-
-macOS/Linux:
-
-```bash
-release="v0.26.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${release}" --target "$HOME/.claude/agents"
-```
-
-Optional project-local override:
-
-```powershell
-Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$release/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1
-pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $release -Target "C:\path\to\your-project\.claude\agents"
-```
-
-```bash
-curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${release}/scripts/bootstrap-install-claude.sh"
-bash ./bootstrap-install-claude.sh --version "${release}" --target "/path/to/your-project/.claude/agents"
-```
-
-Opt-in runtime agent model profile when installing from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -ModelSet default
-```
-
-```bash
-scripts/install-claude.sh --agent-profile balanced --model-set default
-```
-
-See `docs/claude-mapping.md` for tool mapping, `$ARGUMENTS` input adaptation, and the current orchestrator limitations.
-
-### Codex roles
-
-Copy-paste commands (recommended):
-
-Existing `.codex` files are backed up by default. The installer preserves non-agent Codex settings, replaces the managed agent definitions, and removes stale managed agent files.
-Default/primary install path is global `~/.codex`; target `<workspace>/.codex` only when you intentionally want a workspace override.
-Global installs now also auto-manage the equivalent of the Codex mode-alias snippet in the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`. That managed note makes the authorization and definition-first workflow explicit for recognized mode aliases: a mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization. In a fresh/new session, first consult `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present, otherwise `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition. After applying it, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator, and if the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers inline and should delegate those work items when separately authorized. In the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. It also says that Codex mode simulation can ignore OpenCode-only plugin/command details that are not relevant in the current runtime. Manual snippet copy remains optional for users who are not using the installer.
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
-```
-
-macOS/Linux:
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}"
-```
-
-Quick one-liners (less auditable):
-
-```powershell
-irm https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.ps1 | iex
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/bohewu/agents_pipeline/main/scripts/bootstrap-install-codex.sh | bash
-```
-
-Opt-in runtime agent model profile when installing from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-codex.ps1 -AgentProfile balanced -ModelSet openai
-```
-
-```bash
-scripts/install-codex.sh --agent-profile balanced --model-set openai
-```
-
-Use generated Codex roles either by direct role name in prompts (for example, `Have orchestrator-pipeline ...`) or by leading aliases such as `use pipeline ...` / `使用flow ...`. Those leading aliases change only the current/main agent's working style; they are not requests to first spawn the same-named orchestrator role just to enter the mode, they do not automatically spawn subagents, and they do not override higher-priority `spawn_agent` authorization. In a fresh/new session, the expected behavior for those explicit aliases is definition-first: first consult `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present, otherwise `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition. After the definition is applied, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator; if the definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers inline and should delegate those work items when separately authorized. In the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. The managed note also says Codex mode simulation can ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime, focusing instead on mode behavior, task decomposition, delegation rules, and output style. Direct role-name prompts remain available when you explicitly want that. Global installer runs now manage that mode note automatically via the active global AGENTS file; the manual snippet remains available in [`docs/codex-mapping.md#global-custom-instructions-snippet`](docs/codex-mapping.md#global-custom-instructions-snippet).
-
-## Developer Install (Clone Repo)
-
-If you are editing this repo or validating installers from your working tree, see [docs/developer-install.md](docs/developer-install.md).
-Most users should use the published release bundle commands in `Install (Recommended)` instead.
-
-## How To Use
-
-<details>
-<summary>Repo map and platform export notes</summary>
-
-- Agent definitions live in `opencode/agents/` (one file per agent)
-- Global handoff rules are embedded in `opencode/agents/orchestrator-pipeline.md` for portability. If you need to externalize them, you can extract the section into your own runtime path (e.g. under `~/.config/opencode/agents/protocols`).
-- Agent catalog lives in `AGENTS.md`.
-- Default model selection is runtime-driven by OpenCode/provider configuration.
-- Optional workspace model profiles can generate `.opencode/agents` overrides from `opencode/tools/agent-profiles/*.json` and `opencode/tools/model-sets/*.json`.
-- Optional runtime profiles for Codex, Copilot, and Claude Code are installer/exporter flags that reuse `opencode/tools/agent-profiles/*.json` with runtime-specific model sets; see `docs/runtime-agent-model-profiles.md`.
-- Source agent frontmatter must not define `model` or `provider`; use generated workspace overrides or runtime export profile flags when you intentionally want per-agent model routing.
-- VS Code Copilot `.agent.md` files are generated from OpenCode source by `scripts/export-copilot-agents.py`.
-- Copilot mapping details live in `docs/copilot-mapping.md`.
-- Claude Code mapping details live in `docs/claude-mapping.md`.
-- Codex install scripts live at `scripts/install-codex.ps1`, `scripts/install-codex.sh`, `scripts/bootstrap-install-codex.ps1`, and `scripts/bootstrap-install-codex.sh`.
-- Codex role mapping details live in `docs/codex-mapping.md`.
-- Protocol and JSON schemas live in `opencode/protocols/`.
-  Use `opencode/protocols/PROTOCOL_SUMMARY.md` for global instructions to reduce token usage.
-- Spec handoff SOP lives in `opencode/protocols/SPEC_TO_PIPELINE.md`.
-- Spec end-to-end example lives in `opencode/protocols/SPEC_E2E_EXAMPLE.md`.
-- Modernize handoff SOP lives in `opencode/protocols/MODERNIZE_TO_PIPELINE.md`.
-- CI artifact templates live in `opencode/protocols/CI_TEMPLATES.md`.
-- CI example for .NET + Vue lives in `opencode/protocols/CI_EXAMPLE_DOTNET_VUE.md`.
-- CI generated output example lives in `opencode/protocols/CI_GENERATE_EXAMPLE.md`.
-- Publish SOP lives in `opencode/protocols/PUBLISH_SOP.md`.
-- Modernize templates live in `opencode/protocols/MODERNIZE_TEMPLATES.md`.
-- Modernize example lives in `opencode/protocols/MODERNIZE_EXAMPLE.md`.
-- Public checklist lives in `opencode/protocols/PUBLIC_CHECKLIST.md`.
-- Root-tracked helper artifacts live in the project root:
-  - `session-guide.md` for stable repo guidance only; keep it limited to non-ephemeral content such as architecture landmarks, conventions, recurring commands, and canonical artifact locations
-  - `todo-ledger.json` as the canonical kanban / carryover data (schema in `opencode/protocols/schemas/todo-ledger.schema.json`)
-  - `kanban.md` as the human-readable rendered board view derived from `todo-ledger.json`
-  - A starter ledger template is provided in `todo-ledger.example.json`.
-  - A starter rendered board example is provided in `kanban.example.md`.
-  - A starter session guide skeleton is provided in `session-guide.example.md`.
-- Use `/run-ci` in `opencode/commands/run-ci.md` for CI/CD planning (docs-first; optional generation).
-- Use `/run-modernize` in `opencode/commands/run-modernize.md` for modernization planning (experimental).
-- Use `/run-goal` in `opencode/commands/run-goal.md` for resumable multi-batch goals that persist outer session state and default each batch to Flow.
-- Use `/run-pipeline` in `opencode/commands/run-pipeline.md` to execute the full pipeline end-to-end
-- Use `/run-committee` in `opencode/commands/run-committee.md` for a decision committee (experts + KISS soft-veto + judge)
-- Use `/run-simple` in `opencode/commands/run-simple.md` for build-agent-like subagent delegation without run artifacts
-- Use `/run-general` in `opencode/commands/run-general.md` for general-purpose mixed workflows (coding/debugging/maintenance/planning/writing/analysis/checklists)
-- Use `/run-ux` in `opencode/commands/run-ux.md` for profile-aware UX audits and normal-user scorecards.
-- Use `/uiux` in `opencode/commands/uiux.md` for the thin conceptual UI/UX layer routed directly to the hidden subagent `opencode/agents/ui-ux-designer.md`.
-- Use `opencode/protocols/UI_UX_WORKFLOW.md` plus `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json` for the conceptual UI/UX protocol and durable bundle contract.
-- Use the repo-managed `opencode/skills/ui-ux-workflow/SKILL.md` for the same bounded conceptual workflow in skill form.
-- Use the repo-managed `opencode/skills/ui-communication-designer/SKILL.md` as the communication-first companion to `/uiux` when the work is mainly about task clarity, copy, trust, and screen-level redesign.
-- Use the repo-managed `opencode/skills/frontend-aesthetic-director/SKILL.md` for frontend UI implementation and polish. If `/uiux` output or wireframes exist, treat them as the upstream source of truth and refine only visual direction, tokens, responsive behavior, component states, accessibility, and rendered defects.
-- Use `/codex-imagegen` plus the repo-managed `opencode/skills/codex-imagegen/SKILL.md` to delegate image generation to Codex CLI `$imagegen` with per-run `image_generation` feature enablement and no API/provider fallback.
-- Use `/agent-profile` for deterministic workspace agent model profile installer examples.
-- Use the repo-managed `devtools-ux-audit` skill for Chrome DevTools browser evidence collection. Installers mirror it into `~/.agents/skills` as the global baseline and `~/.claude/skills` as a compatibility mirror.
-- Use `/skill-list` to inspect installed skills or browse curated catalogs.
-- Use `/skill-search` to search installed skills plus curated catalogs.
-- Use `/skill-install` to install skills from `anthropic` or `awesome-copilot`, or from a local skill folder.
-- Use `opencode/protocols/UX_DEVTOOLS_WORKFLOW.md` as the browser-evidence workflow source behind that skill.
-- Use `/session-guide` to create or refresh the root-tracked repo guide.
-- Use `/kanban` to manage the root-tracked kanban / carryover ledger.
-- Use `/emit-handoff` to create run-local handoff artifacts for a fresh session.
-- Use `/usage` to inspect live Codex quota windows.
-
-</details>
-
-## VS Code Copilot Agents
-
-<details>
-<summary>Copilot / Claude / Codex reference</summary>
-
-This repo can generate VS Code Copilot custom agents from `opencode/agents/*.md` with single-source maintenance.
-
-- Generate agents directly:
-
-```text
-python3 scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir /path/to/copilot/agents --strict
-```
-
-- Filename rule:
-  - Output filenames are generated as `<source-file-stem>.agent.md` (for example `orchestrator-pipeline.agent.md`).
-
-- Experimental subagent mode:
-  - Generated orchestrators include `agents:` references for Copilot subagent routing (experimental behavior).
-- Fallback mode:
-  - Generated `*-solo.agent.md` files run without subagents.
-  - Example: `@orchestrator-pipeline-solo`
-
-After install, add your generated directory to VS Code user settings:
-
-```json
-{
-  "chat.agentFilesLocations": [
-    "/path/to/copilot/agents"
-  ]
-}
-```
-
-## Claude Code Subagents
-
-This repo also supports Claude Code with the same `opencode/agents/*.md` source files.
-
-- Default install target: `~/.claude/agents`.
-- Optional override target: `<project>/.claude/agents` when you explicitly want repo-scoped Claude agents.
-- Source of truth stays in `opencode/agents/*.md`; do not fork a separate long-lived Claude-only source set.
-- See `docs/claude-mapping.md` for the frontmatter/tool mapping and `$ARGUMENTS` input adaptation notes.
-
-### Two-Phase Dispatch Model
-
-Claude Code subagents cannot nest `Agent` calls, so orchestrators use a **two-phase dispatch model**: the orchestrator plans, and the top-level Claude Code instance executes.
-
-**Phase 1 — Plan:** Ask an orchestrator to produce a dispatch plan (it will NOT execute tasks itself):
-
-```text
-@orchestrator-flow Create a REST endpoint for /api/health that returns {"status":"ok"}
-```
-
-The orchestrator returns a JSON dispatch plan:
-
-```json
-{ "dispatch": [
-    { "id": "T1", "agent": "executor", "prompt": "Create ...", "deps": [] },
-    { "id": "T2", "agent": "orchestrator-pipeline", "prompt": "Implement phase P1 ...", "deps": ["T1"], "worktree": "../target-project" },
-    { "id": "T3", "agent": "reviewer",      "prompt": "Review ...", "deps": ["T2"] }
-  ]}
-```
-
-**Phase 2 — Execute:** The top-level Claude Code instance runs the plan automatically:
-
-1. Tasks with empty `deps` are spawned in parallel.
-2. Tasks with `deps` wait for their dependencies to complete; results are forwarded in the prompt.
-3. If a task includes `worktree`, the runner should execute that subagent in the specified repo/worktree. If the runtime cannot honor it, stop and surface the blocker instead of silently using the current repo.
-4. After all tasks finish, if the orchestrator needs post-dispatch work (e.g., synthesis), results are sent back via `SendMessage`.
-
-**Which orchestrator to use:**
-
-| Scenario | Orchestrator | Notes |
-|----------|-------------|-------|
-| Daily engineering tasks | `@orchestrator-flow` | Max 5 atomic tasks, optional reviewer gate |
-| CI / PR / high-risk work | `@orchestrator-pipeline` | Full pipeline with review gates |
-| Simple single-file change | `@executor` (directly) | Skip the orchestrator entirely |
-
-**Example session:**
-
-```text
-You:   @orchestrator-flow Add input validation to src/api/users.ts
-Claude: (orchestrator returns dispatch plan JSON)
-Claude: (top-level spawns executor for T1, then reviewer for T2)
-Claude: Done — here is the summary.
-```
-
-The dispatch protocol is also documented in `CLAUDE.md` under "Claude Code Pipeline Runner Protocol".
-
-## Codex Agent Roles
-
-This repo can also generate Codex multi-agent role config from `opencode/agents/*.md` with single-source maintenance.
-
-- Generate a `.codex`-style config directory:
-
-```text
-python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir /path/to/.codex --strict
-```
-
-- Output structure:
-  - `/path/to/.codex/config.toml`
-  - `/path/to/.codex/agents/*.toml`
-
-- Safe overwrite behavior:
-  - Generation fails if the target contains non-generated files unless you pass `--force`.
-
-- Codex docs / mapping notes:
-  - See `docs/codex-mapping.md` for the exact field mapping, global-first install notes, and the reusable custom-instructions snippet.
-
-- Invocation note:
-  - Ask Codex to use role names in prompts, or use the global custom-instructions snippet and leading aliases such as `use pipeline ...` / `使用flow ...`; those aliases only change the current agent's working style and do not auto-spawn subagents.
-  - Do not expect `/agent` to display generated custom roles from `config.toml`.
-  - Example: `Have reviewer inspect the patch and have generalist draft the migration notes.`
-
-</details>
-
-## Quick Start
-
-1) Load the orchestrator (handoff protocol is embedded for portability):
-   - `opencode/agents/orchestrator-pipeline.md`
-2) Run `/run-pipeline` with an optional effort flag:
-
-```text
-/run-pipeline Implement OAuth2 login --effort=balanced
-```
-3) Optional smoke-check run:
-
-```text
-/run-pipeline Run tests only --test-only
-```
-
-### Common OpenCode commands
-
-- `/run-pipeline ...`
-  Default end-to-end implementation flow.
-- `/run-analysis ...`
-  Runs a bounded post-hoc analysis pipeline for correctness, complexity, robustness, and conditional numerics review.
-- `/codex-imagegen ...`
-  Generates or edits images by delegating to Codex CLI `$imagegen` with Codex quota, per-run `image_generation` enablement, and no API/provider fallback.
-- `/artgen ...`
-  Produces the normal bounded 2D asset brief/prompt package, and with `--gen-provider=codex` can also hand the final prompt to Codex image generation using `danger-full-access` for that delegated imagegen step.
-- `/usage`
-  Shows live Codex quota windows.
-- `/usage-status-on`
-  Turns on the usage footer plugin.
-- `/usage-status-refresh`
-  Forces a fresh usage refresh.
-- `/effort-medium`, `/effort-high`, `/effort-max`
-  Sets a reasoning-effort floor for supported GPT-5 sessions.
-- `/run-monetize ...`
-  Runs a monetization analysis flow with a dedicated market-research lane and monthly USD scenarios.
-
-### Local Codex account commands
-
-These commands manage OpenCode's local `openai-codex-accounts.json` selection file when one exists.
-
-- `/codex-account`
-  Lists discovered local Codex account-selection files, the active stored account, and the switchable choices.
-- `/codex-account-switch --email=<address-or-label>`
-  Switches to a specific stored account.
-- `/codex-account-switch --index=<n>`
-  Switches to the stored account entry that owns that index.
-- `/next-codex-account`
-  Rotates to the next stored account in the selected file.
-
-Behavior notes:
-
-- If only one stored account is available, `/next-codex-account` is a no-op and returns a note explaining there is nothing to rotate.
-- If no local OpenCode account-selection file exists, these commands report that clearly instead of guessing.
-- These commands only manage OpenCode's local stored account-selection file. They do not create new logins by themselves.
-- If Codex usage is coming only from `~/.codex/auth.json` and there is no OpenCode project account file, `/usage` can still work while `/next-codex-account` has nothing to rotate.
-
-Examples:
-
-```text
-/codex-account
-/codex-account --json
-/codex-account-switch --email=bohewu@gmail.com
-/codex-account-switch --index=2
-/next-codex-account
-```
-
-<details>
-<summary>More command references</summary>
-
-## CI Pipeline
-
-Use `/run-ci` to create CI/CD plans and (optionally) generate workflows.
-
-Examples:
-
-```
-/run-ci Plan CI/CD for .NET + Vue
-/run-ci Plan CI/CD --generate --github
-/run-ci Plan CI/CD --generate --github --docker --deploy
-```
-
-## Modernize Pipeline (Experimental)
-
-Use `/run-modernize` for legacy modernization planning. It produces:
-
-- `modernize/modernize-source-assessment.md`
-- `modernize/modernize-target-design.md`
-- `modernize/modernize-migration-strategy.md`
-- `modernize/modernize-migration-roadmap.md`
-- `modernize/modernize-migration-risks.md`
-- `modernize/modernize-index.md`
-
-Modes:
-
-- `/run-modernize --decision-only` (source-assessment + target-design + migration-strategy only)
-- `/run-modernize --iterate` (one revision round after initial docs)
-- `/run-modernize --mode=branch` (create a modernization branch before writing docs; repo-local planning)
-- `/run-modernize --mode=branch --execute-phase=P1` (create a branch, write docs, then implement one selected phase on that branch)
-
-Branch mode:
-
-- Creates/switches to a `modernize/<slug>-<YYYYMMDD>` branch before writing docs, checkpoints, status files, or handoff files.
-- Accepts `--branch=<name>` for an exact branch name; if that branch already exists, the run stops instead of silently suffixing or reusing it.
-- Blocks on a dirty worktree instead of stashing, committing, or discarding changes automatically.
-- Does not require runtime worktree support; execution stays in the current repo on the new branch.
-- Without `--execute-phase=<phase-id>`, stops after planning and renders a branch-local `/run-pipeline` continuation command.
-- Note: ignored/untracked files such as `.pipeline-output/` may remain on disk after switching branches, even though tracked changes are isolated by Git branch.
-
-Recommended execution split:
-
-- Start `/run-modernize` in the source project.
-- Keep modernization docs and handoff files under the source project's `.pipeline-output/modernize/`.
-- In same-session execution-enabled runs, target-local `.pipeline-output/` should be created as soon as delegated implementation starts.
-- Once implementation starts, switch to the target project for `/run-pipeline` runs.
-- Keep implementation/test/review artifacts under the target project's `.pipeline-output/pipeline/`.
-- Mirror the latest modernization handoff into the target project's `.pipeline-output/modernize/` when the target directory exists.
-- If the target project does not exist yet, create it manually before running execution modes.
-
-## General-Purpose Pipeline
-
-Use `/run-general` for general-purpose mixed work such as:
-
-- small or moderate coding/debugging tasks
-- repo maintenance and validation fixes
-- strategy/roadmap planning
-- process/SOP design
-- structured analysis and recommendation memos
-- checklist/playbook drafting
-
-Examples:
-
-```text
-/run-general Draft a 90-day GTM roadmap
-/run-general Fix the failing profile validation test --full-auto
-/run-general Compare three vendor evaluation frameworks
-/run-general Create an onboarding SOP for support team --confirm
-```
-
-General pipeline outputs are human-friendly by default:
-- plain-language summary first
-- clear Markdown sections
-- actionable next steps
-
-## Simple Dispatcher
-
-Use `/run-simple` when you want build-agent-like execution with automatic subagent delegation but no pipeline artifacts:
-
-- no `.pipeline-output/` run manifest, checkpoint, status, task-list, or dispatch-plan files
-- existing subagents are selected for implementation, docs, tests, review, or mechanical edits
-- parallel subagent dispatch is capped by `--max-parallel=<n>`
-
-Examples:
-
-```text
-/run-simple Fix the failing profile validation test
-/run-simple Update docs and run focused validation --max-parallel=2
-```
-
-## Workflow Guidance
-
-New projects:
-
-1. `/run-ci` → CI/CD plans (docs)
-2. `/run-pipeline` (or `/run-flow` for small, low-risk changes)
-3. `/run-ci --generate --github --docker --deploy` when ready to publish
-
-Iterative development:
-
-1. `/run-pipeline` (or `/run-flow` for small changes)
-2. `/run-ci` when CI/CD plan needs updates
-3. Publish using `opencode/protocols/PUBLISH_SOP.md`
-
-Modernization work:
-
-1. `/run-modernize` from the source project
-2. If the target project does not exist, create it manually
-3. Review roadmap + handoff
-4. `/run-pipeline` from the target project for actual implementation
-
-Even if a runtime can do same-session cross-repo delegation, a fresh target-project session remains the recommended continuation path for modernization follow-up work.
-
-</details>
-
-## Conceptual UI/UX Layer
-
-Use this thin layer when you need conceptual UI/UX direction before implementation-ready spec work or after `/run-ux` findings need a bounded redesign pass.
-
-- Entry command: `/uiux` in `opencode/commands/uiux.md`
-- Hidden subagent: `ui-ux-designer` in `opencode/agents/ui-ux-designer.md`
-- Protocol, non-expert guidance, and intake/review rubric: `opencode/protocols/UI_UX_WORKFLOW.md`
-- Contract bundle schema: `opencode/protocols/schemas/ui-ux-bundle.schema.json`
-- Valid example bundle: `opencode/protocols/examples/ui-ux-bundle.valid.json`
-- Repo-managed skill: `opencode/skills/ui-ux-workflow/SKILL.md`
-- Repo-managed companion skill: `opencode/skills/ui-communication-designer/SKILL.md`
-
-Use `/uiux` for conceptual assessments, low-fi wireframes, mid-fi drafts, flows, communication-first rewrites, revised task flows, targeted microcopy rewrites, prompt export, and thin read-only preview handoffs. Use `/run-ux` for audits, `/run-spec` for implementation-ready specs, and `/artgen` for bounded 2D asset briefs plus optional Codex-backed generation via `--gen-provider=codex`.
-
-If you want repo-owned export assets instead of inline-only output, pass `--output-dir=<path>`. Example:
-
-```text
-/uiux Concept a privacy settings refactor for a desktop app --output-dir=output/uiux/
-```
-
-This writes a paired durable bundle under the selected repo path:
-
-- `<output-dir>/<bundle-slug>.ui-ux-bundle.json`
-- `<output-dir>/<bundle-slug>.ui-ux-bundle.md`
-
-## Frontend UI Implementation
-
-Use the repo-managed `frontend-aesthetic-director` skill when a task changes visible frontend UI and should produce implementation-quality polish rather than only a conceptual handoff. For screenshot, wireframe, or copy critique before implementation, use `/uiux` or `ui-communication-designer` first.
-
-- Skill: `opencode/skills/frontend-aesthetic-director/SKILL.md`
-- Upstream concept source: `/uiux` bundles, wireframes, screenshots, or Figma notes
-- Polish reference: `opencode/skills/frontend-aesthetic-director/references/polish-checklist.md`
-- Verification pairing: browser tooling, Playwright, screenshots, or `opencode/skills/devtools-ux-audit/SKILL.md` when rendered evidence is needed
-
-The intended handoff is `/uiux` -> frontend implementation -> rendered QA. If a `/uiux` bundle already exists, preserve its flow, surface structure, primary action, and copy intent. For existing UI cleanup, choose a preserve-vs-modernize level before choosing the concrete layout/style direction. The frontend skill should only refine visual hierarchy, tokens, spacing, responsive behavior, component states, accessibility, and defects found during rendered inspection unless the upstream handoff is impossible to implement.
-
-For localized landing page edits, dashboard polish, component styling, forms, tables, and visual hierarchy improvements, prefer medium or high execution effort plus design-system scanning and visual QA. Do not treat xhigh reasoning as the default substitute for browser evidence, content realism, responsive checks, or accessibility states.
-
-Example:
-
-```text
-/run-flow Implement output/uiux/onboarding.ui-ux-bundle.md as the onboarding page. Preserve the /uiux wireframe and flow; use frontend-aesthetic-director for visual polish, design tokens, responsive behavior, and browser QA.
-```
-
-## Protocol Validation
-
-Validate a JSON output against the protocol schemas:
-
-Python 3.9+ is required for this command.
-
-```text
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-list.schema.json --input path/to/task-list.json
-```
-
-Status contract fixtures follow the same validation pattern. To mirror the repository's status-layer CI checks locally, validate the positive fixtures and confirm the negative fixtures fail:
-
-```text
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/run-status.schema.json --input opencode/protocols/examples/status-layout.run-only.valid/run-status.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/run-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/run-status.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-doc-summary.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-process-build.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-local-server-smoke.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/task-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-browser-resume.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-doc-01.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-process-01.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-server-01.json --require-jsonschema
-python3 opencode/tools/validate-schema.py --schema opencode/protocols/schemas/agent-status.schema.json --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-browser-02.json --require-jsonschema
-```
-
-To replay the local-preview lifecycle boundary behind the `devtools-ux-audit` guidance, run:
-
-```text
-node scripts/validate-local-preview-lifecycle-smoke.cjs
-```
-
-See `opencode/protocols/SCHEMAS.md` and `opencode/protocols/VALIDATION.md` for the status layout fixture set and the negative-fixture expectations enforced in CI.
-For ownership boundaries and the follow-on roadmap, see `opencode/protocols/STATUS_MVP_HANDOFF.md`.
-
-
-If you enable custom tools, you can call the `validate-schema` tool from OpenCode
-instead of running the script manually (see `opencode/tools/validate-schema.ts`).
-
-The `/usage` command relies on the custom tool `provider-usage` for live Codex quota
-inspection (see `opencode/tools/provider-usage.ts`).
-
-The `/codex-imagegen` command relies on the custom tool `codex-imagegen` to invoke
-Codex CLI `$imagegen` with the local Codex login and per-run `image_generation`
-feature enablement. It intentionally does not call direct image APIs or use provider
-fallbacks (see `opencode/tools/codex-imagegen.ts`). If OpenCode cannot see `codex`
-on `PATH`, pass `codex_command` or set `CODEX_IMAGEGEN_CODEX_COMMAND`; on Windows
-the tool also checks common npm/fnm Codex CLI install paths before warning. Use
-`--output-path=path/to/file.png` when the generated image needs a deterministic
-file target; the command maps it to the tool's `output_path` argument.
-
-The `/skill-list`, `/skill-search`, and `/skill-install` commands rely on the custom
-tool `skill-manager` for local skill discovery plus curated catalog installs from
-`anthropics/skills` and `github/awesome-copilot` (see `opencode/tools/skill-manager.py`
-and `opencode/tools/skill-manager.ts`).
-Use `--ref=<tag|sha>` for reproducible remote skill installs instead of mutable default-branch HEAD.
-
-See `docs/external-dependencies.md` for auth requirements, rate limits, privacy boundaries, fallback behavior, and remote-install auditability notes.
-
-## Config Example
-
-An example OpenCode config is provided at `opencode.json.example`.
-
-<details>
-<summary>Flags and execution behavior</summary>
-
-## Flags
-
-Use flags after the main task prompt. Tokens starting with `--` are treated as flags.
-For resume-only flows, `--resume` can be used without a new prompt.
-
-- `--dry`
-  - Stop after `atomizer + router`
-  - Output TaskList and DispatchPlan only
-- `--no-test`
-  - Skip test-runner stage
-  - Reviewer must warn about missing verification
-- `--test-only`
-  - Only run test-runner + reviewer
-- `--loose-review`
-  - Reviewer does not require build/test evidence
-  - Reviewer must add a warning that results are unverified
-- `--effort=low|balanced|high`
-  - low: Favor the smallest viable plan and fewer retries
-  - balanced: Practical default depth with standard validation
-  - high: Allow deeper analysis and higher execution rigor
-- `--resume`
-  - Resume from the newest compatible `<run_output_dir>/checkpoint.json` under the selected output root
-  - Can be used without a new prompt (reuses `checkpoint.user_prompt` when valid)
-- `--commit=off|before|after`
-  - Optional git helper lane for pre-run or post-run commits
-  - Does not consume Flow's max-5 task budget or the pipeline `TaskList` quota
-  - Explicit `--commit=*` wins over workflow-style commit wording in the prompt
-- `--review=off|on`
-  - Flow-only optional post-synthesis reviewer gate
-  - `--commit=after` waits for a passing review when `--review=on`
-  - Reviewer failures in Flow allow at most one bounded repair + re-review pass; no delta-task retry loop is introduced
-- `--compress`
-  - Write reusable `context-pack.json` at the end of the run
-  - On clearly trivial successful runs, the pipeline writes a minimal valid pack inline instead of paying for a separate compressor subagent call
-- `--confirm`
-  - Pause after each stage for review
-- `--verbose`
-  - Implies `--confirm`, plus per-task pauses during execution
-- `--autopilot`
-  - Run non-interactively
-  - Overrides `--confirm` / `--verbose` pauses
-  - Continues other runnable work first, then attempts one bounded blocker-recovery pass for non-hard blockers
-  - Stops only on hard blockers (destructive/irreversible actions, security/billing impact, missing credentials)
-- `--full-auto`
-  - Hands-off preset for stronger execution
-  - Implies `--autopilot`
-  - Disables interactive pauses
-  - For `/run-flow`, defaults to `--force-scout` unless you override scout mode
-  - Defaults to `--effort=high` and `--max-retry=5` unless you override them explicitly
-  - Prefers the strongest safe bounded in-scope blocker recovery path before surfacing a non-hard blocker
-  - Still stops on hard blockers and does not permit scope expansion or leaving resources running
-
-Flag precedence:
-- `--dry` overrides `--test-only` when both are present.
-- `--full-auto` implies `--autopilot`.
-- `--autopilot` overrides interactive pauses from `--confirm` / `--verbose`.
-- `--commit=*` runs as a workflow helper, not a canonical task.
-
-Examples:
-```
-/run-pipeline Refactor cache layer --no-test
-/run-pipeline Improve search relevance --effort=balanced
-/run-flow --resume
-/run-pipeline --resume --autopilot
-/run-pipeline Implement OAuth2 login --commit=before
-/run-goal Ship onboarding cleanup --goal-id=goal-onboarding-cleanup --commit=after --kanban=auto
-/run-flow Ship login improvements --full-auto
-/run-flow Ship login improvements --commit=after
-/run-flow Ship login improvements --review=on --commit=after
-/run-goal --resume --goal-id=goal-onboarding-cleanup
-/run-pipeline Ship migration end-to-end --full-auto
-```
-
-## When to Use `--autopilot` vs `--full-auto`
-
-| Scenario | Recommended flag | Why |
-|----------|-----------------|-----|
-| Quick task, low risk, you just want no pauses | `--autopilot` | Runs non-interactively with default effort/retries; stops on hard blockers |
-| You want to walk away and let the pipeline finish | `--full-auto` | Non-interactive preset with strongest safe bounded recovery before surfacing non-hard blockers |
-| You want non-interactive but lower cost | `--autopilot --effort=low` | Autopilot suppresses pauses; effort=low keeps retries minimal |
-| You want full-auto but cap retries | `--full-auto --max-retry=2` | full-auto sets the baseline; explicit flags still override |
-| Flow task, want forced repo scouting | `--full-auto` | Flow full-auto defaults to `--force-scout` |
-| Modernize full-exec, no supervision | `--full-auto` | Defaults depth to `deep`, disables pauses, and forwards stronger full-auto behavior to delegated pipeline phases |
-
-**Rule of thumb:**
-- `--autopilot` = "don't ask me questions, use safe defaults"
-- `--full-auto` = "don't ask me questions, try your hardest to finish everything"
-
-Both flags stop on **hard blockers** (destructive actions, security/billing impact, missing credentials). The difference is that `--full-auto` also raises preset defaults and prefers the strongest safe bounded in-scope recovery before giving up on non-hard blockers.
-
-Explicit flags always win: `--full-auto --effort=low --max-retry=1` gives you full-auto's recovery posture but with low effort and only 1 retry.
-
-### Execution Resource Control
-
-- Dispatch plans annotate every batch with `resource_class`, `max_parallelism`, `teardown_required`, and optional timeout hints.
-- Browser and local-server tasks are routed conservatively and should run one at a time by default.
-- Process-class tasks stay conservative; `teardown_required` is only set when explicit shutdown is still needed after the command.
-- Executors and test runners must tear down Node.js, Playwright, browser, and other background resources before reporting success.
-- Missing teardown evidence for heavy tasks should be treated as incomplete execution, not a clean pass.
-
-### Session vs Checkpoint Behavior
-
-- A new chat/session does not automatically inherit prior runtime state or stage progress.
-- Cross-session continuation works through persisted files under the selected output root (default: `.pipeline-output/`), with each run written to its own `<run_output_dir> = <output_root>/<run_id>/` directory.
-- To continue an interrupted Flow or Pipeline run, use `--resume` from the same project and output root; resume-only flows should pick the newest compatible run directory unless you explicitly target a specific run directory.
-- If `--resume` is not provided, the orchestrator starts a fresh run even if older artifacts still exist.
-- Persisted artifacts may still be reused as inputs when the prompt explicitly references them or when the protocol treats them as optional context, but that is not the same as checkpoint resume.
-
-</details>
-
-<details>
-<summary>Agent catalog quick reference</summary>
-
-## Orchestrators
-
-- Goal: `/run-goal` (stateful outer goal session; ordered batches; resume by `--goal-id`; defaults each batch to Flow)
-- Full: `/run-pipeline` (multi-stage pipeline with reviewer and retries)
-- Short: `/run-pipeline --decision-only` (stops after planning/integration design; directional review only)
-- Spec: `/run-spec` (review-ready development spec for humans first, pipeline-ready handoff second)
-- Flow: `/run-flow` (max 5 atomic tasks; bounded parallel execution; reviewer optional; no delta-task retries)
-- Simple: `/run-simple` (build-agent-like subagent dispatcher; no run artifacts)
-- Committee: `/run-committee` (decision support; experts + KISS soft-veto + judge)
-- General: `/run-general` (general dispatcher for coding, maintenance, planning, writing, and analysis)
-- UX: `/run-ux` (normal-user experience audit with profile-aware viewport scoring)
-- CI: `/run-ci` (docs-first CI/CD planning; optional generation)
-- Modernize: `/run-modernize` (experimental modernization planning docs)
-- Modernize branch: `/run-modernize --mode=branch` (branch-first repo-local modernization planning, optional selected-phase execution)
-
-## Choosing a Pipeline (Quick Guide)
-
-- Use `/run-committee` when:
-  - you need a recommendation/decision (architecture, tradeoffs, approach selection)
-  - you want multiple perspectives + a final judge, with budget as an explicit criterion
-- Use `/run-analysis` when:
-  - you want a post-hoc findings report instead of code changes
-  - you need severity-ranked correctness / complexity / robustness review grounded in code references
-- Use `/run-flow` when:
-  - the change is small, low-risk, and you mainly want a fast execution plan (max 5 atomic tasks)
-- Use `/run-simple` when:
-  - you want build-agent-like execution with automatic subagent delegation
-  - you do not want `.pipeline-output/`, run manifests, checkpoint/status files, task lists, or dispatch plans
-  - you want to cap parallel subagents with `--max-parallel=<n>`
-- Use `/run-spec` when:
-  - you want to review a development spec before implementation starts
-  - you want a human-readable `DevSpec` plus a machine-readable handoff for later `/run-pipeline` execution
-- Use `/run-general` when:
-  - you want the default general dispatcher for mixed repository work
-  - the task may involve coding, debugging, maintenance, planning, analysis, writing, or operational documentation
-  - you want either direct completion or a concrete `/run-pipeline` / `/run-flow` handoff recommendation, not a generic refusal
-- Use `/run-ux` when:
-  - you want a bounded UX audit from a normal-user perspective
-  - you need profile-aware scoring across desktop/mobile viewports without assuming mobile-first behavior
-  - you want prioritized UX findings and a practical scorecard before implementation changes
-- Use `/run-pipeline` when:
-  - the change is high-risk, multi-file/systemic, or needs reviewer gates + bounded retries
-
-## Naming Convention
-
-- Repo name (`agents-pipeline`) reflects the overall concept.
-- Full pipeline uses `*-pipeline` naming (e.g. `orchestrator-pipeline.md`, `run-pipeline.md`).
-- Flow pipeline uses `*-flow` naming (e.g. `orchestrator-flow.md`, `run-flow.md`).
-- Simple dispatcher uses `*-simple` naming (e.g. `orchestrator-simple.md`, `run-simple.md`).
-- General-purpose pipeline uses `*-general` naming (e.g. `orchestrator-general.md`, `run-general.md`).
-- Spec pipeline uses `*-spec` naming (e.g. `orchestrator-spec.md`, `run-spec.md`).
-- CI pipeline uses `*-ci` naming (e.g. `orchestrator-ci.md`, `run-ci.md`).
-- Modernize pipeline uses `*-modernize` naming (e.g. `orchestrator-modernize.md`, `run-modernize.md`).
-- Analysis pipeline uses `*-analysis` naming (e.g. `orchestrator-analysis.md`, `run-analysis.md`).
-- UX pipeline uses `*-ux` naming (e.g. `orchestrator-ux.md`, `run-ux.md`).
-
-</details>
-
-## AGENT RESPONSIBILITY MATRIX
-
-| Agent | Primary Responsibility | Forbidden Actions |
-|------|------------------------|-------------------|
-| orchestrator-ci | CI/CD planning pipeline | Implementing code |
-| orchestrator-modernize | Modernization planning pipeline, branch setup, execution handoff | Implementing code directly |
-| orchestrator-pipeline | Flow control, routing, retries, synthesis | Implementing code |
-| orchestrator-spec | Development spec orchestration | Implementing code |
-| orchestrator-flow | Flow orchestration with max-5 tasks | Implementing code |
-| orchestrator-simple | Build-style subagent dispatch without run artifacts | Implementing code |
-| orchestrator-committee | Decision committee orchestration (experts + KISS soft-veto + judge) | Implementing code |
-| orchestrator-general | General-purpose task routing and synthesis | Direct implementation instead of delegation |
-| orchestrator-analysis | Post-hoc analysis orchestration | Implementing code |
-| orchestrator-ux | UX audit orchestration with profile-aware scoring | Implementing code |
-| specifier | ProblemSpec / DevSpec extraction | Proposing solutions |
-| planner | High-level planning | Atomic task creation |
-| repo-scout | Repo discovery | Design decisions |
-| atomizer | Atomic task DAG | Implementation |
-| flow-splitter | Max-5 Flow task decomposition | Implementation |
-| router | Cost-aware assignment | Changing tasks |
-| executor | Task execution | Scope expansion |
-| test-runner | Tests & builds | Code modification |
-| reviewer | Quality gate | Implementation |
-| compressor | Context reduction | New decisions |
-| handoff-writer | Cross-session handoff artifacts | Scope expansion |
-| kanban-manager | Root-tracked kanban management | Scope expansion |
-| session-guide-writer | Root-tracked session guide refresh | Scope expansion |
-| summarizer | User summary | Technical decisions |
-
----
-
-## Versioning
-
-<details>
-<summary>Maintainer release notes</summary>
-
-- Single source of truth: root `VERSION` file (SemVer without `v`, for example `0.26.1`).
-- Use SemVer tags with `v` prefix (for example: `v0.26.1`).
-- Stay in `0.x` while the pipeline and prompts evolve quickly.
-- In `0.x`, treat **minor** bumps as potentially breaking (`v0.5.0` -> `v0.6.0`).
-- Use **patch** bumps for docs/scripting fixes without intended behavior changes.
-- Release CI checks `VERSION` and tag alignment (`VERSION=0.26.1` must release as `v0.26.1`).
-- After bumping `VERSION`, run `python3 scripts/sync-readme-version.py` to refresh the pinned README release examples before commit.
-- README pinned examples that include explicit release versions must use the current `VERSION` value; CI validates those exact snippets.
-- Track release notes in `CHANGELOG.md`.
-
-## Release CI
-
-- Workflow: `.github/workflows/release.yml`
-- Trigger: push tag `v*` (for example `v0.26.1`) or manual `workflow_dispatch`
-- Output assets:
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.tar.gz`
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.zip`
-  - `agents-pipeline-opencode-bundle-vX.Y.Z.SHA256SUMS.txt`
-- Release workflow verifies downloaded artifact checksums before publishing release assets.
-- Release workflow generates GitHub Artifact Attestations for the bundle artifacts and verifies them before publishing release assets.
-
-## CI Checks
-
-- Workflow: `.github/workflows/ci.yml`
-- Trigger: `pull_request`, push to `main`, manual `workflow_dispatch`
-- Checks:
-  - `VERSION` format check
-  - README pinned version snippet validation against root `VERSION`
-  - schema validator script sanity check
-  - dispatch-plan resource schema/examples validation (positive + negative cases)
-  - status contract schema/examples validation (`run-status`, `task-status`, `agent-status`; positive + negative fixtures)
-  - modernize execution handoff schema/examples validation (positive + negative case)
-  - resource-control prompt coverage assertions for router/orchestrator/executor/reviewer docs
-  - Copilot export script strict dry run
-  - installer script syntax and dry-run validation
-
-Example release:
-
-```bash
-git tag v0.26.1
-git push origin v0.26.1
-```
-
-## Public Release Checklist
-
-- Confirm there are no secrets or private endpoints in the repo.
-- Review git history for removed secrets if any (history still contains them).
-- Ensure `opencode.json.example` contains no real keys.
-- Verify `LICENSE` exists and matches intended usage.
-- Verify README usage notes align with your public story.
-
-## Secret Scan (Optional)
-
-If you already have a secret scanner installed, run one of:
-
-```text
-gitleaks detect --source .
-```
-
-```text
-trufflehog filesystem .
-```
-
-Use whichever tool your team prefers.
-
-</details>
-
-<p align="center">
-  <img src="docs/repo-footer-art.png" width="920" alt="Playful footer illustration of a multi-agent orchestration control room for agents_pipeline">
-</p>
-
-<p align="center"><sub>Generated with this repo's own <code>/artgen --gen-provider=codex</code> flow.</sub></p>
+See [CHANGELOG.md](CHANGELOG.md) for version history.

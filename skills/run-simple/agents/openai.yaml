@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Simple"
+  short_description: "Run a small task with minimal ceremony"
+  default_prompt: "Use $run-simple to complete this small, clearly scoped change."
+policy:
+  allow_implicit_invocation: false

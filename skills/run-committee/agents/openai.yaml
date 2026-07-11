@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Committee"
+  short_description: "Run multi-perspective decision support"
+  default_prompt: "Use $run-committee to evaluate this decision from multiple perspectives."
+policy:
+  allow_implicit_invocation: false

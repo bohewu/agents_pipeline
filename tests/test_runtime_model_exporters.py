@@ -32,7 +32,7 @@ def write_json(directory: Path, name: str, payload: dict) -> Path:
 
 
 def profile_payload(models: dict) -> dict:
-    return {"name": "profile", "runtime": "opencode", "models": models}
+    return {"name": "profile", "runtime": "neutral", "models": models}
 
 
 def args_for(profile_dir: Path, model_set_dir: Path, *, uniform_model=None):
@@ -53,7 +53,7 @@ def frontmatter(content: str) -> str:
 class RuntimeModelExporterTest(unittest.TestCase):
     def test_default_builders_emit_no_model_fields(self) -> None:
         codex_agent = CODEX.AgentSource(
-            path=Path("opencode/agents/executor.md"),
+            path=Path("agents/executor.md"),
             file_stem="executor",
             name="executor",
             description="Execute one task.",
@@ -101,7 +101,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
                 },
             )
             agent = CODEX.AgentSource(
-                path=Path("opencode/agents/executor.md"),
+                path=Path("agents/executor.md"),
                 file_stem="executor",
                 name="executor",
                 description="Execute one task.",
@@ -133,7 +133,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
             profile_dir = root / "profiles"
-            model_set_dir = REPO_ROOT / "copilot" / "tools" / "model-sets"
+            model_set_dir = REPO_ROOT / "runtimes" / "copilot" / "model-sets"
             write_json(
                 profile_dir,
                 "profile",
@@ -253,8 +253,8 @@ class RuntimeModelExporterTest(unittest.TestCase):
 
             with self.subTest(key=key, runtime="copilot"):
                 source = (
-                    "---\nname: executor\ndescription: Execute one task.\nmode: primary\n"
-                    f"temperature: 0\n{key}: bad\n---\nBody\n"
+                    "---\nname: executor\ndescription: Execute one task.\nkind: primary\n"
+                    f"{key}: bad\n---\nBody\n"
                 )
                 with self.assertRaisesRegex(ValueError, f"frontmatter key '{key}' is not supported"):
                     COPILOT.parse_frontmatter(source, Path("executor.md"))

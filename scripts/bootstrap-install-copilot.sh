@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+validate_generated_shell_path() {
+  local label="$1"
+  local value="$2"
+  if [[ "${value}" =~ [[:cntrl:]] ]]; then
+    echo "${label} contains a control character that is unsafe in generated shell instructions." >&2
+    return 2
+  fi
+  case "${value}" in
+    *'$'*|*'`'*|*'"'*|*'\'*)
+      echo "${label} contains a shell-active character that is unsafe in generated shell instructions." >&2
+      return 2
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Download a release bundle and run install-copilot.sh without cloning this repository.
@@ -29,9 +44,66 @@ Options:
 EOF
 }
 
+verify_bundle() {
+  local bundle_dir="$1"
+  local required_paths=(
+    "${bundle_dir}/agents"
+    "${bundle_dir}/AGENTS.md"
+    "${bundle_dir}/modes.json"
+    "${bundle_dir}/tools/agent-profiles"
+    "${bundle_dir}/tools/agent-profile.py"
+    "${bundle_dir}/tools/status-event.js"
+    "${bundle_dir}/protocols"
+    "${bundle_dir}/skills"
+    "${bundle_dir}/runtimes/copilot/model-sets"
+    "${bundle_dir}/scripts/export-copilot-agents.py"
+    "${bundle_dir}/scripts/install-copilot.sh"
+    "${bundle_dir}/scripts/path_safety.py"
+    "${bundle_dir}/scripts/sync-runtime-support.py"
+  )
+  local required_path
+  for required_path in "${required_paths[@]}"; do
+    if [[ ! -e "${required_path}" ]]; then
+      echo "Bundle verification failed. Missing required path: ${required_path}" >&2
+      exit 1
+    fi
+  done
+}
+
+resolve_bundle_dir() {
+  local extract_dir="$1"
+  if [[ -d "${extract_dir}/scripts" && -d "${extract_dir}/agents" ]]; then
+    printf '%s\n' "${extract_dir}"
+    return 0
+  fi
+  shopt -s nullglob dotglob
+  local candidates=("${extract_dir}"/*)
+  shopt -u nullglob dotglob
+  if [[ ${#candidates[@]} -eq 1 && -d "${candidates[0]}" ]]; then
+    printf '%s\n' "${candidates[0]}"
+    return 0
+  fi
+  return 1
+}
+
 log_verbose() {
   if [[ ${VERBOSE:-0} -eq 1 ]]; then
     printf '%s\n' "$1"
+  fi
+}
+
+require_neutral_bundle_release() {
+  local release_tag="$1"
+  if [[ ! "${release_tag}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+    echo "Unsupported release tag format: ${release_tag}" >&2
+    exit 1
+  fi
+  local major="${BASH_REMATCH[1]}"
+  local minor="${BASH_REMATCH[2]}"
+  if (( 10#${major} == 0 && 10#${minor} < 28 )); then
+    echo "The current neutral Copilot bootstrap supports v0.28.0 or newer." >&2
+    echo "For an older release, use the bootstrap shipped with that release." >&2
+    exit 1
   fi
 }
 
@@ -62,6 +134,7 @@ verify_release_attestation() {
 REPO="bohewu/agents_pipeline"
 VERSION="latest"
 TARGET=""
+TARGET_SET=0
 NO_BACKUP=0
 DRY_RUN=0
 KEEP_TEMP=0
@@ -96,6 +169,7 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       TARGET="$2"
+      TARGET_SET=1
       shift 2
       ;;
     --no-backup)
@@ -166,6 +240,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ ${TARGET_SET} -eq 1 && -z "${TARGET//[[:space:]]/}" ]]; then
+  echo "Target path must not be empty." >&2
+  exit 2
+fi
+if [[ ${TARGET_SET} -eq 1 && "${TARGET}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
+  echo "Target path '${TARGET}' looks like a switch, not a filesystem path. Pass --target explicitly if needed." >&2
+  exit 2
+fi
+validate_generated_shell_path "Target path" "${TARGET:-${HOME}/.copilot/agents}"
+
 if [[ "${VERSION}" == "latest" ]]; then
   API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 else
@@ -197,8 +281,8 @@ import re
 import sys
 
 data = json.loads(os.environ["JSON_PAYLOAD"])
-asset_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.tar\.gz$")
-sums_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$")
+asset_pattern = re.compile(r"agents-pipeline-bundle-.*\.tar\.gz$")
+sums_pattern = re.compile(r"agents-pipeline-bundle-.*\.SHA256SUMS\.txt$")
 
 asset_url = ""
 sums_url = ""
@@ -222,19 +306,19 @@ PY
 )"
 IFS=$'\t' read -r ASSET_URL SUMS_URL RELEASE_TAG <<<"${PARSED_URLS}"
 
-if [[ -z "${ASSET_URL}" ]]; then
-  echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
-  exit 1
-fi
-if [[ -z "${SUMS_URL}" ]]; then
-  echo "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt" >&2
-  exit 1
-fi
 if [[ -z "${RELEASE_TAG}" ]]; then
   echo "Release metadata missing tag_name." >&2
   exit 1
 fi
-
+require_neutral_bundle_release "${RELEASE_TAG}"
+if [[ -z "${ASSET_URL}" ]]; then
+  echo "No release tar.gz asset found matching agents-pipeline-bundle-*.tar.gz" >&2
+  exit 1
+fi
+if [[ -z "${SUMS_URL}" ]]; then
+  echo "No checksum asset found matching agents-pipeline-bundle-*.SHA256SUMS.txt" >&2
+  exit 1
+fi
 log_verbose "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
@@ -280,7 +364,9 @@ else
   exit 1
 fi
 
-if [[ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]]; then
+ACTUAL_HASH_NORMALIZED="$(printf '%s' "${ACTUAL_HASH}" | tr '[:upper:]' '[:lower:]')"
+EXPECTED_HASH_NORMALIZED="$(printf '%s' "${EXPECTED_HASH}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${ACTUAL_HASH_NORMALIZED}" != "${EXPECTED_HASH_NORMALIZED}" ]]; then
   echo "Checksum verification failed for ${ASSET_NAME}" >&2
   echo "Expected: ${EXPECTED_HASH}" >&2
   echo "Actual:   ${ACTUAL_HASH}" >&2
@@ -293,11 +379,12 @@ verify_release_attestation "${ARCHIVE_PATH}" "${REPO}" "${RELEASE_TAG}" "${ASSET
 
 tar -xzf "${ARCHIVE_PATH}" -C "${EXTRACT_DIR}"
 
-BUNDLE_DIR="$(find "${EXTRACT_DIR}" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-if [[ -z "${BUNDLE_DIR}" ]]; then
+if ! BUNDLE_DIR="$(resolve_bundle_dir "${EXTRACT_DIR}")"; then
   echo "Bundle root directory not found after extraction." >&2
   exit 1
 fi
+
+verify_bundle "${BUNDLE_DIR}"
 
 INSTALL_SCRIPT="${BUNDLE_DIR}/scripts/install-copilot.sh"
 if [[ ! -f "${INSTALL_SCRIPT}" ]]; then

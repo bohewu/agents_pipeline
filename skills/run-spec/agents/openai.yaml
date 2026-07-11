@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Spec"
+  short_description: "Create a review-ready development spec"
+  default_prompt: "Use $run-spec to produce a review-ready development specification."
+policy:
+  allow_implicit_invocation: false

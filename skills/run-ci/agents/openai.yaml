@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run CI"
+  short_description: "Plan and generate CI/CD changes"
+  default_prompt: "Use $run-ci to design and validate this CI/CD change."
+policy:
+  allow_implicit_invocation: false

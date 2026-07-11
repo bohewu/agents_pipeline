@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "f-high-weak",
+      "summary": "Change authentication token validation",
+      "description": "Modify a security-sensitive validation path without the required Flow rigor.",
+      "primary_output": "implementation",
+      "assigned_agent": "executor",
+      "risk": "high",
+      "verification": "none",
+      "review_required": false,
+      "repair_budget": 0,
+      "resource_class": "process",
+      "definition_of_done": [
+        "Authentication behavior is updated."
+      ],
+      "atomic": true
+    }
+  ]
+}

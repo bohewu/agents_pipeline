@@ -22,8 +22,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--skills-dir",
-        default="opencode/skills",
-        help="Directory containing skill subdirectories (default: opencode/skills).",
+        default="skills",
+        help="Directory containing skill subdirectories (default: skills).",
     )
     return parser.parse_args()
 

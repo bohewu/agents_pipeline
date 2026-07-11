@@ -10,20 +10,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CHECKS = {
-    Path("opencode/agents/reviewer.md"): [
+    Path("agents/reviewer.md"): [
         "[artifact]",
         "[evidence]",
         "[logic]",
         "For review failures caused only by artifact/evidence gaps",
     ],
-    Path("opencode/agents/orchestrator-pipeline.md"): [
+    Path("agents/orchestrator-pipeline.md"): [
         "reviewer MUST prefix every issue/followup string",
         "If every `required_followups` entry is `[artifact]` and/or `[evidence]`",
         "If any `required_followups` entry is `[logic]`",
         "Retry classification rules:",
-    ],
-    Path("opencode/commands/run-pipeline.md"): [
-        "Reviewer failures are classified in-band with `[artifact]`, `[evidence]`, or `[logic]` prefixes",
     ],
 }
 

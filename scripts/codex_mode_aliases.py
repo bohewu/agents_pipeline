@@ -1,4 +1,7 @@
-from typing import List, Sequence
+import json
+import re
+from pathlib import Path
+from typing import Dict, List, Sequence
 
 
 MODE_ALIAS_PATTERN_FAMILY_LINE = (
@@ -9,6 +12,29 @@ MODE_ALIAS_PATTERN_FAMILY_LINE = (
 )
 MODE_ALIAS_ADOPT_LINE = (
     "Those aliases tell the current/main agent to adopt the requested mode directly."
+)
+FORMAL_MODE_SKILLS_LINE = (
+    "Installed `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, "
+    "`$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and "
+    "`$run-committee` skills are the formal mode entry points."
+)
+MODE_ALIAS_COMPATIBILITY_LINE = (
+    "Natural-language forms such as `use pipeline` and `使用 pipeline` remain "
+    "compatibility aliases; `$run-pipeline` is the primary full-pipeline entry point."
+)
+MODE_ALIAS_SKILL_EQUIVALENCE_LINE = (
+    "Treat each recognized compatibility alias as the matching formal `$run-<mode>` "
+    "skill invocation and apply that skill's preflight and workflow semantics."
+)
+WORKSPACE_PROFILE_PREFLIGHT_LINE = (
+    "Before adopting the workflow, always query the globally installed profile "
+    "manager for current-workspace JSON status. A normal workspace without a "
+    "profile reports global inheritance and may continue. If status cannot be "
+    "verified or a configured profile's `health` is not `ok`, stop before dispatch "
+    "and ask the user to rerun workspace `set` or `clear`; never bypass an unhealthy "
+    "or orphaned profile. If a configured profile's `profile_eligibility` is not "
+    "`eligible`, warn that Codex is ignoring the workspace layer and continue with "
+    "global role routing."
 )
 MODE_ALIAS_AUTHORIZATION_GUARD_LINE = (
     "A mode alias changes the current/main agent's working style only. It does not "
@@ -22,9 +48,11 @@ MODE_ALIAS_DEFINITION_HEADER_LINE = (
     "Definition-first order for an explicit mode alias in a fresh/new session:"
 )
 MODE_ALIAS_DEFINITION_LOOKUP_SENTENCE = (
-    "On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` "
-    "in the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; "
-    "then apply that definition."
+    "On a recognized mode alias, read the globally installed "
+    "`$CODEX_HOME/agents/orchestrator-<mode>.toml` (default "
+    "`~/.codex/agents/orchestrator-<mode>.toml`) as the authoritative workflow "
+    "definition. Do not manually adopt a repository `.codex/agents/` role; effective "
+    "Codex configuration controls trusted workspace role routing."
 )
 MODE_ALIAS_DEFINITION_LOOKUP_LINE = f"1. {MODE_ALIAS_DEFINITION_LOOKUP_SENTENCE}"
 MODE_ALIAS_SIMULATE_LINE = (
@@ -50,20 +78,19 @@ MODE_ALIAS_SUBAGENT_SENTENCE = (
 MODE_ALIAS_SUBAGENT_LINE = f"5. {MODE_ALIAS_SUBAGENT_SENTENCE}"
 SAME_SESSION_NO_RELOAD_LINE = (
     "Same-session reuse rule: repeated use of the same mode in the same session does "
-    "NOT need to reload the definition when the mode, workspace, and definition source "
-    "are unchanged."
+    "NOT need to reload the definition when the mode and global definition source are "
+    "unchanged."
 )
 SAME_SESSION_EXCEPTIONS_LINE = (
-    "Reload/re-read when the mode changes, the workspace changes, the definition source "
-    "changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, "
+    "Reload/re-read when the mode changes, the globally installed definition changes, "
     "the user explicitly asks to reload/refresh/re-read, or the agent is no longer "
-    "confident it still has the relevant mode details."
+    "confident it still has the relevant mode details. Recheck effective role routing "
+    "and workspace profile status whenever the workspace changes."
 )
-IGNORE_OPENCODE_DETAILS_LINE = (
-    "When reading the installed definition for Codex mode simulation, ignore "
-    "OpenCode-only plugin/command details that are not relevant in the current Codex "
-    "runtime; focus on mode behavior, task decomposition, delegation rules, and output "
-    "style."
+MODE_DEFINITION_SCOPE_LINE = (
+    "When reading the installed definition for Codex mode simulation, focus on mode "
+    "behavior, task decomposition, delegation rules, and output style; ignore adapter "
+    "details for other runtimes."
 )
 NATURAL_LANGUAGE_MODE_ALIAS_PATTERNS = (
     "use {alias}",
@@ -75,7 +102,118 @@ NATURAL_LANGUAGE_MODE_ALIAS_PATTERNS = (
     "請用 {alias}",
     "請用 {alias} 去執行",
 )
-RUN_COMMAND_ONLY_MODE_ALIASES = {"goal"}
+MODE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+CODEX_NATIVE_RESERVED_ALIASES = frozenset({"goal"})
+
+
+def _normalize_mode_name(value: object, context: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{context} must be a non-empty string")
+    name = value.strip().lstrip("/")
+    if name.startswith("run-"):
+        name = name[len("run-") :]
+    if MODE_NAME_RE.fullmatch(name) is None:
+        raise ValueError(
+            f"{context} must be a safe mode name matching {MODE_NAME_RE.pattern}"
+        )
+    return name
+
+
+def _normalize_agent_name(value: object, context: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{context} must be a non-empty string")
+    name = value.strip()
+    if AGENT_NAME_RE.fullmatch(name) is None:
+        raise ValueError(
+            f"{context} must be a safe agent name matching {AGENT_NAME_RE.pattern}"
+        )
+    return name
+
+
+def load_mode_agents(path: Path) -> Dict[str, str]:
+    """Load ordered mode-to-agent routing from the neutral ``modes.json`` manifest.
+
+    The canonical shape is ``{"modes": [{"name": "flow", "agent":
+    "orchestrator-flow"}]}``. Object-map mode entries are also accepted so an
+    extracted bundle fails only on semantic errors, not on harmless JSON layout
+    differences during the migration.
+    """
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Mode manifest not found: {path.as_posix()}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"{path.as_posix()}: invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(f"Unable to read mode manifest {path.as_posix()}: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path.as_posix()}: mode manifest must be a JSON object")
+    if type(payload.get("version")) is not int or payload.get("version") != 1:
+        raise ValueError(f"{path.as_posix()}: mode manifest version must be 1")
+    raw_modes = payload.get("modes")
+    if isinstance(raw_modes, dict):
+        entries = []
+        for raw_name, raw_value in raw_modes.items():
+            if isinstance(raw_value, str):
+                entries.append({"name": raw_name, "agent": raw_value})
+            elif isinstance(raw_value, dict):
+                entries.append({"name": raw_name, **raw_value})
+            else:
+                raise ValueError(
+                    f"{path.as_posix()}: mode '{raw_name}' must map to an agent string or object"
+                )
+    elif isinstance(raw_modes, list):
+        entries = raw_modes
+    else:
+        raise ValueError(
+            f"{path.as_posix()}: field 'modes' must be an array or object"
+        )
+
+    mode_agents: Dict[str, str] = {}
+    for index, raw_entry in enumerate(entries):
+        if not isinstance(raw_entry, dict):
+            raise ValueError(
+                f"{path.as_posix()}: modes[{index}] must be an object"
+            )
+        mode_name = _normalize_mode_name(
+            raw_entry.get("name"), f"{path.as_posix()}: modes[{index}].name"
+        )
+        agent_name = _normalize_agent_name(
+            raw_entry.get("agent"), f"{path.as_posix()}: mode '{mode_name}' agent"
+        )
+        raw_aliases = raw_entry.get("aliases", [])
+        if not isinstance(raw_aliases, list):
+            raise ValueError(
+                f"{path.as_posix()}: mode '{mode_name}' aliases must be an array"
+            )
+        names = [mode_name]
+        names.extend(
+            _normalize_mode_name(
+                alias,
+                f"{path.as_posix()}: mode '{mode_name}' alias",
+            )
+            for alias in raw_aliases
+        )
+        for name in ordered_unique(names):
+            if name in CODEX_NATIVE_RESERVED_ALIASES:
+                raise ValueError(
+                    f"{path.as_posix()}: mode '{mode_name}' uses host-runtime reserved alias '{name}'"
+                )
+            previous = mode_agents.get(name)
+            if previous is not None and previous != agent_name:
+                raise ValueError(
+                    f"{path.as_posix()}: mode alias '{name}' maps to both '{previous}' and '{agent_name}'"
+                )
+            mode_agents[name] = agent_name
+
+    if not mode_agents:
+        raise ValueError(f"{path.as_posix()}: mode manifest contains no modes")
+    return mode_agents
 
 
 def ordered_unique(values: Sequence[str]) -> List[str]:
@@ -96,9 +234,10 @@ def inline_code_list(values: Sequence[str]) -> str:
 def build_slash_mode_aliases(aliases: Sequence[str]) -> List[str]:
     out: List[str] = []
     for alias in aliases:
+        if alias in CODEX_NATIVE_RESERVED_ALIASES:
+            continue
         out.append(f"/run-{alias}")
-        if alias not in RUN_COMMAND_ONLY_MODE_ALIASES:
-            out.append(f"/{alias}")
+        out.append(f"/{alias}")
     return ordered_unique(out)
 
 
@@ -106,7 +245,7 @@ def build_natural_language_mode_aliases(aliases: Sequence[str]) -> List[str]:
     return ordered_unique(
         pattern.format(alias=alias)
         for alias in aliases
-        if alias not in RUN_COMMAND_ONLY_MODE_ALIASES
+        if alias not in CODEX_NATIVE_RESERVED_ALIASES
         for pattern in NATURAL_LANGUAGE_MODE_ALIAS_PATTERNS
     )
 
@@ -115,6 +254,10 @@ def build_mode_summary_lines() -> List[str]:
     return [
         MODE_ALIAS_PATTERN_FAMILY_LINE,
         MODE_ALIAS_ADOPT_LINE,
+        FORMAL_MODE_SKILLS_LINE,
+        MODE_ALIAS_COMPATIBILITY_LINE,
+        MODE_ALIAS_SKILL_EQUIVALENCE_LINE,
+        WORKSPACE_PROFILE_PREFLIGHT_LINE,
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,
@@ -125,5 +268,5 @@ def build_mode_summary_lines() -> List[str]:
         MODE_ALIAS_SUBAGENT_LINE,
         SAME_SESSION_NO_RELOAD_LINE,
         SAME_SESSION_EXCEPTIONS_LINE,
-        IGNORE_OPENCODE_DETAILS_LINE,
+        MODE_DEFINITION_SCOPE_LINE,
     ]

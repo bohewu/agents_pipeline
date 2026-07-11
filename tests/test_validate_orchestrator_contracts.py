@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tempfile
 import textwrap
 import unittest
@@ -6,89 +7,62 @@ from pathlib import Path
 from unittest import mock
 
 
-SCRIPT_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "validate-orchestrator-contracts.py"
-)
-SPEC = importlib.util.spec_from_file_location(
-    "validate_orchestrator_contracts", SCRIPT_PATH
-)
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/validate-orchestrator-contracts.py"
+SPEC = importlib.util.spec_from_file_location("validate_orchestrator_contracts", SCRIPT_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 
 class ValidateOrchestratorContractsTest(unittest.TestCase):
-    def make_repo(self) -> Path:
-        root = Path(self.temp_dir.name)
-        (root / "opencode" / "agents").mkdir(parents=True)
-        (root / "opencode" / "commands").mkdir(parents=True)
-        (root / "opencode" / "plugins" / "status-runtime").mkdir(parents=True)
-        (root / "opencode" / "protocols" / "schemas").mkdir(parents=True)
-
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = Path(self.temp_dir.name)
+        (self.repo_root / "agents").mkdir()
+        (self.repo_root / "tools/status-runtime").mkdir(parents=True)
+        (self.repo_root / "protocols/schemas").mkdir(parents=True)
         self.write(
-            root / "AGENTS.md",
+            self.repo_root / "AGENTS.md",
             """
-            # Agent Catalog
-
             | Agent | Role | Mode | Notes |
             |------|------|------|-------|
-            | orchestrator-general | General-purpose orchestration | primary | Test fixture |
+            | orchestrator-general | General-purpose orchestration | primary | Fixture |
             """,
         )
         self.write(
-            root / "opencode" / "agents" / "orchestrator-general.md",
+            self.repo_root / "agents/orchestrator-general.md",
             """
             ---
             name: orchestrator-general
-            mode: primary
+            description: General workflow.
+            kind: primary
             ---
-
-            # Orchestrator General
             """,
         )
-        self.write(
-            root / "opencode" / "commands" / "run-general.md",
-            """
-            ---
-            description: Run general workflow
-            agent: orchestrator-general
-            ---
-
-            # Run General
-            """,
+        self.write_json(
+            self.repo_root / "modes.json",
+            {
+                "version": 1,
+                "modes": [
+                    {
+                        "name": "general",
+                        "agent": "orchestrator-general",
+                        "aliases": ["general", "run-general", "monetize", "run-monetize"],
+                    }
+                ],
+            },
         )
         self.write(
-            root / "opencode" / "commands" / "run-monetize.md",
-            """
-            ---
-            description: Run monetization workflow
-            agent: orchestrator-general
-            ---
-
-            # Run Monetize
-            """,
-        )
-        self.write(
-            root / "opencode" / "plugins" / "status-runtime" / "constants.js",
+            self.repo_root / "tools/status-runtime/constants.js",
             'const ORCHESTRATORS = ["orchestrator-general"];',
         )
-        self.write_schema(
-            root / "opencode" / "protocols" / "schemas" / "run-status.schema.json"
-        )
-        self.write_schema(
-            root / "opencode" / "protocols" / "schemas" / "checkpoint.schema.json"
-        )
-        return root
-
-    def setUp(self) -> None:
-        self.temp_dir = tempfile.TemporaryDirectory()
-        self.repo_root = self.make_repo()
+        schema = {"properties": {"orchestrator": {"enum": ["orchestrator-general"]}}}
+        self.write_json(self.repo_root / "protocols/schemas/run-status.schema.json", schema)
+        self.write_json(self.repo_root / "protocols/schemas/checkpoint.schema.json", schema)
         self.patchers = [
             mock.patch.object(MODULE, "REPO_ROOT", self.repo_root),
-            mock.patch.object(MODULE, "AGENTS_DIR", self.repo_root / "opencode" / "agents"),
-            mock.patch.object(MODULE, "COMMANDS_DIR", self.repo_root / "opencode" / "commands"),
+            mock.patch.object(MODULE, "AGENTS_DIR", self.repo_root / "agents"),
+            mock.patch.object(MODULE, "MODES_PATH", self.repo_root / "modes.json"),
         ]
         for patcher in self.patchers:
             patcher.start()
@@ -98,81 +72,66 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             patcher.stop()
         self.temp_dir.cleanup()
 
-    def write(self, path: Path, content: str) -> None:
+    @staticmethod
+    def write(path: Path, content: str) -> None:
         path.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8")
 
-    def write_schema(self, path: Path) -> None:
-        self.write(
-            path,
-            """
-            {
-              "properties": {
-                "orchestrator": {
-                  "enum": ["orchestrator-general"]
-                }
-              }
-            }
-            """,
-        )
+    @staticmethod
+    def write_json(path: Path, content: object) -> None:
+        path.write_text(json.dumps(content), encoding="utf-8")
 
     def test_main_passes_for_valid_projection(self) -> None:
         self.assertEqual(MODULE.main(), 0)
 
     def test_main_rejects_agent_missing_from_catalog(self) -> None:
         self.write(
-            self.repo_root / "opencode" / "agents" / "tmp-validator-agent.md",
+            self.repo_root / "agents/tmp-validator-agent.md",
             """
             ---
             name: tmp-validator-agent
-            mode: subagent
+            description: Fixture.
+            kind: subagent
             ---
-
-            # Temporary Agent
             """,
         )
-
-        with self.assertRaisesRegex(
-            ValueError,
-            r"AGENTS\.md full agent table is out of sync with expected members: unexpected=\['tmp-validator-agent'\]",
-        ):
+        with self.assertRaisesRegex(ValueError, "AGENTS.md full agent table"):
             MODULE.main()
 
-    def test_main_rejects_unknown_command_agent(self) -> None:
-        self.write(
-            self.repo_root / "opencode" / "commands" / "tmp-invalid-agent.md",
-            """
-            ---
-            description: Temporary invalid command
-            agent: not-a-real-agent
-            ---
-
-            # Temporary Invalid Command
-            """,
-        )
-
-        with self.assertRaisesRegex(
-            ValueError,
-            r"command frontmatter references unknown agents: tmp-invalid-agent:not-a-real-agent",
-        ):
+    def test_main_rejects_runtime_specific_frontmatter(self) -> None:
+        path = self.repo_root / "agents/orchestrator-general.md"
+        path.write_text(path.read_text(encoding="utf-8").replace("kind: primary", "kind: primary\ntemperature: 0.2"), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "runtime-specific frontmatter"):
             MODULE.main()
 
-    def test_main_rejects_unallowlisted_run_alias(self) -> None:
-        self.write(
-            self.repo_root / "opencode" / "commands" / "run-tmp-alias.md",
-            """
-            ---
-            description: Temporary alias command
-            agent: orchestrator-general
-            ---
-
-            # Temporary Run Alias
-            """,
+    def test_main_rejects_duplicate_alias(self) -> None:
+        document = json.loads((self.repo_root / "modes.json").read_text(encoding="utf-8"))
+        document["modes"].append(
+            {
+                "name": "duplicate",
+                "agent": "orchestrator-general",
+                "aliases": ["duplicate", "run-duplicate", "general"],
+            }
         )
+        self.write_json(self.repo_root / "modes.json", document)
+        with self.assertRaisesRegex(ValueError, "duplicate mode aliases"):
+            MODULE.main()
 
-        with self.assertRaisesRegex(
-            ValueError,
-            r"run-command mappings are out of sync: run-tmp-alias has no matching primary orchestrator and no allowlisted alias \(found orchestrator-general\)",
-        ):
+    def test_main_rejects_host_reserved_goal_mode(self) -> None:
+        document = json.loads((self.repo_root / "modes.json").read_text(encoding="utf-8"))
+        document["modes"][0] = {
+            "name": "goal",
+            "agent": "orchestrator-general",
+            "aliases": ["goal", "run-goal"],
+        }
+        self.write_json(self.repo_root / "modes.json", document)
+        with self.assertRaisesRegex(ValueError, "reserved for host-runtime"):
+            MODULE.main()
+
+    def test_main_rejects_host_reserved_goal_alias_on_other_mode(self) -> None:
+        document = json.loads((self.repo_root / "modes.json").read_text(encoding="utf-8"))
+        document["modes"][0]["aliases"].extend(["goal", "run-goal"])
+        self.write_json(self.repo_root / "modes.json", document)
+        with self.assertRaisesRegex(ValueError, "host-runtime reserved aliases"):
             MODULE.main()
 
 

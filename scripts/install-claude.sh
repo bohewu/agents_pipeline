@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+validate_generated_shell_path() {
+  local label="$1"
+  local value="$2"
+  if [[ "${value}" =~ [[:cntrl:]] ]]; then
+    echo "${label} contains a control character that is unsafe in generated shell instructions." >&2
+    return 2
+  fi
+  case "${value}" in
+    *'$'*|*'`'*|*'"'*|*'\'*)
+      echo "${label} contains a shell-active character that is unsafe in generated shell instructions." >&2
+      return 2
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
-Install Claude Code custom subagents generated from OpenCode agents.
+Install Claude Code custom subagents generated from canonical agents.
 
 Usage:
   scripts/install-claude.sh [--target <path>] [--dry-run] [--no-backup] [model profile options]
@@ -19,9 +34,9 @@ Options:
   --model-set <name|path>
                       Runtime model-set to use with --agent-profile
   --profile-dir <path>
-                      Agent profile directory (default: repo opencode/tools/agent-profiles)
+                      Agent profile directory (default: repo tools/agent-profiles)
   --model-set-dir <path>
-                      Claude model-set directory (default: repo claude/tools/model-sets)
+                      Claude model-set directory (default: repo runtimes/claude/model-sets)
   --uniform-model <alias>
                       Apply one Claude model alias to all generated agents
   -h, --help          Show this help
@@ -32,14 +47,13 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSET_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-if [[ -d "${ASSET_ROOT}/agents" ]]; then
-  SOURCE_AGENTS="${ASSET_ROOT}/agents"
-  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/tools/agent-profiles"
-else
-  SOURCE_AGENTS="${ASSET_ROOT}/opencode/agents"
-  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/opencode/tools/agent-profiles"
-fi
+SOURCE_AGENTS="${ASSET_ROOT}/agents"
+DEFAULT_PROFILE_DIR="${ASSET_ROOT}/tools/agent-profiles"
+MODES_FILE="${ASSET_ROOT}/modes.json"
+CATALOG_FILE="${ASSET_ROOT}/AGENTS.md"
 EXPORT_SCRIPT="${ASSET_ROOT}/scripts/export-claude-agents.py"
+SUPPORT_SYNC_SCRIPT="${ASSET_ROOT}/scripts/sync-runtime-support.py"
+PROFILE_TOOL="${ASSET_ROOT}/tools/agent-profile.py"
 
 if [[ ! -d "${SOURCE_AGENTS}" ]]; then
   echo "Source agents directory not found: ${SOURCE_AGENTS}" >&2
@@ -47,6 +61,22 @@ if [[ ! -d "${SOURCE_AGENTS}" ]]; then
 fi
 if [[ ! -f "${EXPORT_SCRIPT}" ]]; then
   echo "Export script not found: ${EXPORT_SCRIPT}" >&2
+  exit 1
+fi
+if [[ ! -f "${SUPPORT_SYNC_SCRIPT}" ]]; then
+  echo "Support sync script not found: ${SUPPORT_SYNC_SCRIPT}" >&2
+  exit 1
+fi
+if [[ ! -f "${PROFILE_TOOL}" ]]; then
+  echo "Agent profile manager not found: ${PROFILE_TOOL}" >&2
+  exit 1
+fi
+if [[ ! -f "${MODES_FILE}" ]]; then
+  echo "Mode manifest not found: ${MODES_FILE}" >&2
+  exit 1
+fi
+if [[ ! -f "${CATALOG_FILE}" ]]; then
+  echo "Agent catalog not found: ${CATALOG_FILE}" >&2
   exit 1
 fi
 
@@ -57,7 +87,7 @@ NO_BACKUP=0
 AGENT_PROFILE=""
 MODEL_SET=""
 PROFILE_DIR="${DEFAULT_PROFILE_DIR}"
-MODEL_SET_DIR="${ASSET_ROOT}/claude/tools/model-sets"
+MODEL_SET_DIR="${ASSET_ROOT}/runtimes/claude/model-sets"
 UNIFORM_MODEL=""
 MODEL_FLAGS=0
 
@@ -150,7 +180,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "${TARGET_DIR}" ]]; then
+if [[ -z "${TARGET_DIR//[[:space:]]/}" ]]; then
   echo "Target path must not be empty." >&2
   exit 2
 fi
@@ -158,7 +188,15 @@ if [[ "${TARGET_DIR}" == -* ]]; then
   echo "Target path '${TARGET_DIR}' looks like a switch, not a filesystem path. Pass --target explicitly if needed." >&2
   exit 2
 fi
-if [[ -e "${TARGET_DIR}" && ! -d "${TARGET_DIR}" ]]; then
+validate_generated_shell_path "Target path" "${TARGET_DIR}"
+if [[ -n "${CLAUDE_MD}" ]]; then
+  validate_generated_shell_path "CLAUDE.md path" "${CLAUDE_MD}"
+fi
+if [[ -L "${TARGET_DIR}" ]]; then
+  echo "Target path must not be a symbolic link: ${TARGET_DIR}" >&2
+  exit 2
+fi
+if [[ ( -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ) && ! -d "${TARGET_DIR}" ]]; then
   echo "Target path is not a directory: ${TARGET_DIR}" >&2
   exit 2
 fi
@@ -167,10 +205,14 @@ PYTHON_BIN="python3"
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   PYTHON_BIN="python"
 fi
+
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   echo "Python runtime not found. Install python3 or python." >&2
   exit 1
 fi
+TARGET_INPUT_PATH="$("${PYTHON_BIN}" -c 'import os, sys; print(os.path.abspath(os.path.expanduser(sys.argv[1])))' "${TARGET_DIR}")"
+TARGET_DIR="$("${PYTHON_BIN}" -c 'import sys; from pathlib import Path; path = Path(sys.argv[1]); print(path.parent.resolve(strict=False) / path.name)' "${TARGET_INPUT_PATH}")"
+SUPPORT_DIR="$("${PYTHON_BIN}" -c 'import os, sys; print(os.path.join(os.path.dirname(sys.argv[1]), "agents-pipeline"))' "${TARGET_DIR}")"
 
 echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
@@ -201,13 +243,16 @@ else
   mkdir -p "${TARGET_DIR}"
 fi
 
-# Auto-detect CLAUDE.md path: sibling to the .claude/ parent of target agents dir.
-# e.g. ~/.claude/agents -> ~/.claude/CLAUDE.md
-#      .claude/agents   -> .claude/../CLAUDE.md (project root)
+# Auto-detect CLAUDE.md path. A global ~/.claude/agents target uses
+# ~/.claude/CLAUDE.md; a project <root>/.claude/agents target uses
+# <root>/CLAUDE.md. Other custom targets use a sibling CLAUDE.md.
 if [[ ${NO_RUNNER} -eq 0 && -z "${CLAUDE_MD}" ]]; then
-  agents_parent="$(cd "$(dirname "${TARGET_DIR}")" 2>/dev/null && pwd)"
-  if [[ "$(basename "${agents_parent}")" == ".claude" ]]; then
+  agents_parent="$(dirname "${TARGET_INPUT_PATH}")"
+  global_claude_dir="$("${PYTHON_BIN}" -c 'import os; print(os.path.abspath(os.path.expanduser("~/.claude")))')"
+  if [[ "${agents_parent}" == "${global_claude_dir}" ]]; then
     CLAUDE_MD="${agents_parent}/CLAUDE.md"
+  elif [[ "$(basename "${agents_parent}")" == ".claude" ]]; then
+    CLAUDE_MD="$(dirname "${agents_parent}")/CLAUDE.md"
   else
     CLAUDE_MD="${agents_parent}/CLAUDE.md"
   fi
@@ -216,7 +261,10 @@ fi
 EXPORT_CMD=(
   "${PYTHON_BIN}" "${EXPORT_SCRIPT}"
   --source-agents "${SOURCE_AGENTS}"
+  --modes-file "${MODES_FILE}"
+  --catalog "${CATALOG_FILE}"
   --target-dir "${TARGET_DIR}"
+  --resolve-support-refs-to "${SUPPORT_DIR}"
   --strict
 )
 if [[ ${NO_RUNNER} -eq 0 && -n "${CLAUDE_MD}" ]]; then
@@ -237,7 +285,44 @@ fi
 if [[ -n "${UNIFORM_MODEL}" ]]; then
   EXPORT_CMD+=(--uniform-model "${UNIFORM_MODEL}")
 fi
+
+PROFILE_CMD=(
+  "${PYTHON_BIN}" "${PROFILE_TOOL}"
+  record
+  --runtime claude
+  --target "${TARGET_DIR}"
+  --asset-root "${ASSET_ROOT}"
+)
+if [[ -n "${AGENT_PROFILE}" ]]; then
+  PROFILE_CMD+=(--profile "${AGENT_PROFILE}")
+fi
+if [[ -n "${MODEL_SET}" ]]; then
+  PROFILE_CMD+=(--model-set "${MODEL_SET}")
+fi
+if [[ -n "${UNIFORM_MODEL}" ]]; then
+  PROFILE_CMD+=(--uniform-model "${UNIFORM_MODEL}")
+fi
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  PROFILE_CMD+=(--dry-run)
+fi
+
+SUPPORT_CMD=(
+  "${PYTHON_BIN}" "${SUPPORT_SYNC_SCRIPT}"
+  --source-root "${ASSET_ROOT}"
+  --target-root "${SUPPORT_DIR}"
+)
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  SUPPORT_CMD+=(--dry-run)
+fi
+if [[ ${DRY_RUN} -eq 0 ]]; then
+  PREFLIGHT_CMD=("${EXPORT_CMD[@]}" --dry-run)
+  "${PREFLIGHT_CMD[@]}" >/dev/null
+  PROFILE_PREFLIGHT_CMD=("${PROFILE_CMD[@]}" --dry-run)
+  "${PROFILE_PREFLIGHT_CMD[@]}" >/dev/null
+fi
+"${SUPPORT_CMD[@]}"
 "${EXPORT_CMD[@]}"
+"${PROFILE_CMD[@]}"
 
 echo
 echo "Claude Code subagents directory: ${TARGET_DIR}"

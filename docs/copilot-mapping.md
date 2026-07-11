@@ -1,82 +1,95 @@
 # Copilot Mapping
 
-This document defines how OpenCode agent definitions are mapped to VS Code Copilot custom agent files.
+GitHub Copilot is a Tier 2, best-effort export target. This document describes how the neutral agent core is adapted into Copilot `.agent.md` files; it does not promise feature parity with the Tier 1 Codex runtime.
 
 ## Source Of Truth
 
-- Source: `opencode/agents/*.md`
-- Generated output: `*.agent.md`
-- Generator: `scripts/export-copilot-agents.py`
-- Filename rule: generated filename uses source file stem, as `<source-stem>.agent.md`
+- Canonical agents: `agents/*.md`
+- Mode aliases: `modes.json`
+- Shared agent profiles: `tools/agent-profiles/*.json`
+- Copilot model sets: `runtimes/copilot/model-sets/*.json`
+- Generated output: `<target-dir>/*.agent.md`, normally `~/.copilot/agents/*.agent.md`
+- Exporter: `scripts/export-copilot-agents.py`
+- Installed profile manager: `~/.copilot/agents-pipeline/scripts/agent-profile.sh` / `.ps1`, backed by the installed `tools/agent-profile.py`
+- Filename rule: `<source-stem>.agent.md`
 
-Do not manually maintain generated `.agent.md` files as a primary source.
+Generated Copilot files are disposable outputs and should not become a second source tree.
 
-## Frontmatter Mapping
+## Neutral Frontmatter Mapping
 
-| OpenCode key | Copilot key | Rule |
+| Canonical key | Copilot output | Rule |
 |---|---|---|
 | `name` | `name` | copied |
 | `description` | `description` | copied |
-| `mode` | (removed) | not emitted |
-| `hidden` | (removed) | not emitted |
-| `temperature` | (removed) | not emitted |
-| `tools` | (removed) | not emitted |
-| body `@agent` refs | `agents` | extracted and deduplicated |
+| `kind` | not emitted | required by the neutral source contract |
+| body `@agent` references | `agents` + coordinator tools | extracted, validated, deduplicated, and given `agent`, `read`, `search`, `edit`, and `execute` |
+| body | markdown body | preserved with runtime adaptation and prompt compaction |
 
-By default, model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+Neutral exports accept exactly `name`, `description`, and `kind`; runtime-specific source keys such as `model`, `provider`, `mode`, `temperature`, and `tools` are rejected. Model selection is runtime-driven unless export-time profile flags are explicitly supplied.
+
+## Mode Manifest And Input Adaptation
+
+Neutral orchestrator prompts express their input as `raw_input`; the Copilot adapter binds that to the user's latest message and prepends an input adapter to every orchestrator. The exporter still replaces legacy `$ARGUMENTS` tokens when it encounters an older source fixture, but current canonical agents must use `raw_input` directly.
+
+The accepted leading slash tokens come from the exact `aliases` associated with that orchestrator in root `modes.json`. For example, `orchestrator-general` currently accepts `/general`, `/run-general`, `/monetize`, and `/run-monetize`. The exporter does not infer aliases from the agent filename.
+
+The manifest must declare `version: 1`, a non-empty `modes` array, unique mode names, unique aliases, and one orchestrator target per entry. Every exported orchestrator must have a manifest entry in `--strict` mode. After a recognized leading alias is removed, the existing flag parsing semantics apply unchanged.
+
+The repository manifest deliberately omits and rejects `goal`; long-running work uses the host runtime's native task/session behavior instead of a cross-runtime goal wrapper.
 
 ## Opt-In Agent Model Profiles
 
-Copilot runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+Per-agent model output remains opt-in. With `--agent-profile <profile> --model-set <set>`:
 
-- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
-- The Copilot tier catalog is loaded from `copilot/tools/model-sets/<set>.json` and must have `runtime: "copilot"`.
-- Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Copilot model set maps each tier to either one model name or a prioritized list of model names.
-- For each mapped generated agent, the exporter writes `.agent.md` frontmatter `model` as either a scalar or a YAML list matching the selected tier value.
+- The shared profile is loaded from `tools/agent-profiles/<profile>.json` and declares `runtime: "neutral"`.
+- The Copilot tier catalog is loaded from `runtimes/copilot/model-sets/<set>.json` and declares `runtime: "copilot"`.
+- The profile maps agents to logical tiers such as `mini`, `standard`, and `strong`.
+- A Copilot tier maps to either one model-picker name or an ordered list of names.
+- The selected value is written as frontmatter `model`, using a scalar or YAML list as appropriate.
 
-Copilot model names are written exactly as configured and must match model names available in the VS Code/GitHub Copilot model picker. The exporter does not validate remote availability.
+Model names are emitted exactly as configured and must match names offered by the user's Copilot model picker. The exporter does not validate remote availability. Reasoning effort is not controlled by these profiles; omit the flags to keep Copilot's normal runtime selection.
 
-The default catalog is GPT-first: its `strong` list preserves ordered fallback support and puts the available GPT picker model before `Claude Opus 4.8`. Review this catalog when GitHub adds GPT-5.6 Luna, Terra, or Sol to the picker; do not use names that the picker does not yet advertise.
-
-Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Copilot/VS Code runtime configuration. Omit the profile flags to keep Copilot's normal runtime model selection.
-
-Examples from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-copilot.ps1 -AgentProfile balanced -ModelSet default
-```
+After the one-time global Copilot install, use the installed profile manager. Copilot profiles are global-only:
 
 ```bash
-scripts/install-copilot.sh --agent-profile balanced --model-set default
+bash "$HOME/.copilot/agents-pipeline/scripts/agent-profile.sh" set balanced --runtime copilot --scope global --model-set default
 ```
 
-## Subagent Extraction Rules
+The interactive menu likewise exposes only global scope for Copilot. Global definitions live at `~/.copilot/agents`, support assets at `~/.copilot/agents-pipeline`, and normalized state at `~/.copilot/agents/.agents-pipeline-runtime-profile.json`. Status rejects unsafe managed filenames and reports missing output through `health`; no OpenCode setting is consulted. Global `clear` regenerates without model overrides and records runtime inheritance.
 
-- The generator scans body text for `@<agent-name>` tokens.
-- `@executor` is extracted like any other direct subagent reference.
-- In `--strict` mode, unresolved `@...` references fail generation.
+Copilot model selection lives in each complete generated `.agent.md` file, so there is no safe profile-only project overlay equivalent to Codex's `config_file` layer. The profile manager rejects Copilot workspace `set`/`clear` without writing project files. A direct target of `<project>/.github/agents` remains explicit materialization compatibility; it copies complete generated agents and support assets and is not a profile-only operation. See [Developer Install](developer-install.md#explicit-workspace-materialization-compatibility).
 
-## `/run-*` Input Adaptation
+Profile `status` is not the workflow checkpoint/run status written by `tools/status-event.js`.
 
-Copilot custom agents do not provide `$ARGUMENTS`.  
-For orchestrator agents, the generator prepends an input adapter block:
+## Subagent Extraction
 
-- Use the user's latest message as `raw_input`.
-- If it starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), remove that first token.
-- Apply the existing flag parsing logic unchanged.
+- The exporter scans canonical body text for `@<agent-name>` tokens.
+- Direct references such as `@executor` are emitted in the generated `agents:` list.
+- References are deduplicated while preserving order.
+- Unresolved references fail generation in `--strict` mode.
 
-`$ARGUMENTS` is replaced with `raw_input` in generated files.
+## Fallback Agents
 
-## Fallback Strategy
+With the default `--emit-fallback` behavior, every `orchestrator-*` source also produces `<orchestrator-name>-solo.agent.md`.
 
-When `--emit-fallback` is enabled (default), each orchestrator also gets:
+The normal file declares its resolved `agents:` list and a bounded coordinator tool set (`agent`, `read`, `search`, `edit`, `execute`) so it can delegate, synthesize artifacts, and call local validation/status commands. The `-solo` file omits `agents:` and adds instructions to execute the same stages inline when Copilot subagents are unavailable; with no explicit tool list it inherits the runtime's normal tools. Both variants use the same manifest-derived input aliases and selected model setting.
 
-- `<orchestrator-name>-solo.agent.md`
+## Status And Checkpoint Degradation
 
-These fallback agents omit `agents:` and include instructions to execute stages inline when subagents are unavailable.
+The Copilot installer synchronizes a marker-owned managed neutral support tree beside the global agent directory (normally `~/.copilot/agents-pipeline`) and rewrites generated references to that absolute location. The tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`, so its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list`. Generated orchestrators use the installed status writer when the selected Copilot surface permits local command execution; if execution is unavailable, they must report that persistence is unsupported instead of claiming a write succeeded.
+
+## Install And Bundle Layout
+
+- Default install target: `~/.copilot/agents`
+- Explicit materialization compatibility target: `<project>/.github/agents`
+- Local install: `scripts/install-copilot.sh` or `scripts/install-copilot.ps1`
+- Release install: `scripts/bootstrap-install-copilot.sh` or `scripts/bootstrap-install-copilot.ps1`
+
+Installers require the neutral `agents/`, `modes.json`, `AGENTS.md`, `tools/agent-profile.py`, `tools/agent-profiles/`, and `runtimes/copilot/model-sets/` layout. Bootstrap installers consume the neutral `agents-pipeline-bundle-*` release assets and verify the required Copilot adapter files before installation. A deliberately materialized workspace release bootstrap forwards `--target <workspace>/.github/agents` (PowerShell: `-Target`) to this same installer path.
 
 ## Known Limitations
 
-- Copilot subagents are experimental and may change behavior.
-- Tool capability mapping is intentionally omitted in generated frontmatter for compatibility.
-- Existing OpenCode prompt text is preserved as much as possible; only minimal adaptation is injected.
+- Copilot subagent support and accepted frontmatter can vary by client version.
+- Broad canonical tool capability mapping is intentionally omitted; coordinating agents receive only the bounded coordinator set required for delegation and local synthesis/verification.
+- Runtime status/checkpoint tooling may not have feature parity with Codex.
+- Generated agents are best-effort adapters; unsupported runtime behavior should fail clearly rather than silently broaden scope.

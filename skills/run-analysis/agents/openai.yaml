@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Analysis"
+  short_description: "Run post-hoc correctness and robustness analysis"
+  default_prompt: "Use $run-analysis to analyze this implementation for correctness and robustness."
+policy:
+  allow_implicit_invocation: false

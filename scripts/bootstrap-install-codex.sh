@@ -1,17 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+validate_generated_shell_path() {
+  local label="$1"
+  local value="$2"
+  if [[ "${value}" =~ [[:cntrl:]] ]]; then
+    echo "${label} contains a control character that is unsafe in generated shell instructions." >&2
+    return 2
+  fi
+  case "${value}" in
+    *'$'*|*'`'*|*'"'*|*'\'*)
+      echo "${label} contains a shell-active character that is unsafe in generated shell instructions." >&2
+      return 2
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
 Download a release bundle and run install-codex.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [model profile options]
+  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [model profile options]
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
   --version <value>     Release tag (for example: v0.5.1) or latest (default: latest)
   --target <path>       Install destination (forwarded to install-codex.sh)
+  --workspace-root <path>
+                        Forward workspace root for project-local AGENTS.md merging
+  --global-agents-target <path>
+                        Forward an explicit global AGENTS.md merge target
+  --user-skills-root <path>
+                        Forward a custom Codex user skill root for global/test installs
   --no-backup           Do not back up existing installed files
   --force               Accepted for backward compatibility; overwrite is already enabled by default
   --dry-run             Resolve release and print actions only
@@ -33,6 +54,21 @@ EOF
 log_verbose() {
   if [[ ${VERBOSE:-0} -eq 1 ]]; then
     printf '%s\n' "$1"
+  fi
+}
+
+require_neutral_bundle_release() {
+  local release_tag="$1"
+  if [[ ! "${release_tag}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+    echo "Unsupported release tag format: ${release_tag}" >&2
+    exit 1
+  fi
+  local major="${BASH_REMATCH[1]}"
+  local minor="${BASH_REMATCH[2]}"
+  if (( 10#${major} == 0 && 10#${minor} < 28 )); then
+    echo "The current neutral Codex bootstrap supports v0.28.0 or newer." >&2
+    echo "For an older release, use the bootstrap shipped with that release." >&2
+    exit 1
   fi
 }
 
@@ -63,6 +99,13 @@ verify_release_attestation() {
 REPO="bohewu/agents_pipeline"
 VERSION="latest"
 TARGET=""
+TARGET_SET=0
+WORKSPACE_ROOT=""
+WORKSPACE_ROOT_SET=0
+GLOBAL_AGENTS_TARGET=""
+GLOBAL_AGENTS_TARGET_SET=0
+USER_SKILLS_ROOT=""
+USER_SKILLS_ROOT_SET=0
 NO_BACKUP=0
 FORCE_OVERWRITE=0
 DRY_RUN=0
@@ -98,6 +141,34 @@ while [[ $# -gt 0 ]]; do
         exit 2
       fi
       TARGET="$2"
+      TARGET_SET=1
+      shift 2
+      ;;
+    --workspace-root)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --workspace-root" >&2
+        exit 2
+      fi
+      WORKSPACE_ROOT="$2"
+      WORKSPACE_ROOT_SET=1
+      shift 2
+      ;;
+    --global-agents-target)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --global-agents-target" >&2
+        exit 2
+      fi
+      GLOBAL_AGENTS_TARGET="$2"
+      GLOBAL_AGENTS_TARGET_SET=1
+      shift 2
+      ;;
+    --user-skills-root)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --user-skills-root" >&2
+        exit 2
+      fi
+      USER_SKILLS_ROOT="$2"
+      USER_SKILLS_ROOT_SET=1
       shift 2
       ;;
     --no-backup)
@@ -172,6 +243,46 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ ${TARGET_SET} -eq 1 && -z "${TARGET//[[:space:]]/}" ]]; then
+  echo "Target path must not be empty." >&2
+  exit 2
+fi
+if [[ ${TARGET_SET} -eq 1 && "${TARGET}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
+  echo "Target path '${TARGET}' looks like a switch, not a filesystem path. Pass --target with a filesystem path value." >&2
+  exit 2
+fi
+if [[ ${WORKSPACE_ROOT_SET} -eq 1 && -z "${WORKSPACE_ROOT//[[:space:]]/}" ]]; then
+  echo "Workspace root must not be empty." >&2
+  exit 2
+fi
+if [[ ${WORKSPACE_ROOT_SET} -eq 1 && "${WORKSPACE_ROOT}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
+  echo "Workspace root '${WORKSPACE_ROOT}' looks like a switch, not a filesystem path. Pass --workspace-root with a filesystem path value." >&2
+  exit 2
+fi
+if [[ ${GLOBAL_AGENTS_TARGET_SET} -eq 1 && -z "${GLOBAL_AGENTS_TARGET//[[:space:]]/}" ]]; then
+  echo "Global AGENTS.md target must not be empty." >&2
+  exit 2
+fi
+if [[ ${GLOBAL_AGENTS_TARGET_SET} -eq 1 && "${GLOBAL_AGENTS_TARGET}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
+  echo "Global AGENTS.md target '${GLOBAL_AGENTS_TARGET}' looks like a switch, not a filesystem path. Pass --global-agents-target with a filesystem path value." >&2
+  exit 2
+fi
+if [[ ${USER_SKILLS_ROOT_SET} -eq 1 && -z "${USER_SKILLS_ROOT//[[:space:]]/}" ]]; then
+  echo "User skills root must not be empty." >&2
+  exit 2
+fi
+if [[ ${USER_SKILLS_ROOT_SET} -eq 1 && "${USER_SKILLS_ROOT}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
+  echo "User skills root '${USER_SKILLS_ROOT}' looks like a switch, not a filesystem path." >&2
+  exit 2
+fi
+validate_generated_shell_path "Target path" "${TARGET:-${HOME}/.codex}"
+if [[ ${WORKSPACE_ROOT_SET} -eq 1 ]]; then
+  validate_generated_shell_path "Workspace root" "${WORKSPACE_ROOT}"
+fi
+if [[ ${GLOBAL_AGENTS_TARGET_SET} -eq 1 ]]; then
+  validate_generated_shell_path "Global AGENTS target" "${GLOBAL_AGENTS_TARGET}"
+fi
+
 if [[ "${VERSION}" == "latest" ]]; then
   API_URL="https://api.github.com/repos/${REPO}/releases/latest"
 else
@@ -203,8 +314,8 @@ import re
 import sys
 
 data = json.loads(os.environ["JSON_PAYLOAD"])
-asset_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.tar\.gz$")
-sums_pattern = re.compile(r"agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$")
+asset_pattern = re.compile(r"agents-pipeline-bundle-.*\.tar\.gz$")
+sums_pattern = re.compile(r"agents-pipeline-bundle-.*\.SHA256SUMS\.txt$")
 
 asset_url = ""
 sums_url = ""
@@ -228,19 +339,19 @@ PY
 } )"
 IFS=$'\t' read -r ASSET_URL SUMS_URL RELEASE_TAG <<<"${PARSED_URLS}"
 
-if [[ -z "${ASSET_URL}" ]]; then
-  echo "No release tar.gz asset found matching agents-pipeline-opencode-bundle-*.tar.gz" >&2
-  exit 1
-fi
-if [[ -z "${SUMS_URL}" ]]; then
-  echo "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt" >&2
-  exit 1
-fi
 if [[ -z "${RELEASE_TAG}" ]]; then
   echo "Release metadata missing tag_name." >&2
   exit 1
 fi
-
+require_neutral_bundle_release "${RELEASE_TAG}"
+if [[ -z "${ASSET_URL}" ]]; then
+  echo "No release tar.gz asset found matching agents-pipeline-bundle-*.tar.gz" >&2
+  exit 1
+fi
+if [[ -z "${SUMS_URL}" ]]; then
+  echo "No checksum asset found matching agents-pipeline-bundle-*.SHA256SUMS.txt" >&2
+  exit 1
+fi
 log_verbose "Resolved release tag: ${RELEASE_TAG}"
 echo "Selected asset: ${ASSET_URL}"
 echo "Checksum asset: ${SUMS_URL}"
@@ -286,7 +397,9 @@ else
   exit 1
 fi
 
-if [[ "${ACTUAL_HASH,,}" != "${EXPECTED_HASH,,}" ]]; then
+ACTUAL_HASH_NORMALIZED="$(printf '%s' "${ACTUAL_HASH}" | tr '[:upper:]' '[:lower:]')"
+EXPECTED_HASH_NORMALIZED="$(printf '%s' "${EXPECTED_HASH}" | tr '[:upper:]' '[:lower:]')"
+if [[ "${ACTUAL_HASH_NORMALIZED}" != "${EXPECTED_HASH_NORMALIZED}" ]]; then
   echo "Checksum verification failed for ${ASSET_NAME}" >&2
   echo "Expected: ${EXPECTED_HASH}" >&2
   echo "Actual:   ${ACTUAL_HASH}" >&2
@@ -311,9 +424,45 @@ if [[ ! -f "${INSTALL_SCRIPT}" ]]; then
   exit 1
 fi
 
+REQUIRED_BUNDLE_PATHS=(
+  "AGENTS.md"
+  "modes.json"
+  "agents"
+  "protocols"
+  "skills"
+  "tools/status-event.js"
+  "tools/agent-profile.py"
+  "tools/status-runtime"
+  "tools/agent-profiles"
+  "runtimes/codex/model-sets"
+  "scripts/agent_model_profiles.py"
+  "scripts/codex_mode_aliases.py"
+  "scripts/codex-project-profile.py"
+  "scripts/export-codex-agents.py"
+  "scripts/install-codex-config.py"
+  "scripts/path_safety.py"
+  "scripts/sync-codex-skills.py"
+  "scripts/sync-runtime-support.py"
+)
+for required_path in "${REQUIRED_BUNDLE_PATHS[@]}"; do
+  if [[ ! -e "${BUNDLE_DIR}/${required_path}" ]]; then
+    echo "Codex bundle layout is incomplete; missing: ${required_path}" >&2
+    exit 1
+  fi
+done
+
 INSTALL_CMD=(bash "${INSTALL_SCRIPT}")
 if [[ -n "${TARGET}" ]]; then
   INSTALL_CMD+=(--target "${TARGET}")
+fi
+if [[ -n "${WORKSPACE_ROOT}" ]]; then
+  INSTALL_CMD+=(--workspace-root "${WORKSPACE_ROOT}")
+fi
+if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
+  INSTALL_CMD+=(--global-agents-target "${GLOBAL_AGENTS_TARGET}")
+fi
+if [[ -n "${USER_SKILLS_ROOT}" ]]; then
+  INSTALL_CMD+=(--user-skills-root "${USER_SKILLS_ROOT}")
 fi
 if [[ ${NO_BACKUP} -eq 1 ]]; then
   INSTALL_CMD+=(--no-backup)

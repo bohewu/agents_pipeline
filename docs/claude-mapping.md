@@ -1,104 +1,84 @@
 # Claude Code Mapping
 
-This document defines how OpenCode agent definitions map to Claude Code custom subagent files.
+Claude Code is a Tier 2, best-effort export target. This document describes how the neutral agent core is adapted into Claude Code custom subagent files; it does not promise feature parity with the Tier 1 Codex runtime.
 
 ## Source Of Truth
 
-- Source: `opencode/agents/*.md`
-- Generated output: `<target-dir>/*.md` for Claude Code, typically `~/.claude/agents/*.md` by default or `<project>/.claude/agents/*.md` when you explicitly want repo-scoped overrides
-- Generator: `scripts/export-claude-agents.py`
+- Canonical agents: `agents/*.md`
+- Mode aliases: `modes.json`
+- Shared agent profiles: `tools/agent-profiles/*.json`
+- Claude model sets: `runtimes/claude/model-sets/*.json`
+- Generated output: `<target-dir>/*.md`, normally `~/.claude/agents/*.md`
+- Exporter: `scripts/export-claude-agents.py`
+- Installed profile manager: `~/.claude/agents-pipeline/scripts/agent-profile.sh` / `.ps1`, backed by the installed `tools/agent-profile.py`
 
-Do not manually maintain a separate Claude-only source tree as the primary definition set.
+Generated Claude files are disposable outputs and should not become a second source tree.
 
-## Frontmatter Mapping
+## Neutral Frontmatter Mapping
 
-| OpenCode key | Claude Code output | Rule |
+| Canonical key | Claude Code output | Rule |
 |---|---|---|
 | `name` | `name` | copied; in `--strict` mode it must match the source file stem |
 | `description` | `description` | copied |
-| `tools` | `tools` | mapped to Claude tool names when enabled |
-| `mode` | (removed) | not emitted |
-| `hidden` | (removed) | not emitted |
-| `temperature` | (removed) | not emitted |
-| body | markdown body | preserved with minimal adaptation |
+| `kind` | not emitted | identifies the neutral role kind; orchestration adapters are selected for `orchestrator-*` agents |
+| body | markdown body | preserved with runtime adaptation and prompt compaction |
 
-By default, model/provider selection remains runtime-driven; source agents must not define per-agent `model` or `provider` keys.
+Neutral exports accept exactly `name`, `description`, and `kind`; runtime-specific source keys such as `model`, `provider`, `mode`, `temperature`, and `tools` are rejected. Model selection is runtime-driven unless export-time profile flags are explicitly supplied.
+
+## Mode Manifest And Input Adaptation
+
+Neutral orchestrator prompts express their input as `raw_input`; the Claude adapter binds that to the user's latest message and prepends an input adapter to every orchestrator. The exporter still replaces legacy `$ARGUMENTS` tokens when it encounters an older source fixture, but current canonical agents must use `raw_input` directly.
+
+The accepted leading slash tokens come from the exact `aliases` associated with that orchestrator in root `modes.json`. For example, `orchestrator-general` currently accepts `/general`, `/run-general`, `/monetize`, and `/run-monetize`. The exporter does not infer aliases from the agent filename.
+
+The manifest must declare `version: 1`, a non-empty `modes` array, unique mode names, unique aliases, and one orchestrator target per entry. Every exported orchestrator must have a manifest entry in `--strict` mode. After a recognized leading alias is removed, the existing flag parsing semantics apply unchanged.
+
+The repository manifest deliberately omits and rejects `goal`; long-running work uses the host runtime's native task/session behavior instead of a cross-runtime goal wrapper.
 
 ## Opt-In Agent Model Profiles
 
-Claude Code runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+Per-agent model output remains opt-in. With `--agent-profile <profile> --model-set <set>`:
 
-- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
-- The Claude Code tier catalog is loaded from `claude/tools/model-sets/<set>.json` and must have `runtime: "claude"`.
-- Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Claude model set maps each tier to a Claude Code model alias.
-- For each mapped generated subagent, the exporter writes frontmatter `model` using only one of the supported aliases: `inherit`, `sonnet`, `opus`, or `haiku`.
+- The shared profile is loaded from `tools/agent-profiles/<profile>.json` and declares `runtime: "neutral"`.
+- The Claude tier catalog is loaded from `runtimes/claude/model-sets/<set>.json` and declares `runtime: "claude"`.
+- The profile maps agents to logical tiers such as `mini`, `standard`, and `strong`.
+- The Claude model set maps each tier to one supported Claude Code alias: `inherit`, `sonnet`, `opus`, or `haiku`.
+- The selected alias is written as frontmatter `model` for each mapped generated subagent.
 
-Do not use versioned Claude model IDs such as `claude-...` in Claude Code runtime model sets. `opus` means Claude Code's current runtime alias for Opus, not a pinned dated model ID.
+Versioned Claude model IDs such as `claude-...` are rejected. Reasoning effort is not controlled by these profiles; omit the profile flags to inherit Claude Code's normal runtime selection.
 
-Reasoning effort is not controlled by these profiles; it inherits from the parent session or global Claude Code runtime configuration. Omit the profile flags to keep Claude Code's normal runtime model selection.
-
-Examples from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -ModelSet default
-```
+After the one-time global Claude Code install, use the installed profile manager. Claude profiles are global-only:
 
 ```bash
-scripts/install-claude.sh --agent-profile balanced --model-set default
+bash "$HOME/.claude/agents-pipeline/scripts/agent-profile.sh" set balanced --runtime claude --scope global --model-set default
 ```
 
-## Tool Mapping
+The interactive menu likewise exposes only global scope for Claude Code. Global output lives at `~/.claude/agents`, the runner block at `~/.claude/CLAUDE.md`, and support assets at `~/.claude/agents-pipeline`. The installer records normalized profile state in `~/.claude/agents/.agents-pipeline-runtime-profile.json`. Status rejects unsafe managed filenames and reports missing outputs through `health`; no OpenCode setting is consulted. Global `clear` regenerates without model overrides and records runtime inheritance.
 
-The exporter keeps Claude tool declarations intentionally minimal:
+Claude custom-agent model selection lives in each complete generated agent file, so there is no safe profile-only project overlay equivalent to Codex's `config_file` layer. The profile manager rejects Claude workspace `set`/`clear` without writing project files. A direct target of `<project>/.claude/agents` plus root `<project>/CLAUDE.md` remains explicit materialization compatibility; it copies complete generated agents and support assets and is not a profile-only operation. See [Developer Install](developer-install.md#explicit-workspace-materialization-compatibility).
 
-| OpenCode tool | Claude tool |
-|---|---|
-| `read: true` | `Read` |
-| `edit: true` | `Edit` |
-| `write: true` | `Write` |
-| `grep: true` | `Grep` |
-| `glob: true` | `Glob` |
-| `bash: true` | `Bash` |
+Profile `status` is not the workflow checkpoint/run status written by `tools/status-event.js`.
 
-If a source tool has no bounded Claude mapping, generation fails in `--strict` mode.
+## `@agent` References And Delegation
 
-## `@agent` Reference Handling
+- Body `@agent-name` references are validated against the canonical source set and root `AGENTS.md` in `--strict` mode.
+- Resolved references are listed in the generated delegation adapter.
+- Claude Code subagents cannot nest `Agent` calls. An orchestrator launched as the main agent could otherwise inherit `Agent`, so generated orchestrators explicitly set `disallowedTools: Agent` to keep this adapter runner-only.
+- When delegation is needed, an orchestrator returns a fenced JSON block containing `dispatch` tasks plus a self-contained `continuation` contract.
+- The top-level runner executes each dispatch block atomically and, when continuation is required, starts a fresh invocation of the named orchestrator with the prior response and keyed results. It never relies on agent-team-only messaging or on resuming a completed subagent instance.
 
-- The exporter validates body `@agent-name` references against the source agent set and `AGENTS.md` in `--strict` mode.
-- `@executor` is validated as a normal direct subagent reference.
-- Resolved `@agent-name` references are listed in the generated delegation adapter so orchestrators know which subagents are available.
+The installer injects the managed runner protocol into `CLAUDE.md` by default. Use `--no-runner` or `-NoRunner` only when another top-level runner already implements that contract.
 
-## Input Adaptation
+## Status And Checkpoint Degradation
 
-OpenCode orchestrators assume `$ARGUMENTS` parsing from slash-command entrypoints. Claude Code custom subagents do not provide that variable.
+The Claude installer synchronizes a marker-owned managed neutral support tree beside the global agent directory (normally `~/.claude/agents-pipeline`) and rewrites generated references to that absolute location. The tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`, so its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list`. Generated orchestrators use the installed status writer when the runtime permits local command execution; if execution is unavailable, they must report that persistence is unsupported instead of claiming a write succeeded.
 
-For orchestrator agents, the exporter prepends a Claude-specific adapter block:
-
-- use the user's latest message as `raw_input`
-- if the message starts with the matching slash command (for example `/run-pipeline`) or helper command form (for example `/kanban`), strip that first token before normal flag parsing
-- keep the existing flag semantics after that adaptation
-
-The exporter also replaces `$ARGUMENTS` with `raw_input` in the generated body.
-
-## Orchestrator Delegation
-
-Orchestrator agents receive the `Agent` tool in their generated `tools:` list so they can delegate to subagents natively.
-
-The exporter prepends a delegation protocol adapter that maps `@agent-name` references to Claude Code Agent tool calls:
-
-```
-Agent(subagent_type="<agent-name>", description="<short task>", prompt="<full handoff>")
-```
-
-- Orchestrators can issue multiple Agent calls in one response for parallel stages.
-- Each subagent runs in its own context window; orchestrators should pass all required inputs in the prompt.
-- When a dispatch entry carries `worktree`, the top-level runner should execute that Agent call in the specified repo/worktree when supported.
-- Subagent results return as text; orchestrators parse structured outputs (JSON) from the response.
-- The adapter lists all resolved `@agent-name` references as available subagents.
-
-## Install Targets
+## Install And Bundle Layout
 
 - Default install target: `~/.claude/agents`
-- Optional project-local override: `<project>/.claude/agents`
+- Explicit materialization compatibility target: `<project>/.claude/agents`
+- Explicit materialization runner target: root `<project>/CLAUDE.md`
+- Local install: `scripts/install-claude.sh` or `scripts/install-claude.ps1`
+- Release install: `scripts/bootstrap-install-claude.sh` or `scripts/bootstrap-install-claude.ps1`
 
-Use `scripts/install-claude.sh` or `scripts/install-claude.ps1` for local installs, and `scripts/bootstrap-install-claude.sh` or `scripts/bootstrap-install-claude.ps1` for release-bundle installs without cloning.
+Installers require the neutral `agents/`, `modes.json`, `AGENTS.md`, `tools/agent-profile.py`, `tools/agent-profiles/`, and `runtimes/claude/model-sets/` layout. Bootstrap installers consume the neutral `agents-pipeline-bundle-*` release assets and verify the required Claude adapter files before installation. A deliberately materialized workspace release bootstrap forwards `--target <workspace>/.claude/agents --claude-md <workspace>/CLAUDE.md` (PowerShell: `-Target` and `-ClaudeMd`) to this same installer path.

@@ -1,53 +1,182 @@
 # Runtime Agent Model Profiles
 
-Runtime agent model profiles let generated agent files opt into per-agent model routing without adding `model` or `provider` fields to the canonical source agents in `opencode/agents/*.md`.
+Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers.
 
-## Shared Inputs
+The installation model is deliberately global-first:
 
-- `opencode/tools/agent-profiles/*.json` maps agent names to logical tiers: `mini`, `standard`, and `strong`.
-- Runtime-specific model-set catalogs map those tiers to runtime-valid model settings:
-  - OpenCode: `opencode/tools/model-sets/*.json`
-  - Codex: `codex/tools/model-sets/*.json`
-  - Copilot: `copilot/tools/model-sets/*.json`
-  - Claude Code: `claude/tools/model-sets/*.json`
-- Codex, Copilot, and Claude Code profile output is opt-in through installer/exporter flags. If you omit the flags, generated files keep normal runtime-driven model selection.
-- These profiles do not control reasoning effort; each runtime keeps its effective runtime configuration for reasoning-effort behavior.
+1. Install each runtime once into its global home.
+2. Use the installed global profile manager for later profile changes.
+3. A new Codex project inherits the global profile without any setup.
+4. If one project needs a different resource tier, materialize only its profile-specific Codex roles. Do not reinstall runtime support into the project.
 
-OpenAI is the primary default family: the OpenCode and Codex `openai` catalogs map `mini`, `standard`, and `strong` to GPT-5.6 Luna, Terra, and Sol. Copilot remains GPT-first too; its `strong` tier uses the first available GPT picker model before the Claude fallback. Provider-specific model sets remain available, and profile tier assignments do not depend on a provider's concrete version identifiers.
+Claude Code and GitHub Copilot profiles are global-only through the profile manager. Their direct workspace installers remain explicit materialization compatibility for users who knowingly want complete generated agents inside a repository.
 
-## Runtime Comparison
+Profile status and workflow status are different surfaces:
 
-| Runtime | How to opt in | Model-set catalog | Generated output | Model fields written | Key limits |
-|---|---|---|---|---|---|
-| OpenCode | `bash ~/.config/opencode/tools/agent-profile.sh install balanced --model-set openai` (default `--runtime opencode`) | `opencode/tools/model-sets` | `<workspace>/.opencode/agents/*.md` | OpenCode `model` frontmatter in workspace override copies | Existing feature is unchanged; `--target` is an alias for `--workspace`; restart OpenCode after changing profiles |
-| Codex | `bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime codex --model-set openai` or `scripts/install-codex.sh --agent-profile balanced --model-set openai` | `codex/tools/model-sets` | Via `agent-profile`: `<workspace>/.codex/agents/<name>.toml` | `model` and optional `model_provider` in each generated agent TOML | Workspace profile installs leave `agents.max_threads` and `agents.max_depth` to global Codex config; no `model_reasoning_effort` or `plan_mode_reasoning_effort` |
-| Copilot | `bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime copilot --model-set default` or `scripts/install-copilot.sh --agent-profile balanced --model-set default` | `copilot/tools/model-sets` | Via `agent-profile`: `<workspace>/.copilot/agents/*.agent.md` | `model` frontmatter as a scalar or prioritized list | Names must match the VS Code/GitHub Copilot model picker |
-| Claude Code | `bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default` or `scripts/install-claude.sh --agent-profile balanced --model-set default` | `claude/tools/model-sets` | Via `agent-profile`: `<workspace>/.claude/agents/*.md` | `model` frontmatter alias | Only `inherit`, `sonnet`, `opus`, and `haiku`; `opus` means the current Claude Code runtime alias |
+- `agent-profile.* status` reports model routing at a global runtime target or Codex project overlay.
+- `tools/status-event.js` writes live workflow checkpoint, task, agent, and run status under `.pipeline-output`.
 
-## PowerShell Examples
+## One-time global layout
 
-```powershell
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 list -Runtime claude
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime claude -ModelSet default -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 install balanced -Runtime codex -ModelSet openai -Workspace .
-pwsh -NoProfile -File ~/.config/opencode/tools/agent-profile.ps1 status -Runtime codex -Workspace .
-pwsh -NoProfile -File .\scripts\install-codex.ps1 -AgentProfile balanced -ModelSet openai
-pwsh -NoProfile -File .\scripts\install-copilot.ps1 -AgentProfile balanced -ModelSet default
-pwsh -NoProfile -File .\scripts\install-claude.ps1 -AgentProfile balanced -ModelSet default
-```
+| Runtime | Generated definitions | Installed support assets |
+|---|---|---|
+| Codex | `~/.codex/agents/`, `~/.codex/config.toml`, and the active global `AGENTS.md` or `AGENTS.override.md` | `~/.codex/agents-pipeline/` |
+| Claude Code | `~/.claude/agents/`, `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
+| GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-## Bash Examples
+Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. `install` is accepted only as a deprecated compatibility alias for `set`.
+
+The default Codex global installer additionally publishes the ten formal workflow skills under `~/.agents/skills/run-*/`. Each carries `.agents-pipeline-skill.json`; updates are rollback-capable and use an atomic rename per skill directory, while an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal. Those skills stay global and adopt global workflow definitions. Their workspace preflight stops on unverifiable or unhealthy local role state; only a healthy, eligible profile proceeds to workspace-specific routing.
+
+## Interactive quick start
+
+After the one-time global Codex bootstrap, run the installed wrapper from any directory.
+
+macOS/Linux:
 
 ```bash
-bash ~/.config/opencode/tools/agent-profile.sh list --runtime claude
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime claude --model-set default --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh install balanced --runtime codex --model-set openai --workspace .
-bash ~/.config/opencode/tools/agent-profile.sh status --runtime codex --workspace .
-scripts/install-codex.sh --agent-profile balanced --model-set openai
-scripts/install-copilot.sh --agent-profile balanced --model-set default
-scripts/install-claude.sh --agent-profile balanced --model-set default
+bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 ```
 
-When invoked through `agent-profile`, runtime installs are workspace-first: omitted `--workspace` / `-Workspace` means the current directory, and omitted `--target` / `-Target` derives the runtime target from that workspace (`.claude/agents`, `.copilot/agents`, or `.codex`). Codex profile installs through `agent-profile` keep generated agent TOML in the workspace `.codex` target but route managed global Codex notes to the default global Codex home (`~/.codex/AGENTS.override.md` when active, otherwise `~/.codex/AGENTS.md`); they do not update the caller repo's root `AGENTS.md` or workspace `.codex/AGENTS.md`. Use the direct Codex installer with its explicit workspace-root option only when repo-root `AGENTS.md` merging is intentional. Use `--target` / `-Target` only for an explicit override, such as an intentional global install to `$HOME/.claude/agents`.
+Windows:
 
-Use `agent-profile.* install uniform --runtime <runtime> --uniform-model <model>` to apply one runtime model to every generated agent. For compatibility with the OpenCode profile UX, `install uniform --runtime <runtime> --model <model>` also maps to the runtime installer's uniform-model option. `status --runtime <runtime>` reports the selected runtime target; omitted runtime still means OpenCode. `clear` remains OpenCode-only.
+```powershell
+pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
+```
+
+When stdin and stdout are terminals, the manager displays numbered choices in this order:
+
+1. action: `set`, `status`, `clear`, or `list`
+2. runtime: Codex (recommended), Claude Code, or GitHub Copilot
+3. scope: global (recommended/default), or Codex project profile override
+4. workspace path when the Codex project scope is selected
+5. profile: `balanced` first, another neutral profile, or `uniform`
+6. runtime-specific model set for a named profile
+
+Claude Code and Copilot expose only global scope in this menu. The menu is enabled only when both input and output are TTYs. CI, pipes, command substitution, and redirected input must pass every choice explicitly.
+
+## Codex workspace profile
+
+A Codex workspace profile requires a healthy global Codex install. Set it with the installed wrapper:
+
+```bash
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+
+bash "$profile_tool" set balanced \
+  --runtime codex \
+  --scope workspace \
+  --workspace /path/to/project \
+  --model-set openai
+
+bash "$profile_tool" status \
+  --runtime codex \
+  --scope workspace \
+  --workspace /path/to/project \
+  --json
+
+bash "$profile_tool" clear \
+  --runtime codex \
+  --scope workspace \
+  --workspace /path/to/project
+```
+
+PowerShell uses the same long options:
+
+```powershell
+$ProfileTool = "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
+pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspace C:\src\project --model-set openai
+pwsh -File $ProfileTool status --runtime codex --scope workspace --workspace C:\src\project --json
+pwsh -File $ProfileTool clear --runtime codex --scope workspace --workspace C:\src\project
+```
+
+Workspace `set` uses the globally installed exporter, neutral agent sources, selected profile, and Codex model catalog under `~/.codex/agents-pipeline/` to render the selected roles directly into the workspace. It does not read or copy active global role files, and it does not require a global profile cache.
+
+A named profile maps roles through the selected installed model catalog; a uniform profile applies the requested model while rendering the same complete role set. The project receives only:
+
+```text
+<project>/.codex/config.toml
+<project>/.codex/agents/*.toml
+<project>/.codex/.agents-pipeline-project-profile.json
+```
+
+The managed `config.toml` block changes each repository-managed `[agents.<name>].config_file` to the corresponding workspace-local role. Existing unrelated project settings are preserved. The manager refuses to overwrite conflicting project-defined agent tables or unrelated local role files.
+
+It does **not** create project-local `agents-pipeline/`, `skills/`, `scripts/`, `protocols/`, `tools/`, or another support tree. Only the profile-specific role TOML is local; reusable definitions and runtime support remain installed globally once.
+
+Codex cannot implement this as a single project `profile = "balanced"` key: project config ignores `profile` and `profiles`, while standalone custom-agent files require complete role definitions. The managed config block plus workspace-local role files provide an isolated native project profile without mutating active global roles. See the official [Codex configuration reference](https://developers.openai.com/codex/config-reference) and [custom-agent documentation](https://developers.openai.com/codex/subagents).
+
+The generated workspace roles contain references to the current machine's global support installation. Treat the whole workspace profile layer as machine-local generated configuration rather than a portable source artifact. On another machine, run the one-time global bootstrap and `set` for that workspace again.
+
+Workspace role hashes and source-version metadata keep an existing project profile pinned across a global agents_pipeline upgrade. Workspace `status` reports `catalog_state: pinned` when the local role set was materialized from an older catalog and `current` after `set` refreshes it to the installed catalog. Re-running `set` after an upgrade is recommended when you want the new role catalog, but an upgrade never silently rewrites a project's selected roles.
+
+Codex applies `.codex/config.toml` only for a trusted project. The profile manager never changes global project trust. Workspace `set` and `status` read the explicit global `projects.<path>.trust_level` value and report `project_trust` plus `profile_eligibility`; file `health` remains a separate integrity result. `eligible` means the trust gate is open, not that arbitrary preserved project settings passed Codex's complete semantic parser. For `unknown` or `untrusted`, trust the project through Codex's normal prompt and rerun `status`. Official behavior is documented under [project config files](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml).
+
+### Workspace status and clear
+
+- `status` validates the project manifest, managed block, workspace-local role ownership and content hashes, selected profile metadata, global Codex registration, active global mode guidance, and critical support assets. It separately reports whether the explicit project trust setting makes the layer eligible for Codex to load.
+- A workspace with no project overlay reports `mode: inherit` and inherits the global definitions/profile.
+- `clear` removes only the managed block, installer-owned workspace role files, and `.agents-pipeline-project-profile.json`.
+- If `.codex/config.toml` contains unrelated settings, `clear` preserves their TOML content outside the managed block. If the generated block was the only content, the empty config file may be removed.
+- `clear` never removes global agents, support assets, or profile variants.
+- Workspace `set`, `status`, and `clear` never change the active global profile or global role files.
+
+Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Nested orchestration modes require the effective global `agents.max_depth` to be at least `2`.
+
+### Profile-aware workflow skills
+
+The formal `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. They adopt the globally installed orchestrator workflow and never manually trust a raw workspace role. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. A healthy but ineligible layer warns and uses global routing. Only a healthy, eligible layer lets Codex's effective trusted project configuration select workspace-local role/model files, so resource routing remains project-specific without a local skill, script, or support-tree copy.
+
+The managed `use <mode>` forms remain compatibility aliases. There is no `$run-goal` skill.
+
+## Global profile management
+
+Use the same installed wrapper with `--scope global`:
+
+```bash
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+
+bash "$profile_tool" set balanced --runtime codex --scope global --model-set openai
+bash "$profile_tool" status --runtime codex --scope global --json
+bash "$profile_tool" clear --runtime codex --scope global
+bash "$profile_tool" list --runtime codex
+```
+
+Global `set` and `clear` use the normal runtime installer because they own the generated global definitions. Global `clear` regenerates the roles without a model override and returns them to runtime inheritance; it is not an uninstall.
+
+The global manifests are:
+
+- Codex: `~/.codex/.agents-pipeline-codex-manifest.json`
+- Claude Code: `~/.claude/agents/.agents-pipeline-runtime-profile.json`
+- GitHub Copilot: `~/.copilot/agents/.agents-pipeline-runtime-profile.json`
+
+Status validates manifest identity, target, managed filenames, and missing generated outputs. It never reads OpenCode configuration.
+
+## Claude Code and Copilot profiles
+
+Claude Code and Copilot store model selection in each complete generated agent file. Neither adapter currently has the tested workspace role/config projection used by Codex. The profile manager therefore accepts only global scope for these runtimes:
+
+```bash
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+
+bash "$profile_tool" set balanced --runtime claude --scope global --model-set default
+bash "$profile_tool" set balanced --runtime copilot --scope global --model-set default
+```
+
+Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fails without creating project files. If complete project-local agent materialization is intentionally required, use the direct workspace installer documented in [Developer Install](developer-install.md#explicit-workspace-materialization-compatibility). That path copies generated definitions and support assets and must not be described as profile-only.
+
+## Profile and model-set inputs
+
+- `tools/agent-profiles/*.json` maps agent names to `mini`, `standard`, and `strong`.
+- `runtimes/codex/model-sets/*.json` maps tiers to Codex `model` and optional `model_provider` values.
+- `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
+- `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
+
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; the effective Codex session or explicit role configuration owns that decision.
+
+| Runtime | Generated model fields | Limits |
+|---|---|---|
+| Codex | `model`, optional `model_provider` in role TOML | No reasoning-effort fields |
+| Claude Code | `model` alias in agent frontmatter | `inherit`, `sonnet`, `opus`, or `haiku` |
+| Copilot | `model` scalar or prioritized list | Values must match the host model picker |
+
+Contributor-facing direct installer flags and catalog maintenance commands are documented in [Developer Install](developer-install.md).

@@ -4,34 +4,36 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: "Tag to build (for example: v0.4.0)"
+        description: "Tag to build (for example: v0.28.0)"
         required: true
         type: string
+      checkout_ref:
+        description: "Optional immutable commit SHA to validate and package"
+        required: false
+        default: ""
+        type: string
       checkout_tag:
-        description: "Whether to checkout the selected tag before building"
+        description: "Whether to verify the selected tag matches the checked-out commit"
         required: false
         default: true
         type: boolean
       upload_artifact:
-        description: "Whether to upload built release artifacts for downstream jobs"
+        description: "Whether to upload built release artifacts"
         required: false
         default: false
         type: boolean
     outputs:
       tag:
-        description: "Resolved release tag"
         value: ${{ jobs.bundle.outputs.tag }}
       artifact_name:
-        description: "Artifact name containing the built dist files"
         value: ${{ jobs.bundle.outputs.artifact_name }}
 
 jobs:
   bundle:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      attestations: write
-      id-token: write
+    # Inherit the reusable-workflow caller's least-privilege token. CI grants
+    # contents:read; the tag-driven release caller additionally grants the
+    # attestation and OIDC permissions used by the conditional publish steps.
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       artifact_name: ${{ steps.vars.outputs.artifact_name }}
@@ -40,119 +42,70 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Resolve tag
         id: vars
         shell: bash
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
         run: |
-          TAG="${{ inputs.tag }}"
-          CHECKOUT_TAG="${{ inputs.checkout_tag }}"
-
+          TAG="${TAG_INPUT}"
           if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Tag must match vMAJOR.MINOR.PATCH. Got: ${TAG}" >&2
             exit 1
           fi
-
           echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
-          echo "checkout_tag=${CHECKOUT_TAG}" >> "${GITHUB_OUTPUT}"
           echo "artifact_name=release-bundle-${TAG}" >> "${GITHUB_OUTPUT}"
 
-      - name: Checkout selected tag
-        if: steps.vars.outputs.checkout_tag == 'true'
+      - name: Verify selected tag matches the checked-out commit
+        if: inputs.checkout_tag
         shell: bash
+        env:
+          EXPECTED_TAG: ${{ steps.vars.outputs.tag }}
         run: |
-          git fetch --tags --force
-          git checkout "${{ steps.vars.outputs.tag }}"
+          tag_sha="$(git rev-parse "refs/tags/${EXPECTED_TAG}^{commit}")"
+          checkout_sha="$(git rev-parse 'HEAD^{commit}')"
+          if [[ "${tag_sha}" != "${checkout_sha}" ]]; then
+            echo "Tag ${EXPECTED_TAG} points to ${tag_sha}, but checkout is ${checkout_sha}." >&2
+            exit 1
+          fi
 
       - name: Verify VERSION matches tag
         shell: bash
+        env:
+          EXPECTED_TAG: ${{ steps.vars.outputs.tag }}
         run: |
-          if [[ ! -f VERSION ]]; then
-            echo "VERSION file is missing." >&2
-            exit 1
-          fi
-
           VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-          TAG_VALUE="${{ steps.vars.outputs.tag }}"
-
-          if [[ "v${VERSION_VALUE}" != "${TAG_VALUE}" ]]; then
-            echo "VERSION (${VERSION_VALUE}) does not match tag (${TAG_VALUE})." >&2
+          if [[ "v${VERSION_VALUE}" != "${EXPECTED_TAG}" ]]; then
+            echo "VERSION (${VERSION_VALUE}) does not match tag (${EXPECTED_TAG})." >&2
             exit 1
           fi
 
-      - name: Build release bundle
+      - name: Build neutral release bundle
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.vars.outputs.tag }}
         run: |
-          TAG="${{ steps.vars.outputs.tag }}"
-          BUNDLE_DIR="agents-pipeline-opencode-bundle-${TAG}"
-
+          TAG="${RELEASE_TAG}"
+          BUNDLE_DIR="agents-pipeline-bundle-${TAG}"
           rm -rf dist
-          mkdir -p \
-            "dist/${BUNDLE_DIR}/scripts" \
-            "dist/${BUNDLE_DIR}/docs" \
-            "dist/${BUNDLE_DIR}/codex/tools" \
-            "dist/${BUNDLE_DIR}/copilot/tools" \
-            "dist/${BUNDLE_DIR}/claude/tools"
-
-          cp -R opencode "dist/${BUNDLE_DIR}/"
-          cp -R codex/tools/model-sets "dist/${BUNDLE_DIR}/codex/tools/"
-          cp -R copilot/tools/model-sets "dist/${BUNDLE_DIR}/copilot/tools/"
-          cp -R claude/tools/model-sets "dist/${BUNDLE_DIR}/claude/tools/"
-          cp AGENTS.md "dist/${BUNDLE_DIR}/"
-          cp CHANGELOG.md "dist/${BUNDLE_DIR}/"
-          cp LICENSE "dist/${BUNDLE_DIR}/"
-          cp README.md "dist/${BUNDLE_DIR}/"
-          cp VERSION "dist/${BUNDLE_DIR}/"
-          cp opencode.json.example "dist/${BUNDLE_DIR}/"
-          cp docs/agent-model-profiles.md "dist/${BUNDLE_DIR}/docs/"
-          cp scripts/install.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-claude.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-claude.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-status-runtime.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-status-runtime.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-effort-control.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-effort-control.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-usage-status.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-plugin-usage-status.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-usage-only.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-usage-only.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-all-local.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-all-local.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-copilot.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-copilot.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-claude.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-claude.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-codex.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-codex.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-plugin-status-runtime.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-plugin-status-runtime.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-plugin-effort-control.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-plugin-effort-control.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-usage-only.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-usage-only.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-all-local.ps1 "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/bootstrap-install-all-local.sh "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/agent_model_profiles.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/export-copilot-agents.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/export-claude-agents.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/export-codex-agents.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/codex_mode_aliases.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/install-codex-config.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/update-agent-model-sets.py "dist/${BUNDLE_DIR}/scripts/"
-          cp scripts/validate-modernize-handoff.py "dist/${BUNDLE_DIR}/scripts/"
+          mkdir -p "dist/${BUNDLE_DIR}/docs"
+          cp -R agents protocols runtimes scripts skills tools "dist/${BUNDLE_DIR}/"
+          cp docs/claude-mapping.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/codex-mapping.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/copilot-mapping.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/developer-install.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/external-dependencies.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/runtime-agent-model-profiles.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/status-writer-spec.md "dist/${BUNDLE_DIR}/docs/"
+          cp AGENTS.md CHANGELOG.md COMPATIBILITY.md CONTRIBUTING.md LICENSE README.md SECURITY.md VERSION modes.json "dist/${BUNDLE_DIR}/"
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.sh
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
-          chmod 755 "dist/${BUNDLE_DIR}/opencode/tools/agent-profile.sh"
-
+          chmod 755 "dist/${BUNDLE_DIR}/tools/status-event.js"
+          chmod 755 "dist/${BUNDLE_DIR}/tools/agent-profile.py"
           (
             cd dist
             tar -czf "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}"
@@ -160,102 +113,64 @@ jobs:
             sha256sum "${BUNDLE_DIR}.tar.gz" "${BUNDLE_DIR}.zip" > "${BUNDLE_DIR}.SHA256SUMS.txt"
           )
 
-      - name: Validate release bundle contents
+      - name: Validate bundle contents and adapters
         shell: bash
         run: |
-          BUNDLE_DIR="dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}"
-
-          test -f "${BUNDLE_DIR}/README.md"
-          test -f "${BUNDLE_DIR}/CHANGELOG.md"
-          test -f "${BUNDLE_DIR}/LICENSE"
-          test -f "${BUNDLE_DIR}/docs/agent-model-profiles.md"
-          test -f "${BUNDLE_DIR}/scripts/install-claude.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-claude.ps1"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-claude.sh"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-claude.ps1"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-status-runtime.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-status-runtime.ps1"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-effort-control.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-effort-control.ps1"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-usage-status.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-plugin-usage-status.ps1"
-          test -f "${BUNDLE_DIR}/scripts/install-usage-only.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-usage-only.ps1"
-          test -f "${BUNDLE_DIR}/scripts/install-all-local.sh"
-          test -f "${BUNDLE_DIR}/scripts/install-all-local.ps1"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-plugin-status-runtime.sh"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-plugin-status-runtime.ps1"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-plugin-effort-control.sh"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-plugin-effort-control.ps1"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-usage-only.sh"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-usage-only.ps1"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-all-local.sh"
-          test -f "${BUNDLE_DIR}/scripts/bootstrap-install-all-local.ps1"
-          test -f "${BUNDLE_DIR}/opencode/commands/agent-profile.md"
-          test -f "${BUNDLE_DIR}/opencode/tools/agent-profile.ps1"
-          test -f "${BUNDLE_DIR}/opencode/tools/agent-profile.sh"
-          test -f "${BUNDLE_DIR}/opencode/tools/agent-profiles/balanced.json"
-          test -f "${BUNDLE_DIR}/opencode/tools/model-sets/openai.json"
-          test -f "${BUNDLE_DIR}/codex/tools/model-sets/openai.json"
-          test -f "${BUNDLE_DIR}/copilot/tools/model-sets/default.json"
-          test -f "${BUNDLE_DIR}/claude/tools/model-sets/default.json"
-          test -f "${BUNDLE_DIR}/scripts/agent_model_profiles.py"
-          test -f "${BUNDLE_DIR}/scripts/export-copilot-agents.py"
-          test -f "${BUNDLE_DIR}/scripts/export-claude-agents.py"
-          test -f "${BUNDLE_DIR}/scripts/export-codex-agents.py"
-          test -f "${BUNDLE_DIR}/scripts/codex_mode_aliases.py"
-          test -f "${BUNDLE_DIR}/scripts/install-codex-config.py"
-          test -f "${BUNDLE_DIR}/scripts/update-agent-model-sets.py"
-          test -f "${BUNDLE_DIR}/scripts/install-codex.sh"
-          test -f "${BUNDLE_DIR}/opencode/plugins/status-runtime.js"
-          test -d "${BUNDLE_DIR}/opencode/plugins/status-runtime"
-          test -f "${BUNDLE_DIR}/opencode/plugins/status-runtime/index.js"
-          test -f "${BUNDLE_DIR}/opencode/plugins/effort-control.js"
-          test -d "${BUNDLE_DIR}/opencode/plugins/effort-control"
-          test -f "${BUNDLE_DIR}/opencode/plugins/effort-control/index.js"
-          test -f "${BUNDLE_DIR}/opencode/plugins/usage-status.js"
-          test -d "${BUNDLE_DIR}/opencode/plugins/usage-status"
-          test -f "${BUNDLE_DIR}/opencode/plugins/usage-status/index.js"
-          test -f "${BUNDLE_DIR}/opencode/protocols/MODERNIZE_TO_PIPELINE.md"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.zip"
-          test -f "dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
-
-          python3 -m py_compile \
-            "${BUNDLE_DIR}/scripts/agent_model_profiles.py" \
-            "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
-            "${BUNDLE_DIR}/scripts/export-claude-agents.py" \
-            "${BUNDLE_DIR}/scripts/export-codex-agents.py" \
-            "${BUNDLE_DIR}/scripts/codex_mode_aliases.py" \
-            "${BUNDLE_DIR}/scripts/install-codex-config.py"
-
-          python3 "${BUNDLE_DIR}/scripts/export-codex-agents.py" --help > /dev/null
-
-          python3 "${BUNDLE_DIR}/scripts/install-codex-config.py" --help > /dev/null
-
-          python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" \
-            --source-agents "${BUNDLE_DIR}/opencode/agents" \
-            --target-dir "${BUNDLE_DIR}/.tmp-copilot-bundle-smoke" \
-            --catalog "${BUNDLE_DIR}/AGENTS.md" \
-            --strict \
-            --dry-run \
-            --agent-profile balanced \
-            --model-set default \
-            --profile-dir "${BUNDLE_DIR}/opencode/tools/agent-profiles" \
-            --model-set-dir "${BUNDLE_DIR}/copilot/tools/model-sets"
-
-          bash "${BUNDLE_DIR}/scripts/install-copilot.sh" \
-            --target "${BUNDLE_DIR}/.tmp-copilot-install-smoke" \
-            --dry-run \
-            --no-backup \
-            --agent-profile balanced \
-            --model-set default
+          BUNDLE_DIR="dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}"
+          test -f "${BUNDLE_DIR}/agents/orchestrator-pipeline.md"
+          test -f "${BUNDLE_DIR}/protocols/PIPELINE_PROTOCOL.md"
+          test -f "${BUNDLE_DIR}/skills/ui-ux-workflow/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-pipeline/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-simple/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-flow/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-general/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-spec/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-ci/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-modernize/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-analysis/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-ux/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-committee/SKILL.md"
+          test ! -e "${BUNDLE_DIR}/skills/run-goal"
+          test ! -L "${BUNDLE_DIR}/skills/run-goal"
+          test -f "${BUNDLE_DIR}/tools/status-event.js"
+          test -f "${BUNDLE_DIR}/tools/agent-profile.py"
+          test -f "${BUNDLE_DIR}/tools/agent-profiles/balanced.json"
+          test -f "${BUNDLE_DIR}/scripts/agent-profile.sh"
+          test -f "${BUNDLE_DIR}/scripts/agent-profile.ps1"
+          test -f "${BUNDLE_DIR}/scripts/codex-project-profile.py"
+          test -f "${BUNDLE_DIR}/scripts/sync-codex-skills.py"
+          test -f "${BUNDLE_DIR}/scripts/sync-runtime-support.py"
+          test -f "${BUNDLE_DIR}/scripts/path_safety.py"
+          test -f "${BUNDLE_DIR}/runtimes/codex/model-sets/openai.json"
+          test -f "${BUNDLE_DIR}/docs/status-writer-spec.md"
+          test -f "${BUNDLE_DIR}/runtimes/claude/model-sets/default.json"
+          test -f "${BUNDLE_DIR}/runtimes/copilot/model-sets/default.json"
+          test -f "${BUNDLE_DIR}/modes.json"
+          test ! -e "${BUNDLE_DIR}/opencode"
+          test ! -L "${BUNDLE_DIR}/opencode"
+          python3 "${BUNDLE_DIR}/scripts/validate-orchestrator-contracts.py"
+          python3 "${BUNDLE_DIR}/scripts/export-codex-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-codex" --strict --dry-run
+          python3 "${BUNDLE_DIR}/scripts/export-claude-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-claude" --strict --dry-run
+          python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-copilot" --strict --dry-run
+          bash "${BUNDLE_DIR}/scripts/install-codex.sh" --target "${BUNDLE_DIR}/.tmp-install-codex" --dry-run --no-backup
+          python3 "${BUNDLE_DIR}/scripts/sync-codex-skills.py" --source-skills-root "${BUNDLE_DIR}/skills" --user-skills-root "${BUNDLE_DIR}/.tmp-user-skills"
+          test -f "${BUNDLE_DIR}/.tmp-user-skills/run-pipeline/SKILL.md"
+          test -f "${BUNDLE_DIR}/.tmp-user-skills/run-flow/.agents-pipeline-skill.json"
+          test ! -e "${BUNDLE_DIR}/.tmp-user-skills/run-goal"
+          rm -rf "${BUNDLE_DIR}/.tmp-user-skills"
+          bash "${BUNDLE_DIR}/scripts/install-claude.sh" --target "${BUNDLE_DIR}/.tmp-install-claude" --dry-run --no-backup
+          bash "${BUNDLE_DIR}/scripts/install-copilot.sh" --target "${BUNDLE_DIR}/.tmp-install-copilot" --dry-run --no-backup
+          node "${BUNDLE_DIR}/tools/status-event.js" --help >/dev/null
+          python3 "${BUNDLE_DIR}/tools/agent-profile.py" list --runtime codex --json >/dev/null
+          test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
+          test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.zip"
+          test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt"
 
       - name: Generate release bundle artifact attestation
         if: inputs.upload_artifact
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
         with:
-          subject-checksums: dist/agents-pipeline-opencode-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt
+          subject-checksums: dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.SHA256SUMS.txt
 
       - name: Upload release bundle artifacts
         if: inputs.upload_artifact

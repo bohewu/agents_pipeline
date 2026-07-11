@@ -1,15 +1,15 @@
 # Agent Catalog
 
 This catalog lists all agents and their roles.
-Model selection is runtime-driven by OpenCode/provider configuration, not pinned per-agent in this repo.
-Claude Code `.claude/agents/*.md`, VS Code Copilot `.agent.md` outputs, and Codex role configs all derive from `opencode/agents/*.md`; generated/exported outputs should not be hand-edited.
-For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`. The same surface now also covers communication-first redesign and critique work via the companion skill `opencode/skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a `/uiux` handoff, use `opencode/skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow, uses a preserve-vs-modernize polish dial plus `opencode/skills/frontend-aesthetic-director/references/polish-checklist.md`, and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
+Codex is the Tier 1, first-class runtime; model and reasoning selection come from the effective Codex runtime configuration unless an explicit generated role profile overrides the model.
+Claude Code `.claude/agents/*.md` and VS Code Copilot `.agent.md` files are Tier 2 best-effort exports without a feature-parity guarantee. OpenCode support ended at the frozen OpenCode-first release, `v0.26.1`.
+Runtime-neutral source lives in `agents/`, `protocols/`, `skills/`, and `tools/`. Generated runtime outputs must not be hand-edited. Mode aliases and their orchestrator targets are defined in `modes.json`.
+For the conceptual UI/UX layer, use `ui-ux-designer`; see `protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `protocols/schemas/ui-ux-bundle.schema.json` and `protocols/examples/ui-ux-bundle.valid.json`. The same surface also covers communication-first redesign and critique work via `skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a conceptual handoff, use `skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|
 | orchestrator-ci | CI/CD planning pipeline (docs-first, optional generation) | primary | Docs-first |
 | orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
-| orchestrator-goal | Goal-session wrapper around existing orchestrators with batch persistence and resume by goal id | primary | Defaults batches to Flow |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and optional reviewer gate | primary | Bounded flow, no delta-task retry loops |
@@ -42,7 +42,7 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | market-researcher | Research specialist for web-based market scans, pricing signals, and monetization benchmarks | subagent | hidden |
 | art-director | Convert raw 2D asset requests into concise briefs and reusable prompts | subagent | hidden |
 | ui-ux-designer | Convert bounded UI/UX requests into conceptual workflow briefs, communication-first redesign guidance, surface maps, and handoff notes | subagent | hidden |
-| executor | Execute one atomic task with bounded effort/verification settings | subagent | hidden |
+| executor | Execute one atomic task with bounded verification and repair controls | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |
 | peon | Low-cost executor for mechanical or repetitive tasks | subagent | hidden |
 | generalist | General-purpose executor for mixed-scope tasks | subagent | hidden |
@@ -52,7 +52,4 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | handoff-writer | Produce run-local handoff artifacts for a fresh session | subagent | hidden |
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
-| codex-account-manager | List and switch local OpenCode Codex account selections | subagent | hidden |
-| usage-inspector | Inspect local Codex quota windows | subagent | hidden |
-| skill-curator | List/search/install skills from local locations and curated catalogs | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |

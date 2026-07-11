@@ -30,7 +30,7 @@ def write_json(directory: Path, name: str, payload: dict) -> Path:
     return path
 
 
-def profile_payload(models: dict, runtime: str = "opencode") -> dict:
+def profile_payload(models: dict, runtime: str = "neutral") -> dict:
     return {
         "name": "test-profile",
         "runtime": runtime,
@@ -81,7 +81,7 @@ class AgentModelProfilesTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing required tier"):
                 RESOLVER.load_model_set("openai", model_set_dir, "codex")
 
-    def test_runtime_mismatch_fails_but_opencode_profile_is_shared(self) -> None:
+    def test_runtime_mismatch_fails_but_neutral_profile_is_shared(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
             profile_dir = root / "profiles"
@@ -96,7 +96,7 @@ class AgentModelProfilesTest(unittest.TestCase):
 
             shared = RESOLVER.load_profile("shared", profile_dir, "codex")
             self.assertEqual(shared.runtime, "codex")
-            self.assertEqual(shared.source_runtime, "opencode")
+            self.assertEqual(shared.source_runtime, "neutral")
 
             with self.assertRaisesRegex(ValueError, "incompatible with requested runtime 'claude'"):
                 RESOLVER.load_profile("copilot-only", profile_dir, "claude")

@@ -1,25 +1,29 @@
 # Codex Mapping
 
-This document defines how OpenCode agent definitions are mapped to Codex multi-agent role configuration.
+This document defines how runtime-neutral agent definitions are mapped to Codex multi-agent role configuration.
 
 ## Source Of Truth
 
-- Source: `opencode/agents/*.md`
+- Source: `agents/*.md`
+- Mode routing source: `modes.json`
+- Formal workflow-skill source: `skills/run-*/SKILL.md`
 - Generated output:
   - `<target-dir>/config.toml`
   - `<target-dir>/agents/*.toml`
 - Generator: `scripts/export-codex-agents.py`
-- Default target shape: a `.codex`-style directory that Codex can read as project config
-- Primary/default install target: global `~/.codex` (Windows: `%USERPROFILE%\.codex`); workspace `<workspace>/.codex` installs are optional overrides
+- Installed profile manager: `~/.codex/agents-pipeline/scripts/agent-profile.sh` / `.ps1`, backed by the installed `tools/agent-profile.py`
+- Primary/default install target: global `~/.codex` (Windows: `%USERPROFILE%\.codex`)
+- Workspace profile output: profile-specific `<workspace>/.codex/agents/*.toml`, a managed block in `<workspace>/.codex/config.toml`, and `<workspace>/.codex/.agents-pipeline-project-profile.json`
 
 Do not manually maintain generated Codex role files as a primary source.
 
 ## Global-First Install Scope
 
 Use a global Codex install in `~/.codex` by default so the exported roles are available across workspaces.
+The default global install to `~/.codex` also publishes exactly ten formal `run-*` workflow skills to `~/.agents/skills/`. A custom global/test Codex home publishes skills only when `--user-skills-root` or `-UserSkillsRoot` is supplied. Projects do not need their own skill copy. Each skill adopts the global workflow definition and runs the workspace-profile health gate before effective trusted Codex configuration may apply workspace-local model routing to dispatched roles. Direct workspace materialization never installs user skills.
 When the installer targets a Codex home/global directory, it now auto-merges the managed global mode note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
-That managed note tells the current/main agent that a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization. In a fresh/new session using an explicit mode alias, first consult the installed definition in this order — `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present, otherwise `~/.codex/agents/orchestrator-<mode>.toml` — then apply that definition. After applying it, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator. If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline and should delegate those work items when separately authorized. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. It also says Codex mode simulation can ignore OpenCode-only plugin/command details that do not apply in the current runtime.
-If you intentionally target `<workspace>/.codex`, the installer keeps that working and applies the optional managed `AGENTS.md` merge for that workspace only, with the same definition-precedence rule.
+That managed note tells the current/main agent that a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization. It reads the globally installed orchestrator definition as the workflow source and never manually adopts a repository role. The alias follows the matching formal skill's workspace-profile preflight before Codex effective config may route dispatched roles locally. After applying the definition, the current/main agent must obey its hard constraints and delegation rules. Runtime-specific adapter details for other runtimes can be ignored during Codex mode simulation.
+Projects inherit the global profile without setup. When one project needs another resource tier, the normal project-specific path materializes only profile-specific role TOML plus a managed config block and manifest; global support is reused. Directly targeting `<workspace>/.codex` with an installer remains explicit full-materialization compatibility and copies the complete roles/support tree.
 
 ## Global Custom Instructions Snippet
 
@@ -31,22 +35,27 @@ Manual copy is still optional for users who are not using the installer; place i
 
 Treat only explicit leading mode phrases from this allowlisted pattern family — `use <mode>`, `using <mode>`, `使用 <mode>`, `使用<mode>`, `用 <mode>`, `用 <mode> 做...`, `請用 <mode>`, and `請用 <mode> 去執行...` — as mode aliases for a supported mode in the current/main agent, not generic prose.
 Those aliases tell the current/main agent to adopt the requested mode directly.
+Installed `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are the formal mode entry points.
+Natural-language forms such as `use pipeline` and `使用 pipeline` remain compatibility aliases; `$run-pipeline` is the primary full-pipeline entry point.
+Treat each recognized compatibility alias as the matching formal `$run-<mode>` skill invocation and apply that skill's preflight and workflow semantics.
+Before adopting the workflow, always query the globally installed profile manager for current-workspace JSON status. A normal workspace without a profile reports global inheritance and may continue. If status cannot be verified or a configured profile's `health` is not `ok`, stop before dispatch and ask the user to rerun workspace `set` or `clear`; never bypass an unhealthy or orphaned profile. If a configured profile's `profile_eligibility` is not `eligible`, warn that Codex is ignoring the workspace layer and continue with global role routing.
 A mode alias changes the current/main agent's working style only. It does not automatically spawn subagents and does not override higher-priority rules for `spawn_agent` authorization.
 Do NOT first spawn the same-named orchestrator role just to enter the mode.
 Definition-first order for an explicit mode alias in a fresh/new session:
-1. On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` in the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that definition.
+1. On a recognized mode alias, read the globally installed `$CODEX_HOME/agents/orchestrator-<mode>.toml` (default `~/.codex/agents/orchestrator-<mode>.toml`) as the authoritative workflow definition. Do not manually adopt a repository `.codex/agents/` role; effective Codex configuration controls trusted workspace role routing.
 2. The current/main agent simulates that mode itself from the installed definition.
 3. After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
 4. If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline. It should delegate those work items when separately authorized.
 5. Use subagents according to that installed definition for real work items when separately authorized.
-Same-session reuse rule: repeated use of the same mode in the same session does NOT need to reload the definition when the mode, workspace, and definition source are unchanged.
-Reload/re-read when the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details.
-When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.
+Same-session reuse rule: repeated use of the same mode in the same session does NOT need to reload the definition when the mode and global definition source are unchanged.
+Reload/re-read when the mode changes, the globally installed definition changes, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. Recheck effective role routing and workspace profile status whenever the workspace changes.
+When reading the installed definition for Codex mode simulation, focus on mode behavior, task decomposition, delegation rules, and output style; ignore adapter details for other runtimes.
 
 Alias map:
 - `flow` / `run-flow` -> `orchestrator-flow`
 - `pipeline` / `run-pipeline` -> `orchestrator-pipeline`
 - `general` / `run-general` -> `orchestrator-general`
+- `monetize` / `run-monetize` -> `orchestrator-general`
 - `simple` / `run-simple` -> `orchestrator-simple`
 - `spec` / `run-spec` -> `orchestrator-spec`
 - `ci` / `run-ci` -> `orchestrator-ci`
@@ -54,28 +63,21 @@ Alias map:
 - `analysis` / `run-analysis` -> `orchestrator-analysis`
 - `ux` / `run-ux` -> `orchestrator-ux`
 - `committee` / `run-committee` -> `orchestrator-committee`
-- `monetize` / `run-monetize` -> `orchestrator-general`
 
 Higher-priority system, developer, tool, and runtime instructions override this note.
 Project/workspace `AGENTS.md` files may further refine behavior for a specific repo.
 ```
 
-For workspace-local installs under `<workspace>/.codex`, the managed workspace `AGENTS.md` block uses the same wording and the same default-behavior rule because it is emitted into `AGENTS.md`: a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization; in a fresh/new session, first consult `.codex/agents/orchestrator-<mode>.toml` for that workspace, then `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition. After applying it, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator, and it must not bypass helper-role scouting or implementation work inline when the applied definition routes that work to helpers; delegate those work items only when separately authorized. Later in the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details. Ignore OpenCode-only plugin/command details when they are not relevant to Codex mode simulation.
+Explicit fully materialized workspace installs under `<workspace>/.codex` can still emit the equivalent managed workspace `AGENTS.md` block. Normal workspace profiles do not duplicate that block or the global support tree; they add only their selected local role definitions and continue to use globally installed guidance and support assets.
 
 ## Frontmatter Mapping
 
-| OpenCode key | Codex output | Rule |
+| Neutral source key | Codex output | Rule |
 |---|---|---|
 | `name` | `[agents.<name>]` table key and `agents/<name>.toml:name` | copied; must match source file stem in `--strict` mode |
 | `description` | `agents.<name>.description` and `agents/<name>.toml:description` | copied |
-| `mode` | (removed) | not emitted |
-| `hidden` | (removed) | not emitted |
-| `temperature` | (removed) | not emitted |
-| `tools` | (removed) | not emitted as an equivalent capability contract |
+| `kind` | routing metadata only | validates as `primary` or `subagent`; not emitted into role TOML |
 | body | `developer_instructions` | preserved with minimal adaptation |
-
-`tools` needs extra care: Codex does not expose a direct equivalent of OpenCode's per-tool allowlist for built-in capabilities such as `read`, `grep`, `glob`, `edit`, and `write`.
-The current export therefore preserves tool intent only in prompt text, not as a lossless runtime boundary.
 
 ## Root Config Generation
 
@@ -97,7 +99,7 @@ Use flags to adjust this output when needed:
 - `--job-max-runtime-seconds=<n>`
 - `--no-enable-feature-flag`
 
-When `agent-profile` installs a workspace-local Codex profile, it does not write `agents.max_threads` or `agents.max_depth` into `<workspace>/.codex/config.toml`; those limits inherit from `~/.codex/config.toml`. Set global `agents.max_depth = 2` when nested pipeline orchestration is required. Direct exporter output and direct global Codex installs retain the generated `6`/`2` defaults.
+Direct exporter output and normal global Codex installs use the generated `6`/`2` defaults. Project profile overlays inherit `agents.max_threads` and `agents.max_depth` from effective global Codex configuration. Set effective global `agents.max_depth` to at least `2` when a project uses nested pipeline orchestration.
 
 ## Role Config Generation
 
@@ -114,10 +116,10 @@ By default, model/provider selection remains runtime-driven; source agents must 
 
 ## Opt-In Agent Model Profiles
 
-Codex runtime model profiles are opt-in. When the exporter, or an installer that forwards exporter options, receives `--agent-profile <profile> --model-set <set>`:
+Codex runtime model profiles are opt-in. When the exporter or global installer receives `--agent-profile <profile> --model-set <set>`:
 
-- The agent-to-tier profile is loaded from `opencode/tools/agent-profiles/<profile>.json`.
-- The Codex tier catalog is loaded from `codex/tools/model-sets/<set>.json` and must have `runtime: "codex"`.
+- The agent-to-tier profile is loaded from `tools/agent-profiles/<profile>.json`.
+- The Codex tier catalog is loaded from `runtimes/codex/model-sets/<set>.json` and must have `runtime: "codex"`.
 - Profiles map agents to logical tiers (`mini`, `standard`, `strong`); the Codex model set maps each tier to an object with `model` and optional `model_provider`.
 - For each mapped generated role, the exporter writes only `model` and optional `model_provider` into that role file: `.codex/agents/<name>.toml`.
 - The exporter does **not** write `model` or `model_provider` into root `config.toml` `[agents.<name>]` tables.
@@ -125,19 +127,36 @@ Codex runtime model profiles are opt-in. When the exporter, or an installer that
 
 Reasoning effort is not controlled by these profiles; it is controlled by the effective Codex runtime config, such as root config, session/profile/CLI settings, or any explicit role override. Omit the profile flags to keep Codex's normal runtime model selection.
 
-Examples from a cloned repo:
-
-```powershell
-pwsh -NoProfile -File .\scripts\install-codex.ps1 -AgentProfile balanced -ModelSet openai
-```
+After the one-time global install, the normal interactive front door is the installed wrapper:
 
 ```bash
-scripts/install-codex.sh --agent-profile balanced --model-set openai
+bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 ```
+
+```powershell
+pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
+```
+
+It presents numbered `set`/`status`/`clear`/`list`, runtime, scope, workspace-path when applicable, profile, and model-set choices. Codex recommends and defaults to global scope. For a non-TTY project profile override, make every choice explicit:
+
+```bash
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai
+bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
+bash "$profile_tool" clear --runtime codex --scope workspace --workspace /path/to/project
+```
+
+Workspace `set` invokes the exporter from the globally installed support tree with its neutral agent sources, selected profile, and Codex model catalog, rendering complete role TOML directly into `<workspace>/.codex/agents/`. It then writes the managed local `config_file` block plus project manifest. It neither reads/copies active global role files nor creates project-local support, skills, scripts, protocols, tools, or mode guidance. `status` verifies the local roles, config references, and manifest; no workspace profile reports global inheritance. `clear` removes installer-owned local roles, the managed block, and the project manifest while preserving unrelated project config and every global asset. Workspace operations never mutate the active global profile. `install` remains a deprecated alias for `set`.
+
+Project config is effective only when Codex trusts that repository. The workspace profile manager does not write `projects.<path>.trust_level`; it reads the global value and reports `project_trust` and `profile_eligibility` separately from file `health`. Eligibility covers the trust gate only; native Codex `config/read` remains the source of truth for full semantic parsing and effective routing.
+
+Codex project config cannot select a user config profile by writing `profile` or `profiles`, and standalone custom-agent TOML requires full role fields. A managed per-role `config_file` block plus complete workspace-local role TOML is therefore the isolated native projection. Generated role references still resolve into the machine's global support installation, so the workspace profile should normally not be committed.
 
 Sandbox mode, MCP servers, and other Codex-specific config are intentionally left unset so they inherit from the parent Codex environment unless you customize them after generation.
 
-When Codex role bodies reference repo-managed assets such as `opencode/protocols/...` or `opencode/skills/...`, the installer-backed merge path rewrites those references to installed absolute paths under the target Codex directory and mirrors the `opencode/` tree there. This avoids broken repo-relative references in global installs such as `~/.codex` on Linux/macOS or `%USERPROFILE%\.codex` on Windows. The mirrored support tree is generated and re-synced on each install, so `install-codex` does not include it in backup directories.
+When Codex role bodies reference neutral assets such as `protocols/...`, `skills/...`, or `tools/...`, the installer-backed merge path rewrites those references to absolute paths under `<target-dir>/agents-pipeline/`. The marker-owned managed tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`; the installed profile-manager wrapper therefore supports `set`, `status`, `clear`, and `list` without a source clone. It does not create an `opencode/` mirror or overwrite Codex's own top-level skill/config directories. The namespaced support tree carries an ownership marker and is replaced through staging plus rollback; an existing unmarked directory is preserved and the install stops. The managed tree is regenerated on each global install and is not included in backup directories. An upgrade from an installer-managed legacy setup removes the old `<target-dir>/opencode/` support tree after generated-role ownership is confirmed.
+
+Each formal user-skill directory carries `.agents-pipeline-skill.json`. The installer updates the owned ten-skill collection with rollback and an atomic rename per skill directory; an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal without overwrite. `run-goal` is not installed.
 
 ## `@agent` Reference Handling
 
@@ -148,34 +167,40 @@ When Codex role bodies reference repo-managed assets such as `opencode/protocols
 
 ## Role Invocation In Codex
 
+- The primary workflow entry points are `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.
+- Each formal skill adopts the globally installed orchestrator workflow and never manually reads a raw repository role. Every invocation queries current-workspace status, so an unconfigured workspace safely inherits global routing while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. A healthy ineligible layer warns and falls back to global routing. Only after this preflight may effective trusted Codex configuration apply workspace-local model routing to dispatched roles.
+- A formal skill adopts that global definition in the current/main agent; it does not spawn the same-named orchestrator merely to enter the workflow.
 - Codex docs describe custom roles via `[agents.<name>]` config and prompt-driven routing.
-- Explicit leading aliases after adding the managed AGENTS note tell the current/main agent to adopt that orchestrator mode directly; they do not first spawn the same-named orchestrator role just to enter the mode, do not automatically spawn subagents, and do not override higher-priority `spawn_agent` authorization.
-- For explicit mode aliases in fresh/new sessions, first consult `.codex/agents/orchestrator-<mode>.toml` for the current workspace when present; otherwise consult `~/.codex/agents/orchestrator-<mode>.toml`, then apply that definition.
+- Explicit leading `use <mode>` forms after adding the managed AGENTS note are compatibility aliases for the matching formal `$run-*` skill, including the same profile preflight. They tell the current/main agent to adopt that orchestrator mode directly; they do not first spawn the same-named orchestrator role just to enter the mode, do not automatically spawn subagents, and do not override higher-priority `spawn_agent` authorization.
+- For explicit mode aliases in fresh/new sessions, read the globally installed `$CODEX_HOME/agents/orchestrator-<mode>.toml` (default `~/.codex/agents/orchestrator-<mode>.toml`) and never manually adopt a repository role.
 - After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
 - If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline; it should delegate those work items when separately authorized.
 - Use subagents according to that installed definition for real work items when separately authorized.
-- In the same session, repeated use of the same mode does not need to reload that definition unless the mode changes, the workspace changes, the definition source changes between workspace `.codex/agents/...` and global `~/.codex/agents/...`, the user explicitly asks to reload/refresh/re-read, or the agent is no longer confident it still has the relevant mode details.
+- In the same session, repeated use of the same mode does not need to reload that definition unless the mode or global definition changes, the user explicitly asks, or the agent is no longer confident. Recheck effective role routing and profile status when the workspace changes.
 - Direct role-name prompts still work when you explicitly want a generated role, such as `Have reviewer inspect the diff` or `Have orchestrator-pipeline coordinate the implementation plan.`
-- When reading the installed definition for Codex mode simulation, ignore OpenCode-only plugin/command details that are not relevant in the current Codex runtime; focus on mode behavior, task decomposition, delegation rules, and output style.
+- When reading the installed definition for Codex mode simulation, focus on mode behavior, task decomposition, delegation rules, and output style; ignore adapter details for other runtimes.
 - In current Codex CLI builds, `/agent` is for switching between existing agent threads and may show no custom roles from `config.toml`.
-- Recommended prompt styles: `use pipeline to coordinate this PR path` for direct mode adoption, or `Have reviewer inspect the diff and have orchestrator-pipeline coordinate the implementation plan.` when you explicitly want named roles.
+- Recommended prompt style: `$run-pipeline coordinate this PR path`. Use `use pipeline ...` only when compatibility with the managed natural-language alias surface is useful, or name a role directly when you explicitly want a generated role rather than current-agent workflow adoption.
 
-## `/run-*` Input Adaptation
+## Mode Input Adaptation
 
-OpenCode orchestrator prompts rely on `$ARGUMENTS` parsing. Codex roles do not provide that variable.
+Neutral orchestrator prompts express their input as `raw_input`; the Codex adapter binds that to the user's latest message.
+
+`goal` remains reserved for host-runtime native behavior and is not emitted as an agents-pipeline slash or natural-language mode alias.
 
 For orchestrator agents, the generator prepends a Codex input adapter block:
 
 - Use the user's latest message as `raw_input`.
 - Recognize only matching slash aliases plus the same allowlisted natural-language mode-alias family used by the managed AGENTS note.
-- On a recognized mode alias, first consult `.codex/agents/orchestrator-<mode>.toml` for the workspace; if absent, consult `~/.codex/agents/orchestrator-<mode>.toml`; then apply that definition.
+- Treat a recognized compatibility alias as the matching formal `$run-*` skill, including its workspace-profile preflight.
+- Read the globally installed orchestrator definition and never manually adopt a repository `.codex/agents/` role. If profile status is unverifiable or unhealthy, stop before dispatch; if it is healthy but ineligible, warn and use global routing. Only after that gate may effective Codex configuration apply workspace routing.
 - A recognized mode alias changes only the current agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization.
 - After applying that definition, the current/main agent must obey that definition's hard constraints and delegation rules as if it were that orchestrator.
 - If the applied definition forbids direct implementation or routes scouting/implementation to helper roles, the current/main agent must not bypass those helpers by doing that work inline; it should delegate those work items when separately authorized.
 - If it starts with one of those aliases, remove only that leading token/phrase after applying the definition.
 - Apply the existing flag parsing logic unchanged.
 
-`$ARGUMENTS` is replaced with `raw_input` in generated `developer_instructions`.
+Legacy `$ARGUMENTS` tokens, if encountered in an older source fixture, are replaced with `raw_input` in generated `developer_instructions`.
 
 ## Safety Guard For Existing Configs
 
@@ -187,6 +212,5 @@ For orchestrator agents, the generator prepends a Codex input adapter block:
 
 - Codex agent roles are experimental and may evolve.
 - The generator does not install files into `~/.codex/` for you; it only generates them.
-- Existing OpenCode prompt text is preserved as much as possible; only minimal Codex-specific adaptation is injected.
-- OpenCode `tools:` frontmatter is not an equivalent Codex mapping today. This is a capability-boundary drift, not a lossless translation.
-- Codex can express some partial substitutes through normal config keys such as `sandbox_mode = "read-only"`, `[features].shell_tool = false`, `web_search`, `mcp_servers`, and `skills.config`, but those are narrower than OpenCode's source tool matrix and are not emitted automatically by this exporter.
+- Neutral prompt text is preserved as much as possible; only minimal Codex-specific adaptation is injected.
+- Codex-specific sandbox, MCP, web-search, and skill configuration are not emitted automatically by this exporter.
