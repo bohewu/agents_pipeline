@@ -2,9 +2,9 @@
 
 This catalog lists all agents and their roles.
 Codex is the Tier 1, first-class runtime; model and reasoning selection come from the effective Codex runtime configuration unless an explicit generated role profile overrides the model.
-Claude Code `.claude/agents/*.md` and VS Code Copilot `.agent.md` files are Tier 2 best-effort exports without a feature-parity guarantee. OpenCode is deprecated and frozen at the last OpenCode-first release, `v0.26.1`.
-During v0.27, Codex roles and compatibility exports still derive from `opencode/agents/*.md`. This is a transitional canonical path pending the v0.28 neutral-core move; generated/exported outputs should not be hand-edited.
-For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden subagent `ui-ux-designer`; see `opencode/protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `opencode/protocols/schemas/ui-ux-bundle.schema.json` and `opencode/protocols/examples/ui-ux-bundle.valid.json`. The same surface now also covers communication-first redesign and critique work via the companion skill `opencode/skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a `/uiux` handoff, use `opencode/skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow, uses a preserve-vs-modernize polish dial plus `opencode/skills/frontend-aesthetic-director/references/polish-checklist.md`, and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
+Claude Code `.claude/agents/*.md` and VS Code Copilot `.agent.md` files are Tier 2 best-effort exports without a feature-parity guarantee. OpenCode support ended at the frozen OpenCode-first release, `v0.26.1`.
+Runtime-neutral source lives in `agents/`, `protocols/`, `skills/`, and `tools/`. Generated runtime outputs must not be hand-edited. Mode aliases and their orchestrator targets are defined in `modes.json`.
+For the conceptual UI/UX layer, use `ui-ux-designer`; see `protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `protocols/schemas/ui-ux-bundle.schema.json` and `protocols/examples/ui-ux-bundle.valid.json`. The same surface also covers communication-first redesign and critique work via `skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a conceptual handoff, use `skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
 
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|
@@ -52,7 +52,4 @@ For the conceptual UI/UX layer, start with `/uiux`, which routes to the hidden s
 | handoff-writer | Produce run-local handoff artifacts for a fresh session | subagent | hidden |
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |
-| codex-account-manager | List and switch local OpenCode Codex account selections | subagent | hidden |
-| usage-inspector | Inspect local Codex quota windows | subagent | hidden |
-| skill-curator | List/search/install skills from local locations and curated catalogs | subagent | hidden |
 | summarizer | Produce final user-facing summary | subagent | hidden |

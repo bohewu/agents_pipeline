@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+validate_generated_shell_path() {
+  local label="$1"
+  local value="$2"
+  if [[ "${value}" =~ [[:cntrl:]] ]]; then
+    echo "${label} contains a control character that is unsafe in generated shell instructions." >&2
+    return 2
+  fi
+  case "${value}" in
+    *'$'*|*'`'*|*'"'*|*'\'*)
+      echo "${label} contains a shell-active character that is unsafe in generated shell instructions." >&2
+      return 2
+      ;;
+  esac
+}
+
 usage() {
   cat <<'EOF'
-Install VS Code Copilot custom agents generated from OpenCode agents.
+Install VS Code Copilot custom agents generated from canonical agents.
 
 Usage:
   scripts/install-copilot.sh [--target <path>] [--dry-run] [--no-backup] [model profile options]
@@ -17,9 +32,9 @@ Options:
   --model-set <name|path>
                   Runtime model-set to use with --agent-profile
   --profile-dir <path>
-                  Agent profile directory (default: repo opencode/tools/agent-profiles)
+                  Agent profile directory (default: repo tools/agent-profiles)
   --model-set-dir <path>
-                  Copilot model-set directory (default: repo copilot/tools/model-sets)
+                  Copilot model-set directory (default: repo runtimes/copilot/model-sets)
   --uniform-model <model>
                   Apply one Copilot model to all generated agents
   -h, --help       Show this help
@@ -30,14 +45,13 @@ EOF
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ASSET_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-if [[ -d "${ASSET_ROOT}/agents" ]]; then
-  SOURCE_AGENTS="${ASSET_ROOT}/agents"
-  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/tools/agent-profiles"
-else
-  SOURCE_AGENTS="${ASSET_ROOT}/opencode/agents"
-  DEFAULT_PROFILE_DIR="${ASSET_ROOT}/opencode/tools/agent-profiles"
-fi
+SOURCE_AGENTS="${ASSET_ROOT}/agents"
+DEFAULT_PROFILE_DIR="${ASSET_ROOT}/tools/agent-profiles"
+MODES_FILE="${ASSET_ROOT}/modes.json"
+CATALOG_FILE="${ASSET_ROOT}/AGENTS.md"
 EXPORT_SCRIPT="${ASSET_ROOT}/scripts/export-copilot-agents.py"
+SUPPORT_SYNC_SCRIPT="${ASSET_ROOT}/scripts/sync-runtime-support.py"
+PROFILE_TOOL="${ASSET_ROOT}/tools/agent-profile.py"
 
 if [[ ! -d "${SOURCE_AGENTS}" ]]; then
   echo "Source agents directory not found: ${SOURCE_AGENTS}" >&2
@@ -45,6 +59,22 @@ if [[ ! -d "${SOURCE_AGENTS}" ]]; then
 fi
 if [[ ! -f "${EXPORT_SCRIPT}" ]]; then
   echo "Export script not found: ${EXPORT_SCRIPT}" >&2
+  exit 1
+fi
+if [[ ! -f "${SUPPORT_SYNC_SCRIPT}" ]]; then
+  echo "Support sync script not found: ${SUPPORT_SYNC_SCRIPT}" >&2
+  exit 1
+fi
+if [[ ! -f "${PROFILE_TOOL}" ]]; then
+  echo "Agent profile manager not found: ${PROFILE_TOOL}" >&2
+  exit 1
+fi
+if [[ ! -f "${MODES_FILE}" ]]; then
+  echo "Mode manifest not found: ${MODES_FILE}" >&2
+  exit 1
+fi
+if [[ ! -f "${CATALOG_FILE}" ]]; then
+  echo "Agent catalog not found: ${CATALOG_FILE}" >&2
   exit 1
 fi
 
@@ -55,7 +85,7 @@ NO_BACKUP=0
 AGENT_PROFILE=""
 MODEL_SET=""
 PROFILE_DIR="${DEFAULT_PROFILE_DIR}"
-MODEL_SET_DIR="${ASSET_ROOT}/copilot/tools/model-sets"
+MODEL_SET_DIR="${ASSET_ROOT}/runtimes/copilot/model-sets"
 UNIFORM_MODEL=""
 MODEL_FLAGS=0
 
@@ -134,14 +164,35 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "${TARGET_DIR//[[:space:]]/}" ]]; then
+  echo "Target path must not be empty." >&2
+  exit 2
+fi
+if [[ "${TARGET_DIR}" == -* ]]; then
+  echo "Target path '${TARGET_DIR}' looks like a switch, not a filesystem path. Pass --target explicitly if needed." >&2
+  exit 2
+fi
+validate_generated_shell_path "Target path" "${TARGET_DIR}"
+if [[ -L "${TARGET_DIR}" ]]; then
+  echo "Target path must not be a symbolic link: ${TARGET_DIR}" >&2
+  exit 2
+fi
+if [[ ( -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ) && ! -d "${TARGET_DIR}" ]]; then
+  echo "Target path is not a directory: ${TARGET_DIR}" >&2
+  exit 2
+fi
+
 PYTHON_BIN="python3"
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   PYTHON_BIN="python"
 fi
+
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
   echo "Python runtime not found. Install python3 or python." >&2
   exit 1
 fi
+TARGET_DIR="$("${PYTHON_BIN}" -c 'import os, sys; from pathlib import Path; path = Path(os.path.abspath(os.path.expanduser(sys.argv[1]))); print(path.parent.resolve(strict=False) / path.name)' "${TARGET_DIR}")"
+SUPPORT_DIR="$("${PYTHON_BIN}" -c 'import os, sys; print(os.path.join(os.path.dirname(sys.argv[1]), "agents-pipeline"))' "${TARGET_DIR}")"
 
 echo "Source agents: ${SOURCE_AGENTS}"
 echo "Target: ${TARGET_DIR}"
@@ -175,7 +226,10 @@ fi
 EXPORT_CMD=(
   "${PYTHON_BIN}" "${EXPORT_SCRIPT}"
   --source-agents "${SOURCE_AGENTS}"
+  --modes-file "${MODES_FILE}"
+  --catalog "${CATALOG_FILE}"
   --target-dir "${TARGET_DIR}"
+  --resolve-support-refs-to "${SUPPORT_DIR}"
   --strict
 )
 if [[ ${DRY_RUN} -eq 1 ]]; then
@@ -193,15 +247,53 @@ fi
 if [[ -n "${UNIFORM_MODEL}" ]]; then
   EXPORT_CMD+=(--uniform-model "${UNIFORM_MODEL}")
 fi
+
+PROFILE_CMD=(
+  "${PYTHON_BIN}" "${PROFILE_TOOL}"
+  record
+  --runtime copilot
+  --target "${TARGET_DIR}"
+  --asset-root "${ASSET_ROOT}"
+)
+if [[ -n "${AGENT_PROFILE}" ]]; then
+  PROFILE_CMD+=(--profile "${AGENT_PROFILE}")
+fi
+if [[ -n "${MODEL_SET}" ]]; then
+  PROFILE_CMD+=(--model-set "${MODEL_SET}")
+fi
+if [[ -n "${UNIFORM_MODEL}" ]]; then
+  PROFILE_CMD+=(--uniform-model "${UNIFORM_MODEL}")
+fi
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  PROFILE_CMD+=(--dry-run)
+fi
+
+SUPPORT_CMD=(
+  "${PYTHON_BIN}" "${SUPPORT_SYNC_SCRIPT}"
+  --source-root "${ASSET_ROOT}"
+  --target-root "${SUPPORT_DIR}"
+)
+if [[ ${DRY_RUN} -eq 1 ]]; then
+  SUPPORT_CMD+=(--dry-run)
+fi
+if [[ ${DRY_RUN} -eq 0 ]]; then
+  PREFLIGHT_CMD=("${EXPORT_CMD[@]}" --dry-run)
+  "${PREFLIGHT_CMD[@]}" >/dev/null
+  PROFILE_PREFLIGHT_CMD=("${PROFILE_CMD[@]}" --dry-run)
+  "${PROFILE_PREFLIGHT_CMD[@]}" >/dev/null
+fi
+"${SUPPORT_CMD[@]}"
 "${EXPORT_CMD[@]}"
+"${PROFILE_CMD[@]}"
 
 echo
 echo "Suggested VS Code settings.json snippet:"
-echo "{"
-echo "  \"chat.agentFilesLocations\": ["
-echo "    \"${TARGET_DIR}\""
-echo "  ]"
-echo "}"
+"${PYTHON_BIN}" - "${TARGET_DIR}" <<'PY'
+import json
+import sys
+
+print(json.dumps({"chat.agentFilesLocations": {sys.argv[1]: True}}, indent=2))
+PY
 
 if [[ ${DRY_RUN} -eq 1 ]]; then
   echo "Dry run complete. No files were written."

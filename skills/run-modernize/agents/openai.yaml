@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Modernize"
+  short_description: "Plan and coordinate repository modernization"
+  default_prompt: "Use $run-modernize to plan this repository modernization."
+policy:
+  allow_implicit_invocation: false

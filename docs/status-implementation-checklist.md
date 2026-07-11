@@ -1,84 +1,142 @@
-# Status Implementation Checklist
+# Status Writer Implementation Checklist
 
-Use this checklist when implementing runtime-owned status emission for `run-*` orchestration.
+Use this checklist when wiring a runtime or generated orchestrator to the neutral status/checkpoint writer.
+
+## Install and command boundary
+
+- Install `tools/status-event.js` together with the complete `tools/status-runtime/` directory.
+- Rewrite only the installed CLI path; do not fork event names or payload shapes per runtime.
+- Use the canonical inline form in generated prompts:
+
+  ```bash
+  node tools/status-event.js --event <event> --payload-json '<json>'
+  ```
+
+- For large or quote-heavy payloads, use `--payload-file <path>` or `--stdin`.
+- Set `--base-dir <worktree>` when the caller's current directory is not the intended session/worktree anchor.
+- Treat exit `2` as an input/command bug and exit `3` as an event, resume, projection, or write failure.
+- Parse stdout as a single JSON result; errors arrive as a single JSON object on stderr.
 
 ## Output layout
 
-- Treat the configured output path as a base output root.
-- If a run is delegated into another repo, include `working_project_dir` in runtime events so relative `output_root` and `checkpoint_path` resolve against that repo.
-- For every fresh run, create a dedicated run directory: `<output_root>/<run_id>/`.
-- Write all run artifacts inside that run directory.
-- Canonical paths:
+- Treat `output_root` as a base output root.
+- Include `working_project_dir` for delegated cross-repository work so relative `output_root` resolves in the target project.
+- Do not send `checkpoint_path`; the writer derives it and rejects caller overrides.
+- Give every fresh run a dedicated `<output_root>/<run_id>/` directory.
+- Use a new safe-basename `run_id` for every fresh start; use `run.resumed` for an existing run.
+- Keep canonical artifacts at:
   - `<run_output_dir>/checkpoint.json`
   - `<run_output_dir>/status/run-status.json`
   - `<run_output_dir>/status/tasks/<task_id>.json`
   - `<run_output_dir>/status/agents/<agent_id>.json`
 
-## Canonical records only
+## Event order
+
+- Emit `run.started` with a non-empty `user_prompt` before any stage, task, or agent event.
+- Emit `tasks.registered` before updating or assigning a task.
+- Pair every `agent.started` with `agent.finished` unless the run is interrupted.
+- Emit `run.finished` only after task, agent, evidence, and cleanup truth has been reconciled.
+- Use `--event batch` for several ordered transitions on the same run.
+- Put common `output_root`, `run_id`, and optional `working_project_dir` in `shared_payload`.
+- Never mix output roots or run IDs inside one batch.
+
+## Single-writer discipline
+
+- Serialize CLI invocations for each run.
+- Do not let parallel subagents independently launch writers against the same run.
+- Collect subagent deltas in the orchestrator and flush them as one ordered batch.
+- Remember that atomic rename prevents torn files but does not prevent snapshot races between processes.
+
+## Canonical records
 
 - Emit schema-conforming JSON only.
 - Do not add undocumented top-level fields.
-- Do not use legacy aliases such as `agent_type`.
-- Do not use string-array refs; `task_refs` and `agent_refs` must be object arrays.
-- If status cannot be written canonically, fail fast instead of emitting partial or guessed shapes.
-
-## Ownership split
-
-- Runtime/plugin owns file creation, timestamps, refs, counts, and reconciliation.
-- Orchestrator owns semantic transitions: stage completion, task planning, dispatch intent, final outcomes.
-- Subagents should only report their own start/heartbeat/finish payloads through runtime APIs.
-- Standalone heartbeats are for long-running active work only; prefer coarse cadence (roughly >=15 seconds) and skip them when a final batched outcome is imminent.
+- Use `agent`, not `agent_type`.
+- Keep `task_refs` and `agent_refs` as object arrays, never string arrays.
+- Let the writer own timestamps, refs, counts, active IDs, and deterministic field ordering.
+- Fail the run's status write instead of emitting partial or guessed shapes.
 
 ## Run index maintenance
 
-- Keep `run-status.json` authoritative and current.
-- Recompute after every task or agent mutation:
+- Treat `status/run-status.json` as the canonical run index.
+- Confirm every task/agent mutation recomputes:
   - `task_counts`
   - `active_task_ids`
   - `active_agent_ids`
   - `task_refs`
   - `agent_refs`
-- Do not update only leaf files and leave the run index stale.
+- Verify dirty tracking rewrites only touched entities while keeping the index current.
 
-## Stage-scoped agents
+## Agent identity
 
-- Create `AgentStatus` for delegated stage-scoped agents such as `repo-scout`, `planner`, and `specifier`.
-- Omit `task_id` when no canonical task exists yet.
-- Keep these visible in `agent_refs` and `active_agent_ids` while they are live.
+- Provide non-empty `agent_id` and `agent` fields for `agent.started`.
+- Include `task_id`, `batch_id`, or `attempt` when reusing a base agent ID.
+- Accept collision-safe persisted IDs from the writer; do not assume every persisted ID equals the requested base ID.
+- Use enough disambiguating metadata on heartbeat/finish events to select one active attempt.
 
-## Resume behavior
+## Heartbeats and resources
 
-- If the user targets a specific run directory, resume that run.
-- If the user provides only the output root, choose the newest compatible run directory.
-- Before redispatch, mark abandoned in-flight tasks or agents as `stale` unless liveness is explicitly confirmed.
+- Send standalone heartbeats only for long-running active work.
+- Keep heartbeat cadence coarse (approximately 15 seconds or more).
+- Skip a heartbeat when a final batched outcome is imminent.
+- Include authoritative resource, teardown, and cleanup fields when they change.
+- Do not mark a run complete while required cleanup remains pending, failed, or unknown.
 
-## Timestamps
+## Resume
 
-- Always maintain:
-  - `created_at`
-  - `updated_at`
-- When applicable, also maintain:
-  - `started_at`
-  - `completed_at`
-  - `last_heartbeat_at`
+- To resume a known run, provide its parent `output_root` and `run_id`.
+- To discover a run, omit `run_id` and provide `output_root` plus an optional `orchestrator` compatibility filter.
+- Confirm discovery chooses the newest checkpoint-backed compatible candidate.
+- Confirm abandoned in-flight tasks and agents become `stale` before redispatch.
+- Confirm uncertain active resource/cleanup states become `unknown`.
+- Overlay invocation flags without dropping unrelated persisted/derived flags.
 
-## Validation gates
+## Error handling
 
-- Validate against the canonical schemas during development or in strict runtime mode.
-- Treat schema failures as implementation bugs, not viewer problems.
-- Status consumers should be strict and should reject non-canonical artifacts.
+- Reject unsupported events and malformed JSON as input errors (`2`).
+- Reject invalid transitions, unknown tasks/agents, ambiguous reused agent IDs, incompatible resume candidates, and filesystem failures as runtime errors (`3`).
+- Require empty stdout on failure and parse the stderr JSON envelope.
+- Surface status failures; do not silently continue with non-canonical state.
 
-## Smoke test expectations
+## Focused verification
 
-- Fresh runs create a new run-specific directory.
-- Resume-only flows pick the newest compatible run when no explicit run dir is provided.
-- Stage-scoped agents appear in status views even without `task_id`.
-- Non-canonical external status JSON is rejected clearly.
+- Core and CLI unit coverage:
 
-## Related docs
+  ```bash
+  node --test tests/status-runtime.test.js
+  ```
 
-- `docs/status-runtime-plugin-spec.md`
-- `opencode/protocols/PIPELINE_PROTOCOL.md`
-- `opencode/protocols/schemas/run-status.schema.json`
-- `opencode/protocols/schemas/task-status.schema.json`
-- `opencode/protocols/schemas/agent-status.schema.json`
+- Fresh lifecycle, batch, and artifact layout:
+
+  ```bash
+  node scripts/status-runtime-smoke.mjs
+  ```
+
+- Newest-compatible checkpoint resume and stale reconciliation:
+
+  ```bash
+  node scripts/status-resume-smoke.mjs
+  ```
+
+- Unsupported event, malformed input, invalid agent event, and mixed-run batch rejection:
+
+  ```bash
+  node scripts/status-trace-negative.mjs
+  ```
+
+- Temporary compatibility entry point:
+
+  ```bash
+  node scripts/validate-status-runtime-smoke.cjs
+  ```
+
+## Related files
+
+- `docs/status-writer-spec.md`
+- `tools/status-event.js`
+- `tools/status-runtime/`
+- `protocols/PIPELINE_PROTOCOL.md`
+- `protocols/schemas/checkpoint.schema.json`
+- `protocols/schemas/run-status.schema.json`
+- `protocols/schemas/task-status.schema.json`
+- `protocols/schemas/agent-status.schema.json`

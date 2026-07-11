@@ -15,8 +15,8 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 
 
 REQUIRED_TIERS = frozenset({"mini", "standard", "strong"})
-SUPPORTED_RUNTIMES = frozenset({"opencode", "codex", "copilot", "claude"})
-SHARED_PROFILE_RUNTIME = "opencode"
+SUPPORTED_RUNTIMES = frozenset({"codex", "copilot", "claude"})
+SHARED_PROFILE_RUNTIME = "neutral"
 CLAUDE_MODEL_ALIASES = frozenset({"inherit", "sonnet", "opus", "haiku"})
 
 AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -36,7 +36,6 @@ class AgentModelProfile:
     models: Dict[str, str]
     path: Path
     description: Optional[str] = None
-    model_set_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +87,15 @@ def _normalize_runtime(value: Any, context: str) -> str:
     return runtime
 
 
+def _normalize_profile_runtime(value: Any, context: str) -> str:
+    runtime = _single_line_string(value, context).strip().lower()
+    allowed = SUPPORTED_RUNTIMES | {SHARED_PROFILE_RUNTIME}
+    if runtime not in allowed:
+        expected = ", ".join(sorted(allowed))
+        raise ValueError(f"{context} must be one of: {expected}")
+    return runtime
+
+
 def _validate_agent_name(value: Any, context: str) -> str:
     name = _single_line_string(value, context)
     if AGENT_NAME_RE.fullmatch(name) is None:
@@ -117,10 +125,7 @@ def _validate_profile_runtime(
 ) -> None:
     if source_runtime == requested_runtime:
         return
-    if (
-        source_runtime == SHARED_PROFILE_RUNTIME
-        and requested_runtime != SHARED_PROFILE_RUNTIME
-    ):
+    if source_runtime == SHARED_PROFILE_RUNTIME:
         return
     raise ValueError(
         f"{path.as_posix()}: profile runtime '{source_runtime}' is incompatible with requested runtime '{requested_runtime}'"
@@ -181,12 +186,6 @@ def _validate_claude_alias(path: Path, tier: str, value: Any) -> str:
     raise ValueError(f"{context} must be one of: {expected}")
 
 
-def _validate_opencode_model_setting(path: Path, tier: str, value: Any) -> str:
-    return _single_line_string(
-        value, f"{path.as_posix()}: tier '{tier}' OpenCode model setting"
-    )
-
-
 def _validate_model_setting(
     runtime: str, path: Path, tier: str, value: Any
 ) -> RuntimeModelSetting:
@@ -196,8 +195,6 @@ def _validate_model_setting(
         return _validate_copilot_model_setting(path, tier, value)
     if runtime == "claude":
         return _validate_claude_alias(path, tier, value)
-    if runtime == "opencode":
-        return _validate_opencode_model_setting(path, tier, value)
     raise ValueError(f"Unsupported runtime: {runtime}")
 
 
@@ -208,8 +205,6 @@ def _validate_uniform_model(runtime: str, value: Any) -> RuntimeModelSetting:
         return _single_line_string(value, "uniform Copilot model")
     if runtime == "claude":
         return _validate_claude_alias(Path("<uniform>"), "uniform", value)
-    if runtime == "opencode":
-        return _single_line_string(value, "uniform OpenCode model")
     raise ValueError(f"Unsupported runtime: {runtime}")
 
 
@@ -249,15 +244,15 @@ def load_profile(
 ) -> AgentModelProfile:
     """Load an agent-to-tier profile for the requested exporter runtime.
 
-    Profiles marked with runtime ``opencode`` are accepted as shared tier maps
-    for non-OpenCode runtimes. Other runtime mismatches fail clearly.
+    Profiles marked with runtime ``neutral`` are accepted as shared tier maps
+    for all supported runtimes. Other runtime mismatches fail clearly.
     """
 
     path = _json_path(profile_name, profile_dir)
     requested_runtime = _normalize_runtime(runtime, "requested profile runtime")
     data = _load_json_object(path, "profile")
 
-    source_runtime = _normalize_runtime(
+    source_runtime = _normalize_profile_runtime(
         data.get("runtime"), f"{path.as_posix()}: profile runtime"
     )
     _validate_profile_runtime(path, source_runtime, requested_runtime)
@@ -280,10 +275,6 @@ def load_profile(
     description = _optional_single_line_string(
         data.get("description"), f"{path.as_posix()}: profile description"
     )
-    model_set_name = _optional_single_line_string(
-        data.get("modelSet"), f"{path.as_posix()}: profile modelSet"
-    )
-
     return AgentModelProfile(
         name=name or Path(profile_name).stem,
         runtime=requested_runtime,
@@ -291,7 +282,6 @@ def load_profile(
         models=models,
         path=path,
         description=description,
-        model_set_name=model_set_name,
     )
 
 

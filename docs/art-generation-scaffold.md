@@ -2,7 +2,7 @@
 
 ## What It Does
 
-This scaffold standardizes how this repo captures a bounded 2D asset request as reusable documentation and packages it for external handoff on the normal `/artgen` surface:
+This scaffold standardizes how this repo captures a bounded 2D asset request as reusable documentation and packages it for external handoff on the normal `artgen-scaffold` surface:
 - request record
 - asset brief
 - reusable prompt
@@ -12,25 +12,20 @@ This scaffold standardizes how this repo captures a bounded 2D asset request as 
 - Direct Use Prompt
 
 Pixel art remains the canonical example profile, but the scaffold also covers adjacent 2D assets such as sprites, animations, tilesets, icons, UI elements, and simple props through one shared brief model.
-When `/artgen` is invoked with `--gen-provider=codex`, this same scaffold still produces the package below and then optionally delegates the final prompt to the repo-managed Codex image-generation bridge.
-That delegated generation path should stay conservative by default: medium reasoning effort, medium quality, single-pass bias, and numeric size ceilings that avoid oversized requests.
 
 ## Boundary
 
 This scaffold remains the default spec/prompt generation plus formatting-oriented handoff packaging layer.
-Without `--gen-provider=codex`, it does not render images, create files, store raw assets, call Codex, call MCP servers, or run downstream pipeline steps in this repo.
-With `--gen-provider=codex`, `/artgen` may delegate the prepared prompt to the repo-managed `codex-imagegen` bridge using `danger-full-access` for the image-generation step, but generated-file reporting stays outside the External Handoff Package.
-That delegated step should default to a conservative generation posture unless the caller explicitly overrides it.
-The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `/artgen` output.
+It does not render images, create raster files, store raw assets, call provider tools, or run downstream pipeline steps in this repo. A runtime-native image-generation capability may consume the final Direct Use Prompt separately.
+The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `artgen-scaffold` output.
 The package stays descriptive, copy-ready, and non-operative.
 The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for direct use with external image-generation tools.
 
 ## Canonical Workflow
 
-`request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> optional Generation Result -> Direct Use Prompt`
+`request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> Direct Use Prompt`
 
-Anything after that package stays outside the External Handoff Package, even when `/artgen` also triggers optional Codex generation.
-The delegated generation side may apply runtime-specific controls such as reasoning-effort defaults, single-pass bias, and raster-size caps without changing the scaffold fields.
+Any later image generation stays outside this scaffold and its External Handoff Package.
 
 ## Shared Brief Model
 
@@ -104,7 +99,7 @@ Before reusing the scaffold output, a human should confirm:
 ## External Handoff Package
 
 This package is the standardized handoff surface.
-It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal `/artgen` output.
+It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal `artgen-scaffold` output.
 
 The default package must be:
 - generic
@@ -115,7 +110,7 @@ The default package must be:
 
 ## Direct Use Prompt
 
-The normal `/artgen` output should end with a final `Direct Use Prompt` section.
+The normal `artgen-scaffold` output should end with a final `Direct Use Prompt` section.
 That section should contain the same reusable prompt in a paste-ready fenced text block so the user does not need to extract it manually from the handoff package.
 
 The Direct Use Prompt must be:
@@ -128,15 +123,14 @@ The Direct Use Prompt must be:
 ## Risks and Tradeoffs
 
 - A broader 2D brief model avoids pixel-art-only wording, but it requires more explicit style and size fields.
-- Keeping prompt packaging as the default path preserves a thin scaffold boundary, while optional Codex generation adds convenience without changing the scaffold fields.
-- Conservative generation defaults reduce wasted Codex retries and oversized image requests, but callers may still need to override size for wide banners or UI-heavy compositions.
+- Keeping prompt packaging separate from runtime-native image generation preserves a thin, portable scaffold boundary.
 - Shared version markers improve traceability, but they require deliberate bumps when assumptions materially change.
 
 ## Remaining Deferrals
 
 The following remain outside this scaffold after the current packaging addition:
 - deterministic post-process and cleanup
-- additional provider adapters beyond the optional Codex bridge
+- provider adapters and runtime-native image-generation behavior
 - integrations
 - jobs, queues, and retries
 - manifests and schemas
@@ -146,4 +140,4 @@ The following remain outside this scaffold after the current packaging addition:
 ## Summary
 
 This scaffold keeps the repo focused on a thin, reviewable art-generation workflow.
-It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt, while allowing `/artgen --gen-provider=codex` to optionally hand that prompt to the repo-managed Codex image-generation bridge.
+It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt.

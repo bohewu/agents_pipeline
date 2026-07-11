@@ -2,1297 +2,301 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: "Optional branch, tag, or SHA to validate"
+        required: false
+        default: ""
+        type: string
+      skip_release_bundle:
+        description: "Skip the nested bundle smoke when the caller will build it next"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  detect-changes:
+  version:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
-      docs_only: ${{ steps.scope.outputs.docs_only }}
-
+      tag: ${{ steps.version.outputs.tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          fetch-depth: 0
-
-      - name: Classify change scope
-        id: scope
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PUSH_BEFORE: ${{ github.event.before }}
-          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CURRENT_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-
-          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "workflow_dispatch requested; running full validation."
-            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
-            base_sha="${PULL_REQUEST_BASE_SHA}"
-            head_sha="${PULL_REQUEST_HEAD_SHA}"
-          else
-            base_sha="${PUSH_BEFORE}"
-            head_sha="${CURRENT_SHA}"
-            if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
-              echo "Push event has no usable before SHA; running full validation."
-              echo "docs_only=false" >> "${GITHUB_OUTPUT}"
-              exit 0
-            fi
-          fi
-
-          changed_file_list="$(git diff --name-only "${base_sha}" "${head_sha}")"
-          if [[ -z "${changed_file_list}" ]]; then
-            echo "No changed files detected; running full validation to stay conservative."
-            echo "docs_only=false" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          docs_only=true
-          while IFS= read -r path; do
-            [[ -z "${path}" ]] && continue
-            case "${path}" in
-              README.md|CHANGELOG.md|CONTRIBUTING.md|SECURITY.md|COMPATIBILITY.md|CODEOWNERS|docs/*|.github/ISSUE_TEMPLATE/*|.github/pull_request_template.md)
-                ;;
-              *)
-                docs_only=false
-                break
-                ;;
-            esac
-          done <<< "${changed_file_list}"
-
-          echo "Changed files under review:"
-          while IFS= read -r path; do
-            [[ -z "${path}" ]] && continue
-            echo "- ${path}"
-          done <<< "${changed_file_list}"
-
-          echo "docs_only=${docs_only}" >> "${GITHUB_OUTPUT}"
-          echo "Doc-only classification: ${docs_only}"
-
-  release-bundle-vars:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs_only != 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      tag: ${{ steps.vars.outputs.tag }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Resolve bundle validation tag
-        id: vars
+          ref: ${{ inputs.checkout_ref || github.ref }}
+      - id: version
         shell: bash
         run: |
-          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-
-          if [[ ! "${VERSION_VALUE}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must be MAJOR.MINOR.PATCH. Got: ${VERSION_VALUE}" >&2
-            exit 1
-          fi
-
-          echo "tag=v${VERSION_VALUE}" >> "${GITHUB_OUTPUT}"
+          value="$(tr -d '[:space:]' < VERSION)"
+          [[ "${value}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "tag=v${value}" >> "${GITHUB_OUTPUT}"
 
   validate:
-    needs: detect-changes
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      DOCS_ONLY: ${{ needs.detect-changes.outputs.docs_only }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
+        with:
+          python-version: "3.12"
+      - name: Install validation dependency
+        run: python3 -m pip install jsonschema
 
-      - name: Summarize validation scope
-        shell: bash
-        run: |
-          if [[ "${DOCS_ONLY}" == "true" ]]; then
-            echo "Docs-only change detected; running lightweight validation subset."
-          else
-            echo "Non-doc change detected; running full validation suite."
-          fi
-
-      - name: Validate VERSION file
-        shell: bash
-        run: |
-          if [[ ! -f VERSION ]]; then
-            echo "VERSION file is missing." >&2
-            exit 1
-          fi
-
-          VERSION_VALUE="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "${VERSION_VALUE}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must be MAJOR.MINOR.PATCH. Got: ${VERSION_VALUE}" >&2
-            exit 1
-          fi
-
-      - name: Validate README pinned version references
+      - name: Validate release metadata and neutral layout
         shell: bash
         run: |
           python3 scripts/sync-readme-version.py --check
-          python3 - <<'PY'
-          import subprocess
-          import tempfile
-          from pathlib import Path
-
-          script = Path("scripts/sync-readme-version.py")
-          version = Path("VERSION").read_text(encoding="utf-8").strip()
-          temp_dir = Path(tempfile.mkdtemp(prefix="readme-version-regression-"))
-
-          def expect_failure(args, label):
-              result = subprocess.run(
-                  ["python3", str(script), "--check", *args],
-                  check=False,
-                  capture_output=True,
-                  text=True,
-              )
-              if result.returncode == 0:
-                  raise SystemExit(f"Expected README validation to fail for {label}")
-
-          mismatched_version = temp_dir / "VERSION"
-          mismatched_version.write_text("9.9.9\n", encoding="utf-8")
-          readme_copy = temp_dir / "README.md"
-          readme_copy.write_text(Path("README.md").read_text(encoding="utf-8"), encoding="utf-8")
-          expect_failure(
-              ["--version-file", str(mismatched_version), "--readme", str(readme_copy)],
-              "a VERSION mismatch fixture",
-          )
-
-          frozen_start = "<!-- BEGIN legacy-opencode-v0.26.1 -->"
-          frozen_end = "<!-- END legacy-opencode-v0.26.1 -->"
-
-          def frozen_block(text):
-              start = text.index(frozen_start)
-              end = text.index(frozen_end, start) + len(frozen_end)
-              return text[start:end]
-
-          current_readme = Path("README.md").read_text(encoding="utf-8")
-          future_readme = temp_dir / "README-future.md"
-          future_readme.write_text(current_readme, encoding="utf-8")
-          subprocess.run(
-              [
-                  "python3",
-                  str(script),
-                  "--version-file",
-                  str(mismatched_version),
-                  "--readme",
-                  str(future_readme),
-              ],
-              check=True,
-          )
-          future_text = future_readme.read_text(encoding="utf-8")
-          if frozen_block(future_text) != frozen_block(current_readme):
-              raise SystemExit("README sync changed the frozen OpenCode v0.26.1 block")
-          if 'bootstrap-install-codex.ps1" -OutFile' not in future_text or 'v9.9.9' not in future_text:
-              raise SystemExit("README sync did not update current runtime examples")
-
-          mismatched_readme = temp_dir / "README-mismatch.md"
-          mismatched_readme.write_text(
-              Path("README.md").read_text(encoding="utf-8").replace(
-                  f"git tag v{version}",
-                  "git tag v9.9.9",
-                  1,
-              ),
-              encoding="utf-8",
-          )
-          expect_failure(
-              ["--version-file", "VERSION", "--readme", str(mismatched_readme)],
-              "a pinned tag mismatch fixture",
-          )
-
-          print(f"README pinned version references match VERSION={version} and reject mismatches.")
-          PY
-
-      - name: Validate README installer coverage
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          coverage_files = [Path("README.md"), Path("docs/developer-install.md")]
-          coverage_text = "\n\n".join(path.read_text(encoding="utf-8") for path in coverage_files)
-          required_snippets = [
-              "scripts/install-plugin-status-runtime.ps1",
-              "scripts/install-plugin-status-runtime.sh",
-              "scripts/install-plugin-usage-status.ps1",
-              "scripts/install-plugin-usage-status.sh",
-              "scripts/remove-plugin-effort-control.ps1",
-              "scripts/remove-plugin-effort-control.sh",
-              "scripts/install-usage-only.ps1",
-              "scripts/install-usage-only.sh",
-              "scripts/install-all-local.ps1",
-              "scripts/install-all-local.sh",
-              "scripts/bootstrap-install-plugin-status-runtime.ps1",
-              "scripts/bootstrap-install-plugin-status-runtime.sh",
-              "scripts/bootstrap-install-usage-only.ps1",
-              "scripts/bootstrap-install-usage-only.sh",
-              "scripts/bootstrap-install-all-local.ps1",
-              "scripts/bootstrap-install-all-local.sh",
-              "The plugin owns the canonical status layout under `<run_output_dir>/status/`",
-              "The installer also ensures `~/.config/opencode/tui.json` contains `./plugins/usage-status/index.js`.",
-              "Dry-run preview (resolves release metadata only):",
-          ]
-
-          missing = [snippet for snippet in required_snippets if snippet not in coverage_text]
-          if missing:
-              print("README/docs installer coverage is missing required installer/status-runtime snippets:")
-              print("Searched files:")
-              for path in coverage_files:
-                  print(f"- {path}")
-              for snippet in missing:
-                  print(f"- {snippet}")
-              raise SystemExit(1)
-
-          print("README/docs installer coverage includes local/release plugin flows and canonical status layout notes.")
-          PY
-
-      - name: Validate bounded frontmatter regressions
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import importlib.util
-          import textwrap
-          from pathlib import Path
-
-          repo_root = Path(".").resolve()
-
-          def load_module(rel_path: str, module_name: str):
-              spec = importlib.util.spec_from_file_location(module_name, repo_root / rel_path)
-              module = importlib.util.module_from_spec(spec)
-              assert spec.loader is not None
-              spec.loader.exec_module(module)
-              return module
-
-          copilot = load_module("scripts/export-copilot-agents.py", "export_copilot_agents")
-          codex = load_module("scripts/export-codex-agents.py", "export_codex_agents")
-          claude = load_module("scripts/export-claude-agents.py", "export_claude_agents")
-
-          valid_scalar_fixture = textwrap.dedent(
-              """\
-              ---
-              name: bounded-valid
-              description: Valid bounded frontmatter fixture
-              mode: subagent
-              temperature: 0
-              ---
-              Body line.
-              """
-          )
-          valid_tools_fixture = textwrap.dedent(
-              """\
-              ---
-              name: bounded-valid-tools
-              description: Valid bounded frontmatter fixture with tools
-              mode: subagent
-              temperature: 0
-              tools:
-                bash: true
-              ---
-              Body line.
-              """
-          )
-
-          copilot_fm, copilot_body = copilot.parse_frontmatter(
-              valid_scalar_fixture, Path("valid-copilot.md")
-          )
-          assert copilot_fm["name"] == "bounded-valid"
-          assert copilot_body == "Body line.\n"
-
-          codex_fm, codex_tools, codex_body = codex.parse_frontmatter(
-              valid_tools_fixture, Path("valid-codex.md")
-          )
-          assert codex_fm["name"] == "bounded-valid-tools"
-          assert codex_tools == {"bash": True}
-          assert codex_body == "Body line.\n"
-
-          claude_fm, claude_tools, claude_body = claude.parse_frontmatter(
-              valid_scalar_fixture, Path("valid-claude.md")
-          )
-          assert claude_fm["name"] == "bounded-valid"
-          assert claude_tools == {}
-          assert claude_body == "Body line.\n"
-
-          invalid_cases = [
-              (
-                  "unbounded",
-                  textwrap.dedent(
-                      """\
-                      ---
-                      name: invalid
-                      description: Missing closing boundary
-                      mode: subagent
-                      temperature: 0
-                      Body line.
-                      """
-                  ),
-                  "unterminated frontmatter block",
-              ),
-              (
-                  "blank-line",
-                  textwrap.dedent(
-                      """\
-                      ---
-                      name: invalid
-
-                      description: Blank line should fail
-                      mode: subagent
-                      temperature: 0
-                      ---
-                      Body line.
-                      """
-                  ),
-                  "blank lines are not allowed inside frontmatter",
-              ),
-              (
-                  "structured-value",
-                  textwrap.dedent(
-                      """\
-                      ---
-                      name: invalid
-                      description: [not, bounded]
-                      mode: subagent
-                      temperature: 0
-                      ---
-                      Body line.
-                      """
-                  ),
-                  "uses unsupported structured value",
-              ),
-              (
-                  "model-key",
-                  textwrap.dedent(
-                      """\
-                      ---
-                      name: invalid
-                      description: Runtime config should own model selection
-                      model: gpt-test
-                      mode: subagent
-                      temperature: 0
-                      ---
-                      Body line.
-                      """
-                  ),
-                  "configure model/provider in runtime config instead",
-              ),
-              (
-                  "provider-key",
-                  textwrap.dedent(
-                      """\
-                      ---
-                      name: invalid
-                      description: Runtime config should own provider selection
-                      provider: local-test
-                      mode: subagent
-                      temperature: 0
-                      ---
-                      Body line.
-                      """
-                  ),
-                  "configure model/provider in runtime config instead",
-              ),
-          ]
-
-          for module, label in ((copilot, "copilot"), (codex, "codex"), (claude, "claude")):
-              for case_name, fixture, expected_error in invalid_cases:
-                  try:
-                      module.parse_frontmatter(fixture, Path(f"{label}-{case_name}.md"))
-                  except ValueError as exc:
-                      if expected_error not in str(exc):
-                          raise AssertionError(
-                              f"{label} {case_name} error mismatch: {exc}"
-                          )
-                  else:
-                      raise AssertionError(
-                          f"{label} accepted invalid frontmatter case: {case_name}"
-                      )
-
-          print("Bounded frontmatter fixtures pass valid cases and reject malformed or unbounded inputs.")
-          PY
-
-      - name: Validate schema tool
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 --version
-          python3 opencode/tools/validate-schema.py --help
-          python3 -m py_compile scripts/install-codex-config.py
-          python3 scripts/export-copilot-agents.py --source-agents opencode/agents --target-dir ./.tmp-copilot --strict --dry-run
-          python3 scripts/export-codex-agents.py --source-agents opencode/agents --target-dir ./.tmp-codex --strict --dry-run
-          python3 scripts/export-claude-agents.py --source-agents opencode/agents --target-dir ./.tmp-claude --strict --dry-run
-
-      - name: Validate provider and skill helper tools
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 opencode/tools/provider-usage.py --help
-          python3 opencode/tools/skill-manager.py --help
-          python3 -m py_compile scripts/validate-skill-frontmatter.py
-          python3 scripts/validate-skill-frontmatter.py
-          bash scripts/test-agent-profile.sh
-          python3 - <<'PY'
-          import importlib.util
-          from pathlib import Path
-
-          repo_root = Path('.').resolve()
-          skill_manager_path = repo_root / 'opencode' / 'tools' / 'skill-manager.py'
-          spec = importlib.util.spec_from_file_location('skill_manager', skill_manager_path)
-          module = importlib.util.module_from_spec(spec)
-          assert spec.loader is not None
-          spec.loader.exec_module(module)
-
-          ref_url = module.build_github_contents_url('foo/bar', 'skills/demo', 'v1.2.3')
-          if not ref_url.endswith('skills/demo?ref=v1.2.3'):
-              raise SystemExit(f'Expected ref-aware contents URL, got: {ref_url}')
-
-          mutable_text = module.render_text(
-              {
-                  'action': 'install',
-                  'result': {
-                      'name': 'demo-skill',
-                      'source': 'anthropic',
-                      'repo': 'anthropics/skills',
-                      'ref': None,
-                      'destinations': ['/tmp/demo-skill'],
-                      'dry_run': True,
-                  },
-              }
-          )
-          if 'mutable' not in mutable_text:
-              raise SystemExit('Expected mutable default-branch warning in skill-manager install output.')
-
-          pinned_text = module.render_text(
-              {
-                  'action': 'install',
-                  'result': {
-                      'name': 'demo-skill',
-                      'source': 'anthropic',
-                      'repo': 'anthropics/skills',
-                      'ref': 'v1.2.3',
-                      'destinations': ['/tmp/demo-skill'],
-                      'dry_run': True,
-                  },
-              }
-          )
-          if 'v1.2.3' not in pinned_text:
-              raise SystemExit('Expected pinned ref to appear in skill-manager install output.')
-
-          print('Provider/skill helper tools expose help text and skill-manager ref handling stays explicit.')
-          PY
-
-      - name: Validate Codex managed-merge install behavior
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          rm -rf ./.tmp-codex-merge-check
+          test -d agents
+          test -d protocols
+          test -d skills
+          test -d tools/status-runtime
+          test -f modes.json
+          test ! -e opencode
+          test ! -L opencode
           python3 - <<'PY'
           import json
-          import subprocess
-          import sys
           from pathlib import Path
 
-          target = Path('.tmp-codex-merge-check')
-          agents_dir = target / 'agents'
-          agents_dir.mkdir(parents=True, exist_ok=True)
-
-          (target / 'config.toml').write_text(
-              '\n'.join([
-                  'model = "gpt-5.4"',
-                  'approval_policy = "on-request"',
-                  '',
-                  '[features]',
-                  'multi_agent = false',
-                  '',
-                  '[agents.custom-user]',
-                  'description = "Keep me"',
-                  'config_file = "agents/custom-user.toml"',
-                  '',
-                  '[agents.old-removed]',
-                  'description = "Old generated role"',
-                  'config_file = "agents/old-removed.toml"',
-                  '',
-              ]),
-              encoding='utf-8',
-          )
-          (agents_dir / 'old-removed.toml').write_text(
-              '\n'.join([
-                  '# Generated by scripts/export-codex-agents.py',
-                  'name = "old-removed"',
-                  'description = "Old generated role"',
-                  'developer_instructions = "old"',
-                  '',
-              ]),
-              encoding='utf-8',
-          )
-          (target / '.agents-pipeline-codex-manifest.json').write_text(
-              json.dumps(
-                  {
-                      'managed_agent_names': ['old-removed'],
-                      'managed_agent_files': ['agents/old-removed.toml'],
-                  },
-                  indent=2,
-                  sort_keys=True,
-              ) + '\n',
-              encoding='utf-8',
-          )
-
-          subprocess.run(
-              [
-                  sys.executable,
-                  'scripts/install-codex-config.py',
-                  '--source-agents',
-                  'opencode/agents',
-                  '--target-dir',
-                  str(target),
-                  '--strict',
-              ],
-              check=True,
-          )
-
-          config = (target / 'config.toml').read_text(encoding='utf-8')
-          if 'model = "gpt-5.4"' not in config:
-              raise SystemExit('Expected Codex merge install to preserve model setting.')
-          if 'approval_policy = "on-request"' not in config:
-              raise SystemExit('Expected Codex merge install to preserve approval policy.')
-          if '[agents.custom-user]' not in config:
-              raise SystemExit('Expected Codex merge install to preserve custom user agent entry.')
-          if '[agents.old-removed]' in config:
-              raise SystemExit('Expected Codex merge install to remove stale managed agent entry.')
-          if 'multi_agent = true' not in config:
-              raise SystemExit('Expected Codex merge install to force features.multi_agent = true.')
-          if 'max_threads = 6' not in config or 'max_depth = 2' not in config:
-            raise SystemExit('Expected Codex merge install to refresh managed [agents] settings.')
-
-          stale_file = agents_dir / 'old-removed.toml'
-          if stale_file.exists():
-              raise SystemExit('Expected Codex merge install to remove stale managed role file.')
-
-          reviewer = (agents_dir / 'reviewer.toml').read_text(encoding='utf-8')
-          for token in ('name = "reviewer"', 'description = ', 'developer_instructions = '):
-              if token not in reviewer:
-                  raise SystemExit(f'Missing expected generated reviewer token: {token}')
-
-          manifest = json.loads((target / '.agents-pipeline-codex-manifest.json').read_text(encoding='utf-8'))
-          if 'old-removed' in manifest['managed_agent_names']:
-              raise SystemExit('Expected Codex merge manifest to drop stale managed agent names.')
-          if 'reviewer' not in manifest['managed_agent_names']:
-              raise SystemExit('Expected Codex merge manifest to include current managed agent names.')
-
-          print('Codex managed-merge install regression check passed.')
+          version = Path("VERSION").read_text(encoding="utf-8").strip()
+          assert version.count(".") == 2
+          modes = json.loads(Path("modes.json").read_text(encoding="utf-8"))
+          assert modes["version"] == 1 and modes["modes"]
+          assert all(mode["agent"] != "orchestrator-goal" for mode in modes["modes"])
           PY
 
-      - name: Validate optional stale generated-file cleanup
-        if: env.DOCS_ONLY != 'true'
+      - name: Validate Python contracts and tests
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          required_tokens = {
-              "scripts/export-copilot-agents.py": [
-                  "find_stale_generated_outputs",
-                  "Removed stale generated file:",
-              ],
-              "scripts/export-codex-agents.py": [
-                  "find_stale_generated_outputs",
-                  "Removed stale generated file:",
-              ],
-              "scripts/export-claude-agents.py": [
-                  "find_stale_generated_outputs",
-                  "Removed stale generated file:",
-              ],
-          }
-
-          missing = []
-          for rel_path, tokens in required_tokens.items():
-              content = Path(rel_path).read_text(encoding="utf-8")
-              if any(token not in content for token in tokens):
-                  missing.append(rel_path)
-
-          if missing:
-              print(
-                  "Skipping optional stale cleanup regression checks; DS-003 implementation not detected in: "
-                  + ", ".join(missing)
-              )
-              raise SystemExit(0)
-          PY
-
-          rm -rf ./.tmp-stale-cleanup
-          python3 - <<'PY'
-          import importlib.util
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          repo_root = Path('.').resolve()
-          base_dir = repo_root / '.tmp-stale-cleanup'
-
-          def load_module(rel_path: str, module_name: str):
-              spec = importlib.util.spec_from_file_location(module_name, repo_root / rel_path)
-              module = importlib.util.module_from_spec(spec)
-              assert spec.loader is not None
-              spec.loader.exec_module(module)
-              return module
-
-          def stale_marker_text(marker: str) -> str:
-              if marker.startswith('<!--') and not marker.endswith('-->'):
-                  return f"{marker} -->\n"
-              return f"{marker}\n"
-
-          exporters = [
-              ('copilot', 'scripts/export-copilot-agents.py', 'export_copilot_agents'),
-              ('codex', 'scripts/export-codex-agents.py', 'export_codex_agents'),
-              ('claude', 'scripts/export-claude-agents.py', 'export_claude_agents'),
-          ]
-
-          for label, rel_path, module_name in exporters:
-              target_dir = base_dir / label
-              subprocess.run(
-                  [
-                      sys.executable,
-                      str(repo_root / rel_path),
-                      '--source-agents',
-                      'opencode/agents',
-                      '--target-dir',
-                      str(target_dir),
-                      '--strict',
-                  ],
-                  check=True,
-              )
-
-              module = load_module(rel_path, module_name)
-              marker = module.GENERATED_MARKER
-              generated_files = [
-                  path
-                  for path in target_dir.rglob('*')
-                  if path.is_file() and marker in path.read_text(encoding='utf-8', errors='ignore')
-              ]
-              if not generated_files:
-                  raise SystemExit(f'Expected {label} exporter to generate at least one marked output.')
-
-              sample = generated_files[0]
-              if label == 'codex' and sample.name == 'config.toml':
-                  sample = next(
-                      path for path in generated_files if path.parent.name == 'agents'
-                  )
-              suffix = ''.join(sample.suffixes)
-              stale = sample.with_name(f'stale-generated{suffix}')
-              custom = sample.with_name(f'custom-kept{suffix}')
-              stale.write_text(stale_marker_text(marker), encoding='utf-8')
-              custom.write_text(f'custom {label} content\n', encoding='utf-8')
-
-              subprocess.run(
-                  [
-                      sys.executable,
-                      str(repo_root / rel_path),
-                      '--source-agents',
-                      'opencode/agents',
-                      '--target-dir',
-                      str(target_dir),
-                      '--strict',
-                  ],
-                  check=True,
-              )
-
-              if stale.exists():
-                  raise SystemExit(f'Expected stale generated {label} file to be removed: {stale}')
-              if not custom.exists():
-                  raise SystemExit(f'Expected custom {label} file to remain: {custom}')
-
-              print(f'{label.capitalize()} cleanup check passed: removed {stale.name}, kept {custom.name}')
-          PY
-
-      - name: Validate modernize handoff schema and examples
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 scripts/validate-modernize-handoff.py --help
-          python3 -m py_compile scripts/validate-modernize-handoff.py
-          python3 -m pip install jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/dispatch-plan.schema.json \
-            --input opencode/protocols/examples/dispatch-plan.resource.valid.json \
-            --require-jsonschema
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/dispatch-plan.schema.json \
-            --input opencode/protocols/examples/dispatch-plan.resource.invalid.json \
-            --require-jsonschema; then
-            echo "Expected invalid dispatch plan example to fail schema validation." >&2
-            exit 1
-          fi
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/dispatch-plan.schema.json \
-            --input opencode/protocols/examples/dispatch-plan.browser-unsafe.invalid.json \
-            --require-jsonschema; then
-            echo "Expected unsafe browser dispatch plan example to fail schema validation." >&2
-            exit 1
-          fi
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/dispatch-plan.schema.json \
-            --input opencode/protocols/examples/dispatch-plan.process-unsafe.invalid.json \
-            --require-jsonschema; then
-            echo "Expected unsafe process dispatch plan example to fail schema validation." >&2
-            exit 1
-          fi
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/dispatch-plan.schema.json \
-            --input opencode/protocols/examples/dispatch-plan.server-no-teardown.invalid.json \
-            --require-jsonschema; then
-            echo "Expected server dispatch plan without teardown to fail schema validation." >&2
-            exit 1
-          fi
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/modernize-exec-handoff.schema.json \
-            --input opencode/protocols/examples/modernize-exec-handoff.valid.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/handoff-pack.schema.json \
-            --input opencode/protocols/examples/handoff-pack.valid.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/flow-task-list.schema.json \
-            --input opencode/protocols/examples/flow-task-list.valid.json \
-            --require-jsonschema
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/flow-task-list.schema.json \
-            --input opencode/protocols/examples/flow-task-list.high-risk-weak-controls.invalid.json \
-            --require-jsonschema; then
-            echo "Expected high-risk Flow task with weak controls to fail schema validation." >&2
-            exit 1
-          fi
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/todo-ledger.schema.json \
-            --input todo-ledger.example.json \
-            --require-jsonschema
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/modernize-exec-handoff.schema.json \
-            --input opencode/protocols/examples/modernize-exec-handoff.invalid.json \
-            --require-jsonschema; then
-            echo "Expected invalid modernize handoff example to fail schema validation." >&2
-            exit 1
-          fi
-
-      - name: Validate run-command flag contracts
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 scripts/validate-flag-contracts.py --help
-          python3 -m py_compile scripts/validate-flag-contracts.py
-          python3 scripts/validate-flag-contracts.py
-
-      - name: Validate orchestrator contract projections
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 -m py_compile scripts/validate-orchestrator-contracts.py
-          python3 -m unittest tests/test_validate_orchestrator_contracts.py
+          python3 -m compileall -q scripts tools
+          python3 -m unittest discover -s tests -p 'test_*.py'
           python3 scripts/validate-orchestrator-contracts.py
-
-      - name: Validate helper artifact contracts
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 -m py_compile scripts/validate-helper-contracts.py
-          python3 -m unittest tests/test_validate_helper_contracts.py
           python3 scripts/validate-helper-contracts.py
-
-      - name: Validate status schemas and fixtures
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/run-status.schema.json \
-            --input opencode/protocols/examples/status-layout.run-only.valid/run-status.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/run-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/run-status.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/task-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-doc-summary.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/task-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-process-build.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/task-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-local-server-smoke.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/task-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/tasks/task-browser-resume.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/agent-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-doc-01.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/agent-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-process-01.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/agent-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-server-01.json \
-            --require-jsonschema
-
-          python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/agent-status.schema.json \
-            --input opencode/protocols/examples/status-layout.expanded.valid/agents/agent-browser-02.json \
-            --require-jsonschema
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/run-status.schema.json \
-            --input opencode/protocols/examples/status-layout.contract.invalid/run-status.json \
-            --require-jsonschema; then
-            echo "Expected invalid status layout run-status fixture to fail schema validation." >&2
-            exit 1
-          fi
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/task-status.schema.json \
-            --input opencode/protocols/examples/status-layout.contract.invalid/tasks/task-browser-cleanup-invalid.json \
-            --require-jsonschema; then
-            echo "Expected invalid status layout task fixture to fail schema validation." >&2
-            exit 1
-          fi
-
-          if python3 opencode/tools/validate-schema.py \
-            --schema opencode/protocols/schemas/agent-status.schema.json \
-            --input opencode/protocols/examples/status-layout.contract.invalid/agents/agent-browser-cleanup-invalid.json \
-            --require-jsonschema; then
-            echo "Expected invalid status layout agent fixture to fail schema validation." >&2
-            exit 1
-          fi
-
-      - name: Validate status-runtime smoke harness
-        if: env.DOCS_ONLY != 'true'
-        shell: bash
-        run: |
-          node --test opencode/plugins/status-runtime/run-registry.test.js
-          node scripts/validate-status-runtime-smoke.cjs
-          node scripts/validate-local-preview-lifecycle-smoke.cjs
-          python3 scripts/validate-status-emission-guidance.py
           python3 scripts/validate-reviewer-retry-guidance.py
+          python3 scripts/validate-status-emission-guidance.py
+          python3 scripts/validate-skill-frontmatter.py
+          python3 scripts/update-agent-model-sets.py --check
 
-      - name: Validate resource-control prompt coverage
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          actionlint_version="1.7.12"
+          archive="actionlint_${actionlint_version}_linux_amd64.tar.gz"
+          url="https://github.com/rhysd/actionlint/releases/download/v${actionlint_version}/${archive}"
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "${temp_dir}"' EXIT
+          curl -fsSL "${url}" -o "${temp_dir}/${archive}"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  ${temp_dir}/${archive}" | sha256sum -c -
+          tar -xzf "${temp_dir}/${archive}" -C "${temp_dir}" actionlint
+          "${temp_dir}/actionlint" -color
+
+      - name: Validate schemas and fixtures
         shell: bash
         run: |
           python3 - <<'PY'
-          from pathlib import Path
+          import subprocess
+          import sys
 
-          checks = {
-              Path("opencode/agents/router.md"): [
-                  "resource_class",
-                  "max_parallelism",
-                  "teardown_required",
-                  "browser",
-                  "server",
-              ],
-              Path("opencode/agents/orchestrator-pipeline.md"): [
-                  "resource_class = browser",
-                  "teardown_required = true",
-                  "Resource Gate",
-              ],
-              Path("opencode/agents/orchestrator-flow.md"): [
-                  "resource-safe to co-run",
-                  "teardown evidence",
-                  "browser",
-                  "server",
-              ],
-              Path("opencode/agents/executor.md"): ["RESOURCE CLEANUP (MANDATORY)", "repair_budget"],
-              Path("opencode/agents/generalist.md"): ["RESOURCE CLEANUP (MANDATORY)"],
-              Path("opencode/agents/peon.md"): ["RESOURCE CLEANUP (MANDATORY)"],
-              Path("opencode/agents/test-runner.md"): ["RESOURCE CLEANUP (MANDATORY)"],
-              Path("opencode/agents/reviewer.md"): ["RESOURCE EVIDENCE", "teardown_required"],
-              Path("opencode/protocols/PIPELINE_PROTOCOL.md"): [
-                  "resource_class",
-                  "max_parallelism",
-                  "teardown_required",
-                  "batches set `teardown_required = true` only",
-              ],
-              Path("opencode/protocols/VALIDATION.md"): [
-                  "## Resource Gate",
-                  "teardown_required = true",
-              ],
-              Path("opencode/protocols/SCHEMAS.md"): [
-                  "required batch resource metadata",
-              ],
-              Path("opencode/commands/run-pipeline.md"): [
-                  "teardown evidence",
-              ],
-              Path("opencode/commands/run-flow.md"): [
-                  "teardown evidence",
-              ],
-              Path("README.md"): [
-                  "Execution Resource Control",
-                  "dispatch-plan resource schema/examples validation",
-                  "resource-control prompt coverage assertions",
-              ],
-          }
+          tool = [sys.executable, "tools/validate-schema.py", "--require-jsonschema"]
+          positive = [
+              ("dev-spec.schema.json", "dev-spec.valid.json"),
+              ("dispatch-plan.schema.json", "dispatch-plan.resource.valid.json"),
+              ("flow-task-list.schema.json", "flow-task-list.valid.json"),
+              ("handoff-pack.schema.json", "handoff-pack.valid.json"),
+              ("modernize-exec-handoff.schema.json", "modernize-exec-handoff.valid.json"),
+              ("task-list.schema.json", "task-list.trace.valid.json"),
+              ("ui-ux-bundle.schema.json", "ui-ux-bundle.valid.json"),
+              ("problem-spec.schema.json", "spec-to-pipeline/problem-spec.json"),
+              ("dev-spec.schema.json", "spec-to-pipeline/dev-spec.json"),
+              ("plan-outline.schema.json", "spec-to-pipeline/plan-outline.json"),
+              ("task-list.schema.json", "spec-to-pipeline/task-list.json"),
+          ]
+          negative = [
+              ("dev-spec.schema.json", "dev-spec.invalid.json"),
+              ("dispatch-plan.schema.json", "dispatch-plan.resource.invalid.json"),
+              ("dispatch-plan.schema.json", "dispatch-plan.browser-unsafe.invalid.json"),
+              ("dispatch-plan.schema.json", "dispatch-plan.process-unsafe.invalid.json"),
+              ("dispatch-plan.schema.json", "dispatch-plan.server-no-teardown.invalid.json"),
+              ("flow-task-list.schema.json", "flow-task-list.high-risk-weak-controls.invalid.json"),
+              ("modernize-exec-handoff.schema.json", "modernize-exec-handoff.invalid.json"),
+              ("task-list.schema.json", "task-list.trace.invalid.json"),
+          ]
+          for schema, fixture in positive:
+              subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)
+          for schema, fixture in negative:
+              result = subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"])
+              if result.returncode == 0:
+                  raise SystemExit(f"Expected invalid fixture to fail: {fixture}")
 
-          missing = []
-          for path, tokens in checks.items():
-              text = path.read_text(encoding="utf-8")
-              absent = [token for token in tokens if token not in text]
-              if absent:
-                  missing.append(f"{path}: missing {absent}")
-
-          if missing:
-              raise SystemExit("\n".join(missing))
-
-          print("Resource-control prompt coverage checks passed.")
+          status_positive = [
+              ("run-status.schema.json", "status-layout.run-only.valid/run-status.json"),
+              ("run-status.schema.json", "status-layout.expanded.valid/run-status.json"),
+              ("task-status.schema.json", "status-layout.expanded.valid/tasks/task-doc-summary.json"),
+              ("task-status.schema.json", "status-layout.expanded.valid/tasks/task-process-build.json"),
+              ("task-status.schema.json", "status-layout.expanded.valid/tasks/task-local-server-smoke.json"),
+              ("task-status.schema.json", "status-layout.expanded.valid/tasks/task-browser-resume.json"),
+              ("agent-status.schema.json", "status-layout.expanded.valid/agents/agent-doc-01.json"),
+              ("agent-status.schema.json", "status-layout.expanded.valid/agents/agent-process-01.json"),
+              ("agent-status.schema.json", "status-layout.expanded.valid/agents/agent-server-01.json"),
+              ("agent-status.schema.json", "status-layout.expanded.valid/agents/agent-browser-02.json"),
+              ("agent-status.schema.json", "status-layout.expanded.valid/agents/agent-scout-01.json"),
+          ]
+          status_negative = [
+              ("run-status.schema.json", "status-layout.contract.invalid/run-status.json"),
+              ("task-status.schema.json", "status-layout.contract.invalid/tasks/task-browser-cleanup-invalid.json"),
+              ("agent-status.schema.json", "status-layout.contract.invalid/agents/agent-browser-cleanup-invalid.json"),
+          ]
+          for schema, fixture in status_positive:
+              subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)
+          for schema, fixture in status_negative:
+              result = subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"])
+              if result.returncode == 0:
+                  raise SystemExit(f"Expected invalid status fixture to fail: {fixture}")
+          subprocess.run(tool + ["--schema", "protocols/schemas/todo-ledger.schema.json", "--input", "todo-ledger.example.json"], check=True)
           PY
 
-      - name: Validate shell installers
-        if: env.DOCS_ONLY != 'true'
+      - name: Validate runtime exporters and installers
         shell: bash
         run: |
-          PLUGIN_TARGET="./.tmp-plugin-install/status-runtime.js"
-          USAGE_PLUGIN_TARGET="./.tmp-plugin-install/usage-status.js"
-          BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
-          BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
-
-          bash -n scripts/install.sh
-          bash -n scripts/install-copilot.sh
-          bash -n scripts/install-claude.sh
+          python3 scripts/export-codex-agents.py --source-agents agents --target-dir .tmp-codex --strict --dry-run
+          python3 scripts/export-claude-agents.py --source-agents agents --target-dir .tmp-claude --strict --dry-run
+          python3 scripts/export-copilot-agents.py --source-agents agents --target-dir .tmp-copilot --strict --dry-run
           bash -n scripts/install-codex.sh
-          bash -n scripts/install-plugin-status-runtime.sh
-          bash -n scripts/install-plugin-usage-status.sh
-          bash -n scripts/remove-plugin-effort-control.sh
-          bash -n tests/test-remove-plugin-effort-control.sh
-          bash -n scripts/install-usage-only.sh
-          bash -n scripts/install-all-local.sh
-          bash -n scripts/bootstrap-install.sh
-          bash -n scripts/bootstrap-install-copilot.sh
-          bash -n scripts/bootstrap-install-claude.sh
+          bash -n scripts/install-claude.sh
+          bash -n scripts/install-copilot.sh
+          bash -n scripts/agent-profile.sh
           bash -n scripts/bootstrap-install-codex.sh
-          bash -n scripts/bootstrap-install-plugin-status-runtime.sh
-          bash -n scripts/bootstrap-install-usage-only.sh
-          bash -n scripts/bootstrap-install-all-local.sh
-          bash -n opencode/tools/agent-profile.sh
-          bash -n scripts/test-agent-profile.sh
-          bash scripts/install.sh --target ./.tmp-opencode-install --dry-run
-          bash scripts/install-copilot.sh --target ./.tmp-copilot-install --dry-run
-          bash scripts/install-claude.sh --target ./.tmp-claude-install --dry-run
-          bash scripts/install-codex.sh --target ./.tmp-codex-install --dry-run
-          plugin_output="$(bash scripts/install-plugin-status-runtime.sh --target "${PLUGIN_TARGET}" --dry-run)"
-          [[ "${plugin_output}" == *"Target entry: ${PLUGIN_TARGET}"* ]]
-          [[ "${plugin_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
-          [[ "${plugin_output}" == *"Would copy entry file:"* ]]
-          [[ "${plugin_output}" == *"Would sync support dir:"* ]]
-          usage_plugin_output="$(bash scripts/install-plugin-usage-status.sh --target "${USAGE_PLUGIN_TARGET}" --dry-run)"
-          [[ "${usage_plugin_output}" == *"Target entry: ${USAGE_PLUGIN_TARGET}"* ]]
-          [[ "${usage_plugin_output}" == *"Target support dir: ./.tmp-plugin-install/usage-status"* ]]
-          usage_only_output="$(bash scripts/install-usage-only.sh --opencode-target ./.tmp-opencode-install --usage-plugin-target "${USAGE_PLUGIN_TARGET}" --dry-run)"
-          [[ "${usage_only_output}" == *"Usage plugin target: ${USAGE_PLUGIN_TARGET}"* ]]
-          [[ "${usage_only_output}" == *"Target support dir: ./.tmp-plugin-install/usage-status"* ]]
-          [[ "${usage_only_output}" == *"Usage-only install completed in dry-run mode."* ]]
-          all_local_output="$(bash scripts/install-all-local.sh --opencode-target ./.tmp-opencode-install --plugin-target "${PLUGIN_TARGET}" --copilot-target ./.tmp-copilot-install --claude-target ./.tmp-claude-install --codex-target ./.tmp-codex-install --dry-run)"
-          [[ "${all_local_output}" == *"Target entry: ${PLUGIN_TARGET}"* ]]
-          [[ "${all_local_output}" == *"Target support dir: ./.tmp-plugin-install/status-runtime"* ]]
-          [[ "${all_local_output}" == *"Legacy effort-control entry: ./.tmp-plugin-install/effort-control.js"* ]]
-          bash tests/test-remove-plugin-effort-control.sh
+          bash -n scripts/bootstrap-install-claude.sh
+          bash -n scripts/bootstrap-install-copilot.sh
+          bash scripts/install-codex.sh --target .tmp-install-codex --dry-run --no-backup
+          bash scripts/install-claude.sh --target .tmp-install-claude --dry-run --no-backup
+          bash scripts/install-copilot.sh --target .tmp-install-copilot --dry-run --no-backup
+          python3 tools/agent-profile.py list --runtime codex --json >/dev/null
 
-      - name: Validate shell bootstrap installers
-        if: env.DOCS_ONLY != 'true'
+      - name: Validate neutral status writer
         shell: bash
         run: |
-          BOOTSTRAP_PLUGIN_TARGET="./.tmp-bootstrap-plugin/status-runtime.js"
-          BOOTSTRAP_USAGE_PLUGIN_TARGET="./.tmp-bootstrap-plugin/usage-status.js"
+          node --check tools/status-event.js
+          node --test tests/status-runtime.test.js
+          node scripts/validate-status-runtime-smoke.cjs
 
-          mkdir -p ./.tmp-bootstrap-mocks
-          cat > ./.tmp-bootstrap-mocks/curl <<'EOF'
-          #!/usr/bin/env bash
-          set -euo pipefail
+      - name: Validate local-preview lifecycle
+        run: node scripts/validate-local-preview-lifecycle-smoke.cjs
 
-          url="${@: -1}"
-          case "$url" in
-            https://api.github.com/repos/example/agents/releases/latest)
-              cat <<'JSON'
-          {"tag_name":"v1.2.3","assets":[{"browser_download_url":"https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.tar.gz"},{"browser_download_url":"https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.SHA256SUMS.txt"}]}
-          JSON
-              ;;
-            https://api.github.com/repos/example/agents/releases/tags/v1.2.3)
-              cat <<'JSON'
-          {"tag_name":"v1.2.3","assets":[{"browser_download_url":"https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.tar.gz"},{"browser_download_url":"https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.SHA256SUMS.txt"}]}
-          JSON
-              ;;
-            *)
-              echo "Unexpected curl URL: $url" >&2
-              exit 1
-              ;;
-          esac
-          EOF
-          chmod +x ./.tmp-bootstrap-mocks/curl
-          export PATH="$PWD/.tmp-bootstrap-mocks:$PATH"
-
-          bash scripts/bootstrap-install.sh --repo example/agents --version latest --target ./.tmp-bootstrap-install --dry-run
-          bash scripts/bootstrap-install-copilot.sh --repo example/agents --version 1.2.3 --target ./.tmp-bootstrap-copilot --no-backup --dry-run
-          bash scripts/bootstrap-install-claude.sh --repo example/agents --version 1.2.3 --target ./.tmp-bootstrap-claude --no-backup --dry-run
-          bash scripts/bootstrap-install-codex.sh --repo example/agents --version v1.2.3 --target ./.tmp-bootstrap-codex --no-backup --force --dry-run
-          bootstrap_plugin_output="$(bash scripts/bootstrap-install-plugin-status-runtime.sh --repo example/agents --version 1.2.3 --target "${BOOTSTRAP_PLUGIN_TARGET}" --no-backup --dry-run)"
-          [[ "${bootstrap_plugin_output}" == *"Install target override: ${BOOTSTRAP_PLUGIN_TARGET}"* ]]
-          bootstrap_usage_output="$(bash scripts/bootstrap-install-usage-only.sh --repo example/agents --version 1.2.3 --opencode-target ./.tmp-bootstrap-install --usage-plugin-target "${BOOTSTRAP_USAGE_PLUGIN_TARGET}" --no-backup --dry-run)"
-          [[ "${bootstrap_usage_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
-          bootstrap_all_output="$(bash scripts/bootstrap-install-all-local.sh --repo example/agents --version v1.2.3 --opencode-target ./.tmp-bootstrap-install --plugin-target "${BOOTSTRAP_PLUGIN_TARGET}" --copilot-target ./.tmp-bootstrap-copilot --claude-target ./.tmp-bootstrap-claude --codex-target ./.tmp-bootstrap-codex --no-backup --force-codex --dry-run)"
-          [[ "${bootstrap_all_output}" == *"Dry run complete. No files were downloaded or installed."* ]]
-
-  validate-local-preview-macos:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs_only != 'true'
-    runs-on: macos-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Validate local-preview lifecycle smoke harness on macOS
-        shell: bash
-        run: |
-          node scripts/validate-local-preview-lifecycle-smoke.cjs
-
-  validate-local-preview-windows:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs_only != 'true'
+  validate-powershell:
     runs-on: windows-latest
     permissions:
       contents: read
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Validate local-preview lifecycle smoke harness on Windows
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+      - name: Validate PowerShell runtime installers
         shell: pwsh
         run: |
-          node scripts/validate-local-preview-lifecycle-smoke.cjs
+          [void](Get-Command ./scripts/install-codex.ps1)
+          [void](Get-Command ./scripts/install-claude.ps1)
+          [void](Get-Command ./scripts/install-copilot.ps1)
+          [void](Get-Command ./scripts/agent-profile.ps1)
+          [void](Get-Command ./scripts/bootstrap-install-codex.ps1)
+          [void](Get-Command ./scripts/bootstrap-install-claude.ps1)
+          [void](Get-Command ./scripts/bootstrap-install-copilot.ps1)
+          pwsh -NoProfile -File scripts/install-codex.ps1 -Target .tmp-install-codex -DryRun -NoBackup
+          pwsh -NoProfile -File scripts/install-claude.ps1 -Target .tmp-install-claude -DryRun -NoBackup
+          pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .tmp-install-copilot -DryRun -NoBackup
+          Invoke-Pester -Path @(
+            "tests/install-codex.Tests.ps1",
+            "tests/install-runtime-profiles.Tests.ps1"
+          ) -CI
+
+  validate-preview-platforms:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+      - name: Validate macOS Bash installer and workspace profile
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_root="$(mktemp -d)"
+          trap 'rm -rf "${smoke_root}"' EXIT
+          export HOME="${smoke_root}/home"
+          workspace="${smoke_root}/workspace"
+          mkdir -p "${HOME}" "${workspace}"
+
+          bash scripts/install-codex.sh --no-backup >/dev/null
+          profile_tool="${HOME}/.codex/agents-pipeline/scripts/agent-profile.sh"
+          bash "${profile_tool}" set balanced \
+            --runtime codex \
+            --scope workspace \
+            --workspace "${workspace}" \
+            --model-set openai \
+            --no-backup >/dev/null
+          status_json="$(bash "${profile_tool}" status \
+            --runtime codex \
+            --scope workspace \
+            --workspace "${workspace}" \
+            --json 2>/dev/null)"
+
+          STATUS_JSON="${status_json}" WORKSPACE="${workspace}" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          status = json.loads(os.environ["STATUS_JSON"])
+          workspace = Path(os.environ["WORKSPACE"])
+          assert status["health"] == "ok", status
+          assert status["profile_eligibility"] == "ineligible", status
+          assert len(list((workspace / ".codex" / "agents").glob("*.toml"))) == 45
+          assert not (workspace / ".codex" / "agents-pipeline").exists()
+          PY
+          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 10
+          test ! -e "${HOME}/.agents/skills/run-goal"
+      - run: node scripts/validate-local-preview-lifecycle-smoke.cjs
+
+  validate-minimum-runtimes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "18"
+      - name: Validate minimum supported runtimes
+        shell: bash
+        run: |
+          python3 -m pip install jsonschema
+          python3 -m compileall -q scripts tools
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          node --test tests/status-runtime.test.js
+          node scripts/validate-status-runtime-smoke.cjs
 
   validate-release-bundle:
-    needs:
-      - detect-changes
-      - release-bundle-vars
-    if: needs.detect-changes.outputs.docs_only != 'true'
+    if: ${{ !inputs.skip_release_bundle }}
+    needs: [version, validate]
     uses: ./.github/workflows/release-bundle.yml
     permissions:
       contents: read
-      attestations: write
-      id-token: write
     with:
-      tag: ${{ needs.release-bundle-vars.outputs.tag }}
+      tag: ${{ needs.version.outputs.tag }}
       checkout_tag: false
-
-  validate-powershell:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.docs_only != 'true'
-    runs-on: windows-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Validate PowerShell installers
-        shell: pwsh
-        run: |
-          $pluginTarget = '.\.tmp-plugin-install\status-runtime.js'
-          $resolvedPluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($pluginTarget)
-          $resolvedPluginSupportDir = Join-Path (Split-Path -Parent $resolvedPluginTarget) 'status-runtime'
-          $usagePluginTarget = '.\.tmp-plugin-install\usage-status.js'
-          $resolvedUsagePluginTarget = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($usagePluginTarget)
-          $resolvedUsagePluginSupportDir = Join-Path (Split-Path -Parent $resolvedUsagePluginTarget) 'usage-status'
-
-          [void](Get-Command -Name ./scripts/install.ps1)
-          [void](Get-Command -Name ./scripts/install-copilot.ps1)
-          [void](Get-Command -Name ./scripts/install-claude.ps1)
-          [void](Get-Command -Name ./scripts/install-codex.ps1)
-          [void](Get-Command -Name ./scripts/install-plugin-status-runtime.ps1)
-          [void](Get-Command -Name ./scripts/install-plugin-usage-status.ps1)
-          [void](Get-Command -Name ./scripts/remove-plugin-effort-control.ps1)
-          [void](Get-Command -Name ./scripts/install-usage-only.ps1)
-          [void](Get-Command -Name ./scripts/install-all-local.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-copilot.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-claude.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-codex.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-plugin-status-runtime.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-usage-only.ps1)
-          [void](Get-Command -Name ./scripts/bootstrap-install-all-local.ps1)
-          [void](Get-Command -Name ./opencode/tools/agent-profile.ps1)
-          pwsh -NoProfile -File scripts/test-agent-profile.ps1
-          pwsh -NoProfile -File scripts/install.ps1 -Target .\.tmp-opencode-install -DryRun
-          pwsh -NoProfile -File scripts/install-copilot.ps1 -Target .\.tmp-copilot-install -DryRun
-          pwsh -NoProfile -File scripts/install-claude.ps1 -Target .\.tmp-claude-install -DryRun
-          pwsh -NoProfile -File scripts/install-codex.ps1 -Target .\.tmp-codex-install -DryRun
-          $pluginOutput = & pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target $pluginTarget -DryRun | Out-String
-          if ($pluginOutput -notmatch [regex]::Escape("Target entry: $resolvedPluginTarget")) {
-            throw 'install-plugin-status-runtime.ps1 did not report the plugin entry-file target.'
-          }
-          if ($pluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedPluginSupportDir")) {
-            throw 'install-plugin-status-runtime.ps1 did not report the plugin support directory.'
-          }
-          $usagePluginOutput = & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target $usagePluginTarget -DryRun | Out-String
-          if ($usagePluginOutput -notmatch [regex]::Escape("Target entry: $resolvedUsagePluginTarget")) {
-            throw 'install-plugin-usage-status.ps1 did not report the plugin entry-file target.'
-          }
-          if ($usagePluginOutput -notmatch [regex]::Escape("Target support dir: $resolvedUsagePluginSupportDir")) {
-            throw 'install-plugin-usage-status.ps1 did not report the plugin support directory.'
-          }
-          $usageOnlyOutput = & pwsh -NoProfile -File scripts/install-usage-only.ps1 -OpenCodeTarget .\.tmp-opencode-install -UsagePluginTarget $usagePluginTarget -DryRun | Out-String
-          if ($usageOnlyOutput -notmatch [regex]::Escape("Usage plugin target: $usagePluginTarget")) {
-            throw 'install-usage-only.ps1 did not report the usage plugin target.'
-          }
-          if ($usageOnlyOutput -notmatch [regex]::Escape("Target support dir: $resolvedUsagePluginSupportDir")) {
-            throw 'install-usage-only.ps1 did not forward the usage plugin support directory semantics.'
-          }
-          if ($usageOnlyOutput -notmatch 'Usage-only install completed in dry-run mode\.') {
-            throw 'install-usage-only.ps1 dry-run did not complete successfully.'
-          }
-          $allLocalOutput = & pwsh -NoProfile -File scripts/install-all-local.ps1 -OpenCodeTarget .\.tmp-opencode-install -PluginTarget $pluginTarget -CopilotTarget .\.tmp-copilot-install -ClaudeTarget .\.tmp-claude-install -CodexTarget .\.tmp-codex-install -DryRun | Out-String
-          if ($allLocalOutput -notmatch [regex]::Escape("Target entry: $resolvedPluginTarget")) {
-            throw 'install-all-local.ps1 did not forward the plugin entry-file target.'
-          }
-          if ($allLocalOutput -notmatch [regex]::Escape("Target support dir: $resolvedPluginSupportDir")) {
-            throw 'install-all-local.ps1 did not forward the plugin support directory semantics.'
-          }
-          if ($allLocalOutput -notmatch [regex]::Escape("Legacy effort-control entry: $([System.IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $pluginTarget) 'effort-control.js')))")) {
-            throw 'install-all-local.ps1 did not route the retired effort-control target to cleanup.'
-          }
-
-          & pwsh -NoProfile -File tests/test-remove-plugin-effort-control.ps1
-
-          $previousNativeSetting = $PSNativeCommandUseErrorActionPreference
-          $PSNativeCommandUseErrorActionPreference = $false
-
-          & pwsh -NoProfile -File scripts/install.ps1 -Target '-Force' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/install-copilot.ps1 -Target '-NoBackup' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install-copilot.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/install-claude.ps1 -Target '-NoBackup' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install-claude.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/install-codex.ps1 -Target '-Force' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install-codex.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/install-plugin-status-runtime.ps1 -Target '-NoBackup' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install-plugin-status-runtime.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/remove-plugin-effort-control.ps1 -Target '-NoBackup' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'remove-plugin-effort-control.ps1 should reject switch-like target values.'
-          }
-
-          & pwsh -NoProfile -File scripts/install-plugin-usage-status.ps1 -Target '-NoBackup' -DryRun 2>$null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'install-plugin-usage-status.ps1 should reject switch-like target values.'
-          }
-
-          Invoke-Pester -Script tests/install-codex.Tests.ps1 -EnableExit
-
-          $PSNativeCommandUseErrorActionPreference = $previousNativeSetting
-          $global:LASTEXITCODE = 0
-
-      - name: Validate PowerShell bootstrap installers
-        shell: pwsh
-        run: |
-          $bootstrapPluginTarget = '.\.tmp-bootstrap-plugin\status-runtime.js'
-          $bootstrapUsagePluginTarget = '.\.tmp-bootstrap-plugin\usage-status.js'
-
-          function Invoke-RestMethod {
-            param(
-              [Parameter(ValueFromRemainingArguments = $true)]
-              $Arguments,
-              [hashtable]$Headers,
-              [string]$Uri,
-              [string]$Method
-            )
-
-            if ($Uri -notin @(
-              'https://api.github.com/repos/example/agents/releases/latest',
-              'https://api.github.com/repos/example/agents/releases/tags/v1.2.3'
-            )) {
-              throw "Unexpected release URI: $Uri"
-            }
-
-            return [pscustomobject]@{
-              tag_name = 'v1.2.3'
-              assets = @(
-                [pscustomobject]@{
-                  name = 'agents-pipeline-opencode-bundle-v1.2.3.zip'
-                  browser_download_url = 'https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.zip'
-                },
-                [pscustomobject]@{
-                  name = 'agents-pipeline-opencode-bundle-v1.2.3.SHA256SUMS.txt'
-                  browser_download_url = 'https://example.invalid/agents-pipeline-opencode-bundle-v1.2.3.SHA256SUMS.txt'
-                }
-              )
-            }
-          }
-
-          & ./scripts/bootstrap-install.ps1 -Repo example/agents -Version latest -Target .\.tmp-bootstrap-install -DryRun
-          & ./scripts/bootstrap-install-copilot.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-copilot -NoBackup -DryRun
-          & ./scripts/bootstrap-install-claude.ps1 -Repo example/agents -Version 1.2.3 -Target .\.tmp-bootstrap-claude -NoBackup -DryRun
-          & ./scripts/bootstrap-install-codex.ps1 -Repo example/agents -Version v1.2.3 -Target .\.tmp-bootstrap-codex -NoBackup -Force -DryRun
-          $bootstrapPluginOutput = & ./scripts/bootstrap-install-plugin-status-runtime.ps1 -Repo example/agents -Version 1.2.3 -Target $bootstrapPluginTarget -NoBackup -DryRun 6>&1 | Out-String
-          if ($bootstrapPluginOutput -notmatch [regex]::Escape("Install target override: $bootstrapPluginTarget")) {
-            throw 'bootstrap-install-plugin-status-runtime.ps1 did not report the plugin entry-file target.'
-          }
-          $bootstrapUsageOutput = & ./scripts/bootstrap-install-usage-only.ps1 -Repo example/agents -Version 1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -UsagePluginTarget $bootstrapUsagePluginTarget -NoBackup -DryRun 6>&1 | Out-String
-          if ($bootstrapUsageOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
-            throw 'bootstrap-install-usage-only.ps1 dry-run did not complete successfully.'
-          }
-          $bootstrapAllOutput = & ./scripts/bootstrap-install-all-local.ps1 -Repo example/agents -Version v1.2.3 -OpenCodeTarget .\.tmp-bootstrap-install -PluginTarget $bootstrapPluginTarget -CopilotTarget .\.tmp-bootstrap-copilot -ClaudeTarget .\.tmp-bootstrap-claude -CodexTarget .\.tmp-bootstrap-codex -NoBackup -ForceCodex -DryRun 6>&1 | Out-String
-          if ($bootstrapAllOutput -notmatch 'Dry run complete\. No files were downloaded or installed\.') {
-            throw 'bootstrap-install-all-local.ps1 dry-run did not complete successfully.'
-          }

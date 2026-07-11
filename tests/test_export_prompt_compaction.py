@@ -41,7 +41,7 @@ def adapt_body(module, agent_name: str, body: str) -> str:
 
 class ExportPromptCompactionTest(unittest.TestCase):
     def test_general_orchestrator_export_minifies_shared_sections(self) -> None:
-        relative_path = "opencode/agents/orchestrator-general.md"
+        relative_path = "agents/orchestrator-general.md"
         for label, module in (("copilot", COPILOT), ("codex", CODEX), ("claude", CLAUDE)):
             adapted = adapt_body(module, "orchestrator-general", parse_body(module, relative_path))
 
@@ -61,7 +61,7 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("Forbidden:", adapted, label)
 
     def test_pipeline_export_keeps_reviewer_retry_semantics(self) -> None:
-        relative_path = "opencode/agents/orchestrator-pipeline.md"
+        relative_path = "agents/orchestrator-pipeline.md"
         for label, module in (("copilot", COPILOT), ("codex", CODEX), ("claude", CLAUDE)):
             adapted = adapt_body(module, "orchestrator-pipeline", parse_body(module, relative_path))
 
@@ -72,7 +72,7 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("max_retry_rounds", adapted, label)
 
     def test_flow_export_keeps_autopilot_guard_while_minifying_progress_boilerplate(self) -> None:
-        relative_path = "opencode/agents/orchestrator-flow.md"
+        relative_path = "agents/orchestrator-flow.md"
         for label, module in (("copilot", COPILOT), ("codex", CODEX), ("claude", CLAUDE)):
             adapted = adapt_body(module, "orchestrator-flow", parse_body(module, relative_path))
 

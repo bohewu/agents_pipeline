@@ -10,37 +10,31 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CHECKS = {
-    Path("opencode/protocols/PIPELINE_PROTOCOL.md"): [
+    Path("protocols/PIPELINE_PROTOCOL.md"): [
         "roughly no more than once per 15 seconds per active agent",
         "skip the heartbeat and flush the final batch instead",
         'prefer one `event = "batch"` call',
         "runtime MUST merge these overrides over persisted `checkpoint.flags`",
         "Required derived-flag persistence points",
     ],
-    Path("opencode/agents/orchestrator-pipeline.md"): [
+    Path("agents/orchestrator-pipeline.md"): [
         "roughly no more than once per 15 seconds",
         "skip redundant heartbeats when completion or a richer batched delta is likely soon",
-        'event = "batch"',
+        '`--event batch`',
         "hydrate the persisted effective flags from `checkpoint.flags` first",
         "Stage 3 completion event MUST persist the risk-derived `max_retry_rounds`",
     ],
-    Path("opencode/agents/orchestrator-flow.md"): [
+    Path("agents/orchestrator-flow.md"): [
         "roughly >=15 seconds",
         "only emit standalone heartbeats when the task is still active",
-        'event = "batch"',
+        '`--event batch`',
         "legacy task with `effort` but without required `risk` / `review_required`",
         "Start a fresh run with a new `run_id`",
         "Stage 2 completion event MUST persist the risk-derived `review_mode`",
     ],
-    Path("opencode/commands/run-pipeline.md"): [
-        "coarse standalone heartbeat cadence",
-    ],
-    Path("opencode/commands/run-flow.md"): [
-        "coarse standalone heartbeat cadence",
-    ],
     Path("docs/status-implementation-checklist.md"): [
-        "Standalone heartbeats are for long-running active work only",
-        "roughly >=15 seconds",
+        "Send standalone heartbeats only for long-running active work",
+        "approximately 15 seconds or more",
     ],
 }
 

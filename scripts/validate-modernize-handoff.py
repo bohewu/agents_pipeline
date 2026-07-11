@@ -12,7 +12,7 @@ from typing import Iterable, List
 
 def _default_schema_path() -> Path:
     repo_root = Path(__file__).resolve().parent.parent
-    return repo_root / "opencode" / "protocols" / "schemas" / "modernize-exec-handoff.schema.json"
+    return repo_root / "protocols" / "schemas" / "modernize-exec-handoff.schema.json"
 
 
 def _load_json(path: Path):
@@ -46,7 +46,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--schema",
         default=str(_default_schema_path()),
-        help="Path to schema JSON (default: opencode/protocols/schemas/modernize-exec-handoff.schema.json).",
+        help="Path to schema JSON (default: protocols/schemas/modernize-exec-handoff.schema.json).",
     )
     parser.add_argument(
         "--expect-invalid",
@@ -121,4 +121,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

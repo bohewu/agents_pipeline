@@ -6,18 +6,50 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
-## [0.27.0] - 2026-07-10
+## [0.28.0] - 2026-07-11
+
+### Added
+
+- Added the runtime-neutral `modes.json` manifest as the single source for mode names, aliases, and primary orchestrator routing.
+- Added ten formal Codex workflow skills (`$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`) as the primary invocation surface; global installs publish them under `~/.agents/skills/`, while `use <mode>` remains compatibility-only and `run-goal` stays removed.
+- Added `tools/status-event.js` and the reusable `tools/status-runtime/` core for runtime-neutral checkpoint/status projection, ordered batches, cross-repo path anchoring, and resume discovery.
+- Added the runtime-neutral `tools/agent-profile.py` manager and installed Bash/PowerShell entrypoints, with numbered `set`/`status`/`clear`/`list`, runtime/scope/profile/model-set selection, non-interactive explicit-choice support, and JSON status/list output. Runtime setup is global-first; Claude Code and Copilot profiles are global-only.
+- Added isolated Codex workspace profiles. A workspace materializes only profile-specific `.codex/agents/*.toml`, a managed `.codex/config.toml` block, and `.codex/.agents-pipeline-project-profile.json`; skills, scripts, protocols, tools, and runtime support remain globally installed once.
+- Added neutral release archives named `agents-pipeline-bundle-v<version>` containing the canonical core and the three retained runtime adapters.
 
 ### Changed
 
-- Declared Codex the Tier 1, first-class runtime; Claude Code and GitHub Copilot remain Tier 2 best-effort export targets, while OpenCode is deprecated and frozen at the `v0.26.1` OpenCode-first release.
+- Declared Codex the Tier 1, first-class runtime; Claude Code and GitHub Copilot remain Tier 2 best-effort export targets, while OpenCode is frozen at the `v0.26.1` OpenCode-first release.
 - Replaced workflow `effort` controls with explicit, risk-derived verification, review, repair, retry, and resource policies. Model reasoning is now entirely runtime-owned.
+- Moved canonical source from the OpenCode tree to top-level `agents/`, `protocols/`, `skills/`, and `tools/`; canonical agent frontmatter now contains only `name`, `description`, and `kind`.
+- Made formal `$run-*` skills adopt global workflow definitions without manually loading repository role files. Every invocation runs the shared workspace-profile preflight, so unconfigured workspaces inherit global routing while unverifiable, orphaned, or unhealthy local role state stops before dispatch; healthy ineligible profiles warn and use global routing. Managed `use <mode>` aliases follow the same gate.
+- Made Codex the native projection path: global installs synchronize a version-3 marker-owned support tree under `~/.codex/agents-pipeline`, rewrite and relocate neutral references there, and clean an installer-owned legacy `.codex/opencode` mirror during upgrades. The tree includes `AGENTS.md`, runtime catalogs, and installer scripts, so its profile manager supports `set`, `status`, `clear`, and `list` without a source clone. `install` remains a deprecated compatibility alias for `set`.
+- Updated Claude Code and GitHub Copilot exporters/installers to consume neutral agents, exact manifest aliases, neutral profiles, and runtime-specific model catalogs while remaining Tier 2 best-effort adapters.
+- Unified global model-profile set, status, clear, and list behavior across Codex, Claude Code, and Copilot. Codex global status reads its native installer manifest, project status validates its manifest and workspace-local role hashes, and Claude/Copilot use deterministic common runtime-profile manifests. No current profile path reads OpenCode settings.
+- Made Codex workspace status trust-aware without granting trust: it reports local file health separately from `project_trust` and `profile_eligibility`, and warns when an untrusted project layer is ineligible to load.
+- Replaced provider-metadata-backed model catalog updates with static policy validation for the retained Codex, Claude Code, and Copilot catalogs.
+- Consolidated the originally planned v0.29 OpenCode deletion into this neutral-core release so main does not carry a deprecated runtime for another cycle.
+
+### Fixed
+
+- Hardened Codex upgrades against crafted manifest paths, unowned legacy-directory cleanup, and unmarked support-tree replacement; installed support documents now resolve their neutral references from the marker-owned managed root.
+- Made Codex config merging TOML-aware for multiline strings, quoted agent tables, and dotted root settings; project overlays also preserve marker-looking string content and support non-BMP paths.
+- Added content hashes for every generated Codex workspace-profile role and reject linked project config parents, linked support markers, stale/tampered local role content, and malformed managed markers.
+- Added ownership markers plus rollback-capable, per-skill atomic replacement for the ten global user skills, refusing unowned, corrupt, linked, or junction-backed skill targets instead of overwriting them.
+- Hardened all installer-managed output leaves against symlink traversal and partial-file writes; Codex configuration, manifests, global instructions, generated agents, and the Claude runner now use atomic sibling-file replacement.
+- Refused control and shell-interpolation characters in paths that are embedded into generated Bash/PowerShell command snippets, with preflight checks before installer or bootstrap mutation while retaining normal spaces, apostrophes, and parentheses.
+- Preserved unrelated Codex project configuration and role files when setting or clearing the managed project profile; only installer-owned workspace roles are replaced or removed, active global roles are never mutated, project profiles inherit effective global agent limits, and nested modes require `agents.max_depth >= 2`.
+- Hardened the status writer with safe run/task/agent basenames, contained entity paths, compatible explicit resume checks, fresh-run ID collision rejection, strict RFC 3339 timestamps, pre-start update rejection, terminal resource-cleanup gates, all-entity validation before persistence, and automatic-resume identity checks.
+- Added the required bounded Copilot coordinator tools, made Claude's runner-only `Agent` restriction explicit, fixed new-parent dry runs and target validation, fixed repeat PowerShell installs on Unix hosts with hidden manifests, and restored macOS Bash 3.2 compatibility in release bootstraps.
+- Made tag releases validate and package the same selected revision; manual release dispatch now requires the workflow itself to run from the requested tag so artifact attestations carry the expected source ref.
 
 ### Removed
 
 - Removed `/run-goal`, `orchestrator-goal`, and the GoalManifest protocol surface. Long-running execution now uses each runtime's native goal/autopilot capability instead of a cross-runtime wrapper.
-- Removed the OpenCode effort-control plugin and its dedicated installers. A one-release cleanup helper removes legacy files and TUI registrations during all-local upgrades.
-- Removed Pipeline `--effort`, checkpoint `effort_mode`, and Flow task `effort`; Flow tasks now carry explicit `risk` and `review_required` fields.
+- Removed the OpenCode effort-control plugin, its dedicated installers, Pipeline `--effort`, checkpoint `effort_mode`, and Flow task `effort`; Flow tasks now carry explicit `risk` and `review_required` fields.
+- Removed all current-tree OpenCode commands, plugins, tools, model sets, installers, aggregate installers, migration cleanup scripts, and release-bundle targets. OpenCode users remain pinned to `v0.26.1`.
+- Removed OpenCode-only account, usage, skill-manager, and Codex image-generation bridge agents/tools, along with their canonical catalog entries.
+- Removed duplicated command-file flag contracts; orchestrator definitions and `modes.json` now own workflow behavior and routing respectively.
 
 ## [0.26.1] - 2026-07-10
 

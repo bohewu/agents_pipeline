@@ -12,19 +12,57 @@ on:
         type: string
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.release_ref.outputs.tag }}
+      sha: ${{ steps.release_ref.outputs.sha }}
+    steps:
+      - id: release_ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          RELEASE_SHA: ${{ github.sha }}
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          if [[ ! "${REQUESTED_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH. Got: ${REQUESTED_TAG}" >&2
+            exit 1
+          fi
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" && "${EVENT_REF}" != "refs/tags/${REQUESTED_TAG}" ]]; then
+            echo "Manual release must be dispatched from refs/tags/${REQUESTED_TAG}, not ${EVENT_REF}." >&2
+            exit 1
+          fi
+          echo "tag=${REQUESTED_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "sha=${RELEASE_SHA}" >> "${GITHUB_OUTPUT}"
+
+  validate:
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+    with:
+      checkout_ref: ${{ needs.resolve.outputs.sha }}
+      skip_release_bundle: true
+
   bundle:
+    needs: [resolve, validate]
     uses: ./.github/workflows/release-bundle.yml
     permissions:
       contents: read
       attestations: write
       id-token: write
     with:
-      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      tag: ${{ needs.resolve.outputs.tag }}
+      checkout_ref: ${{ needs.resolve.outputs.sha }}
       checkout_tag: true
       upload_artifact: true
 
   release:
-    needs: bundle
+    needs: [resolve, bundle]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -34,7 +72,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify release tag still points to the validated commit
+        env:
+          EXPECTED_SHA: ${{ needs.resolve.outputs.sha }}
+          TAG_NAME: ${{ needs.resolve.outputs.tag }}
+        shell: bash
+        run: |
+          check_ref="refs/tags/agents-pipeline-release-check"
+          git fetch --no-tags origin "refs/tags/${TAG_NAME}:${check_ref}"
+          actual_sha="$(git rev-parse "${check_ref}^{commit}")"
+          if [[ "${actual_sha}" != "${EXPECTED_SHA}" ]]; then
+            echo "Release tag ${TAG_NAME} moved: expected ${EXPECTED_SHA}, got ${actual_sha}." >&2
+            exit 1
+          fi
 
       - name: Download release bundle artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -46,7 +100,7 @@ jobs:
         shell: bash
         run: |
           cd dist
-          sha256sum -c "agents-pipeline-opencode-bundle-${{ needs.bundle.outputs.tag }}.SHA256SUMS.txt"
+          sha256sum -c "agents-pipeline-bundle-${{ needs.bundle.outputs.tag }}.SHA256SUMS.txt"
 
       - name: Verify release bundle attestations
         env:
@@ -79,8 +133,8 @@ jobs:
             done
           }
 
-          verify_attestation "dist/agents-pipeline-opencode-bundle-${TAG_NAME}.tar.gz"
-          verify_attestation "dist/agents-pipeline-opencode-bundle-${TAG_NAME}.zip"
+          verify_attestation "dist/agents-pipeline-bundle-${TAG_NAME}.tar.gz"
+          verify_attestation "dist/agents-pipeline-bundle-${TAG_NAME}.zip"
 
       - name: Publish release assets
         env:

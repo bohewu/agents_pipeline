@@ -27,8 +27,9 @@ If you are unsure whether something is security-relevant, report it privately an
 
 - Never commit live tokens, auth JSON, premium-usage reports, or copied provider payloads.
 - Prefer pinned release assets and checksums over mutable `main` bootstrap flows.
-- For remote skill installs, prefer `--ref=<tag|sha>` when possible.
-- Treat `--include-sensitive` output from `provider-usage` as restricted data.
+- Runtime installers replace only marker-owned namespaced support trees; do not remove the ownership check to make an unmarked target install succeed.
+- Treat generated checkpoint/status artifacts as potentially sensitive because prompts, paths, errors, and evidence references may contain project details.
+- Review runtime model/profile overrides before distribution; keep credentials and provider account metadata out of neutral manifests.
 - Keep error messages helpful, but do not print full tokens, cookies, refresh payloads, or raw credential blobs.
 
 ## Expected Response

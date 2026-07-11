@@ -4,6 +4,8 @@ param(
     [string]$Repo = "bohewu/agents_pipeline",
     [string]$Version = "latest",
     [string]$Target,
+    [string]$ClaudeMd,
+    [switch]$NoRunner,
     [switch]$NoBackup,
     [switch]$DryRun,
     [switch]$KeepTemp,
@@ -15,6 +17,39 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Assert-GeneratedShellPath {
+    param([string]$Value, [string]$Label)
+
+    $candidate = $Value
+    if ([System.IO.Path]::DirectorySeparatorChar -eq [char]0x5c) {
+        $candidate = $candidate.Replace([char]0x5c, [char]0x2f)
+    }
+    foreach ($character in $candidate.ToCharArray()) {
+        if ([char]::IsControl($character) -or [int]$character -in @(0x24, 0x60, 0x22, 0x5c)) {
+            throw "$Label contains a shell-active or control character that is unsafe in generated shell instructions."
+        }
+    }
+}
+
+if ($PSBoundParameters.ContainsKey("Target") -and [string]::IsNullOrWhiteSpace($Target)) {
+    throw "Target path must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("Target") -and $Target.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly if needed."
+}
+if ($PSBoundParameters.ContainsKey("ClaudeMd") -and [string]::IsNullOrWhiteSpace($ClaudeMd)) {
+    throw "CLAUDE.md path must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("ClaudeMd") -and $ClaudeMd.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "CLAUDE.md path '$ClaudeMd' looks like a switch, not a filesystem path. Pass -ClaudeMd with a filesystem path value."
+}
+Assert-GeneratedShellPath -Value $(
+    if ($Target) { $Target } else { Join-Path (Join-Path $HOME ".claude") "agents" }
+) -Label "Target path"
+if ($ClaudeMd) {
+    Assert-GeneratedShellPath -Value $ClaudeMd -Label "CLAUDE.md path"
+}
 
 function Get-ReleaseApiUrl {
     param(
@@ -30,13 +65,30 @@ function Get-ReleaseApiUrl {
     return "https://api.github.com/repos/$RepoName/releases/tags/$tag"
 }
 
+function Assert-NeutralBundleRelease {
+    param([string]$ReleaseTag)
+
+    $match = [regex]::Match($ReleaseTag, '^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$')
+    if (-not $match.Success) {
+        throw "Unsupported release tag format: $ReleaseTag"
+    }
+    $resolvedVersion = [version]::new(
+        [int]$match.Groups[1].Value,
+        [int]$match.Groups[2].Value,
+        [int]$match.Groups[3].Value
+    )
+    if ($resolvedVersion -lt [version]"0.28.0") {
+        throw "The current neutral Claude bootstrap supports v0.28.0 or newer. For an older release, use the bootstrap shipped with that release."
+    }
+}
+
 function Resolve-BundleDirectory {
     param(
         [string]$ExtractRoot
     )
 
     if ((Test-Path -LiteralPath (Join-Path $ExtractRoot "scripts") -PathType Container) -and
-        (Test-Path -LiteralPath (Join-Path $ExtractRoot "opencode") -PathType Container)) {
+        (Test-Path -LiteralPath (Join-Path $ExtractRoot "agents") -PathType Container)) {
         return $ExtractRoot
     }
 
@@ -54,9 +106,19 @@ function Test-ReleaseBundle {
     )
 
     $requiredPaths = @(
-        (Join-Path $BundleDir "opencode/agents"),
+        (Join-Path $BundleDir "agents"),
+        (Join-Path $BundleDir "AGENTS.md"),
+        (Join-Path $BundleDir "modes.json"),
+        (Join-Path $BundleDir "tools/agent-profiles"),
+        (Join-Path $BundleDir "tools/agent-profile.py"),
+        (Join-Path $BundleDir "tools/status-event.js"),
+        (Join-Path $BundleDir "protocols"),
+        (Join-Path $BundleDir "skills"),
+        (Join-Path $BundleDir "runtimes/claude/model-sets"),
         (Join-Path $BundleDir "scripts/export-claude-agents.py"),
-        (Join-Path $BundleDir "scripts/install-claude.ps1")
+        (Join-Path $BundleDir "scripts/install-claude.ps1"),
+        (Join-Path $BundleDir "scripts/path_safety.py"),
+        (Join-Path $BundleDir "scripts/sync-runtime-support.py")
     )
 
     foreach ($requiredPath in $requiredPaths) {
@@ -122,21 +184,22 @@ $releaseTag = [string]$release.tag_name
 if ([string]::IsNullOrWhiteSpace($releaseTag)) {
     throw "Release metadata missing tag_name."
 }
+Assert-NeutralBundleRelease -ReleaseTag $releaseTag
 
 $asset = $release.assets |
-    Where-Object { $_.name -match "^agents-pipeline-opencode-bundle-.*\.zip$" } |
+    Where-Object { $_.name -match "^agents-pipeline-bundle-.*\.zip$" } |
     Select-Object -First 1
 
 if (-not $asset) {
-    throw "No release zip asset found matching agents-pipeline-opencode-bundle-*.zip"
+    throw "No release zip asset found matching agents-pipeline-bundle-*.zip"
 }
 
 $checksumAsset = $release.assets |
-    Where-Object { $_.name -match "^agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$" } |
+    Where-Object { $_.name -match "^agents-pipeline-bundle-.*\.SHA256SUMS\.txt$" } |
     Select-Object -First 1
 
 if (-not $checksumAsset) {
-    throw "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt"
+    throw "No checksum asset found matching agents-pipeline-bundle-*.SHA256SUMS.txt"
 }
 
 Write-Verbose "Resolved release tag: $releaseTag"
@@ -144,9 +207,6 @@ Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
 if ($Target) {
-    if ($Target -match '^-{1,2}[A-Za-z]') {
-        throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly if needed."
-    }
     Write-Host "Install target override: $Target"
 }
 
@@ -203,6 +263,12 @@ try {
     $installParams = @{}
     if ($Target) {
         $installParams.Target = $Target
+    }
+    if ($ClaudeMd) {
+        $installParams.ClaudeMd = $ClaudeMd
+    }
+    if ($NoRunner) {
+        $installParams.NoRunner = $true
     }
     if ($NoBackup) {
         $installParams.NoBackup = $true

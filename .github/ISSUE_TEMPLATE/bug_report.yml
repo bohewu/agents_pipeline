@@ -36,10 +36,11 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: OpenCode/runtime version, OS, shell, Python/Node availability, and whether `gh` or provider auth was configured.
+      description: Runtime and extension/CLI version, OS, shell, Python/Node availability, and whether `gh` or provider auth was configured.
       placeholder: |
         OS:
-        OpenCode:
+        Runtime (Codex / Claude Code / Copilot):
+        Runtime version:
         Python:
         Node:
         Shell:

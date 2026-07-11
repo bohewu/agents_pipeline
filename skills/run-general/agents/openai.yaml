@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run General"
+  short_description: "Adaptively route mixed engineering work"
+  default_prompt: "Use $run-general to route and complete this mixed-scope task."
+policy:
+  allow_implicit_invocation: false

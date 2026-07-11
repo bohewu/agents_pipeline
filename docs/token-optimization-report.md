@@ -2,6 +2,8 @@
 
 Date: 2026-04-01
 
+> Historical note: this report describes the pre-v0.28 runtime layout. Current canonical paths are `agents/`, `protocols/`, `skills/`, and `tools/`; `modes.json` replaces runtime command files.
+
 ## Executive Summary
 
 Analysis of the agents pipeline token consumption identifies **~13,000-25,000 tokens/run** of savings available without affecting pipeline quality. The largest single optimization is slimming `PROTOCOL_SUMMARY.md`, which is loaded into every subagent call but contains content only orchestrators need.
@@ -123,7 +125,7 @@ Files to delete:
 - `docs/status-cli-plan.md`
 - `docs/status-cli-roadmap.md`
 - `docs/status-implementation-checklist.md`
-- `docs/status-runtime-plugin-spec.md`
+- `docs/status-writer-spec.md`
 - References in `opencode/commands/run-*.md` (one line each)
 - References in `README.md` and `CHANGELOG.md`
 

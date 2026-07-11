@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "modes": [
+    {
+      "name": "flow",
+      "agent": "orchestrator-flow",
+      "aliases": ["flow", "run-flow"]
+    },
+    {
+      "name": "pipeline",
+      "agent": "orchestrator-pipeline",
+      "aliases": ["pipeline", "run-pipeline"]
+    },
+    {
+      "name": "general",
+      "agent": "orchestrator-general",
+      "aliases": ["general", "run-general", "monetize", "run-monetize"]
+    },
+    {
+      "name": "simple",
+      "agent": "orchestrator-simple",
+      "aliases": ["simple", "run-simple"]
+    },
+    {
+      "name": "spec",
+      "agent": "orchestrator-spec",
+      "aliases": ["spec", "run-spec"]
+    },
+    {
+      "name": "ci",
+      "agent": "orchestrator-ci",
+      "aliases": ["ci", "run-ci"]
+    },
+    {
+      "name": "modernize",
+      "agent": "orchestrator-modernize",
+      "aliases": ["modernize", "run-modernize"]
+    },
+    {
+      "name": "analysis",
+      "agent": "orchestrator-analysis",
+      "aliases": ["analysis", "run-analysis"]
+    },
+    {
+      "name": "ux",
+      "agent": "orchestrator-ux",
+      "aliases": ["ux", "run-ux"]
+    },
+    {
+      "name": "committee",
+      "agent": "orchestrator-committee",
+      "aliases": ["committee", "run-committee"]
+    }
+  ]
+}

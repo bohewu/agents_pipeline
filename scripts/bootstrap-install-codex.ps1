@@ -4,6 +4,9 @@ param(
     [string]$Repo = "bohewu/agents_pipeline",
     [string]$Version = "latest",
     [string]$Target,
+    [string]$WorkspaceRoot,
+    [string]$GlobalAgentsTarget,
+    [string]$UserSkillsRoot,
     [switch]$NoBackup,
     [switch]$Force,
     [switch]$DryRun,
@@ -17,6 +20,52 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-GeneratedShellPath {
+    param([string]$Value, [string]$Label)
+
+    $candidate = $Value
+    if ([System.IO.Path]::DirectorySeparatorChar -eq [char]0x5c) {
+        $candidate = $candidate.Replace([char]0x5c, [char]0x2f)
+    }
+    foreach ($character in $candidate.ToCharArray()) {
+        if ([char]::IsControl($character) -or [int]$character -in @(0x24, 0x60, 0x22, 0x5c)) {
+            throw "$Label contains a shell-active or control character that is unsafe in generated shell instructions."
+        }
+    }
+}
+
+if ($PSBoundParameters.ContainsKey("Target") -and [string]::IsNullOrWhiteSpace($Target)) {
+    throw "Target path must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("Target") -and $Target.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target with a filesystem path value."
+}
+if ($PSBoundParameters.ContainsKey("WorkspaceRoot") -and [string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
+    throw "Workspace root must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("WorkspaceRoot") -and $WorkspaceRoot.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "Workspace root '$WorkspaceRoot' looks like a switch, not a filesystem path. Pass -WorkspaceRoot with a filesystem path value."
+}
+if ($PSBoundParameters.ContainsKey("GlobalAgentsTarget") -and [string]::IsNullOrWhiteSpace($GlobalAgentsTarget)) {
+    throw "Global AGENTS.md target must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("GlobalAgentsTarget") -and $GlobalAgentsTarget.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "Global AGENTS.md target '$GlobalAgentsTarget' looks like a switch, not a filesystem path. Pass -GlobalAgentsTarget with a filesystem path value."
+}
+if ($PSBoundParameters.ContainsKey("UserSkillsRoot") -and [string]::IsNullOrWhiteSpace($UserSkillsRoot)) {
+    throw "User skills root must not be empty."
+}
+if ($PSBoundParameters.ContainsKey("UserSkillsRoot") -and $UserSkillsRoot.TrimStart() -match '^-{1,2}[A-Za-z]') {
+    throw "User skills root '$UserSkillsRoot' looks like a switch, not a filesystem path."
+}
+Assert-GeneratedShellPath -Value $(if ($Target) { $Target } else { Join-Path $HOME ".codex" }) -Label "Target path"
+if ($WorkspaceRoot) {
+    Assert-GeneratedShellPath -Value $WorkspaceRoot -Label "Workspace root"
+}
+if ($GlobalAgentsTarget) {
+    Assert-GeneratedShellPath -Value $GlobalAgentsTarget -Label "Global AGENTS target"
+}
+
 function Get-ReleaseApiUrl {
     param(
         [string]$RepoName,
@@ -29,6 +78,23 @@ function Get-ReleaseApiUrl {
 
     $tag = if ($VersionValue.StartsWith("v")) { $VersionValue } else { "v$VersionValue" }
     return "https://api.github.com/repos/$RepoName/releases/tags/$tag"
+}
+
+function Assert-NeutralBundleRelease {
+    param([string]$ReleaseTag)
+
+    $match = [regex]::Match($ReleaseTag, '^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$')
+    if (-not $match.Success) {
+        throw "Unsupported release tag format: $ReleaseTag"
+    }
+    $resolvedVersion = [version]::new(
+        [int]$match.Groups[1].Value,
+        [int]$match.Groups[2].Value,
+        [int]$match.Groups[3].Value
+    )
+    if ($resolvedVersion -lt [version]"0.28.0") {
+        throw "The current neutral Codex bootstrap supports v0.28.0 or newer. For an older release, use the bootstrap shipped with that release."
+    }
 }
 
 function Test-GhAttestationSupport {
@@ -87,21 +153,22 @@ $releaseTag = [string]$release.tag_name
 if ([string]::IsNullOrWhiteSpace($releaseTag)) {
     throw "Release metadata missing tag_name."
 }
+Assert-NeutralBundleRelease -ReleaseTag $releaseTag
 
 $asset = $release.assets |
-    Where-Object { $_.name -match "^agents-pipeline-opencode-bundle-.*\.zip$" } |
+    Where-Object { $_.name -match "^agents-pipeline-bundle-.*\.zip$" } |
     Select-Object -First 1
 
 if (-not $asset) {
-    throw "No release zip asset found matching agents-pipeline-opencode-bundle-*.zip"
+    throw "No release zip asset found matching agents-pipeline-bundle-*.zip"
 }
 
 $checksumAsset = $release.assets |
-    Where-Object { $_.name -match "^agents-pipeline-opencode-bundle-.*\.SHA256SUMS\.txt$" } |
+    Where-Object { $_.name -match "^agents-pipeline-bundle-.*\.SHA256SUMS\.txt$" } |
     Select-Object -First 1
 
 if (-not $checksumAsset) {
-    throw "No checksum asset found matching agents-pipeline-opencode-bundle-*.SHA256SUMS.txt"
+    throw "No checksum asset found matching agents-pipeline-bundle-*.SHA256SUMS.txt"
 }
 
 Write-Verbose "Resolved release tag: $releaseTag"
@@ -109,9 +176,6 @@ Write-Host "Selected asset: $($asset.name)"
 Write-Host "Download URL: $($asset.browser_download_url)"
 Write-Host "Checksum asset: $($checksumAsset.name)"
 if ($Target) {
-    if ($Target -match '^-{1,2}[A-Za-z]') {
-        throw "Target path '$Target' looks like a switch, not a filesystem path. Pass -Target explicitly with a filesystem path value."
-    }
     Write-Host "Install target override: $Target"
 }
 
@@ -167,9 +231,45 @@ try {
         throw "Install script not found in bundle: $installScript"
     }
 
+    $requiredBundlePaths = @(
+        "AGENTS.md",
+        "modes.json",
+        "agents",
+        "protocols",
+        "skills",
+        "tools/status-event.js",
+        "tools/agent-profile.py",
+        "tools/status-runtime",
+        "tools/agent-profiles",
+        "runtimes/codex/model-sets",
+        "scripts/agent_model_profiles.py",
+        "scripts/codex_mode_aliases.py",
+        "scripts/codex-project-profile.py",
+        "scripts/export-codex-agents.py",
+        "scripts/install-codex-config.py",
+        "scripts/path_safety.py",
+        "scripts/sync-codex-skills.py",
+        "scripts/sync-runtime-support.py"
+    )
+    foreach ($requiredPath in $requiredBundlePaths) {
+        $resolvedRequiredPath = Join-Path $bundleDir.FullName $requiredPath
+        if (-not (Test-Path -LiteralPath $resolvedRequiredPath)) {
+            throw "Codex bundle layout is incomplete; missing: $requiredPath"
+        }
+    }
+
     $installParams = @{}
     if ($Target) {
         $installParams.Target = $Target
+    }
+    if ($WorkspaceRoot) {
+        $installParams.WorkspaceRoot = $WorkspaceRoot
+    }
+    if ($GlobalAgentsTarget) {
+        $installParams.GlobalAgentsTarget = $GlobalAgentsTarget
+    }
+    if ($UserSkillsRoot) {
+        $installParams.UserSkillsRoot = $UserSkillsRoot
     }
     if ($NoBackup) {
         $installParams.NoBackup = $true
