@@ -1,10 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Modernize Execution Handoff",
-  "description": "Inter-orchestrator handoff contract for delegating a modernization roadmap phase from orchestrator-modernize to orchestrator-pipeline.",
+  "title": "Modernize Execution Transition",
+  "description": "Phase-scoped contract used when the current/main agent transitions in place from Modernize planning to the orchestrator-pipeline workflow.",
   "type": "object",
   "required": [
-    "recipient_agent",
     "working_project_dir",
     "main_task_prompt",
     "pipeline_flags",
@@ -13,6 +12,14 @@
     "modernize_constraints",
     "definition_of_done",
     "evidence_expectations"
+  ],
+  "anyOf": [
+    {
+      "required": ["target_workflow"]
+    },
+    {
+      "required": ["recipient_agent"]
+    }
   ],
   "properties": {
     "protocol_version": {
@@ -25,15 +32,20 @@
       "const": "modernize-exec-handoff",
       "description": "Optional discriminator for runtime routing/validation."
     },
+    "target_workflow": {
+      "type": "string",
+      "const": "orchestrator-pipeline",
+      "description": "The Pipeline definition adopted in place by the current/main agent."
+    },
     "recipient_agent": {
       "type": "string",
       "enum": ["@orchestrator-pipeline", "orchestrator-pipeline"],
-      "description": "The delegated orchestrator that owns execution/test/review flow."
+      "description": "Deprecated v1.0 compatibility field. Treat it as target_workflow; it does not authorize spawning another primary orchestrator."
     },
     "working_project_dir": {
       "type": "string",
       "minLength": 1,
-      "description": "Delegated implementation directory: target project B for source-to-target modes, or the current repository for branch mode. Worktree-aware runtimes should also treat this as the preferred delegated execution root/cwd."
+      "description": "Pipeline implementation directory: target project B for source-to-target modes, or the current repository for branch mode. The current/main agent and its tools should treat this as the execution root/cwd."
     },
     "source_project_dir": {
       "type": "string",
@@ -42,11 +54,11 @@
     "main_task_prompt": {
       "type": "string",
       "minLength": 1,
-      "description": "Phase-scoped execution prompt for orchestrator-pipeline."
+      "description": "Phase-scoped execution prompt for the adopted orchestrator-pipeline workflow."
     },
     "pipeline_flags": {
       "type": "array",
-      "description": "Forwarded orchestrator-pipeline flags, already normalized by orchestrator-modernize.",
+      "description": "Forwarded orchestrator-pipeline flags, already normalized by the Modernize workflow.",
       "items": {
         "type": "string",
         "pattern": "^--.+"
@@ -163,7 +175,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Delegated phase definition of done for orchestrator-pipeline."
+      "description": "Phase definition of done for the adopted orchestrator-pipeline workflow."
     },
     "evidence_expectations": {
       "type": "array",
@@ -172,7 +184,7 @@
         "type": "string",
         "minLength": 1
       },
-      "description": "Evidence/reporting expectations that should appear in the delegated final summary."
+      "description": "Evidence/reporting expectations that should appear in the Pipeline phase summary."
     },
     "phase_sequence_context": {
       "type": "object",
@@ -198,7 +210,7 @@
     },
     "runtime_metadata": {
       "type": "object",
-      "description": "Optional runtime-specific metadata (trace IDs, timestamps, dispatcher info).",
+      "description": "Optional runtime-specific metadata (trace IDs, timestamps, execution working-directory info).",
       "additionalProperties": true
     }
   },

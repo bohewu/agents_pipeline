@@ -9,7 +9,7 @@ For the conceptual UI/UX layer, use `ui-ux-designer`; see `protocols/UI_UX_WORKF
 | Agent | Role | Mode | Notes |
 |------|------|------|-------|
 | orchestrator-ci | CI/CD planning pipeline (docs-first, optional generation) | primary | Docs-first |
-| orchestrator-modernize | Modernization planning pipeline (experimental) | primary | Documentation-only outputs |
+| orchestrator-modernize | Modernization planning pipeline (experimental) | primary | In-place Pipeline transition for requested execution |
 | orchestrator-pipeline | Full pipeline orchestration with routing, retries, and synthesis | primary | Global handoff protocol embedded |
 | orchestrator-spec | Development spec orchestration for review-ready DevSpec outputs | primary | Docs-first |
 | orchestrator-flow | Flow orchestration with max-5 tasks and optional reviewer gate | primary | Bounded flow, no delta-task retry loops |

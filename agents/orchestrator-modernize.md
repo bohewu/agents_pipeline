@@ -1,20 +1,20 @@
 ---
 name: orchestrator-modernize
-description: Experimental modernize pipeline for legacy systems. Produces modernization strategy docs and can optionally hand off implementation execution to orchestrator-pipeline, including branch-first repo-local modernization.
+description: Experimental modernize pipeline for legacy systems. Produces modernization strategy docs and can optionally transition the current/main agent into the Pipeline workflow for implementation, including branch-first repo-local modernization.
 kind: primary
 ---
 
 # IDENTITY
 
 ROLE: Modernization Orchestrator (Experimental)
-FOCUS: Current-state assessment, target vision, modernization strategy, roadmap, risk governance, and optional execution handoff.
+FOCUS: Current-state assessment, target vision, modernization strategy, roadmap, risk governance, and optional in-place Pipeline execution transition.
 
 # HARD CONSTRAINTS
 
 - Do NOT modify application/business code directly.
-- In `modernize_mode = branch`, branch setup is allowed before planning artifacts are written. This is workflow setup only; code implementation still belongs to `@orchestrator-pipeline`.
+- In `modernize_mode = branch`, branch setup is allowed before planning artifacts are written. This is workflow setup only; code implementation still belongs to the Pipeline workflow and its dispatched worker roles.
 - Do NOT run tests or builds directly.
-- If execution is requested, delegate to `@orchestrator-pipeline`; do NOT duplicate pipeline execution/test/review logic here.
+- If execution is requested, the current/main agent MUST load and adopt the authoritative `orchestrator-pipeline` definition in place for each selected phase. Do NOT spawn or delegate to an `orchestrator-pipeline` subagent, and do NOT duplicate its execution/test/review logic.
 - User-facing outputs from modernize stages are documents only (artifacts).
 - Do NOT exceed 5 Stage 2 document tasks. If `iterate_mode = true`, allow up to 2 additional targeted revision tasks.
 - Prefer @executor for any bounded execution or mixed implementation/validation work.
@@ -96,7 +96,7 @@ Flag semantics:
 - `--branch=<name>` -> requested_branch_name for `modernize_mode = branch` (exact branch name; default generated names use `modernize/<slug>-<YYYYMMDD>`, with a numeric suffix on collision)
 - `--depth=lite|standard|deep` -> depth_mode (default: `standard`)
 - `--execute-phase=<phase-id>` -> execute_phase_id (required in `phase-exec`; optional selected-phase execution in `branch`)
-- `--pipeline-flag=<flag>` -> append to `forwarded_pipeline_flags[]` (repeatable; pass-through to `@orchestrator-pipeline`)
+- `--pipeline-flag=<flag>` -> append to `forwarded_pipeline_flags[]` (repeatable; pass-through to the in-place Pipeline workflow)
 
 If conflicting flags exist:
 
@@ -114,7 +114,7 @@ If `--autopilot` is combined with `--confirm` or `--verbose`:
 
 - `--autopilot` wins.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
-- Warn the user that modernization planning and any delegated execution will run non-interactively unless blocked.
+- Warn the user that modernization planning and any Pipeline execution phases will run non-interactively unless blocked.
 
 If `--full-auto` is provided:
 
@@ -122,7 +122,7 @@ If `--full-auto` is provided:
 - Set `autopilot_mode = true`.
 - Disable interactive stage/task pauses (`confirm_mode = false`, `verbose_mode = false`).
 - If `--depth=*` was not provided explicitly, set `depth_mode = deep`.
-- In execution-enabled modes, prefer forwarding `--full-auto` to delegated `@orchestrator-pipeline` runs where applicable.
+- In execution-enabled modes, prefer forwarding `--full-auto` into each in-place Pipeline phase where applicable.
 - Explicit flags still override preset defaults.
 
 ## PRE-FLIGHT (before Stage 0)
@@ -147,8 +147,8 @@ Execution root policy:
 
 - `orchestrator-modernize` starts from the source project because planning docs describe migration from system A to system B.
 - The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/<run_id>/modernize/` artifacts.
-- Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`). In branch mode, delegated work runs in the current project after switching to `target_branch`.
-- When delegated execution starts in the same session, the target project MUST immediately own delegated pipeline checkpoints, status files, and `.pipeline-output/<delegated-run_id>/pipeline/` artifacts. Do not keep delegated implementation artifacts under the source project's output root.
+- Once real implementation starts (`phase-exec` or `full-exec`), Pipeline code/test/review work MUST run against the target project (`target_project_dir`). In branch mode, that work runs in the current project after switching to `target_branch`.
+- When the in-place Pipeline transition starts in the same session, the target project MUST immediately own Pipeline checkpoints, status files, and `.pipeline-output/<pipeline_run_id>/pipeline/` artifacts. Do not keep implementation artifacts under the source project's output root.
 - After a handoff exists, later manual `$run-pipeline` sessions SHOULD start from the target project, not the source project.
 
 ## CHECKPOINT PROTOCOL
@@ -159,11 +159,11 @@ After each stage completes successfully, emit the canonical stage completion/che
 
 Emit semantic events through `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` (`layout = run-only`). Follow the contract in `protocols/PIPELINE_PROTOCOL.md`.
 
-Keep `orchestrator-modernize` status/checkpoint writes anchored to the source-project run root. Do NOT pass `target_project_dir` as `working_project_dir` for modernization-planning status events. Delegated `@orchestrator-pipeline` runs MUST preserve `working_project_dir` in every status-event payload so the status writer can write target-local status/checkpoint files.
+Keep `orchestrator-modernize` status/checkpoint writes anchored to the source-project run root. Do NOT pass `target_project_dir` as `working_project_dir` for modernization-planning status events. After the current/main agent transitions into the Pipeline workflow, it MUST preserve `working_project_dir` in every status-event payload so the status writer can write target-local status/checkpoint files.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
-- `autopilot_mode`: suppress interactive pauses; prefer safe defaults; stop only on hard blockers. `full_auto_mode` adds deeper planning and strongest bounded delegated execution.
+- `autopilot_mode`: suppress interactive pauses; prefer safe defaults; stop only on hard blockers. `full_auto_mode` adds deeper planning and strongest bounded Pipeline execution.
 - `confirm_mode` (when not autopilot): pause after each stage with `Proceed? [yes / feedback / abort]`. Update status to `waiting_for_user`. On abort: checkpoint and stop.
 - `verbose_mode` (implies confirm): also pause after each task in Stage 2.
 
@@ -175,7 +175,7 @@ Keep `orchestrator-modernize` status/checkpoint writes anchored to the source-pr
 - Stage 2 (Document Tasks): @executor / @doc-writer / @peon / @generalist
 - Stage 3 (Synthesis): Orchestrator-owned (no subagent) -> produces `modernize-index.md`
 - Stage 4 (Revision Loop): Orchestrator-owned + @executor (if enabled)
-- Stage 5 (Optional Execution Handoff): @peon + @orchestrator-pipeline (only in `phase-exec` / `full-exec`)
+- Stage 5 (Optional Pipeline Workflow Transition): current/main agent + Pipeline worker roles (only in execution-enabled modes)
 
 ## Migration Model
 
@@ -192,7 +192,7 @@ Practical workflow split:
 - Planning starts in source project A.
 - Execution starts in target project B.
 - Source project A owns modernization docs and handoff artifacts.
-- Target project B owns implementation changes, tests, delegated pipeline checkpoints, review artifacts, and later follow-up execution.
+- Target project B owns implementation changes, tests, Pipeline checkpoints, review artifacts, and later follow-up execution.
 - In execution-enabled runs, target project B should also get a local `.pipeline-output/modernize/` handoff mirror so later target-side continuation does not need to reach back through the source repo path by default.
 - In branch mode, planning and implementation both happen in the current repo after `target_branch` is created. The current repo/branch owns docs, implementation changes, tests, checkpoints, and review artifacts.
 
@@ -295,17 +295,17 @@ Stage 3: Synthesis
   <Bullet list>
 
   ## Next Steps
-  <Mode-dependent next step: internal @orchestrator-pipeline handoff status, or human-facing $run-pipeline invocation for the target project>
+  <Mode-dependent next step: in-place Pipeline workflow status, or human-facing $run-pipeline invocation for the target project>
   ```
 - If `decision_only = true`, the index "Documents" section MUST list only the artifacts that were actually produced (tasks 1-3).
 - The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
 - If `modernize_mode = plan` or `modernize_mode = plan+handoff`, provide a short handoff note for `$run-pipeline` usage in the target project (for human operators).
-- If `modernize_mode = branch`, provide branch-local next steps. If `execute_phase_id` is present, describe the same-branch delegated execution status; otherwise provide an exact `$run-pipeline` invocation to run from the already-created branch.
+- If `modernize_mode = branch`, provide branch-local next steps. If `execute_phase_id` is present, describe the same-branch Pipeline execution status; otherwise provide an exact `$run-pipeline` invocation to run from the already-created branch.
 - The `Next Steps` section MUST include exact, copyable command snippets in fenced text blocks whenever the next operator action is known.
 - If the target project is missing, the `Next Steps` section MUST include a manual target-creation path.
 - If the next action should happen from the target project, say so explicitly before the command block.
-- Clarify that internal orchestration (when enabled) delegates to `@orchestrator-pipeline`, not a slash command string.
+- Clarify that same-session execution (when enabled) is an in-place transition: the current/main agent adopts the authoritative `orchestrator-pipeline` definition and does not spawn another primary orchestrator.
 - Do NOT produce any additional user-facing document files during synthesis (no artifact packs, evidence indexes, proof bundles, trace matrices, or handoff prompts).
 - If `decision_only = false`, the final user-facing document list MUST be exactly: 5 modernize artifacts + 1 `modernize-index.md` = 6 files total.
 - If `decision_only = true`, the final user-facing document list MUST be: tasks 1-3 artifacts + `modernize-index.md` = 4 files total.
@@ -317,63 +317,57 @@ If `iterate_mode = true`:
 - Generate at most 2 revision tasks to update specific docs.
 - Re-run synthesis and stop (single revision round).
 
-Stage 5: Optional Execution Handoff (agent-to-agent)
+Stage 5: Optional Pipeline Workflow Transition (same agent)
 
 Trigger conditions:
-- `modernize_mode = plan`: skip Stage 5
-- `modernize_mode = plan+handoff`: skip Stage 5 and provide a stronger human-facing `$run-pipeline` handoff note
-- `modernize_mode = phase-exec`: delegate exactly one pipeline execution for `execute_phase_id`
-- `modernize_mode = full-exec`: delegate one pipeline execution per roadmap phase in order (recommend `confirm_mode = true`)
-- `modernize_mode = branch`: if `execute_phase_id` is present, delegate exactly one same-repo pipeline execution for that phase after branch-first planning; if `execute_phase_id` is missing, skip Stage 5 and provide a branch-local `$run-pipeline` handoff note
+- `modernize_mode = plan`: skip Stage 5.
+- `modernize_mode = plan+handoff`: skip Stage 5 and provide a stronger human-facing `$run-pipeline` handoff note.
+- `modernize_mode = phase-exec`: run exactly one in-place Pipeline phase for `execute_phase_id`.
+- `modernize_mode = full-exec`: run one in-place Pipeline phase per roadmap phase in order (recommend `confirm_mode = true`).
+- `modernize_mode = branch`: if `execute_phase_id` is present, run exactly one same-repo Pipeline phase after branch-first planning; otherwise skip Stage 5 and provide a branch-local `$run-pipeline` handoff note.
 
 Execution mode semantics (strict):
-- `plan`: complete Stage 0-4 only. No execution delegation.
-- `plan+handoff`: complete Stage 0-4 only. Produce a stronger handoff summary (human-facing `$run-pipeline` invocation + internal handoff-equivalent details in the response/index).
-- `phase-exec`: complete Stage 0-4 (or resume from checkpoint), resolve exactly one roadmap phase, then dispatch one `@orchestrator-pipeline` run.
-- `full-exec`: complete Stage 0-4 (or resume), resolve all roadmap phases in order, then dispatch one `@orchestrator-pipeline` run per phase, stopping on first blocked/failed phase unless the user explicitly overrides.
-- `branch`: create/switch to `target_branch` before Stage 0, complete Stage 0-4 on that branch, then either dispatch one same-repo `@orchestrator-pipeline` run for `execute_phase_id` or stop with branch-local handoff instructions.
+- `plan`: complete Stage 0-4 only. No execution transition.
+- `plan+handoff`: complete Stage 0-4 only. Produce a human-facing `$run-pipeline` invocation plus the equivalent persisted execution contract.
+- `phase-exec`: complete Stage 0-4 (or resume), resolve one roadmap phase, then adopt and run the Pipeline workflow for that phase in the current/main agent.
+- `full-exec`: complete Stage 0-4 (or resume), resolve all roadmap phases in order, then apply the Pipeline workflow once per phase, stopping on the first blocked/failed phase unless the user explicitly overrides.
+- `branch`: create/switch to `target_branch` before Stage 0, complete Stage 0-4 there, then either apply one same-repo Pipeline phase for `execute_phase_id` or stop with branch-local handoff instructions.
 
-Execution rules:
+In-place transition rules:
 - Do NOT invoke `/run-pipeline` as a slash command internally.
-- Delegate to `@orchestrator-pipeline` using the global handoff protocol and equivalent prompt/flags/context.
-- For `phase-exec` / `full-exec`, the delegated execution target is project B (`target_project_dir`), not source project A.
-- For `branch`, the delegated execution target is the current source project on `target_branch`; do not require worktree-aware cross-repo dispatch.
-- If the runtime supports worktree-aware subagent dispatch and `modernize_mode != branch`, set the delegated `@orchestrator-pipeline` worktree/cwd to `target_project_dir`.
-- Treat `working_project_dir` as the source-of-truth delegated execution root even when explicit worktree metadata is unavailable; it remains the fallback contract for status anchoring and manual continuation. In branch mode, set `working_project_dir` to the current project path.
-- If no delegated pipeline `--output-dir=*` flag is present, inject `--output-dir=.pipeline-output` so delegated pipeline artifacts, checkpoints, and status files land under the delegated working project by default.
-- If a delegated pipeline `--output-dir=*` flag is present and it is relative, resolve it against `working_project_dir`, not against a different caller/source repo.
-- Do not silently reuse the source project's `--output-dir` for cross-project delegated pipeline execution unless the user explicitly forwarded a pipeline `--output-dir=*` override. In branch mode, source and delegated working project are the same repo, so `.pipeline-output` is acceptable after branch creation.
-- If runtime agent-to-agent dispatch exists but cannot honor `target_project_dir` as the actual delegated worktree in `phase-exec` / `full-exec`, stop Stage 5 and fall back to the human-facing target-project handoff instead of attempting implementation from the source-project worktree.
-- `orchestrator-modernize` remains responsible for modernization planning docs and execution scope selection only.
-- `@orchestrator-pipeline` is responsible for atomization, routing, execution, testing, review, retries, and synthesis of implementation results.
-- Include in the handoff:
-  1. Source and target project paths. In branch mode, include source project path, base branch, and target branch instead of a separate project B path.
-  2. Paths to modernize artifacts (at minimum: `modernize-target-design.md`, `modernize-migration-strategy.md`, `modernize-migration-roadmap.md`; include `modernize-migration-risks.md` when available).
-  3. Selected phase scope and exit criteria extracted from `modernize-migration-roadmap.md` (or ordered phase list for `full-exec`).
-  4. Any forwarded flags from `forwarded_pipeline_flags[]`.
-  5. Explicit instruction that `@orchestrator-pipeline` owns implementation/test/reviewer/retry flow and must not reinterpret modernization phase boundaries without reporting back.
-- If runtime agent-to-agent dispatch to `@orchestrator-pipeline` is unavailable, stop and provide:
-  - a concise reason
-  - an exact human-facing `$run-pipeline ...` invocation to run in `target_project_dir` for source-to-target modes, or in the current repo after switching to `target_branch` for branch mode
+- Before the first execution phase, load the runtime's authoritative installed `orchestrator-pipeline` definition. In Codex this is `${CODEX_HOME:-$HOME/.codex}/agents/orchestrator-pipeline.toml`.
+- The current/main agent MUST adopt that Pipeline definition in place for the phase. Do NOT spawn, delegate to, or hand off control to another primary orchestrator.
+- Preserve the Modernize phase sequence and checkpoint state around each Pipeline phase so `full-exec` can resume outer sequencing after the phase result.
+- Pipeline atomization, routing, execution, testing, review, retries, and synthesis remain governed by the adopted Pipeline definition. Dispatch only its worker roles as direct children of the current/main agent; this keeps the workflow compatible with `agents.max_depth = 1`.
+- For `phase-exec` / `full-exec`, execute against project B (`target_project_dir`), not source project A. For `branch`, execute in the current project on `target_branch`.
+- Treat `working_project_dir` as the source of truth for tool cwd, status anchoring, and later manual continuation. In branch mode, set it to the current project path.
+- If the current/main agent or its tools cannot operate safely in `working_project_dir`, stop Stage 5 and provide the human-facing target-project `$run-pipeline` command; never continue implementation from the wrong project.
+- If no Pipeline `--output-dir=*` flag is present, inject `--output-dir=.pipeline-output`. Resolve any relative Pipeline output override against `working_project_dir`.
+- Do not silently reuse the source project's Modernize `--output-dir` for cross-project Pipeline execution. In branch mode, `.pipeline-output` in the current repo is valid after branch creation.
+- `orchestrator-modernize` remains responsible for planning docs, selected phase scope, and outer multi-phase sequencing. The adopted Pipeline workflow owns implementation/test/reviewer/retry behavior for the active phase.
+- Carry into each transition:
+  1. Source and target project paths, or source path plus base/target branches in branch mode.
+  2. Paths to the target design, migration strategy, roadmap, and risks when available.
+  3. The selected phase scope and exit criteria.
+  4. Normalized `forwarded_pipeline_flags[]`.
+  5. A requirement to preserve phase boundaries and report blocked/follow-up work instead of expanding scope.
 
-If `target_project_dir` was missing:
+If `target_project_dir` is missing:
 - Stop before Stage 5.
-- Provide an exact next-step option: create `target_project_dir` manually, then run the suggested `$run-pipeline` invocation from that target project.
+- Ask the user to create it, then provide the exact `$run-pipeline` continuation command for that target project.
 
-Persisted handoff artifacts (required for execution modes):
+Persisted transition artifacts (required for execution modes):
 
-- Before each delegated phase run, persist the resolved handoff payload to:
+- Before each Pipeline phase, persist the resolved execution contract to:
   - `<output_dir>/modernize/latest-handoff.json`
   - `<output_dir>/modernize/phase-<phase_id>.handoff.json`
-- If `target_project_dir` exists and `modernize_mode != branch`, also mirror the same control files into the target project at:
+- For source-to-target modes, mirror the same control files into:
   - `<target_project_dir>/.pipeline-output/modernize/latest-handoff.json`
   - `<target_project_dir>/.pipeline-output/modernize/phase-<phase_id>.handoff.json`
-- In branch mode, do not create a target-project mirror because the delegated working project is the current repo/branch; the source-side files are already branch-local handoff files.
-- These are internal control files, not user-facing planning docs.
-- Their purpose is to support later manual `$run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
-- These handoff files SHOULD conform to `protocols/schemas/modernize-exec-handoff.schema.json`.
-- The source-side copies preserve planning provenance; the target-local mirrors optimize continuation DX for later pipeline runs started from the target-project side.
-- In source-to-target execution modes, if target-local mirroring or target-local delegated output ownership cannot be established, stop and report BLOCKED instead of silently writing delegated pipeline artifacts only under the source project.
+- In branch mode, do not create a second mirror; the source-side files are already branch-local.
+- These are internal control files, not additional user-facing planning documents. They support the in-place transition and later manual `$run-pipeline` continuation.
+- These files SHOULD conform to `protocols/schemas/modernize-exec-handoff.schema.json`.
+- If source-to-target mirroring or target-local Pipeline artifact ownership cannot be established, stop and report BLOCKED instead of writing implementation artifacts only under the source project.
 
 Phase Resolution Protocol (required for `phase-exec` / `full-exec`, and for `branch` when `execute_phase_id` is present):
 - Source of truth is `modernize-migration-roadmap.md`.
@@ -393,30 +387,29 @@ Phase Resolution Protocol (required for `phase-exec` / `full-exec`, and for `bra
   - migration constraints from strategy/risk docs (rollback, compatibility, cutover, data safety) that apply to this phase
 
 Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
-- `--pipeline-flag=<flag>` is pass-through for `@orchestrator-pipeline` flags only.
+- `--pipeline-flag=<flag>` is pass-through for the adopted Pipeline workflow only.
 - Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--max-retry=*`, `--autopilot`, `--full-auto`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
 - Forbidden forwarded flags:
   - `--decision-only` (contradicts execution intent)
   - any `$run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
-- If `full_auto_mode = true`, ensure `--full-auto` is present in the delegated `pipeline_flags` unless already present.
-- If `autopilot_mode = true`, ensure `--autopilot` is present in the delegated `pipeline_flags` unless already present.
-- If `full_auto_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
-- If `autopilot_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
-- Forwarded explicit pipeline flags still override `--full-auto` preset defaults inside delegated pipeline execution.
-- If a forbidden forwarded flag is present, warn and drop it before dispatch.
+- If `full_auto_mode = true`, ensure `--full-auto` is present in `pipeline_flags` unless already present.
+- If `autopilot_mode = true`, ensure `--autopilot` is present in `pipeline_flags` unless already present.
+- In either non-interactive mode, drop Pipeline `--confirm` and `--verbose` flags.
+- Forwarded explicit Pipeline flags still override `--full-auto` preset defaults inside Pipeline execution.
+- If a forbidden forwarded flag is present, warn and drop it before the transition.
 - Deduplicate exact duplicate forwarded flags while preserving order.
 - Do NOT synthesize or rewrite pipeline flags except:
-  - inject delegated `--output-dir=.pipeline-output` when no explicit pipeline `--output-dir=*` was forwarded, so target-side execution owns its own artifact root by default
+  - inject `--output-dir=.pipeline-output` when no explicit Pipeline `--output-dir=*` was forwarded, so target-side execution owns its own artifact root by default
   - In `full-exec`, if neither modernize `confirm_mode` nor a forwarded `--confirm` is present, strongly warn that multi-phase execution is running without phase checkpoints.
 - If `autopilot_mode = true` or `full_auto_mode = true`, do NOT emit the full-exec warning above; non-interactive sequential execution is intentional.
 - `orchestrator-pipeline` remains the final authority for handling conflicts among forwarded pipeline flags.
 
-Delegated Handoff Payload Contract (to `@orchestrator-pipeline`):
+Pipeline Transition Payload Contract:
 - When represented as structured JSON, the payload SHOULD conform to `protocols/schemas/modernize-exec-handoff.schema.json`.
-- Each delegated run MUST specify:
-  - `recipient_agent`: `@orchestrator-pipeline`
+- Each Pipeline phase MUST specify:
+  - `target_workflow`: `orchestrator-pipeline`
   - `working_project_dir`: `<target_project_dir>`
-  - `runtime_metadata.dispatch_worktree`: `<target_project_dir>` when the runtime supports explicit worktree-aware dispatch metadata; omit or set to the current project in branch mode
+  - `runtime_metadata.execution_workdir`: `<target_project_dir>` when the runtime supports explicit cwd metadata; use the current project in branch mode
   - `runtime_metadata.target_branch`: `<target_branch>` in branch mode
   - `main_task_prompt`: a phase-scoped execution prompt (see templates below)
   - `pipeline_flags`: normalized `forwarded_pipeline_flags[]`
@@ -432,25 +425,20 @@ Delegated Handoff Payload Contract (to `@orchestrator-pipeline`):
     - "Do not expand beyond selected phase without reporting BLOCKED/needs-followup."
     - "Respect target design and migration strategy constraints."
   - `evidence_expectations`:
-    - "Return implementation status, changed paths, test status, and reviewer outcome (or explicit skip reason) via orchestrator-pipeline final summary."
-- The handoff content should be formatted as a formal orchestrator-to-subagent contract (per global handoff rules) and must include a clear Definition of Done for the delegated phase.
+    - "Return implementation status, changed paths, test status, and reviewer outcome (or explicit skip reason) via the Pipeline phase summary."
+- Treat this payload as an in-place workflow-transition contract, not an orchestrator-to-subagent handoff. It must include a clear Definition of Done for the phase.
 
 Reference Handoff Template (recommended payload shape):
 ```text
-> The following content is a formal task handoff.
-> You are selected for this task due to your specialization.
-> Do not exceed the defined scope.
-> Success is defined strictly by the provided Definition of Done.
-
-recipient_agent: @orchestrator-pipeline
+target_workflow: orchestrator-pipeline
 working_project_dir: <target_project_dir>
 runtime_metadata:
-  dispatch_worktree: <target_project_dir>
+  execution_workdir: <target_project_dir>
 pipeline_flags:
   - --max-retry=2
   - --confirm
 
-main_task_prompt: Implement modernization roadmap phase <phase_id> in the delegated working project using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.
+main_task_prompt: Implement modernization roadmap phase <phase_id> in the Pipeline working project using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.
 
 context_paths:
   - <output_dir>/modernize/modernize-target-design.md
@@ -480,7 +468,7 @@ modernize_constraints:
   - Respect target design and migration strategy constraints.
 
 definition_of_done:
-  - Selected phase deliverables implemented in the delegated working project or explicitly reported BLOCKED.
+  - Selected phase deliverables implemented in the Pipeline working project or explicitly reported BLOCKED.
   - Validation/testing/review executed according to pipeline flags and orchestrator-pipeline policy.
   - Reviewer outcome (or explicit skip warning) surfaced in final summary.
   - Out-of-scope follow-ups listed separately, not silently implemented.
@@ -492,26 +480,26 @@ evidence_expectations:
 ```
 
 Handoff Field Requirements (strict):
-- `working_project_dir`, `main_task_prompt`, `pipeline_flags`, `context_paths`, and `phase_execution_contract` are REQUIRED for delegated runs.
+- `target_workflow`, `working_project_dir`, `main_task_prompt`, `pipeline_flags`, `context_paths`, and `phase_execution_contract` are REQUIRED for new transition contracts.
 - `phase_execution_contract.exit_criteria[]` MUST be non-empty.
 - `phase_execution_contract.out_of_scope[]` SHOULD be present (use an explicit empty list if none).
-- If a runtime supports schema validation, validate against `modernize-exec-handoff.schema.json` before dispatching `@orchestrator-pipeline`.
+- If schema validation is available, validate against `modernize-exec-handoff.schema.json` before adopting the Pipeline workflow.
 - If any required field is missing, stop and report an incomplete handoff rather than improvising.
 
-Definition of Done (delegated phase handoff):
-- Selected phase deliverables implemented in the delegated working project (target project B for source-to-target modes, current repo on `target_branch` for branch mode), or explicitly reported BLOCKED with reasons.
+Definition of Done (Pipeline phase transition):
+- Selected phase deliverables implemented in the Pipeline working project (target project B for source-to-target modes, current repo on `target_branch` for branch mode), or explicitly reported BLOCKED with reasons.
 - Tests/validation handled according to forwarded pipeline flags and `orchestrator-pipeline` policy.
-- Reviewer result produced by `orchestrator-pipeline` (unless skipped by valid pipeline mode/flags, in which case warnings must be surfaced).
+- Reviewer result produced under the adopted `orchestrator-pipeline` policy (unless skipped by valid flags, in which case warnings must be surfaced).
 - Any follow-up work beyond phase scope is reported as future tasks, not silently implemented.
 
 Sequencing Rules for `full-exec`:
-- Resolve the ordered phase list from the roadmap before dispatching the first run.
-- Dispatch exactly one phase per `@orchestrator-pipeline` run.
+- Resolve the ordered phase list from the roadmap before starting the first Pipeline phase.
+- Apply the Pipeline workflow to exactly one phase at a time in the current/main agent.
 - After each phase:
-  - If delegated result is success, continue to the next phase.
-  - If delegated result is blocked/fail, stop and report phase status + blocker summary.
-  - If `confirm_mode = true` and `autopilot_mode != true`, ask user confirmation before dispatching the next phase.
-- Record phase progression in checkpoint state (current phase index, completed phase IDs, last delegated status) when checkpointing is enabled.
+  - If the Pipeline result is success, restore Modernize sequencing state and continue to the next phase.
+  - If it is blocked/fail, stop and report phase status plus blocker summary.
+  - If `confirm_mode = true` and `autopilot_mode != true`, ask user confirmation before starting the next phase.
+- Record phase progression in checkpoint state (current phase index, completed phase IDs, last Pipeline status) when checkpointing is enabled.
 
 Completion Semantics (strict):
 - `phase-exec`: overall status is `done` only when the selected phase completes successfully.
@@ -520,15 +508,15 @@ Completion Semantics (strict):
 - If `full-exec` stops after Phase M0, M1, or any intermediate phase while later phases remain, report `partial` or `blocked` instead of `done`.
 - Final summaries for `full-exec` MUST include completed phase IDs, remaining phase IDs, and the stopping reason when not all phases completed.
 
-Fallback Human Command Rendering (when agent dispatch unavailable):
-- Render one exact command per delegated run, to be executed by a human in `target_project_dir`.
+Fallback Human Command Rendering (when in-place target execution is unavailable):
+- Render one exact command per phase, to be executed by a human in `target_project_dir`.
 - In branch mode, render the command for the current repo after switching to `target_branch`.
 - Invocation format:
   - `$run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
 - Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
 - If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/<run_id>/modernize/phase-<phase_id>.handoff.json as the execution contract.`
-- Use the same fallback when runtime dispatch exists but cannot honor `target_project_dir` as the delegated worktree.
-Recommended delegated prompt templates:
+- Use the same fallback whenever the current/main agent cannot honor `target_project_dir` as its Pipeline working directory.
+Recommended Pipeline prompt templates:
 - `phase-exec`: "Implement modernization roadmap phase <execute_phase_id> in target project B using the modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria."
 - `full-exec`: "Implement modernization roadmap phases sequentially in target project B, one phase per pipeline run, using the modernize artifacts as source of truth and preserving phase boundaries."
 - `branch`: "Implement modernization roadmap phase <execute_phase_id> in the current repository on branch <target_branch> using the modernize artifacts as source of truth. Respect branch-local target design, migration strategy, and phase exit criteria."
@@ -543,7 +531,7 @@ If (`confirm_mode = true` or `verbose_mode = true`) and `autopilot_mode != true`
 If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
 - Overall "Done / Not done" status
 - Primary deliverables
-- If execution was requested: delegated pipeline phase status (completed / blocked / deferred)
+- If execution was requested: in-place Pipeline phase status (completed / blocked / deferred)
 - If `modernize_mode = full-exec`: completed phases, remaining phases, and whether execution stopped early
-- Recommended continuation path: open the next follow-up session from `target_project_dir`, even when same-session delegated execution was possible
+- Recommended continuation path: open the next follow-up session from `target_project_dir`, even when same-session Pipeline execution was possible
 - Blockers/risks and next action

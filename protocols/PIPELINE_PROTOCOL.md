@@ -50,11 +50,11 @@ Usage rules:
 
 ## Optional Input: Modernize Execution Handoff
 
-When `orchestrator-pipeline` is delegated by `orchestrator-modernize` for phase-scoped implementation, the incoming handoff payload SHOULD be represented as structured JSON and SHOULD conform to:
+When the current/main agent adopts the `orchestrator-pipeline` workflow in place after Modernize planning, the phase-scoped transition payload SHOULD be represented as structured JSON and SHOULD conform to:
 
 - `./protocols/schemas/modernize-exec-handoff.schema.json`
 
-The orchestrator prompts remain the execution source of truth, but the schema provides a stable contract for runtime dispatch, validation, and interoperability.
+The installed workflow definitions remain the execution source of truth, but the schema provides a stable contract for in-place transition, validation, and cross-session interoperability. This contract does not authorize spawning another primary orchestrator.
 
 Persisted handoff files may also be used for later manual `$run-pipeline` invocation after a prior `$run-modernize` session. Recommended canonical locations:
 
@@ -332,7 +332,7 @@ Required event vocabulary for Flow and Pipeline status/checkpoint writes:
 Minimal payload skeleton guidance:
 
 - Common envelope for every event: `{ "output_root": "...", "run_id": "..." }`
-- Cross-repo envelope extension: add `"working_project_dir": "..."` when status/checkpoint files must be anchored to a delegated target repo.
+- Cross-repo envelope extension: add `"working_project_dir": "..."` when status/checkpoint files must be anchored to a target project rather than the session's source repo.
 - `run.started`: add `orchestrator` and a non-empty `user_prompt`; include the initial effective `flags` when available. A fresh start MUST use a new `run_id`.
 - Every non-`run.started` event MUST target a run that already has its canonical checkpoint and run-status files; failed pre-start updates MUST NOT reserve or create the run directory.
 - `run.resumed`: add the expected `orchestrator`; `run_id` may be omitted only for compatible-run discovery. Include `user_prompt` when known and current-invocation flag overrides in `flags`. The runtime MUST verify persisted run identity/orchestrator agreement. The runtime MUST merge these overrides over persisted `checkpoint.flags`, preserving unrelated persisted and derived values.

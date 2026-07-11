@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-07-11
+
+### Changed
+
+- Kept Codex workflow orchestration compatible with `agents.max_depth = 1`: formal skills retain control in the current/main agent, and execution-enabled Modernize runs now adopt the Pipeline definition in place instead of spawning a nested primary orchestrator.
+
 ## [0.28.1] - 2026-07-11
 
 ### Changed

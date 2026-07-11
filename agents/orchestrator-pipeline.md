@@ -169,9 +169,9 @@ If an invalid `--commit` value is provided:
 
 Proceed with pipeline execution according to parsed flags.
 
-# MODERNIZE HANDOFF COMPATIBILITY (OPTIONAL INCOMING CONTRACT)
+# MODERNIZE TRANSITION COMPATIBILITY (OPTIONAL INCOMING CONTRACT)
 
-This orchestrator may be invoked directly by a user through `$run-pipeline` or delegated by `@orchestrator-modernize`.
+This workflow may be adopted directly through `$run-pipeline` or adopted in place by the current/main agent after a Modernize planning phase. The Modernize transition MUST NOT spawn a second primary orchestrator.
 
 If the incoming handoff includes a modernize execution contract (for example fields such as `phase_execution_contract`, `modernize_constraints`, `context_paths`, or `working_project_dir`), then treat it as a **phase-scoped modernization execution run** and apply the following rules in addition to the normal pipeline behavior:
 
@@ -185,13 +185,13 @@ If the incoming handoff includes a modernize execution contract (for example fie
   - Items listed as `out_of_scope` / deferred in the phase contract MUST NOT be implemented in this run.
 - Input authority:
   - Modernize artifacts referenced in `context_paths` are required planning inputs for Stage 0/1 (ProblemSpec/PlanOutline) and for reviewer context.
-  - Treat target design + migration strategy + roadmap as source-of-truth constraints for this delegated phase.
+  - Treat target design + migration strategy + roadmap as source-of-truth constraints for this Pipeline phase.
 - Working directory:
   - If `working_project_dir` is provided, execute the pipeline against that target project.
-  - Worktree-aware runtimes SHOULD treat `working_project_dir` as the actual delegated run worktree/cwd, not just an artifact-path hint.
+  - The current/main agent and its tools SHOULD treat `working_project_dir` as the actual Pipeline worktree/cwd, not just an artifact-path hint.
   - If `working_project_dir` is provided and no explicit pipeline `--output-dir=*` override is present, default `output_root` to `<working_project_dir>/.pipeline-output/` for checkpoints, status files, and canonical pipeline artifacts.
   - If an explicit pipeline `--output-dir=*` override is present and it is relative, resolve it against `working_project_dir`, not the caller/source repo.
-  - If runtime cannot operate in `working_project_dir`, cannot honor it as the delegated run worktree when such support is expected, or cannot materialize pipeline artifacts under the resolved target-side output root, stop and report BLOCKED; do not silently run against the current/source repo or write implementation artifacts only under the caller repo.
+  - If the current/main agent cannot operate in `working_project_dir` or cannot materialize Pipeline artifacts under the resolved target-side output root, stop and report BLOCKED; do not silently run against the source repo or write implementation artifacts only there.
 - Atomicization and routing:
   - Stage 3 (@atomizer) MUST produce tasks only for the selected phase deliverables and exit criteria.
   - Out-of-scope or future-phase work should be recorded as follow-up tasks/recommendations, not included in the TaskList for this run.
@@ -201,7 +201,7 @@ If the incoming handoff includes a modernize execution contract (for example fie
 - Failure handling:
   - Retry logic remains owned by `orchestrator-pipeline`.
   - If required follow-ups exceed the phase boundary, stop and report BLOCKED / needs next phase or revised modernization plan instead of expanding scope.
-- Output expectations (for delegated callers):
+- Output expectations (for Modernize sequencing or manual callers):
   - Final summary SHOULD include: phase ID/title, changed paths, test status, reviewer result, and unresolved follow-ups.
 
 If the user prompt explicitly references a persisted handoff file such as `<output_dir>/modernize/latest-handoff.json` or `<output_dir>/modernize/phase-<phase_id>.handoff.json`:
@@ -213,8 +213,8 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 
 # PRE-FLIGHT (before Stage 0)
 
-1. **Resolve output root and run dir**: If a modernize execution contract provides `working_project_dir`, use that target project as the path anchor for delegated execution artifacts. With an explicit `--output-dir=*`, treat it as `output_root` and resolve relative paths against `working_project_dir`. Without an explicit override, default to `<working_project_dir>/.pipeline-output/`. For non-modernize runs, if `--output-dir` was provided, treat it as `output_root` (the base output root). Otherwise default to `.pipeline-output/`. Derive `run_output_dir = <output_root>/<run_id>/` for the active run. For resume, search under `output_root` for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory. Do **not** pass `run_output_dir` back as `output_root`; the status runtime contract requires `output_root` + `run_id` separately.
-2. **Gitignore check**: Verify the resolved delegated `output_root` is listed in the working project's `.gitignore` (target project for modernize-exec, current project otherwise). If missing, warn the user: "Warning: `<output_root>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
+1. **Resolve output root and run dir**: If a modernize execution contract provides `working_project_dir`, use that target project as the path anchor for Pipeline execution artifacts. With an explicit `--output-dir=*`, treat it as `output_root` and resolve relative paths against `working_project_dir`. Without an explicit override, default to `<working_project_dir>/.pipeline-output/`. For non-modernize runs, if `--output-dir` was provided, treat it as `output_root` (the base output root). Otherwise default to `.pipeline-output/`. Derive `run_output_dir = <output_root>/<run_id>/` for the active run. For resume, search under `output_root` for the newest compatible run directory that contains `checkpoint.json` unless the user already pointed at a specific run directory. Do **not** pass `run_output_dir` back as `output_root`; the status runtime contract requires `output_root` + `run_id` separately.
+2. **Gitignore check**: Verify the resolved Pipeline `output_root` is listed in the working project's `.gitignore` (target project for modernize-exec, current project otherwise). If missing, warn the user: "Warning: `<output_root>` is not in `.gitignore`. Pipeline artifacts may be committed accidentally. Add it before proceeding."
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
    - For a valid checkpoint, hydrate the persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
@@ -232,7 +232,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
     - treat `<run_output_dir>/spec/dev-spec.json` as the behavior and traceability contract for Stage 0.5/1/3/6
     - treat `<run_output_dir>/spec/plan-outline.json` as optional planning context only; it must not override the approved spec
     - treat `<run_output_dir>/spec/dev-spec.md` as human-readable context only when needed
-8. **Modernize delegated handoff (optional)**: If a modernize execution contract is present:
+8. **Modernize transition contract (optional)**: If a modernize execution contract is present:
     - validate against `protocols/schemas/modernize-exec-handoff.schema.json` when runtime support exists
     - validate required fields (`working_project_dir`, `phase_execution_contract`, `context_paths`)
     - verify referenced `context_paths` exist and are readable (warn on optional missing files; block on required core docs)
@@ -257,7 +257,7 @@ After each stage completes successfully:
 
 Emit semantic events through `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json`. Follow the contract in `protocols/PIPELINE_PROTOCOL.md`.
 
-If `working_project_dir` is present, include it unchanged in every status-event payload. The neutral writer uses it to anchor relative `output_root` to the delegated target repo and derives the checkpoint path itself.
+If `working_project_dir` is present, include it unchanged in every status-event payload. The neutral writer uses it to anchor relative `output_root` to the Pipeline target repo and derives the checkpoint path itself.
 
 Use the expanded status layout (`tasks/<task_id>.json`, `agents/<agent_id>.json`) once task decomposition begins at Stage 3.
 

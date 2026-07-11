@@ -1,7 +1,7 @@
 {
-  "protocol_version": "1.0",
+  "protocol_version": "1.1",
   "handoff_type": "modernize-exec-handoff",
-  "recipient_agent": "@orchestrator-pipeline",
+  "target_workflow": "orchestrator-pipeline",
   "working_project_dir": "../legacy-monolith-modernize",
   "main_task_prompt": "Implement modernization roadmap phase P1 in target project B using modernize artifacts as source of truth.",
   "pipeline_flags": [

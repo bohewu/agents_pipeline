@@ -12,4 +12,5 @@ Use the installed `orchestrator-modernize` definition as the authoritative workf
 3. If the global definition is absent, stop and ask for the global agents_pipeline Codex install. Do not reconstruct the workflow from memory.
 4. Remove only the `$run-modernize` token and preserve the remaining request and flags as raw input.
 5. Adopt the definition in the current/main agent; do not spawn the same orchestrator merely to enter the mode.
-6. Obey its planning/execution boundary, target-project, handoff, delegation, status, and final-report constraints. Let effective Codex configuration select role models and reasoning.
+6. For an execution-enabled mode, keep control in that same current/main agent: read the installed `orchestrator-pipeline.toml`, adopt its workflow in place for each selected phase, and dispatch only Pipeline worker roles. Never spawn `orchestrator-pipeline` as another primary agent. This keeps the Codex path compatible with `agents.max_depth = 1`.
+7. Obey the Modernize planning boundary, target-project transition contract, Pipeline execution policy, status, and final-report constraints. Let effective Codex configuration select role models and reasoning.

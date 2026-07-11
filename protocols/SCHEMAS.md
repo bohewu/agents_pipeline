@@ -20,7 +20,7 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/context-pack.schema.json` | ContextPack | compressor | Compressed context |
 | `./protocols/schemas/todo-ledger.schema.json` | TodoLedger | optional | Carryover items |
 | `./protocols/schemas/handoff-pack.schema.json` | HandoffPack | handoff-writer | Cross-session continuation pack |
-| `./protocols/schemas/modernize-exec-handoff.schema.json` | ModernizeExecHandoff (optional inter-orchestrator input) | orchestrator-modernize -> orchestrator-pipeline | Phase-scoped modernization execution contract |
+| `./protocols/schemas/modernize-exec-handoff.schema.json` | ModernizeExecHandoff (optional workflow-transition input) | current/main agent: Modernize -> Pipeline | Phase-scoped modernization execution contract; no primary-agent nesting |
 
 ## Status schema fixtures
 

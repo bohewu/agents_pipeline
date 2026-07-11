@@ -120,7 +120,7 @@ Codex applies `.codex/config.toml` only for a trusted project. The profile manag
 - `clear` never removes global agents or support assets.
 - Workspace `set`, `status`, and `clear` never change the model-free global role files.
 
-Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Nested orchestration modes require the effective global `agents.max_depth` to be at least `2`.
+Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Supported Codex skills keep primary workflow control in the current/main agent and dispatch only direct worker roles, so `agents.max_depth = 1` is sufficient.
 
 ### Profile-aware workflow skills
 

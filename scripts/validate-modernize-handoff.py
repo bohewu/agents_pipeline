@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate modernize->pipeline handoff payloads against the JSON schema."""
+"""Validate Modernize-to-Pipeline transition payloads against the JSON schema."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def _format_error_path(path_items: Iterable[object]) -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Validate modernize execution handoff JSON against the schema."
+        description="Validate Modernize execution-transition JSON against the schema."
     )
     parser.add_argument(
         "payload",

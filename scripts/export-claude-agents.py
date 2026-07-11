@@ -494,7 +494,7 @@ def minify_run_status_protocol(text: str) -> str:
                 "",
                 "- When the neutral writer is available, emit status updates through `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` (`layout = run-only`) per `protocols/PIPELINE_PROTOCOL.md`. Otherwise report that persisted status is unsupported.",
                 "- Keep modernization-planning status/checkpoint writes anchored to the source-project run root; do not pass `target_project_dir` as `working_project_dir` for planning events.",
-                "- Delegated `@orchestrator-pipeline` runs must preserve `working_project_dir` so target-local status/checkpoint files land in the target repo.",
+                "- When the current/main agent transitions into the Pipeline workflow, preserve `working_project_dir` so target-local status/checkpoint files land in the target repo; do not spawn another primary orchestrator.",
             ]
             return "\n".join(lines) + "\n\n"
 

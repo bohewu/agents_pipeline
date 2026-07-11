@@ -89,14 +89,14 @@ The generator writes a root `config.toml` containing:
 
 The exporter intentionally omits `agents.max_threads` and `agents.max_depth`; machine-wide concurrency and nesting limits remain owned by the user's Codex configuration.
 Codex defines the root session at depth `0`, and `max_depth = 1` allows only a direct child agent.
-Nested orchestration paths such as `orchestrator-modernize -> orchestrator-pipeline -> executor/reviewer` need depth `2` to remain functional.
+Formal `$run-*` skills adopt their primary workflow in the current/main agent and dispatch executor/reviewer roles as direct children. Modernize execution adopts the Pipeline definition in that same agent rather than spawning `orchestrator-pipeline`, so supported workflows remain compatible with `max_depth = 1`.
 
 Use standalone exporter flags to adjust this output when needed:
 
 - `--job-max-runtime-seconds=<n>`
 - `--no-enable-feature-flag`
 
-Direct exporter output and normal global Codex installs both leave `agents.max_threads` and `agents.max_depth` runtime-owned. Installs preserve existing user values, and generated configs leave both keys absent. Project profile overlays inherit the effective global values. Set effective global `agents.max_depth` to at least `2` when a project uses nested pipeline orchestration.
+Direct exporter output and normal global Codex installs both leave `agents.max_threads` and `agents.max_depth` runtime-owned. Installs preserve existing user values, and generated configs leave both keys absent. Project profile overlays inherit the effective global values; `max_depth = 1` supports the shipped skill workflows.
 
 ## Role Config Generation
 

@@ -1,7 +1,7 @@
 {
-  "protocol_version": "1.0",
+  "protocol_version": "1.1",
   "handoff_type": "modernize-exec-handoff",
-  "recipient_agent": "@orchestrator-pipeline",
+  "target_workflow": "orchestrator-pipeline",
   "working_project_dir": "../legacy-monolith-modernize",
   "source_project_dir": "../legacy-monolith",
   "main_task_prompt": "Implement modernization roadmap phase P1 in target project B using modernize artifacts as source of truth. Respect target design, migration strategy, and phase exit criteria.",
@@ -51,7 +51,7 @@
   ],
   "definition_of_done": [
     "Selected phase deliverables implemented in target project B or explicitly reported BLOCKED.",
-    "Validation/testing/review executed according to pipeline flags and orchestrator-pipeline policy.",
+    "Validation/testing/review executed according to pipeline flags and the adopted orchestrator-pipeline policy.",
     "Reviewer outcome (or explicit skip warning) surfaced in final summary.",
     "Out-of-scope follow-ups listed separately, not silently implemented."
   ],

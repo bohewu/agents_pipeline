@@ -2,9 +2,9 @@
 
 This SOP explains how to continue from `$run-modernize` outputs into `$run-pipeline`, including the case where the original session has already ended.
 
-## Two Common Paths
+## Three Supported Paths
 
-### Path A: Immediate delegated execution
+### Path A: Immediate in-place Pipeline transition
 
 Use `$run-modernize` with an execution mode:
 
@@ -13,9 +13,11 @@ Use `$run-modernize` with an execution mode:
 
 If you also pass `--autopilot`, the orchestrator should run non-interactively and continue phase-by-phase until all phases complete or a hard blocker stops execution.
 
-If you pass `--full-auto`, it should also imply `--autopilot`, disable interactive pauses, prefer deep planning output, forward stronger delegated pipeline execution defaults where applicable, and attempt the strongest safe bounded in-scope non-hard-blocker recovery before surfacing a stop condition.
+If you pass `--full-auto`, it should also imply `--autopilot`, disable interactive pauses, prefer deep planning output, forward stronger Pipeline execution defaults where applicable, and attempt the strongest safe bounded in-scope non-hard-blocker recovery before surfacing a stop condition.
 
-Immediate delegated execution works best when the runtime can honor the target repo as the delegated worktree/cwd. If it cannot, fall back to Path B instead of letting implementation continue from the source-project worktree.
+For same-session execution, the current/main agent reads and adopts the installed `orchestrator-pipeline` definition in place for each phase, then dispatches Pipeline worker roles directly. It must not spawn another primary orchestrator. This keeps the Codex workflow compatible with `agents.max_depth = 1`.
+
+Immediate execution works only when the current/main agent and its tools can honor the target repo as `working_project_dir`. If they cannot, fall back to the later manual path instead of letting implementation continue from the source-project worktree.
 
 If the target project directory does not exist yet, create it manually before running execution modes.
 
@@ -39,7 +41,7 @@ You can close the session after `$run-modernize`, then later run `$run-pipeline`
 
 This works because modernize execution modes should persist machine-readable handoff files under the same output root.
 
-This remains the recommended human handoff path even when same-session delegated execution is available.
+This remains the recommended human handoff path even when same-session in-place execution is available.
 
 ## Expected Modernize Artifacts
 
@@ -65,14 +67,14 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - The source project owns `.pipeline-output/modernize/`.
 - Real implementation should start from the target project.
 - The target project should own `.pipeline-output/pipeline/` once `$run-pipeline` is executing code, tests, and reviews.
-- In same-session delegated execution, target-local `.pipeline-output/` should be created immediately; do not wait for a later manual session before switching artifact ownership.
+- In same-session Pipeline execution, target-local `.pipeline-output/` should be created immediately; do not wait for a later manual session before switching artifact ownership.
 - Execution-enabled modernize runs should mirror `latest-handoff.json` and `phase-<phase_id>.handoff.json` into the target project's `.pipeline-output/modernize/` when the target directory exists.
 - After the first execution handoff exists, treat the target project as the default starting point for later implementation sessions.
 
 ## Branch Mode Ownership
 
 - `$run-modernize --mode=branch` starts and stays in the current project.
-- The current project owns `.pipeline-output/modernize/` and delegated `.pipeline-output/pipeline/`.
+- The current project owns `.pipeline-output/modernize/` and Pipeline `.pipeline-output/pipeline/`.
 - The branch must be created before any modernize artifact is written.
 - Handoff files stay in the current repo; do not mirror them to a separate target project.
 - Later `$run-pipeline` continuation should run from the same repo after switching to the modernization branch.
@@ -90,6 +92,7 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - Source-side copies preserve the planning trail; target-local mirrored copies optimize continuation from the implementation repo.
 
 These files should conform to `protocols/schemas/modernize-exec-handoff.schema.json`.
+New contracts use `target_workflow: "orchestrator-pipeline"`. The schema still accepts the v1.0 `recipient_agent` field for saved-contract compatibility, but that legacy field is interpreted as a workflow target and never as permission to spawn another primary agent.
 
 ## Recommended Commands
 
@@ -102,7 +105,7 @@ $run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-ap
 Semantics:
 
 - `--autopilot` disables modernize stage pauses
-- delegated `$run-pipeline` phases also run non-interactively
+- in-place Pipeline phases also run non-interactively
 - overall status is only `done` when all resolved phases complete
 
 ### Run all phases with the strongest preset
@@ -114,7 +117,7 @@ $run-modernize Modernize legacy .NET monolith --mode=full-exec --target=../my-ap
 Semantics:
 
 - modernize planning runs non-interactively
-- delegated pipeline phases inherit `--full-auto`
+- in-place Pipeline phases inherit `--full-auto`
 - execution uses risk-derived verification, more retries, and stronger safe bounded in-scope blocker recovery
 - hard blockers still stop execution
 
@@ -128,7 +131,7 @@ Semantics:
 
 - creates a branch such as `modernize/modernize-legacy-auth-in-place-20260626`
 - writes modernize docs on that branch
-- delegates one same-repo `$run-pipeline`-equivalent execution for phase `P1`
+- adopts the Pipeline workflow in place for one same-repo phase `P1` execution
 - keeps code changes, checkpoints, and pipeline artifacts in the current repo on that branch
 
 ### Plan on a named new branch without immediate implementation
@@ -197,11 +200,11 @@ $run-pipeline Implement modernization roadmap phase P1 using .pipeline-output/mo
 - Do not expand beyond the selected phase.
 - Treat the target project as the working repo for edits, tests, checkpoints, and review artifacts.
 - For branch-mode handoffs, treat the current repo on the modernization branch as the working repo for edits, tests, checkpoints, and review artifacts.
-- Default delegated `output_root` to the target project's `.pipeline-output/` when no explicit pipeline `--output-dir=*` override is provided.
-- For branch-mode handoffs, default delegated `output_root` to the current repo's `.pipeline-output/`.
-- If a delegated pipeline `--output-dir=*` override is relative, resolve it from the target project, not the source project.
+- Default Pipeline `output_root` to the target project's `.pipeline-output/` when no explicit Pipeline `--output-dir=*` override is provided.
+- For branch-mode contracts, default Pipeline `output_root` to the current repo's `.pipeline-output/`.
+- If a Pipeline `--output-dir=*` override is relative, resolve it from the target project, not the source project.
 - Preserve `working_project_dir` in every status-event payload so the runtime-neutral status writer resolves relative status/checkpoint paths under the target project as well.
-- Worktree-aware runtimes should also honor `working_project_dir` as the actual delegated run worktree/cwd. If they cannot, they should stop and surface the target-project handoff command instead of attempting implementation in the source repo.
+- The current/main agent and its tools should honor `working_project_dir` as the actual Pipeline worktree/cwd. If they cannot, they should stop and surface the target-project handoff command instead of attempting implementation in the source repo.
 
 ## Completion Rules
 
@@ -215,5 +218,5 @@ Use the later manual `$run-pipeline` path when:
 
 - you want to stop after planning and review the roadmap first
 - the original session ended
-- agent-to-agent delegation is unavailable in your runtime
+- the current/main agent cannot safely operate in the target project in the same session
 - you want to rerun a single phase with different pipeline flags
