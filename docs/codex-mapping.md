@@ -23,7 +23,7 @@ Use a global Codex install in `~/.codex` by default so the exported roles are av
 The default global install to `~/.codex` also publishes exactly ten formal `run-*` workflow skills to `~/.agents/skills/`. A custom global/test Codex home publishes skills only when `--user-skills-root` or `-UserSkillsRoot` is supplied. Projects do not need their own skill copy. Each skill adopts the global workflow definition and runs the workspace-profile health gate before effective trusted Codex configuration may apply workspace-local model routing to dispatched roles. Direct workspace materialization never installs user skills.
 When the installer targets a Codex home/global directory, it now auto-merges the managed global mode note into the active global AGENTS file inside that target: prefer `AGENTS.override.md` when it exists and is non-empty, otherwise use `AGENTS.md`.
 That managed note tells the current/main agent that a recognized mode alias changes only the current/main agent's working style, does not automatically spawn subagents, and does not override higher-priority `spawn_agent` authorization. It reads the globally installed orchestrator definition as the workflow source and never manually adopts a repository role. The alias follows the matching formal skill's workspace-profile preflight before Codex effective config may route dispatched roles locally. After applying the definition, the current/main agent must obey its hard constraints and delegation rules. Runtime-specific adapter details for other runtimes can be ignored during Codex mode simulation.
-Projects inherit the global profile without setup. When one project needs another resource tier, the normal project-specific path materializes only profile-specific role TOML plus a managed config block and manifest; global support is reused. Directly targeting `<workspace>/.codex` with an installer remains explicit full-materialization compatibility and copies the complete roles/support tree.
+Global Codex roles are model-free and inherit model selection from the parent session. Projects use those roles without setup. When one project needs explicit resource tiers, the normal project-specific path materializes only profile-specific role TOML plus a managed config block and manifest; global support is reused. Directly targeting `<workspace>/.codex` with an installer remains explicit full-materialization compatibility and copies the complete roles/support tree.
 
 ## Global Custom Instructions Snippet
 
@@ -116,7 +116,7 @@ By default, model/provider selection remains runtime-driven; source agents must 
 
 ## Opt-In Agent Model Profiles
 
-Codex runtime model profiles are opt-in. When the exporter or global installer receives `--agent-profile <profile> --model-set <set>`:
+Codex runtime model profiles are opt-in and workspace-only. Workspace `set` uses the exporter with `--agent-profile <profile> --model-set <set>`; the normal global installer rejects model-profile options and always generates model-free roles:
 
 - The agent-to-tier profile is loaded from `tools/agent-profiles/<profile>.json`.
 - The Codex tier catalog is loaded from `runtimes/codex/model-sets/<set>.json` and must have `runtime: "codex"`.
@@ -125,7 +125,7 @@ Codex runtime model profiles are opt-in. When the exporter or global installer r
 - The exporter does **not** write `model` or `model_provider` into root `config.toml` `[agents.<name>]` tables.
 - The exporter does **not** emit `model_reasoning_effort` or `plan_mode_reasoning_effort`.
 
-Reasoning effort is not controlled by these profiles; it is controlled by the effective Codex runtime config, such as root config, session/profile/CLI settings, or any explicit role override. Omit the profile flags to keep Codex's normal runtime model selection.
+Reasoning effort is not controlled by these profiles; it is controlled by the effective Codex runtime config, such as root config, session/profile/CLI settings, or any explicit workspace role override. Global roles omit `model`, `model_provider`, and reasoning fields so they inherit the parent session.
 
 After the one-time global install, the normal interactive front door is the installed wrapper:
 
@@ -137,7 +137,7 @@ bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
 ```
 
-It presents numbered `set`/`status`/`clear`/`list`, runtime, scope, workspace-path when applicable, profile, and model-set choices. Codex recommends and defaults to global scope. For a non-TTY project profile override, make every choice explicit:
+It presents numbered `set`/`status`/`clear`/`list`, runtime, scope when applicable, workspace path, profile, and model-set choices. Codex model-profile `set` is workspace-only. Global Codex `status` and `clear` remain available for installation diagnostics and legacy profile cleanup. For a non-TTY workspace profile, make every choice explicit:
 
 ```bash
 profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
@@ -146,7 +146,7 @@ bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/
 bash "$profile_tool" clear --runtime codex --scope workspace --workspace /path/to/project
 ```
 
-Workspace `set` invokes the exporter from the globally installed support tree with its neutral agent sources, selected profile, and Codex model catalog, rendering complete role TOML directly into `<workspace>/.codex/agents/`. It then writes the managed local `config_file` block plus project manifest. It neither reads/copies active global role files nor creates project-local support, skills, scripts, protocols, tools, or mode guidance. `status` verifies the local roles, config references, and manifest; no workspace profile reports global inheritance. `clear` removes installer-owned local roles, the managed block, and the project manifest while preserving unrelated project config and every global asset. Workspace operations never mutate the active global profile. `install` remains a deprecated alias for `set`.
+Workspace `set` invokes the exporter from the globally installed support tree with its neutral agent sources, selected profile, and Codex model catalog, rendering complete role TOML directly into `<workspace>/.codex/agents/`. It then writes the managed local `config_file` block plus project manifest. It neither reads/copies active global role files nor creates project-local support, skills, scripts, protocols, tools, or mode guidance. `status` verifies the local roles, config references, and manifest; no workspace profile reports inheritance from the model-free global roles. `clear` removes installer-owned local roles, the managed block, and the project manifest while preserving unrelated project config and every global asset. Workspace operations never add model settings to global roles. `install` remains a deprecated alias for workspace `set`.
 
 Project config is effective only when Codex trusts that repository. The workspace profile manager does not write `projects.<path>.trust_level`; it reads the global value and reports `project_trust` and `profile_eligibility` separately from file `health`. Eligibility covers the trust gate only; native Codex `config/read` is the source of truth for full semantic parsing and effective role registration. Actual runtime selection must be verified from the spawned child trace, including its `agent_role` and model.
 

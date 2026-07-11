@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import tempfile
@@ -11,7 +12,9 @@ INSTALL_SCRIPT = REPO_ROOT / "scripts" / "install-codex.sh"
 
 @unittest.skipUnless(shutil.which("bash"), "bash is required for shell installer tests")
 class CodexShellInstallerTargetValidationTest(unittest.TestCase):
-    def run_installer(self, target: str) -> subprocess.CompletedProcess[str]:
+    def run_installer(
+        self, target: str, *extra: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 "bash",
@@ -20,11 +23,13 @@ class CodexShellInstallerTargetValidationTest(unittest.TestCase):
                 target,
                 "--dry-run",
                 "--no-backup",
+                *extra,
             ],
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=False,
+            env=env,
         )
 
     def assert_target_error(self, target: str, expected_message: str) -> None:
@@ -78,6 +83,76 @@ class CodexShellInstallerTargetValidationTest(unittest.TestCase):
             self.assertEqual(
                 victim.read_text(encoding="utf-8"), "preserve = true\n"
             )
+
+    def test_global_install_rejects_named_and_uniform_model_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target = Path(temp_dir) / "global-codex"
+            cases = (
+                ("--agent-profile", "balanced", "--model-set", "openai"),
+                ("--uniform-model", "gpt-5.6-terra"),
+            )
+            for flags in cases:
+                with self.subTest(flags=flags):
+                    result = self.run_installer(str(target), *flags)
+                    self.assertEqual(result.returncode, 2, result.stdout)
+                    self.assertIn("workspace-only", result.stderr)
+                    self.assertFalse(target.exists())
+
+    def test_global_agents_target_does_not_bypass_workspace_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target = root / "global-codex"
+            result = self.run_installer(
+                str(target),
+                "--global-agents-target",
+                str(root / "other-global-target"),
+                "--agent-profile",
+                "balanced",
+                "--model-set",
+                "openai",
+            )
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("workspace-only", result.stderr)
+            self.assertFalse(target.exists())
+
+    def test_default_global_target_cannot_be_disguised_as_a_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir) / "home"
+            target = home / ".codex"
+            env = {**os.environ, "HOME": str(home), "CODEX_HOME": str(target)}
+            result = self.run_installer(
+                str(target),
+                "--workspace-root",
+                str(home),
+                "--agent-profile",
+                "balanced",
+                "--model-set",
+                "openai",
+                env=env,
+            )
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("workspace-only", result.stderr)
+            self.assertFalse(target.exists())
+
+    def test_canonical_workspace_materialization_accepts_model_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir) / "project"
+            target = workspace / ".codex"
+            result = self.run_installer(
+                str(target),
+                "--workspace-root",
+                str(workspace),
+                "--agent-profile",
+                "balanced",
+                "--model-set",
+                "openai",
+            )
+            self.assertEqual(
+                result.returncode,
+                0,
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertFalse(target.exists())
 
 
 if __name__ == "__main__":

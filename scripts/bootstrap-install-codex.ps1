@@ -20,6 +20,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$modelFlags = [bool]($AgentProfile -or $ModelSet -or $ProfileDir -or $ModelSetDir -or $UniformModel)
+if ($modelFlags -and (-not $Target -or -not $WorkspaceRoot)) {
+    throw "Codex agent model profiles are workspace-only. Pass -WorkspaceRoot and target that workspace's .codex directory, or bootstrap the global baseline without model-profile flags."
+}
+
 function Assert-GeneratedShellPath {
     param([string]$Value, [string]$Label)
 

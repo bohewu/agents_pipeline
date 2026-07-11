@@ -2,29 +2,29 @@
 
 Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers.
 
-The installation model is deliberately global-first:
+The runtime installation is global-first, but Codex model selection is workspace-only:
 
 1. Install each runtime once into its global home.
-2. Use the installed global profile manager for later profile changes.
-3. A new Codex project inherits the global profile without any setup.
-4. If one project needs a different resource tier, materialize only its profile-specific Codex roles. Do not reinstall runtime support into the project.
+2. The Codex global install generates model-free roles that inherit the parent session.
+3. Use the globally installed profile manager to create profile-specific roles only in a Codex workspace.
+4. A new Codex project needs no setup unless it requires explicit per-role resource tiers; do not reinstall runtime support into the project.
 
-Claude Code and GitHub Copilot profiles are global-only through the profile manager. Their direct workspace installers remain explicit materialization compatibility for users who knowingly want complete generated agents inside a repository.
+Claude Code and GitHub Copilot profiles remain global-only through the profile manager. Their direct workspace installers remain explicit materialization compatibility for users who knowingly want complete generated agents inside a repository.
 
 Profile status and workflow status are different surfaces:
 
-- `agent-profile.* status` reports model routing at a global runtime target or Codex project overlay.
+- `agent-profile.* status` reports Codex global installation health, Codex workspace model routing, or global Claude Code/Copilot model routing.
 - `tools/status-event.js` writes live workflow checkpoint, task, agent, and run status under `.pipeline-output`.
 
 ## One-time global layout
 
 | Runtime | Generated definitions | Installed support assets |
 |---|---|---|
-| Codex | `~/.codex/agents/`, `~/.codex/config.toml`, and the active global `AGENTS.md` or `AGENTS.override.md` | `~/.codex/agents-pipeline/` |
+| Codex | Model-free `~/.codex/agents/`, `~/.codex/config.toml`, and the active global `AGENTS.md` or `AGENTS.override.md`; roles inherit the parent session | `~/.codex/agents-pipeline/` |
 | Claude Code | `~/.claude/agents/`, `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. `install` is accepted only as a deprecated compatibility alias for `set`.
+Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. For Codex, `set` is workspace-only; global `status` and `clear` are diagnostic/legacy-cleanup operations. `install` is accepted only as a deprecated compatibility alias for `set` where `set` is supported.
 
 The default Codex global installer additionally publishes the ten formal workflow skills under `~/.agents/skills/run-*/`. Each carries `.agents-pipeline-skill.json`; updates are rollback-capable and use an atomic rename per skill directory, while an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal. Those skills stay global and adopt global workflow definitions. Their workspace preflight stops on unverifiable or unhealthy local role state; only a healthy, eligible profile proceeds to workspace-specific routing.
 
@@ -48,12 +48,12 @@ When stdin and stdout are terminals, the manager displays numbered choices in th
 
 1. action: `set`, `status`, `clear`, or `list`
 2. runtime: Codex (recommended), Claude Code, or GitHub Copilot
-3. scope: global (recommended/default), or Codex project profile override
-4. workspace path when the Codex project scope is selected
+3. scope when applicable: Codex workspace for profile `set`; workspace or global diagnostics/legacy cleanup for Codex `status` and `clear`; global for Claude Code and Copilot
+4. workspace path when Codex workspace scope is selected
 5. profile: `balanced` first, another neutral profile, or `uniform`
 6. runtime-specific model set for a named profile
 
-Claude Code and Copilot expose only global scope in this menu. The menu is enabled only when both input and output are TTYs. CI, pipes, command substitution, and redirected input must pass every choice explicitly.
+Claude Code and Copilot expose only global scope in this menu. Codex does not offer global profile `set`. The menu is enabled only when both input and output are TTYs. CI, pipes, command substitution, and redirected input must pass every choice explicitly.
 
 ## Codex workspace profile
 
@@ -114,11 +114,11 @@ Codex applies `.codex/config.toml` only for a trusted project. The profile manag
 ### Workspace status and clear
 
 - `status` validates the project manifest, managed block, workspace-local role ownership and content hashes, selected profile metadata, global Codex registration, active global mode guidance, and critical support assets. It separately reports whether the explicit project trust setting makes the layer eligible for Codex to load.
-- A workspace with no project overlay reports `mode: inherit` and inherits the global definitions/profile.
+- A workspace with no project overlay reports `mode: inherit`, uses the model-free global definitions, and inherits model selection from the parent session.
 - `clear` removes only the managed block, installer-owned workspace role files, and `.agents-pipeline-project-profile.json`.
 - If `.codex/config.toml` contains unrelated settings, `clear` preserves their TOML content outside the managed block. If the generated block was the only content, the empty config file may be removed.
-- `clear` never removes global agents, support assets, or profile variants.
-- Workspace `set`, `status`, and `clear` never change the active global profile or global role files.
+- `clear` never removes global agents or support assets.
+- Workspace `set`, `status`, and `clear` never change the model-free global role files.
 
 Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Nested orchestration modes require the effective global `agents.max_depth` to be at least `2`.
 
@@ -128,20 +128,19 @@ The formal `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-sp
 
 The managed `use <mode>` forms remain compatibility aliases. There is no `$run-goal` skill.
 
-## Global profile management
+## Global Codex diagnostics and legacy cleanup
 
-Use the same installed wrapper with `--scope global`:
+Codex does not support global profile `set`. Use `--scope global` only to inspect the global installation or remove model pins left by an older release:
 
 ```bash
 profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 
-bash "$profile_tool" set balanced --runtime codex --scope global --model-set openai
 bash "$profile_tool" status --runtime codex --scope global --json
 bash "$profile_tool" clear --runtime codex --scope global
 bash "$profile_tool" list --runtime codex
 ```
 
-Global `set` and `clear` use the normal runtime installer because they own the generated global definitions. Global `clear` regenerates the roles without a model override and returns them to runtime inheritance; it is not an uninstall.
+Global `status` validates the installer manifest, role registrations, generated role files, mode guidance, and critical support assets. Global `clear` regenerates the global roles without `model` or `model_provider`, returning them to parent-session inheritance; it is not an uninstall and does not select a profile. A normal global install already has this model-free state.
 
 The global manifests are:
 
@@ -175,7 +174,7 @@ Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. The
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|
-| Codex | `model`, optional `model_provider` in role TOML | No reasoning-effort fields |
+| Codex workspace | `model`, optional `model_provider` in role TOML | Workspace-only; no reasoning-effort fields |
 | Claude Code | `model` alias in agent frontmatter | `inherit`, `sonnet`, `opus`, or `haiku` |
 | Copilot | `model` scalar or prioritized list | Values must match the host model picker |
 

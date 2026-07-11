@@ -181,17 +181,11 @@ class AgentProfileInteractionTests(unittest.TestCase):
     def test_non_tty_set_and_install_alias_require_complete_choices(self) -> None:
         for action in ("set", "install"):
             base = [action, "--runtime", "codex", "--asset-root", str(REPO_ROOT)]
-            with self.subTest(action=action, missing="scope"), self.assertRaisesRegex(
-                PROFILE.ProfileError, "pass --scope explicitly"
-            ):
-                PROFILE.resolve_request(
-                    parse(*base), stdin=NonTtyStringIO(), stdout=NonTtyStringIO()
-                )
             with self.subTest(action=action, missing="profile"), self.assertRaisesRegex(
                 PROFILE.ProfileError, "pass --profile explicitly"
             ):
                 PROFILE.resolve_request(
-                    parse(*base, "--scope", "workspace"),
+                    parse(*base),
                     stdin=NonTtyStringIO(),
                     stdout=NonTtyStringIO(),
                 )
@@ -199,12 +193,34 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 PROFILE.ProfileError, "pass --model-set explicitly"
             ):
                 PROFILE.resolve_request(
-                    parse(*base, "--scope", "workspace", "--profile", "balanced"),
+                    parse(*base, "--profile", "balanced"),
                     stdin=NonTtyStringIO(),
                     stdout=NonTtyStringIO(),
                 )
 
-    def test_interactive_defaults_choose_codex_global_balanced_openai(self) -> None:
+    def test_non_tty_codex_set_defaults_to_workspace_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name) / "project"
+            request = PROFILE.resolve_request(
+                parse(
+                    "set",
+                    "balanced",
+                    "--runtime",
+                    "codex",
+                    "--workspace",
+                    str(workspace),
+                    "--model-set",
+                    "openai",
+                    "--asset-root",
+                    str(REPO_ROOT),
+                ),
+                stdin=NonTtyStringIO(),
+                stdout=NonTtyStringIO(),
+            )
+            self.assertEqual(request.scope, "workspace")
+            self.assertEqual(request.target, (workspace / ".codex").resolve())
+
+    def test_interactive_defaults_choose_codex_workspace_balanced_openai(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             workspace = Path(temp_name) / "project"
             home = Path(temp_name) / "home"
@@ -217,18 +233,18 @@ class AgentProfileInteractionTests(unittest.TestCase):
             output = TtyStringIO()
             request = PROFILE.resolve_request(
                 args,
-                stdin=TtyStringIO("\n\n\n\n\n"),
+                stdin=TtyStringIO("\n\n\n\n"),
                 stdout=output,
                 home=home,
             )
             self.assertEqual(request.action, "set")
             self.assertEqual(request.runtime, "codex")
-            self.assertEqual(request.scope, "global")
+            self.assertEqual(request.scope, "workspace")
             self.assertEqual(request.profile, "balanced")
             self.assertEqual(request.model_set, "openai")
-            self.assertEqual(request.target, (home / ".codex").resolve())
+            self.assertEqual(request.target, (workspace / ".codex").resolve())
             self.assertIn("Codex (recommended)", output.getvalue())
-            self.assertIn("global (recommended)", output.getvalue())
+            self.assertNotIn("Choose a profile scope", output.getvalue())
             self.assertNotIn("Workspace path", output.getvalue())
 
     def test_interactive_workspace_path_can_be_selected(self) -> None:
@@ -238,14 +254,14 @@ class AgentProfileInteractionTests(unittest.TestCase):
             output = TtyStringIO()
             request = PROFILE.resolve_request(
                 args,
-                stdin=TtyStringIO(f"\n\n2\n{workspace}\n\n\n"),
+                stdin=TtyStringIO(f"\n\n{workspace}\n\n\n"),
                 stdout=output,
             )
             self.assertEqual(request.workspace, workspace.resolve())
             self.assertEqual(request.target, (workspace / ".codex").resolve())
             self.assertIn("Workspace path", output.getvalue())
 
-    def test_non_tty_custom_codex_target_requires_scope(self) -> None:
+    def test_non_tty_custom_codex_target_must_be_the_workspace_codex_dir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             args = parse(
                 "install",
@@ -259,12 +275,14 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 "--asset-root",
                 str(REPO_ROOT),
             )
-            with self.assertRaisesRegex(PROFILE.ProfileError, "pass --scope explicitly"):
+            with self.assertRaisesRegex(
+                PROFILE.ProfileError, "always target <workspace>/.codex"
+            ):
                 PROFILE.resolve_request(
                     args, stdin=NonTtyStringIO(), stdout=NonTtyStringIO()
                 )
 
-    def test_canonical_global_codex_target_infers_global_scope(self) -> None:
+    def test_canonical_global_codex_target_rejects_model_profile(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             home = Path(temp_name) / "home"
             args = parse(
@@ -279,13 +297,40 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 "--asset-root",
                 str(REPO_ROOT),
             )
-            request = PROFILE.resolve_request(
-                args,
-                stdin=NonTtyStringIO(),
-                stdout=NonTtyStringIO(),
-                home=home,
+            with self.assertRaisesRegex(PROFILE.ProfileError, "workspace-only"):
+                PROFILE.resolve_request(
+                    args,
+                    stdin=NonTtyStringIO(),
+                    stdout=NonTtyStringIO(),
+                    home=home,
+                )
+
+    def test_explicit_codex_global_set_rejects_named_and_uniform_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            home = Path(temp_name) / "home"
+            cases = (
+                ("balanced", "--model-set", "openai"),
+                ("uniform", "--uniform-model", "gpt-5.6-terra"),
             )
-            self.assertEqual(request.scope, "global")
+            for values in cases:
+                with self.subTest(profile=values[0]), self.assertRaisesRegex(
+                    PROFILE.ProfileError, "workspace-only"
+                ):
+                    PROFILE.resolve_request(
+                        parse(
+                            "set",
+                            *values,
+                            "--runtime",
+                            "codex",
+                            "--scope",
+                            "global",
+                            "--asset-root",
+                            str(REPO_ROOT),
+                        ),
+                        stdin=NonTtyStringIO(),
+                        stdout=NonTtyStringIO(),
+                        home=home,
+                    )
 
     def test_codex_workspace_profile_rejects_a_noncanonical_explicit_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

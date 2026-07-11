@@ -449,7 +449,10 @@ def resolve_request(
     )
     workspace = _canonical(args.workspace or Path.cwd())
     scope_choices = (
-        [("global", "global (recommended)"), ("workspace", "project profile override")]
+        [
+            ("global", "global install diagnostics / legacy cleanup"),
+            ("workspace", "workspace profile"),
+        ]
         if runtime == "codex"
         else [("global", "global (recommended)")]
     )
@@ -460,6 +463,10 @@ def resolve_request(
         scope = args.scope or "workspace"
     elif action == "list":
         scope = args.scope or "global"
+    elif runtime == "codex" and action == "set":
+        # Codex global roles are always model-free and inherit the parent
+        # session. Resource-tier profiles belong only to project-local roles.
+        scope = args.scope or "workspace"
     elif args.target:
         if args.scope:
             scope = args.scope
@@ -468,7 +475,7 @@ def resolve_request(
             # installer target. Workspace status has the unambiguous
             # --scope workspace --workspace surface.
             scope = "global"
-        elif runtime == "codex" and action in ("set", "clear"):
+        elif runtime == "codex" and action == "clear":
             explicit_target = _canonical(resolve_target(
                 runtime,
                 "workspace",
@@ -520,6 +527,12 @@ def resolve_request(
             stdout=stdout,
         )
 
+    if runtime == "codex" and action == "set" and scope != "workspace":
+        raise ProfileError(
+            "Codex agent model profiles are workspace-only. Install global roles "
+            "without a profile, then use --scope workspace --workspace <path>."
+        )
+
     if (
         interactive
         and action not in ("list", INTERNAL_ACTION)
@@ -547,6 +560,20 @@ def resolve_request(
         home=home,
         asset_root=asset_root,
     )
+    if runtime == "codex" and action == "set" and args.target:
+        global_target = resolve_target(
+            runtime,
+            "global",
+            workspace=workspace,
+            explicit_target=None,
+            home=home,
+            asset_root=asset_root,
+        )
+        if target == global_target:
+            raise ProfileError(
+                "Codex agent model profiles are workspace-only. The global Codex "
+                "installation must remain model-free."
+            )
     if (
         runtime == "codex"
         and scope == "workspace"
@@ -950,6 +977,27 @@ def _missing_managed_files(target: Path, files: Sequence[str]) -> list[str]:
     return missing
 
 
+def _codex_global_model_policy_violations(
+    target: Path, files: Sequence[str]
+) -> list[str]:
+    violations: list[str] = []
+    for relative in files:
+        candidate = target / Path(relative)
+        if _is_linklike(candidate) or not candidate.is_file():
+            continue
+        try:
+            role = tomllib.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+            violations.append(f"policy:global-role-invalid:{relative}")
+            continue
+        for key in ("model", "model_provider"):
+            if key in role:
+                violations.append(
+                    f"policy:global-role-model-override:{relative}:{key}"
+                )
+    return violations
+
+
 def _runtime_support_root(runtime: str, target: Path) -> Path:
     return target / "agents-pipeline" if runtime == "codex" else target.parent / "agents-pipeline"
 
@@ -1141,6 +1189,11 @@ def read_status(request: ResolvedRequest) -> dict[str, Any] | None:
             _missing_codex_config_registration(request.target, agent_names)
         )
         missing_files.extend(_missing_codex_global_agents(request.target))
+        if mode != "inherit":
+            missing_files.append(f"policy:global-profile-mode:{mode}")
+        missing_files.extend(
+            _codex_global_model_policy_violations(request.target, files)
+        )
         return {
             "health": "ok" if not missing_files else "incomplete",
             "managed_generated_count": len(files),

@@ -21,7 +21,7 @@ usage() {
 Download a release bundle and run install-codex.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [model profile options]
+  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [workspace profile options]
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
@@ -39,14 +39,14 @@ Options:
   --keep-temp           Keep downloaded temporary files
   --verbose             Show attestation verification details
   --agent-profile <name|path>
-                        Forward model profile selection to install-codex.sh
+                        Workspace-only profile; requires --workspace-root and matching --target
   --model-set <name|path>
-                        Forward runtime model-set selection to install-codex.sh
-  --profile-dir <path>  Forward agent profile directory override
+                        Forward workspace runtime model-set selection
+  --profile-dir <path>  Forward workspace profile directory override
   --model-set-dir <path>
-                        Forward Codex model-set directory override
+                        Forward workspace Codex model-set directory override
   --uniform-model <model>
-                        Forward uniform Codex model selection
+                        Workspace-only model; requires --workspace-root and matching --target
   -h, --help            Show this help
 EOF
 }
@@ -265,6 +265,10 @@ if [[ ${GLOBAL_AGENTS_TARGET_SET} -eq 1 && -z "${GLOBAL_AGENTS_TARGET//[[:space:
 fi
 if [[ ${GLOBAL_AGENTS_TARGET_SET} -eq 1 && "${GLOBAL_AGENTS_TARGET}" =~ ^[[:space:]]*-{1,2}[[:alpha:]] ]]; then
   echo "Global AGENTS.md target '${GLOBAL_AGENTS_TARGET}' looks like a switch, not a filesystem path. Pass --global-agents-target with a filesystem path value." >&2
+  exit 2
+fi
+if [[ ( ${TARGET_SET} -eq 0 || ${WORKSPACE_ROOT_SET} -eq 0 ) && ( -n "${AGENT_PROFILE}" || -n "${MODEL_SET}" || -n "${PROFILE_DIR}" || -n "${MODEL_SET_DIR}" || -n "${UNIFORM_MODEL}" ) ]]; then
+  echo "Codex agent model profiles are workspace-only. Pass --workspace-root and target that workspace's .codex directory, or bootstrap the global baseline without model-profile flags." >&2
   exit 2
 fi
 if [[ ${USER_SKILLS_ROOT_SET} -eq 1 && -z "${USER_SKILLS_ROOT//[[:space:]]/}" ]]; then

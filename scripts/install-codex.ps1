@@ -187,6 +187,13 @@ $workspaceMaterialization = $false
 if ($workspaceRootPath) {
     $workspaceMaterialization = Test-SamePath -Left $targetPath -Right (Join-Path $workspaceRootPath ".codex")
 }
+$activeGlobalTarget = Test-SamePath -Left $targetPath -Right (Get-DefaultTarget)
+if (-not $activeGlobalTarget -and $env:CODEX_HOME) {
+    $activeGlobalTarget = Test-SamePath -Left $targetPath -Right $env:CODEX_HOME
+}
+if ($modelFlags -and (-not $workspaceMaterialization -or $activeGlobalTarget)) {
+    throw "Codex agent model profiles are workspace-only. Pass -WorkspaceRoot and target that workspace's .codex directory, or use the installed profile manager with scope workspace."
+}
 if ($workspaceMaterialization -and $userSkillsRootWasExplicit) {
     throw "-UserSkillsRoot is only valid for global Codex installs; direct workspace materialization never installs user skills."
 }

@@ -1190,12 +1190,12 @@ def main() -> int:
     parser.add_argument(
         "--agent-profile",
         default=None,
-        help="Opt-in agent model profile name or JSON path forwarded to export-codex-agents.py.",
+        help="Workspace-only agent model profile forwarded to export-codex-agents.py.",
     )
     parser.add_argument(
         "--model-set",
         default=None,
-        help="Runtime model-set name or JSON path forwarded to export-codex-agents.py.",
+        help="Workspace-only runtime model-set forwarded to export-codex-agents.py.",
     )
     parser.add_argument(
         "--profile-dir",
@@ -1210,7 +1210,7 @@ def main() -> int:
     parser.add_argument(
         "--uniform-model",
         default=None,
-        help="Opt-in runtime model to apply uniformly to all generated Codex agents.",
+        help="Workspace-only runtime model applied uniformly to generated Codex agents.",
     )
     args = parser.parse_args()
 
@@ -1270,6 +1270,32 @@ def main() -> int:
     workspace_profile_target = is_workspace_profile_target(
         target_dir, global_agents_target
     )
+    model_profile_requested = any(
+        value is not None
+        for value in (args.agent_profile, args.model_set, args.uniform_model)
+    )
+    canonical_workspace_target = (
+        workspace_root is not None
+        and target_dir.expanduser().resolve()
+        == (workspace_root.expanduser().resolve() / ".codex").resolve()
+    )
+    global_targets = {(Path.home() / ".codex").expanduser().resolve()}
+    configured_codex_home = os.environ.get("CODEX_HOME")
+    if configured_codex_home:
+        global_targets.add(Path(configured_codex_home).expanduser().resolve())
+    active_global_target = target_dir.expanduser().resolve() in global_targets
+    if model_profile_requested and (
+        not canonical_workspace_target or active_global_target
+    ):
+        print(
+            "Codex agent model profiles are workspace-only. Global Codex roles "
+            "must inherit the parent session model. For explicit workspace "
+            "materialization, pass --workspace-root <path> and target exactly "
+            "<path>/.codex; normally use the installed profile manager with "
+            "--scope workspace --workspace <path>.",
+            file=sys.stderr,
+        )
+        return 2
     catalog_path = resolve_catalog_path(args.catalog, asset_root=asset_layout.asset_root)
     profile_dir = (
         asset_layout.asset_root / DEFAULT_PROFILE_DIR

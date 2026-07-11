@@ -689,6 +689,63 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertEqual(victim.read_text(encoding="utf-8"), "preserve")
 
+    def test_install_backend_rejects_nonworkspace_model_profile_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            target = root / "global-codex"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    INSTALL_SCRIPT_PATH.as_posix(),
+                    "--target-dir",
+                    target.as_posix(),
+                    "--workspace-root",
+                    (root / "different-workspace").as_posix(),
+                    "--global-agents-target",
+                    (root / "other-global-target").as_posix(),
+                    "--agent-profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("workspace-only", result.stderr)
+            self.assertFalse(target.exists())
+
+    def test_install_backend_rejects_default_global_target_disguised_as_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            home = Path(temp_dir_name) / "home"
+            target = home / ".codex"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    INSTALL_SCRIPT_PATH.as_posix(),
+                    "--target-dir",
+                    target.as_posix(),
+                    "--workspace-root",
+                    home.as_posix(),
+                    "--agent-profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
+                ],
+                cwd=REPO_ROOT,
+                env={**os.environ, "HOME": str(home), "CODEX_HOME": str(target)},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("workspace-only", result.stderr)
+            self.assertFalse(target.exists())
+
     def test_managed_agent_leaf_symlinks_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             target = Path(temp_dir_name) / ".codex"
@@ -1173,7 +1230,9 @@ class CodexInstallExportTest(unittest.TestCase):
             environment = {**os.environ, "HOME": (root / "home").as_posix()}
             (root / "home").mkdir()
 
-            def run(command: list[str]) -> subprocess.CompletedProcess[str]:
+            def run(
+                command: list[str], *, expected: int = 0
+            ) -> subprocess.CompletedProcess[str]:
                 completed = subprocess.run(
                     command,
                     cwd=REPO_ROOT,
@@ -1185,7 +1244,7 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
                 self.assertEqual(
                     completed.returncode,
-                    0,
+                    expected,
                     f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
                 )
                 return completed
@@ -1197,10 +1256,6 @@ class CodexInstallExportTest(unittest.TestCase):
                     "--target",
                     target.as_posix(),
                     "--no-backup",
-                    "--agent-profile",
-                    "balanced",
-                    "--model-set",
-                    "openai",
                 ]
             )
             installed_wrapper = (
@@ -1223,6 +1278,18 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertIn("balanced", {item["name"] for item in listing["profiles"]})
             self.assertIn("openai", {item["name"] for item in listing["model_sets"]})
 
+            global_role_bytes = {
+                path.name: path.read_bytes()
+                for path in (target / "agents").glob("*.toml")
+            }
+            self.assertTrue(global_role_bytes)
+            for role_name, role_bytes in global_role_bytes.items():
+                with self.subTest(global_role=role_name):
+                    self.assertNotRegex(
+                        role_bytes.decode("utf-8"),
+                        r"(?m)^(model|model_provider)\s*=",
+                    )
+
             before = json.loads(
                 run(
                     [
@@ -1239,7 +1306,89 @@ class CodexInstallExportTest(unittest.TestCase):
                     ]
                 ).stdout
             )
-            self.assertEqual((before["installed"], before["health"], before["mode"]), (True, "ok", "profile"))
+            self.assertEqual(
+                (before["installed"], before["health"], before["mode"]),
+                (True, "ok", "inherit"),
+            )
+            self.assertIsNone(before["profile"])
+            self.assertIsNone(before["model_set"])
+
+            rejected = run(
+                [
+                    "bash",
+                    installed_wrapper.as_posix(),
+                    "set",
+                    "balanced",
+                    "--runtime",
+                    "codex",
+                    "--scope",
+                    "global",
+                    "--target",
+                    target.as_posix(),
+                    "--model-set",
+                    "openai",
+                    "--no-backup",
+                ],
+                expected=2,
+            )
+            self.assertIn("workspace-only", rejected.stderr)
+            self.assertEqual(
+                global_role_bytes,
+                {
+                    path.name: path.read_bytes()
+                    for path in (target / "agents").glob("*.toml")
+                },
+            )
+
+            legacy_role = target / "agents" / "peon.toml"
+            legacy_role.write_text(
+                legacy_role.read_text(encoding="utf-8")
+                + '\nmodel = "gpt-5.6-luna"\nmodel_provider = "openai"\n',
+                encoding="utf-8",
+            )
+            legacy_manifest_path = target / INSTALL_MODULE.MANIFEST_FILENAME
+            legacy_manifest = json.loads(
+                legacy_manifest_path.read_text(encoding="utf-8")
+            )
+            legacy_manifest.update(
+                {
+                    "mode": "profile",
+                    "profile": "balanced",
+                    "model_set": "openai",
+                    "uniform_model": None,
+                }
+            )
+            legacy_manifest_path.write_text(
+                json.dumps(legacy_manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            polluted = json.loads(
+                run(
+                    [
+                        "bash",
+                        installed_wrapper.as_posix(),
+                        "status",
+                        "--runtime",
+                        "codex",
+                        "--scope",
+                        "global",
+                        "--target",
+                        target.as_posix(),
+                        "--json",
+                    ]
+                ).stdout
+            )
+            self.assertEqual(polluted["health"], "incomplete")
+            policy_violations = set(polluted["missing_generated_files"])
+            self.assertIn("policy:global-profile-mode:profile", policy_violations)
+            self.assertIn(
+                "policy:global-role-model-override:agents/peon.toml:model",
+                policy_violations,
+            )
+            self.assertIn(
+                "policy:global-role-model-override:agents/peon.toml:model_provider",
+                policy_violations,
+            )
 
             run(
                 [
@@ -1272,6 +1421,13 @@ class CodexInstallExportTest(unittest.TestCase):
                 ).stdout
             )
             self.assertEqual((after["installed"], after["health"], after["mode"]), (True, "ok", "inherit"))
+            self.assertIsNone(after["profile"])
+            self.assertIsNone(after["model_set"])
+            for role_path in (target / "agents").glob("*.toml"):
+                self.assertNotRegex(
+                    role_path.read_text(encoding="utf-8"),
+                    r"(?m)^(model|model_provider)\s*=",
+                )
 
     def test_run_export_creates_temp_dir_under_requested_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:

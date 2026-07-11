@@ -411,6 +411,15 @@ def validate_global_install(global_target: Path) -> list[str]:
         raise ProjectProfileError(
             f"Global Codex manifest target does not match {global_target}; rerun the global bootstrap."
         )
+    if data.get("mode") != "default" or any(
+        data.get(key) is not None
+        for key in ("profile", "model_set", "uniform_model")
+    ):
+        raise ProjectProfileError(
+            "Global Codex roles must be model-free. Run the installed profile "
+            "manager with 'clear --runtime codex --scope global' before using a "
+            "workspace profile."
+        )
     names = _safe_agent_names(data.get("managed_agent_names"), label="managed_agent_names")
     files = data.get("managed_agent_files")
     if not isinstance(files, list) or not all(isinstance(item, str) for item in files):
@@ -427,6 +436,20 @@ def validate_global_install(global_target: Path) -> list[str]:
         path = global_target / relative
         if _is_linklike(path) or not path.is_file():
             raise ProjectProfileError(f"Global Codex agent definition is missing or unsafe: {path}")
+        try:
+            role = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+            raise ProjectProfileError(
+                f"Global Codex agent definition is invalid: {path}"
+            ) from exc
+        overrides = sorted({"model", "model_provider"}.intersection(role))
+        if overrides:
+            raise ProjectProfileError(
+                "Global Codex roles must be model-free; found "
+                + ", ".join(overrides)
+                + f" in {path}. Run the installed profile manager with "
+                "'clear --runtime codex --scope global'."
+            )
 
     support_root = global_target / "agents-pipeline"
     if _is_linklike(support_root) or not support_root.is_dir():

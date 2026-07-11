@@ -76,7 +76,7 @@ exit /b 0
         $previousPath = $env:PATH
         try {
             $env:PATH = "$binDir;$previousPath"
-            & $scriptPath -Target $targetPath -WorkspaceRoot $workspaceRoot -DryRun | Out-Null
+            & $scriptPath -Target $targetPath -WorkspaceRoot $workspaceRoot -AgentProfile balanced -ModelSet openai -DryRun | Out-Null
             if ($LASTEXITCODE -ne 0) {
                 throw "Expected install-codex.ps1 dry-run with workspace root to succeed. Exit code: $LASTEXITCODE"
             }
@@ -91,6 +91,9 @@ exit /b 0
         }
         if ($loggedArgs -notmatch [regex]::Escape($workspaceRoot)) {
             throw "Expected install-codex.ps1 to forward the workspace root path. Logged args: $loggedArgs"
+        }
+        if ($loggedArgs -notmatch "--agent-profile" -or $loggedArgs -notmatch "balanced") {
+            throw "Expected install-codex.ps1 to forward the workspace model profile. Logged args: $loggedArgs"
         }
     }
 
@@ -147,6 +150,45 @@ Describe "install-codex.ps1 target validation" {
         { & $scriptPath -Target $targetFile -DryRun } |
             Should -Throw "*Target path is not a directory:*"
     }
+
+    It "rejects global named and uniform model profiles before writing" {
+        foreach ($profileCase in @(
+            @{ AgentProfile = "balanced"; ModelSet = "openai" },
+            @{ UniformModel = "gpt-5.6-terra" }
+        )) {
+            $target = Join-Path $TestDrive ("global-profile-" + [guid]::NewGuid().ToString("N"))
+            { & $scriptPath -Target $target -DryRun @profileCase } |
+                Should -Throw "*workspace-only*"
+            Test-Path -LiteralPath $target | Should -BeFalse
+        }
+    }
+
+    It "does not treat a different global agents target as workspace scope" {
+        $target = Join-Path $TestDrive "global-profile-bypass"
+        $otherGlobal = Join-Path $TestDrive "other-global"
+
+        { & $scriptPath -Target $target -GlobalAgentsTarget $otherGlobal -AgentProfile balanced -ModelSet openai -DryRun } |
+            Should -Throw "*workspace-only*"
+        Test-Path -LiteralPath $target | Should -BeFalse
+    }
+
+    It "rejects the default global target even when its parent is labeled a workspace" {
+        $target = Join-Path $HOME ".codex"
+
+        { & $scriptPath -Target $target -WorkspaceRoot $HOME -AgentProfile balanced -ModelSet openai -DryRun } |
+            Should -Throw "*workspace-only*"
+    }
+}
+
+Describe "bootstrap-install-codex.ps1 model profile boundary" {
+    It "rejects a global model profile before download" {
+        $bootstrap = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/bootstrap-install-codex.ps1"
+        $target = Join-Path $TestDrive "bootstrap-global-profile"
+
+        { & $bootstrap -Target $target -AgentProfile balanced -ModelSet openai -DryRun } |
+            Should -Throw "*workspace-only*"
+        Test-Path -LiteralPath $target | Should -BeFalse
+    }
 }
 
 Describe "install-codex.ps1 repeat installation" {
@@ -165,6 +207,10 @@ Describe "install-codex.ps1 repeat installation" {
 
         Test-Path -LiteralPath (Join-Path $targetPath ".agents-pipeline-codex-manifest.json") -PathType Leaf |
             Should -BeTrue
+        foreach ($role in Get-ChildItem -LiteralPath (Join-Path $targetPath "agents") -Filter "*.toml" -File) {
+            (Get-Content -LiteralPath $role.FullName -Raw) |
+                Should -Not -Match '(?m)^(model|model_provider)\s*='
+        }
     }
 }
 
@@ -259,6 +305,8 @@ Describe "install-codex.ps1 workspace profile overlay" {
         $globalRoleBefore = [System.IO.File]::ReadAllBytes(
             (Join-Path $targetPath "agents/executor.toml")
         )
+        (Get-Content -LiteralPath (Join-Path $targetPath "agents/executor.toml") -Raw) |
+            Should -Not -Match '(?m)^(model|model_provider)\s*='
 
         $previousCodexHome = $env:CODEX_HOME
         try {
@@ -277,6 +325,8 @@ Describe "install-codex.ps1 workspace profile overlay" {
             $localCodex = Join-Path $workspace ".codex"
             @(Get-ChildItem -LiteralPath (Join-Path $localCodex "agents") -Filter "*.toml" -File).Count |
                 Should -Be 45
+            (Get-Content -LiteralPath (Join-Path $localCodex "agents/executor.toml") -Raw) |
+                Should -Match '(?m)^model\s*='
             Test-Path -LiteralPath (Join-Path $localCodex "config.toml") -PathType Leaf |
                 Should -BeTrue
             Test-Path -LiteralPath (Join-Path $localCodex ".agents-pipeline-project-profile.json") -PathType Leaf |
@@ -295,6 +345,8 @@ Describe "install-codex.ps1 workspace profile overlay" {
             [Convert]::ToBase64String(
                 [System.IO.File]::ReadAllBytes((Join-Path $targetPath "agents/executor.toml"))
             ) | Should -Be ([Convert]::ToBase64String($globalRoleBefore))
+            (Get-Content -LiteralPath (Join-Path $targetPath "agents/executor.toml") -Raw) |
+                Should -Not -Match '(?m)^(model|model_provider)\s*='
         }
         finally {
             $env:CODEX_HOME = $previousCodexHome

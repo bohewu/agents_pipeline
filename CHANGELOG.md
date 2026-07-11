@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- Made Codex model profiles workspace-only. Global Codex installs now always generate model-free roles that inherit the parent session; global `status` and `clear` remain available only for installation diagnostics and legacy profile cleanup. Claude Code and GitHub Copilot retain their global profile workflows.
+
 ## [0.28.0] - 2026-07-11
 
 ### Added

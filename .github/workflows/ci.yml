@@ -241,6 +241,29 @@ jobs:
 
           bash scripts/install-codex.sh --no-backup >/dev/null
           profile_tool="${HOME}/.codex/agents-pipeline/scripts/agent-profile.sh"
+          global_status_json="$(bash "${profile_tool}" status \
+            --runtime codex \
+            --scope global \
+            --json 2>/dev/null)"
+          GLOBAL_STATUS_JSON="${global_status_json}" python3 - <<'PY'
+          import json
+          import os
+          import tomllib
+          from pathlib import Path
+
+          status = json.loads(os.environ["GLOBAL_STATUS_JSON"])
+          assert status["health"] == "ok", status
+          assert status["mode"] == "inherit", status
+          assert status["profile"] is None, status
+          assert status["model_set"] is None, status
+          roles = sorted((Path.home() / ".codex" / "agents").glob("*.toml"))
+          assert len(roles) == 45, roles
+          for role_path in roles:
+              with role_path.open("rb") as handle:
+                  role = tomllib.load(handle)
+              assert "model" not in role, role_path
+              assert "model_provider" not in role, role_path
+          PY
           bash "${profile_tool}" set balanced \
             --runtime codex \
             --scope workspace \

@@ -69,6 +69,15 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             "CODEX_HOME": (home / ".codex").as_posix(),
         }
 
+    def assert_model_free_roles(self, roles_dir: Path) -> None:
+        role_paths = sorted(roles_dir.glob("*.toml"))
+        self.assertTrue(role_paths)
+        for role_path in role_paths:
+            with self.subTest(global_role=role_path.name):
+                role = tomllib.loads(role_path.read_text(encoding="utf-8"))
+                self.assertNotIn("model", role)
+                self.assertNotIn("model_provider", role)
+
     def install_global_codex(self, home: Path, env: dict[str, str]) -> tuple[Path, Path]:
         codex_home = home / ".codex"
         self.run_command(
@@ -87,6 +96,27 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
         self.assertTrue((codex_home / "agents-pipeline" / "skills").is_dir())
         self.assertTrue((codex_home / "agents-pipeline" / "tools").is_dir())
         self.assertTrue(self.balanced_cache(codex_home).is_dir())
+        self.assert_model_free_roles(codex_home / "agents")
+        global_status = json.loads(
+            self.run_command(
+                [
+                    "bash",
+                    profile_wrapper.as_posix(),
+                    "status",
+                    "--runtime",
+                    "codex",
+                    "--scope",
+                    "global",
+                    "--json",
+                ],
+                env=env,
+            ).stdout
+        )
+        self.assertEqual(global_status["health"], "ok")
+        self.assertEqual(global_status["mode"], "inherit")
+        self.assertIsNone(global_status["profile"])
+        self.assertIsNone(global_status["model_set"])
+        self.assertIsNone(global_status["uniform_model"])
         return codex_home, profile_wrapper
 
     def balanced_cache(self, codex_home: Path) -> Path:
@@ -328,6 +358,44 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
 
             cleared = self.workspace_status(wrapper, workspace, env=env)
             self.assertFalse(cleared["installed"])
+
+    def test_workspace_preflight_rejects_model_pinned_global_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            workspace = root / "project"
+            env = self.isolated_environment(home)
+            codex_home, wrapper = self.install_global_codex(home, env)
+            global_role = codex_home / "agents" / "peon.toml"
+            global_role.write_text(
+                global_role.read_text(encoding="utf-8")
+                + '\nmodel = "gpt-5.6-luna"\nmodel_provider = "openai"\n',
+                encoding="utf-8",
+            )
+
+            status = self.run_command(
+                [
+                    "bash",
+                    wrapper.as_posix(),
+                    "status",
+                    "--runtime",
+                    "codex",
+                    "--scope",
+                    "workspace",
+                    "--workspace",
+                    workspace.as_posix(),
+                    "--json",
+                ],
+                env=env,
+                expected=2,
+            )
+            self.assertIn("must be model-free", status.stderr)
+
+            profile_set = self.run_profile(
+                wrapper, "set", workspace, env=env, expected=2
+            )
+            self.assertIn("must be model-free", profile_set.stderr)
+            self.assertFalse((workspace / ".codex" / "agents").exists())
 
     def test_install_remains_a_compatibility_alias_for_set(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

@@ -21,7 +21,7 @@ usage() {
 Install Codex multi-agent role config generated from neutral source agents.
 
 Usage:
-  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--dry-run] [--no-backup] [--force] [model profile options]
+  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--dry-run] [--no-backup] [--force] [workspace profile options]
 
 Options:
   --target <path>  Install destination (default: ~/.codex)
@@ -36,15 +36,15 @@ Options:
   --no-backup      Skip backup of existing config.toml, agents/*.toml, and managed AGENTS.md files
   --force          Accepted for backward compatibility; merged install is already enabled by default
   --agent-profile <name|path>
-                  Opt in to generated per-agent model settings
+                  Workspace-only profile; requires --workspace-root and matching --target
   --model-set <name|path>
-                  Runtime model-set to use with --agent-profile
+                  Workspace-only runtime model-set used with --agent-profile
   --profile-dir <path>
-                  Agent profile directory (default: repo tools/agent-profiles)
+                  Workspace-only profile directory override
   --model-set-dir <path>
-                  Codex model-set directory (default: repo runtimes/codex/model-sets)
+                  Workspace-only Codex model-set directory override
   --uniform-model <model>
-                  Apply one Codex model to all generated agents
+                  Workspace-only model; requires --workspace-root and matching --target
   -h, --help       Show this help
 
 Backs up current Codex files, preserves non-agent settings, replaces managed agent definitions, and removes stale managed role files.
@@ -299,6 +299,16 @@ fi
 WORKSPACE_MATERIALIZATION=0
 if [[ -n "${WORKSPACE_ROOT}" ]] && paths_equal "${TARGET_DIR}" "${WORKSPACE_ROOT}/.codex"; then
   WORKSPACE_MATERIALIZATION=1
+fi
+ACTIVE_GLOBAL_TARGET=0
+if paths_equal "${TARGET_DIR}" "${HOME}/.codex"; then
+  ACTIVE_GLOBAL_TARGET=1
+elif [[ -n "${CODEX_HOME:-}" ]] && paths_equal "${TARGET_DIR}" "${CODEX_HOME}"; then
+  ACTIVE_GLOBAL_TARGET=1
+fi
+if [[ ${MODEL_FLAGS} -eq 1 && ( ${WORKSPACE_MATERIALIZATION} -ne 1 || ${ACTIVE_GLOBAL_TARGET} -eq 1 ) ]]; then
+  echo "Codex agent model profiles are workspace-only. Pass --workspace-root and target that workspace's .codex directory, or use the installed profile manager with --scope workspace." >&2
+  exit 2
 fi
 if [[ ${WORKSPACE_MATERIALIZATION} -eq 1 && ${USER_SKILLS_ROOT_SET} -eq 1 ]]; then
   echo "--user-skills-root is only valid for global Codex installs; direct workspace materialization never installs user skills." >&2

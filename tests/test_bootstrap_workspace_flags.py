@@ -163,6 +163,10 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
                     str(workspace),
                     "--global-agents-target",
                     str(global_agents),
+                    "--agent-profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
                 ],
                 cwd=ROOT,
                 env=env,
@@ -180,8 +184,36 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
                     str(workspace),
                     "--global-agents-target",
                     str(global_agents),
+                    "--agent-profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
                 ],
             )
+
+    def test_codex_bash_bootstrap_rejects_global_model_profile_before_network(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            target = Path(raw_temp) / "global-codex"
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "scripts/bootstrap-install-codex.sh"),
+                    "--target",
+                    str(target),
+                    "--agent-profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("workspace-only", result.stderr)
+            self.assertFalse(target.exists())
 
     def test_codex_bash_bootstrap_forwards_custom_user_skills_root(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -272,6 +304,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             "$installParams.WorkspaceRoot = $WorkspaceRoot",
             "$installParams.GlobalAgentsTarget = $GlobalAgentsTarget",
             "$installParams.UserSkillsRoot = $UserSkillsRoot",
+            "Codex agent model profiles are workspace-only",
         ):
             self.assertIn(expected, codex)
         for expected in (
