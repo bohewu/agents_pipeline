@@ -218,6 +218,7 @@ jobs:
 
   validate-preview-platforms:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -232,7 +233,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          smoke_root="$(mktemp -d)"
+          smoke_root="$(mktemp -d "${RUNNER_TEMP}/agents-pipeline.XXXXXX")"
           trap 'rm -rf "${smoke_root}"' EXIT
           export HOME="${smoke_root}/home"
           workspace="${smoke_root}/workspace"
