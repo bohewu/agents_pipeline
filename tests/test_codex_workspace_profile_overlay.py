@@ -260,6 +260,20 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             local_agent_files = self.assert_workspace_local_profile(
                 workspace, codex_home, status
             )
+            expected_balanced_models = {
+                "peon": "gpt-5.6-luna",
+                "generalist": "gpt-5.6-terra",
+                "reviewer": "gpt-5.6-sol",
+            }
+            for role_name, expected_model in expected_balanced_models.items():
+                with self.subTest(role=role_name):
+                    role_config = tomllib.loads(
+                        local_agent_files[role_name].read_text(encoding="utf-8")
+                    )
+                    self.assertEqual(role_config["name"], role_name)
+                    self.assertTrue(role_config["description"])
+                    self.assertEqual(role_config["model"], expected_model)
+                    self.assertEqual(role_config["model_provider"], "openai")
             self.assertEqual(status["managed_generated_count"], len(local_agent_files))
             self.assertEqual(
                 set(status["managed_generated_files"]),
