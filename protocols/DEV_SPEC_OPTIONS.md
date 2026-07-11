@@ -58,11 +58,11 @@ Use stable ids so downstream planning and review can trace every task back to th
 
 ### Flow
 
-1. `/run-spec` invokes `orchestrator-spec`.
+1. `$run-spec` invokes `orchestrator-spec`.
 2. `specifier` (or a future spec-focused subagent) produces `ProblemSpec` + `DevSpec`.
 3. `doc-writer` produces `dev-spec.md`.
 4. The workflow stops after spec generation and optional approval.
-5. A later `/run-pipeline` run consumes the approved `DevSpec` as context.
+5. A later `$run-pipeline` run consumes the approved `DevSpec` as context.
 
 ### Suggested Output Paths
 
@@ -90,7 +90,7 @@ Output a machine-readable DevSpec and a human-readable Markdown version from the
 
 ### Cons
 
-- Adds another primary agent and slash command to maintain.
+- Adds another primary agent and formal workflow entry point to maintain.
 - Risks duplicating Stage 0 behavior already present in the main pipeline.
 - Needs a clean handoff contract so `orchestrator-pipeline` can trust externally generated specs.
 

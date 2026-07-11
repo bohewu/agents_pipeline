@@ -4,15 +4,15 @@ This SOP describes the minimal steps to release using the CI/CD planning pipelin
 
 ## Prerequisites
 
-- `/run-pipeline` completed with reviewer pass
+- `$run-pipeline` completed with reviewer pass
 - `ci/` docs exist and are up to date
 
 ## Publish Flow
 
 1) Update CI/CD plan (if needed)
-   - `/run-ci` (docs-only)
+   - `$run-ci` (docs-only)
 2) Generate configs (if needed)
-   - `/run-ci --generate --github --docker --deploy`
+   - `$run-ci --generate --github --docker --deploy`
 3) Review generated files
 4) Verify release integrity controls
    - Confirm workflow actions are pinned appropriately

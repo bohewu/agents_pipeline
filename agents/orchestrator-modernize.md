@@ -77,7 +77,7 @@ These rules apply to **all agents**.
 
 ## FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -149,7 +149,7 @@ Execution root policy:
 - The source project owns `orchestrator-modernize` checkpointing and `.pipeline-output/<run_id>/modernize/` artifacts.
 - Once real implementation starts (`phase-exec` or `full-exec`), delegated code/test/review work MUST run against the target project (`target_project_dir`). In branch mode, delegated work runs in the current project after switching to `target_branch`.
 - When delegated execution starts in the same session, the target project MUST immediately own delegated pipeline checkpoints, status files, and `.pipeline-output/<delegated-run_id>/pipeline/` artifacts. Do not keep delegated implementation artifacts under the source project's output root.
-- After a handoff exists, later manual `/run-pipeline` sessions SHOULD start from the target project, not the source project.
+- After a handoff exists, later manual `$run-pipeline` sessions SHOULD start from the target project, not the source project.
 
 ## CHECKPOINT PROTOCOL
 
@@ -295,13 +295,13 @@ Stage 3: Synthesis
   <Bullet list>
 
   ## Next Steps
-  <Mode-dependent next step: internal @orchestrator-pipeline handoff status, or human-facing /run-pipeline command for the target project>
+  <Mode-dependent next step: internal @orchestrator-pipeline handoff status, or human-facing $run-pipeline invocation for the target project>
   ```
 - If `decision_only = true`, the index "Documents" section MUST list only the artifacts that were actually produced (tasks 1-3).
 - The index MUST be a navigation page (not a full report). Keep it concise.
 - List open questions and explicit risks.
-- If `modernize_mode = plan` or `modernize_mode = plan+handoff`, provide a short handoff note for `/run-pipeline` usage in the target project (for human operators).
-- If `modernize_mode = branch`, provide branch-local next steps. If `execute_phase_id` is present, describe the same-branch delegated execution status; otherwise provide an exact `/run-pipeline` command to run from the already-created branch.
+- If `modernize_mode = plan` or `modernize_mode = plan+handoff`, provide a short handoff note for `$run-pipeline` usage in the target project (for human operators).
+- If `modernize_mode = branch`, provide branch-local next steps. If `execute_phase_id` is present, describe the same-branch delegated execution status; otherwise provide an exact `$run-pipeline` invocation to run from the already-created branch.
 - The `Next Steps` section MUST include exact, copyable command snippets in fenced text blocks whenever the next operator action is known.
 - If the target project is missing, the `Next Steps` section MUST include a manual target-creation path.
 - If the next action should happen from the target project, say so explicitly before the command block.
@@ -321,14 +321,14 @@ Stage 5: Optional Execution Handoff (agent-to-agent)
 
 Trigger conditions:
 - `modernize_mode = plan`: skip Stage 5
-- `modernize_mode = plan+handoff`: skip Stage 5 and provide a stronger human-facing `/run-pipeline` handoff note
+- `modernize_mode = plan+handoff`: skip Stage 5 and provide a stronger human-facing `$run-pipeline` handoff note
 - `modernize_mode = phase-exec`: delegate exactly one pipeline execution for `execute_phase_id`
 - `modernize_mode = full-exec`: delegate one pipeline execution per roadmap phase in order (recommend `confirm_mode = true`)
-- `modernize_mode = branch`: if `execute_phase_id` is present, delegate exactly one same-repo pipeline execution for that phase after branch-first planning; if `execute_phase_id` is missing, skip Stage 5 and provide a branch-local `/run-pipeline` handoff note
+- `modernize_mode = branch`: if `execute_phase_id` is present, delegate exactly one same-repo pipeline execution for that phase after branch-first planning; if `execute_phase_id` is missing, skip Stage 5 and provide a branch-local `$run-pipeline` handoff note
 
 Execution mode semantics (strict):
 - `plan`: complete Stage 0-4 only. No execution delegation.
-- `plan+handoff`: complete Stage 0-4 only. Produce a stronger handoff summary (human-facing `/run-pipeline` command + internal handoff-equivalent details in the response/index).
+- `plan+handoff`: complete Stage 0-4 only. Produce a stronger handoff summary (human-facing `$run-pipeline` invocation + internal handoff-equivalent details in the response/index).
 - `phase-exec`: complete Stage 0-4 (or resume from checkpoint), resolve exactly one roadmap phase, then dispatch one `@orchestrator-pipeline` run.
 - `full-exec`: complete Stage 0-4 (or resume), resolve all roadmap phases in order, then dispatch one `@orchestrator-pipeline` run per phase, stopping on first blocked/failed phase unless the user explicitly overrides.
 - `branch`: create/switch to `target_branch` before Stage 0, complete Stage 0-4 on that branch, then either dispatch one same-repo `@orchestrator-pipeline` run for `execute_phase_id` or stop with branch-local handoff instructions.
@@ -354,11 +354,11 @@ Execution rules:
   5. Explicit instruction that `@orchestrator-pipeline` owns implementation/test/reviewer/retry flow and must not reinterpret modernization phase boundaries without reporting back.
 - If runtime agent-to-agent dispatch to `@orchestrator-pipeline` is unavailable, stop and provide:
   - a concise reason
-  - an exact human-facing `/run-pipeline ...` command to run in `target_project_dir` for source-to-target modes, or in the current repo after switching to `target_branch` for branch mode
+  - an exact human-facing `$run-pipeline ...` invocation to run in `target_project_dir` for source-to-target modes, or in the current repo after switching to `target_branch` for branch mode
 
 If `target_project_dir` was missing:
 - Stop before Stage 5.
-- Provide an exact next-step option: create `target_project_dir` manually, then run the suggested `/run-pipeline` command from that target project.
+- Provide an exact next-step option: create `target_project_dir` manually, then run the suggested `$run-pipeline` invocation from that target project.
 
 Persisted handoff artifacts (required for execution modes):
 
@@ -370,7 +370,7 @@ Persisted handoff artifacts (required for execution modes):
   - `<target_project_dir>/.pipeline-output/modernize/phase-<phase_id>.handoff.json`
 - In branch mode, do not create a target-project mirror because the delegated working project is the current repo/branch; the source-side files are already branch-local handoff files.
 - These are internal control files, not user-facing planning docs.
-- Their purpose is to support later manual `/run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
+- Their purpose is to support later manual `$run-pipeline` runs after session closure or when agent-to-agent dispatch is unavailable.
 - These handoff files SHOULD conform to `protocols/schemas/modernize-exec-handoff.schema.json`.
 - The source-side copies preserve planning provenance; the target-local mirrors optimize continuation DX for later pipeline runs started from the target-project side.
 - In source-to-target execution modes, if target-local mirroring or target-local delegated output ownership cannot be established, stop and report BLOCKED instead of silently writing delegated pipeline artifacts only under the source project.
@@ -397,7 +397,7 @@ Pipeline Flag Forwarding Rules (`forwarded_pipeline_flags[]`):
 - Supported forwarded flags should align with `orchestrator-pipeline` parsing semantics (e.g. `--dry`, `--no-test`, `--test-only`, `--loose-review`, `--scout=*`, `--skip-scout`, `--force-scout`, `--max-retry=*`, `--autopilot`, `--full-auto`, `--output-dir=*`, `--resume`, `--confirm`, `--verbose`).
 - Forbidden forwarded flags:
   - `--decision-only` (contradicts execution intent)
-  - any `run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
+  - any `$run-modernize`-specific flag (`--mode`, `--execute-phase`, `--target`, `--depth`, `--iterate`)
 - If `full_auto_mode = true`, ensure `--full-auto` is present in the delegated `pipeline_flags` unless already present.
 - If `autopilot_mode = true`, ensure `--autopilot` is present in the delegated `pipeline_flags` unless already present.
 - If `full_auto_mode = true`, drop delegated `--confirm` and `--verbose` flags because delegated pipeline execution must remain non-interactive.
@@ -523,8 +523,8 @@ Completion Semantics (strict):
 Fallback Human Command Rendering (when agent dispatch unavailable):
 - Render one exact command per delegated run, to be executed by a human in `target_project_dir`.
 - In branch mode, render the command for the current repo after switching to `target_branch`.
-- Command format:
-  - `/run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
+- Invocation format:
+  - `$run-pipeline <phase-scoped main task prompt> [forwarded pipeline flags...]`
 - Include a short note naming the target directory, selected phase ID/title, and saved handoff path.
 - If a saved handoff file exists, recommend wording such as: `Use .pipeline-output/<run_id>/modernize/phase-<phase_id>.handoff.json as the execution contract.`
 - Use the same fallback when runtime dispatch exists but cannot honor `target_project_dir` as the delegated worktree.

@@ -32,8 +32,8 @@ Convert EXACTLY ONE bounded UI/UX request into conceptual workflow output. No sc
 - Do NOT produce acceptance criteria, test plans, task lists, API contracts, data models, or engineering tickets.
 - Do NOT generate code, component implementations, HTML, CSS, React, Swift, Flutter, or other framework output.
 - Do NOT claim to create rendered mockups, previews, prototypes, editors, or full preview/editor experiences.
-- Do NOT perform browser-backed auditing. If the user needs evaluation of an existing experience, point to `/run-ux`.
-- If the user needs an implementation-ready behavior contract after concept approval, point to `/run-spec`.
+- Do NOT perform browser-backed auditing. If the user needs evaluation of an existing experience, point to `$run-ux`.
+- If the user needs an implementation-ready behavior contract after concept approval, point to `$run-spec`.
 - If the user needs bounded 2D asset prompts or briefs, point to `artgen-scaffold`.
 
 # IN SCOPE
@@ -52,7 +52,7 @@ Convert EXACTLY ONE bounded UI/UX request into conceptual workflow output. No sc
 - Keep the output cross-platform and conceptual unless the user explicitly provides platform context.
 - If the prompt contains multiple unrelated areas, prioritize the dominant workflow and note deferred areas briefly.
 - When the request is mainly about clarity, trust, labels, instructions, confusing navigation, or unclear flow, frame the work as a conversation: what the user needs to know, what the system should say, and what should change on the screen.
-- If the prompt references `/run-ux` findings, transform those findings into a conceptual redesign direction rather than repeating the audit.
+- If the prompt references `$run-ux` findings, transform those findings into a conceptual redesign direction rather than repeating the audit.
 - For communication-first requests, do not stop at generic copy notes. Include a short human-to-human explanation, a revised task flow, and targeted microcopy rewrites for the highest-friction text.
 - Keep suggestions human-reviewable and Markdown-first.
 - When `--output-dir=<path>` is present, switch from inline-only response mode to export mode.
@@ -112,4 +112,4 @@ For communication-first critique or rewrite requests, include inside the standar
 - unknowns that should be resolved before implementation
 
 ## Suggested Next Step
-- one of: stay conceptual, `/run-ux`, `/run-spec`, `artgen-scaffold`
+- one of: stay conceptual, `$run-ux`, `$run-spec`, `artgen-scaffold`

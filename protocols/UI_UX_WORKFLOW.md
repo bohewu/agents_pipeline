@@ -9,8 +9,8 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 - Use this workflow when the user needs conceptual UI/UX direction for one bounded experience, workflow, or surface.
 - Use the same workflow when the request is mainly a communication-first redesign or critique about task clarity, labels, instructions, trust, or confusing next steps.
 - The workflow sits between raw product intent and later execution-oriented paths:
-  - before `/run-spec` when concepts need approval before implementation-ready specs
-  - after `/run-ux` when audit findings need conceptual follow-up
+  - before `$run-spec` when concepts need approval before implementation-ready specs
+  - after `$run-ux` when audit findings need conceptual follow-up
   - adjacent to `artgen-scaffold` when a concept also needs bounded 2D asset briefs or prompts
 - The canonical entry surface is the repo-managed `ui-ux-workflow` skill, with `@ui-ux-designer` as the matching execution specialist when agent delegation is available.
 - Do not add a new primary orchestrator for this layer.
@@ -56,15 +56,15 @@ Do not create a second UI/UX command or a new orchestrator for this overlay.
 
 ## Reuse Points
 
-### Reuse from `/run-ux`
+### Reuse from `$run-ux`
 
 - Reuse the normal-user perspective, journey framing, and evidence-aware caution when users bring existing audit findings into a conceptual redesign request.
 - `ui-ux-workflow` may translate UX findings into concept-level direction, but it must not perform or pretend to perform a live audit.
 
-### Reuse from `/run-spec`
+### Reuse from `$run-spec`
 
 - Reuse the docs-first posture and explicit handoff boundary between concept work and implementation-ready specification.
-- Approved conceptual output from `ui-ux-workflow` can later become input for `/run-spec`.
+- Approved conceptual output from `ui-ux-workflow` can later become input for `$run-spec`.
 
 ### Reuse from the companion communication-first skill
 
@@ -82,8 +82,8 @@ Do not create a second UI/UX command or a new orchestrator for this overlay.
 1. User enters a conceptual UI/UX request through `ui-ux-workflow`.
 2. `@ui-ux-designer` returns a bounded concept brief for the primary workflow or surface.
 3. For communication-first requests, the concept brief also calls out top user questions, a short human-to-human explanation, and the revised task flow and screen messaging implications.
-4. If the user really needs evaluation of an existing experience, redirect or hand off to `/run-ux`.
-5. If the concept is approved and needs implementation-ready specification, hand off to `/run-spec`.
+4. If the user really needs evaluation of an existing experience, redirect or hand off to `$run-ux`.
+5. If the concept is approved and needs implementation-ready specification, hand off to `$run-spec`.
 6. If supporting 2D assets are needed, use `artgen-scaffold` separately for those asset briefs.
 
 ## Versioned Artifact Contract Bundle
@@ -663,7 +663,7 @@ Use a small number of high-value intake questions before drafting. These five qu
 | Who is the main user or actor, and which devices matter first: desktop, tablet, mobile, or a mix? | This determines hierarchy, density, and cross-platform adaptation from the start. |
 | Which non-happy-path moment most needs coverage: empty, loading, error/recovery, or confirmation? | This forces state coverage early instead of treating it as cleanup work. |
 | What constraints must stay true: trust/compliance needs, navigation dependencies, existing terminology, content limits, or support expectations? | This keeps the concept anchored in real constraints without over-collecting implementation detail. |
-| What follow-up do you expect after review: stay conceptual, `/run-ux`, `/run-spec`, or `artgen-scaffold`? | This protects the boundary between conceptual work and later audit, spec, or asset paths. |
+| What follow-up do you expect after review: stay conceptual, `$run-ux`, `$run-spec`, or `artgen-scaffold`? | This protects the boundary between conceptual work and later audit, spec, or asset paths. |
 
 ### High-value review rubric
 
@@ -675,8 +675,8 @@ Review with a short set of high-value questions and route changes based on the r
 | Do the low-fi and mid-fi outputs describe theme posture, spacing scale, density, hierarchy, layout/navigation, and desktop/tablet/mobile adaptation at a conceptual level? | These are the minimum signals reviewers need to judge usability direction without demanding implementation detail. | Add short conceptual annotations for the missing design signals; do not add pixel specs, components, or breakpoints. |
 | Are empty, loading, error, and confirmation states explicit, with clear next steps and preserved context where needed? | Happy-path-only concepts create false confidence and hide recovery or reassurance gaps. | Add the missing states before approval, keeping each one tied to trigger, message, and next action. |
 | Does the concept use progressive disclosure appropriately, keep non-essential copy minimal, and avoid tooltip-only critical information? | Good conceptual UI/UX reduces noise without hiding the information users need to act safely. | Inline essential warnings or prerequisites, trim repetitive prose, and move secondary detail behind expansion or separate surfaces. |
-| Does the bundle stay approval-oriented rather than implementation-ready? | This layer exists to align on concept before specification or execution. | Remove engineering-ready detail and redirect implementation asks to `/run-spec` after concept approval. |
-| Is the next handoff path explicit and appropriate? | Clear routing prevents the conceptual layer from turning into an audit, build plan, or asset-generation task. | Choose exactly one next step: stay conceptual, `/run-ux`, `/run-spec`, or `artgen-scaffold`. |
+| Does the bundle stay approval-oriented rather than implementation-ready? | This layer exists to align on concept before specification or execution. | Remove engineering-ready detail and redirect implementation asks to `$run-spec` after concept approval. |
+| Is the next handoff path explicit and appropriate? | Clear routing prevents the conceptual layer from turning into an audit, build plan, or asset-generation task. | Choose exactly one next step: stay conceptual, `$run-ux`, `$run-spec`, or `artgen-scaffold`. |
 
 Automatic rejection conditions for this workflow:
 
@@ -711,6 +711,6 @@ Automatic rejection conditions for this workflow:
 ## Quick Routing Rule
 
 - Need conceptual UI/UX direction or communication-first redesign -> `ui-ux-workflow`
-- Need to evaluate an existing experience -> `/run-ux`
-- Need implementation-ready behavior/spec artifacts -> `/run-spec`
+- Need to evaluate an existing experience -> `$run-ux`
+- Need implementation-ready behavior/spec artifacts -> `$run-spec`
 - Need bounded 2D asset briefs/prompts -> `artgen-scaffold`

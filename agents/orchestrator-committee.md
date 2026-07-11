@@ -50,7 +50,7 @@ These rules apply to **all agents**.
 
 # FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -190,16 +190,15 @@ STOP after delivering the decision.
 
 # USAGE
 
-Use the command wrapper:
-- `modes.json`
+Use the formal `$run-committee` workflow entry point.
 
 Examples:
 
 ```text
-/run-committee Decide between rollout options for feature flags
-/run-committee Decide between REST vs GraphQL for our internal API --budget=medium
-/run-committee Should we split the monolith into services now? --budget=low
-/run-committee Pick an auth approach for this repo --budget=medium --scout=force
+$run-committee Decide between rollout options for feature flags
+$run-committee Decide between REST vs GraphQL for our internal API --budget=medium
+$run-committee Should we split the monolith into services now? --budget=low
+$run-committee Pick an auth approach for this repo --budget=medium --scout=force
 ```
 
 # OUTPUT EXAMPLE
@@ -262,5 +261,5 @@ Committee decision (budget=medium, default when omitted)
 - KISS soft veto: ACCEPTED (GraphQL adds governance/runtime overhead without near-term need).
 - Key tradeoffs: simpler ops and governance vs less flexible queries.
 - Next steps: draft endpoints for top use-cases, generate OpenAPI, validate with a real client, define revisit triggers.
-- If you want to implement next: run /run-pipeline (or /run-flow if the change is truly small/low-risk).
+- If you want to implement next: use `$run-pipeline` (or `$run-flow` if the change is truly small/low-risk).
 ```

@@ -799,11 +799,79 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
             )
 
-    def test_exporter_default_max_depth_is_two(self) -> None:
-        self.assertEqual(EXPORT_MODULE.DEFAULT_MAX_DEPTH, 2)
+    def test_standalone_exporter_omits_machine_agent_limits(self) -> None:
+        config = EXPORT_MODULE.build_root_config(
+            [],
+            enable_feature=True,
+            job_max_runtime_seconds=None,
+        )
 
-    def test_installer_default_max_depth_is_two(self) -> None:
-        self.assertEqual(INSTALL_MODULE.DEFAULT_MAX_DEPTH, 2)
+        self.assertNotIn("max_threads", config)
+        self.assertNotIn("max_depth", config)
+
+    def test_global_installer_preserves_user_managed_agent_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            home = Path(temp_dir_name) / "home"
+            target = home / ".codex"
+            target.mkdir(parents=True)
+            config_path = target / "config.toml"
+            config_path.write_text(
+                "[agents]\n"
+                "max_threads = 11\n"
+                "max_depth = 1\n"
+                "interrupt_message = false\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    INSTALL_SH_PATH.as_posix(),
+                    "--target",
+                    target.as_posix(),
+                    "--no-backup",
+                ],
+                cwd=REPO_ROOT,
+                env={**os.environ, "HOME": str(home), "CODEX_HOME": str(target)},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            parsed = INSTALL_MODULE.tomllib.loads(
+                config_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(parsed["agents"]["max_threads"], 11)
+            self.assertEqual(parsed["agents"]["max_depth"], 1)
+            self.assertFalse(parsed["agents"]["interrupt_message"])
+
+    def test_global_installer_leaves_unconfigured_agent_limits_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            home = Path(temp_dir_name) / "home"
+            target = home / ".codex"
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    INSTALL_SH_PATH.as_posix(),
+                    "--target",
+                    target.as_posix(),
+                    "--no-backup",
+                ],
+                cwd=REPO_ROOT,
+                env={**os.environ, "HOME": str(home), "CODEX_HOME": str(target)},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            parsed = INSTALL_MODULE.tomllib.loads(
+                (target / "config.toml").read_text(encoding="utf-8")
+            )
+            self.assertNotIn("max_threads", parsed["agents"])
+            self.assertNotIn("max_depth", parsed["agents"])
 
     def test_workspace_profile_target_inherits_global_agent_limits(self) -> None:
         workspace_target = Path("/work/repo/.codex")
@@ -825,10 +893,7 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
             },
             previous_agent_names=[],
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
-            manage_agent_limits=False,
             remove_legacy_agent_limits=True,
         )
 
@@ -854,10 +919,7 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
             },
             previous_agent_names=[],
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
-            manage_agent_limits=True,
             remove_legacy_agent_limits=False,
         )
         parsed = INSTALL_MODULE.tomllib.loads(merged)
@@ -876,10 +938,7 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
             },
             previous_agent_names=["executor"],
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
-            manage_agent_limits=True,
             remove_legacy_agent_limits=False,
         )
         parsed = INSTALL_MODULE.tomllib.loads(merged)
@@ -897,17 +956,15 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
             },
             previous_agent_names=[],
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
-            manage_agent_limits=True,
             remove_legacy_agent_limits=False,
         )
         parsed = INSTALL_MODULE.tomllib.loads(merged)
         self.assertTrue(parsed["features"]["web_search"])
         self.assertTrue(parsed["features"]["multi_agent"])
         self.assertEqual(parsed["agents"]["custom"]["description"], "Keep")
-        self.assertEqual(parsed["agents"]["max_threads"], 6)
+        self.assertNotIn("max_threads", parsed["agents"])
+        self.assertNotIn("max_depth", parsed["agents"])
         self.assertEqual(parsed["agents"]["executor"]["description"], "Execute work.")
 
     def test_resolve_temp_root_defaults_to_repo_tmp(self) -> None:
@@ -1443,8 +1500,6 @@ class CodexInstallExportTest(unittest.TestCase):
                     Path("modes.json"),
                     Path("AGENTS.md"),
                     strict=True,
-                    max_threads=6,
-                    max_depth=2,
                     job_max_runtime_seconds=None,
                     temp_root=temp_root,
                     resolve_support_refs_to=None,
@@ -1467,8 +1522,6 @@ class CodexInstallExportTest(unittest.TestCase):
                     Path("modes.json"),
                     Path("AGENTS.md"),
                     strict=True,
-                    max_threads=6,
-                    max_depth=2,
                     job_max_runtime_seconds=None,
                     temp_root=temp_root,
                     resolve_support_refs_to=None,
@@ -1502,8 +1555,6 @@ class CodexInstallExportTest(unittest.TestCase):
             Path("AGENTS.md"),
             Path(".codex"),
             strict=True,
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
             resolve_support_refs_to=Path("/home/test/.codex/agents-pipeline"),
         )
@@ -1520,8 +1571,6 @@ class CodexInstallExportTest(unittest.TestCase):
             Path("AGENTS.md"),
             Path(".codex"),
             strict=True,
-            max_threads=6,
-            max_depth=2,
             job_max_runtime_seconds=None,
             resolve_support_refs_to=None,
             agent_profile="balanced",

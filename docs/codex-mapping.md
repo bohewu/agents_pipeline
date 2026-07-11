@@ -84,22 +84,19 @@ Explicit fully materialized workspace installs under `<workspace>/.codex` can st
 The generator writes a root `config.toml` containing:
 
 - `[features] multi_agent = true` by default
-- `[agents] max_threads = 6`
-- `[agents] max_depth = 2`
+- optional `[agents] job_max_runtime_seconds` only when explicitly requested
 - one `[agents.<name>]` table per source agent role
 
-This repo intentionally sets `max_depth = 2` instead of Codex's product default.
+The exporter intentionally omits `agents.max_threads` and `agents.max_depth`; machine-wide concurrency and nesting limits remain owned by the user's Codex configuration.
 Codex defines the root session at depth `0`, and `max_depth = 1` allows only a direct child agent.
 Nested orchestration paths such as `orchestrator-modernize -> orchestrator-pipeline -> executor/reviewer` need depth `2` to remain functional.
 
-Use flags to adjust this output when needed:
+Use standalone exporter flags to adjust this output when needed:
 
-- `--max-threads=<n>`
-- `--max-depth=<n>`
 - `--job-max-runtime-seconds=<n>`
 - `--no-enable-feature-flag`
 
-Direct exporter output and normal global Codex installs use the generated `6`/`2` defaults. Project profile overlays inherit `agents.max_threads` and `agents.max_depth` from effective global Codex configuration. Set effective global `agents.max_depth` to at least `2` when a project uses nested pipeline orchestration.
+Direct exporter output and normal global Codex installs both leave `agents.max_threads` and `agents.max_depth` runtime-owned. Installs preserve existing user values, and generated configs leave both keys absent. Project profile overlays inherit the effective global values. Set effective global `agents.max_depth` to at least `2` when a project uses nested pipeline orchestration.
 
 ## Role Config Generation
 

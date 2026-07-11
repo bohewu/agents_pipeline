@@ -2,7 +2,7 @@
 name: ui-communication-designer
 description: Communication-first UI design and critique workflow for task flows, screen-level recommendations, and microcopy rewrites.
 license: See repository license
-compatibility: Docs-only scaffold; best paired with ui-ux-workflow for conceptual redesign and can consume /run-ux findings as input, but is not a browser-backed audit workflow.
+compatibility: Docs-only scaffold; best paired with ui-ux-workflow for conceptual redesign and can consume $run-ux findings as input, but is not a browser-backed audit workflow.
 ---
 
 # UI Communication Designer
@@ -15,14 +15,14 @@ Use this skill when you need a communication-first UI redesign or critique for o
 - explaining why an interface is hard to use in task language rather than aesthetic opinion
 
 Do not use this skill for:
-- browser-backed UX audits, viewport scoring, or evidence collection; use `/run-ux`
+- browser-backed UX audits, viewport scoring, or evidence collection; use `$run-ux`
 - implementation-ready UI specs, acceptance criteria, or component contracts
 - code generation or claims about rendered mockups, prototypes, or live previews
 
 ## Pairing
 
 - Best fit: `ui-ux-workflow` conceptual design and rewrite work
-- Secondary fit: use after `/run-ux` when you already have findings and need a communication-first redesign direction
+- Secondary fit: use after `$run-ux` when you already have findings and need a communication-first redesign direction
 - Reference files:
   - `OUTPUT_TEMPLATE.md` for the standard response shape
   - `RUBRIC.md` for the aligned 12-dimension review rubric
@@ -33,7 +33,7 @@ Do not use this skill for:
 - target user or persona
 - top task
 - platform
-- artifact (optional): screenshot, wireframe, copy, flow, spec, or `/run-ux` findings
+- artifact (optional): screenshot, wireframe, copy, flow, spec, or `$run-ux` findings
 
 ## Output Contract
 

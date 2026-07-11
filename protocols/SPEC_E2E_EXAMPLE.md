@@ -1,6 +1,6 @@
 # Spec End-to-End Example
 
-This example shows one complete path from `/run-spec` outputs to the `task-list.json` that `/run-pipeline` would execute.
+This example shows one complete path from `$run-spec` outputs to the `task-list.json` that `$run-pipeline` would execute.
 
 ## Example Artifact Set
 
@@ -14,22 +14,22 @@ Reference files:
 
 ## Flow
 
-### 1. `/run-spec` produces the scope boundary
+### 1. `$run-spec` produces the scope boundary
 
 - `problem-spec.json` keeps the request small and explicit.
 - This is the contract that prevents planning or implementation from drifting.
 
-### 2. `/run-spec` enriches the behavior contract
+### 2. `$run-spec` enriches the behavior contract
 
 - `dev-spec.json` adds user stories, BDD scenarios, acceptance criteria, and test intent.
 - `dev-spec.md` renders the same contract into something a human can review quickly.
 
-### 3. `/run-spec` emits a planning preview
+### 3. `$run-spec` emits a planning preview
 
 - `plan-outline.json` turns the approved spec into milestones and deliverables.
-- It is useful context for `/run-pipeline`, but it never overrides the approved spec.
+- It is useful context for `$run-pipeline`, but it never overrides the approved spec.
 
-### 4. `/run-pipeline` atomizes the work
+### 4. `$run-pipeline` atomizes the work
 
 - `task-list.json` breaks the approved behavior into atomic implementation tasks.
 - Each task keeps `trace_ids` so the reviewer can trace work back to the approved spec.
@@ -37,7 +37,7 @@ Reference files:
 ## Example Invocation
 
 ```text
-/run-pipeline Implement the approved workspace invite spec. Use .pipeline-output/spec/problem-spec.json as the scope boundary and .pipeline-output/spec/dev-spec.json as the behavior and traceability contract.
+$run-pipeline Implement the approved workspace invite spec. Use .pipeline-output/spec/problem-spec.json as the scope boundary and .pipeline-output/spec/dev-spec.json as the behavior and traceability contract.
 ```
 
 ## What To Notice In `task-list.json`
@@ -53,4 +53,4 @@ Reference files:
 2. Check `problem-spec.json` if you need the hard scope boundary.
 3. Use `dev-spec.json` for structured traceability.
 4. Use `plan-outline.json` to understand the milestone grouping.
-5. Use `task-list.json` to see exactly what `/run-pipeline` should execute.
+5. Use `task-list.json` to see exactly what `$run-pipeline` should execute.

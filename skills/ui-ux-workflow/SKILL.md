@@ -30,7 +30,7 @@ Do not use this skill for:
 - implementation-ready layouts, component contracts, or engineering acceptance criteria
 - code generation, framework-specific UI output, or runtime automation
 - full preview/editor behavior, editable prototypes, or live integrations
-- browser-backed audits (use `/run-ux` plus browser tooling when audit evidence is needed)
+- browser-backed audits (use `$run-ux` plus browser tooling when audit evidence is needed)
 
 ## Required v1 Conceptual Bundle
 
@@ -135,7 +135,7 @@ Use a small number of high-value questions before drafting. Default set:
 2. Who is the main user or actor, and which devices matter first: desktop, tablet, mobile, or a mix?
 3. Which non-happy-path moment most needs coverage: empty, loading, error/recovery, or confirmation?
 4. What constraints must stay true: trust/compliance needs, navigation dependencies, existing terminology, content limits, or support expectations?
-5. What follow-up is expected after review: stay conceptual, `/run-ux`, `/run-spec`, or `artgen-scaffold`?
+5. What follow-up is expected after review: stay conceptual, `$run-ux`, `$run-spec`, or `artgen-scaffold`?
 
 ## High-Value Review Rubric
 
@@ -147,8 +147,8 @@ Use this short rubric to keep the output reviewable:
 | Do low-fi and mid-fi outputs describe theme posture, spacing scale, density, hierarchy, layout/navigation, and desktop/tablet/mobile adaptation conceptually? | These are the minimum design signals needed for review. | Add short conceptual annotations only; do not add implementation detail. |
 | Are empty, loading, error, and confirmation states explicit? | Avoids happy-path-only concepts. | Add missing states with trigger, message, and next action. |
 | Does the concept use progressive disclosure well, keep non-essential copy minimal, and avoid tooltip-only critical information? | Keeps the workflow clear without hiding essential context. | Inline essential information, trim copy, and move only secondary detail behind expansion. |
-| Does the bundle stay approval-oriented rather than implementation-ready? | Protects the boundary between concept work and later specification. | Remove engineering-ready detail and hand off to `/run-spec` if needed later. |
-| Is the next handoff path explicit? | Prevents scope drift into unrelated workflows. | Choose exactly one next step: stay conceptual, `/run-ux`, `/run-spec`, or `artgen-scaffold`. |
+| Does the bundle stay approval-oriented rather than implementation-ready? | Protects the boundary between concept work and later specification. | Remove engineering-ready detail and hand off to `$run-spec` if needed later. |
+| Is the next handoff path explicit? | Prevents scope drift into unrelated workflows. | Choose exactly one next step: stay conceptual, `$run-ux`, `$run-spec`, or `artgen-scaffold`. |
 
 Reject the request or review output if it asks for:
 

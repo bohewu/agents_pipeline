@@ -42,7 +42,7 @@ RESPONSIBILITY_MATRIX_RE = re.compile(
 )
 FLAG_PARSING_INTRO_RE = re.compile(
     r"(?ms)^(?P<heading>#{1,2} FLAG PARSING PROTOCOL(?: \([^)]+\))?)\n\n"
-    r"You are given positional parameters via the slash command\.\n\n"
+    r"Parse the workflow invocation input\.\n\n"
     r"Parse `raw_input`: tokens before the first `--\*` flag form `main_task_prompt`; `--\*` tokens are flags\.(?P<resume> If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation\.)?\n"
 )
 RESPONSE_MODE_RE = re.compile(
@@ -58,6 +58,9 @@ CHECKPOINT_PROTOCOL_RE = re.compile(
 )
 RUN_STATUS_PROTOCOL_RE = re.compile(
     r"(?ms)^(?P<heading>#{1,2} (?:RUN STATUS PROTOCOL|STATUS ARTIFACT PROTOCOL))\n\n(?P<body>.*?)(?=^#{1,2} |\Z)"
+)
+FORMAL_CODEX_MODE_ENTRY_RE = re.compile(
+    r"\$run-([a-z0-9][a-z0-9-]*)(?![A-Za-z0-9_-])"
 )
 
 KNOWN_SOURCE_FRONTMATTER_KEYS = {
@@ -663,6 +666,7 @@ def adapt_body(
     source_support_root_ref: Optional[str] = None,
 ) -> str:
     body = original_body.replace("$ARGUMENTS", "raw_input")
+    body = FORMAL_CODEX_MODE_ENTRY_RE.sub(r"/run-\1", body)
     body = minify_orchestrator_runtime_body(agent_name, body)
     blocks: List[str] = []
     if agent_name.startswith(ORCHESTRATOR_PREFIX):

@@ -36,8 +36,8 @@ MANAGED_AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 MANAGED_AGENT_FILE_RE = re.compile(
     r"^agents/([a-z0-9][a-z0-9-]*)\.toml$"
 )
-DEFAULT_MAX_THREADS = 6
-DEFAULT_MAX_DEPTH = 2
+LEGACY_MANAGED_MAX_THREADS = 6
+LEGACY_MANAGED_MAX_DEPTH = 2
 DEFAULT_PROFILE_DIR = "tools/agent-profiles"
 DEFAULT_MODEL_SET_DIR = "runtimes/codex/model-sets"
 SUPPORT_TREE_DIRS = ("agents", "protocols", "runtimes", "scripts", "skills", "tools")
@@ -800,8 +800,6 @@ def build_export_command(
     target_dir: Path,
     *,
     strict: bool,
-    max_threads: int,
-    max_depth: int,
     job_max_runtime_seconds: Optional[int],
     resolve_support_refs_to: Optional[Path],
     agent_profile: Optional[str] = None,
@@ -821,10 +819,6 @@ def build_export_command(
         target_dir.as_posix(),
         "--catalog",
         catalog_path.as_posix(),
-        "--max-threads",
-        str(max_threads),
-        "--max-depth",
-        str(max_depth),
     ]
     if strict:
         command.append("--strict")
@@ -860,8 +854,6 @@ def run_export(
     catalog_path: Path,
     *,
     strict: bool,
-    max_threads: int,
-    max_depth: int,
     job_max_runtime_seconds: Optional[int],
     temp_root: Path,
     resolve_support_refs_to: Optional[Path],
@@ -887,8 +879,6 @@ def run_export(
         catalog_path,
         temp_dir,
         strict=strict,
-        max_threads=max_threads,
-        max_depth=max_depth,
         job_max_runtime_seconds=job_max_runtime_seconds,
         resolve_support_refs_to=resolve_support_refs_to,
         agent_profile=agent_profile,
@@ -935,10 +925,7 @@ def merge_config_text(
     current_agent_blocks: Dict[str, Block],
     *,
     previous_agent_names: Sequence[str],
-    max_threads: int,
-    max_depth: int,
     job_max_runtime_seconds: Optional[int],
-    manage_agent_limits: bool,
     remove_legacy_agent_limits: bool,
 ) -> str:
     validate_toml_text(existing_text, "Existing Codex config")
@@ -968,33 +955,21 @@ def merge_config_text(
         agents_idx is None and has_dotted_root_assignment(preamble, "agents")
     )
     agents_block = None if use_dotted_agents else ensure_root_table(blocks, "agents")
-    if manage_agent_limits:
-        if use_dotted_agents:
-            upsert_dotted_root_assignment(
-                preamble, "agents", "max_threads", str(max_threads)
-            )
-            upsert_dotted_root_assignment(
-                preamble, "agents", "max_depth", str(max_depth)
-            )
-        else:
-            assert agents_block is not None
-            upsert_assignment(agents_block, "max_threads", str(max_threads))
-            upsert_assignment(agents_block, "max_depth", str(max_depth))
-    elif remove_legacy_agent_limits:
+    if remove_legacy_agent_limits:
         if use_dotted_agents:
             remove_dotted_root_assignment_if_value(
-                preamble, "agents", "max_threads", str(DEFAULT_MAX_THREADS)
+                preamble, "agents", "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
             )
             remove_dotted_root_assignment_if_value(
-                preamble, "agents", "max_depth", str(DEFAULT_MAX_DEPTH)
+                preamble, "agents", "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
             )
         else:
             assert agents_block is not None
             remove_assignment_if_value(
-                agents_block, "max_threads", str(DEFAULT_MAX_THREADS)
+                agents_block, "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
             )
             remove_assignment_if_value(
-                agents_block, "max_depth", str(DEFAULT_MAX_DEPTH)
+                agents_block, "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
             )
     if job_max_runtime_seconds is not None:
         if use_dotted_agents:
@@ -1162,18 +1137,6 @@ def main() -> int:
         "--strict", action="store_true", help="Fail on unresolved refs or unknown keys."
     )
     parser.add_argument(
-        "--max-threads",
-        type=int,
-        default=DEFAULT_MAX_THREADS,
-        help="Value written to `agents.max_threads` in the merged config (default: 6).",
-    )
-    parser.add_argument(
-        "--max-depth",
-        type=int,
-        default=DEFAULT_MAX_DEPTH,
-        help="Value written to `agents.max_depth` in the merged config (default: 2).",
-    )
-    parser.add_argument(
         "--job-max-runtime-seconds",
         type=int,
         default=None,
@@ -1214,12 +1177,6 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.max_threads < 1:
-        print("--max-threads must be >= 1", file=sys.stderr)
-        return 2
-    if args.max_depth < 0:
-        print("--max-depth must be >= 0", file=sys.stderr)
-        return 2
     if args.job_max_runtime_seconds is not None and args.job_max_runtime_seconds < 1:
         print("--job-max-runtime-seconds must be >= 1 when provided", file=sys.stderr)
         return 2
@@ -1365,8 +1322,6 @@ def main() -> int:
             modes_path,
             catalog_path,
             strict=args.strict,
-            max_threads=args.max_threads,
-            max_depth=args.max_depth,
             job_max_runtime_seconds=args.job_max_runtime_seconds,
             temp_root=temp_root,
             resolve_support_refs_to=support_tree_target,
@@ -1422,10 +1377,7 @@ def main() -> int:
             existing_config_text,
             generated_agent_blocks,
             previous_agent_names=previous_names,
-            max_threads=args.max_threads,
-            max_depth=args.max_depth,
             job_max_runtime_seconds=args.job_max_runtime_seconds,
-            manage_agent_limits=not workspace_profile_target,
             remove_legacy_agent_limits=(
                 workspace_profile_target and previous_manifest_exists
             ),
@@ -1463,8 +1415,8 @@ def main() -> int:
                         "the previous managed defaults"
                     )
             else:
-                print(f"- set agents.max_threads = {args.max_threads}")
-                print(f"- set agents.max_depth = {args.max_depth}")
+                print("- preserve user-managed agents.max_threads")
+                print("- preserve user-managed agents.max_depth")
             if args.job_max_runtime_seconds is not None:
                 print(
                     "- set agents.job_max_runtime_seconds = "

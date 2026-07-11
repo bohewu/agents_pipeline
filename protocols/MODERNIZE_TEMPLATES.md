@@ -1,13 +1,13 @@
 # Modernize Artifact Templates
 
-Use these templates for `/run-modernize` outputs to keep structure consistent.
+Use these templates for `$run-modernize` outputs to keep structure consistent.
 See `protocols/MODERNIZE_EXAMPLE.md` for a concrete example.
 
 By default, artifacts follow a **Source-to-Target migration model**:
 - **Source Project (A):** The legacy system being analyzed (read-only).
 - **Target Project (B):** The new project where the modernized system will be built.
 
-When `/run-modernize --mode=branch` is used, artifacts instead follow a **repo-local branch model**:
+When `$run-modernize --mode=branch` is used, artifacts instead follow a **repo-local branch model**:
 - **Source Project:** The current repository being modernized.
 - **Base Branch:** The branch the modernization branch was created from.
 - **Target Branch:** The new `modernize/...` branch where docs and optional implementation happen.

@@ -69,13 +69,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.28.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.28.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -83,13 +83,13 @@ tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.28.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.28.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -97,16 +97,16 @@ tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.28.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.28.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.28.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.28.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.28.0` must release as `v0.28.0`.
+Release invariant: `VERSION=0.28.1` must release as `v0.28.1`.
 
 <!-- END current-release -->
 
@@ -192,7 +192,7 @@ bash "$profile_tool" list --runtime codex
 
 `status` reports profile/install file health and trust eligibility, not workflow run progress or a full native Codex config evaluation. A Codex workspace with no overlay reports that it inherits the model-free global role definitions and parent-session model selection. Workspace `clear` removes the installer-owned workspace role files, managed config block, and project-profile manifest, preserving unrelated `.codex/config.toml` content and every global asset. Codex global status validates its native manifest, role registrations, active managed `AGENTS.md` block, generated model-free roles, and critical global support assets. Global `clear` regenerates those model-free roles to remove a legacy global profile; it is not a Codex profile-selection workflow. Claude Code and Copilot continue to validate and manage their global profile manifests, generated agents, and sibling support trees. None of these commands reads OpenCode settings.
 
-Codex workspace profiles use local role definitions while inheriting global support assets, `agents.max_threads`, and `agents.max_depth`; modes that use nested orchestration require an effective global `agents.max_depth` of at least `2`. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
+Codex exports and normal global installs do not write or replace `agents.max_threads` or `agents.max_depth`; configure those machine-level limits in your own global Codex config. Codex workspace profiles use local role definitions while inheriting the effective global limits; modes that use nested orchestration require an effective global `agents.max_depth` of at least `2`. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
 
 The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. The formal `run-*` skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
 
@@ -311,55 +311,11 @@ python3 tools/validate-schema.py \
 - [Protocol summary](protocols/PROTOCOL_SUMMARY.md)
 - [Security policy](SECURITY.md)
 
-## OpenCode frozen release
-
-Current main no longer contains an OpenCode runtime. The following commands are intentionally pinned to the last supported OpenCode-first release and are excluded from current-version synchronization.
+## Legacy OpenCode support
 
 <!-- BEGIN legacy-opencode-v0.26.1 -->
 
-### OpenCode core (deprecated)
-
-OpenCode support is frozen at `v0.26.1`. These commands intentionally stay pinned to that release; do not substitute `main` or a newer tag and expect supported OpenCode behavior.
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install.ps1" -OutFile .\bootstrap-install.ps1; pwsh -NoProfile -File .\bootstrap-install.ps1 -Version $tag -Target "$HOME\.config\opencode"
-```
-
-macOS/Linux (Bash):
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install.sh" && bash ./bootstrap-install.sh --version "${tag}"
-```
-
-### Status plugin only (deprecated)
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-plugin-status-runtime.ps1" -OutFile .\bootstrap-install-plugin-status-runtime.ps1; pwsh -NoProfile -File .\bootstrap-install-plugin-status-runtime.ps1 -Version $tag -Target "$HOME\.config\opencode\plugins\status-runtime.js"
-```
-
-macOS/Linux (Bash):
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-plugin-status-runtime.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-plugin-status-runtime.sh" && bash ./bootstrap-install-plugin-status-runtime.sh --version "${tag}" --target "$HOME/.config/opencode/plugins/status-runtime.js"
-```
-
-### Usage only (deprecated)
-
-Windows (PowerShell):
-
-```powershell
-$tag = "v0.26.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-usage-only.ps1" -OutFile .\bootstrap-install-usage-only.ps1; pwsh -NoProfile -File .\bootstrap-install-usage-only.ps1 -Version $tag -OpenCodeTarget "$HOME\.config\opencode" -UsagePluginTarget "$HOME\.config\opencode\plugins\usage-status.js"
-```
-
-macOS/Linux (Bash):
-
-```bash
-tag="v0.26.1" && curl -fsSL -o ./bootstrap-install-usage-only.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-usage-only.sh" && bash ./bootstrap-install-usage-only.sh --version "${tag}" --opencode-target "$HOME/.config/opencode" --usage-plugin-target "$HOME/.config/opencode/plugins/usage-status.js"
-```
+OpenCode support ended at `v0.26.1`. Current `main` no longer contains an OpenCode runtime or installer. OpenCode users should use the documentation and installers from the [`v0.26.1` tag](https://github.com/bohewu/agents_pipeline/tree/v0.26.1).
 
 <!-- END legacy-opencode-v0.26.1 -->
 

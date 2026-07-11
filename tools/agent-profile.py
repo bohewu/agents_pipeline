@@ -58,32 +58,47 @@ CODEX_AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 SUPPORT_MARKER_FILENAME = ".agents-pipeline-support.json"
 SUPPORT_MARKER_TOOL = "agents_pipeline.sync-runtime-support"
 SUPPORTED_SUPPORT_MARKER_VERSIONS = (1, 2, 3)
-SUPPORT_REQUIRED_DIRS = ("agents", "protocols", "runtimes", "scripts", "skills", "tools")
-SUPPORT_REQUIRED_FILES = (
+SUPPORT_COMMON_REQUIRED_DIRS = (
+    "agents",
+    "protocols",
+    "runtimes",
+    "scripts",
+    "skills",
+    "tools",
+)
+SUPPORT_COMMON_REQUIRED_FILES = (
     "AGENTS.md",
     "VERSION",
     "modes.json",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
-    "scripts/codex_mode_aliases.py",
-    "scripts/codex-project-profile.py",
-    "scripts/export-codex-agents.py",
-    "scripts/export-claude-agents.py",
-    "scripts/export-copilot-agents.py",
-    "scripts/install-codex-config.py",
-    "scripts/install-codex.sh",
-    "scripts/install-codex.ps1",
-    "scripts/install-claude.sh",
-    "scripts/install-claude.ps1",
-    "scripts/install-copilot.sh",
-    "scripts/install-copilot.ps1",
     "scripts/path_safety.py",
-    "scripts/sync-codex-skills.py",
     "scripts/sync-runtime-support.py",
     "tools/agent-profile.py",
     "tools/status-event.js",
 )
+SUPPORT_RUNTIME_REQUIRED_FILES = {
+    "codex": (
+        "scripts/codex_mode_aliases.py",
+        "scripts/codex-project-profile.py",
+        "scripts/export-codex-agents.py",
+        "scripts/install-codex-config.py",
+        "scripts/install-codex.sh",
+        "scripts/install-codex.ps1",
+        "scripts/sync-codex-skills.py",
+    ),
+    "claude": (
+        "scripts/export-claude-agents.py",
+        "scripts/install-claude.sh",
+        "scripts/install-claude.ps1",
+    ),
+    "copilot": (
+        "scripts/export-copilot-agents.py",
+        "scripts/install-copilot.sh",
+        "scripts/install-copilot.ps1",
+    ),
+}
 CODEX_AGENTS_BEGIN_MARKER = "<!-- BEGIN agents-pipeline-codex-managed -->"
 CODEX_AGENTS_END_MARKER = "<!-- END agents-pipeline-codex-managed -->"
 
@@ -1009,12 +1024,15 @@ def _missing_runtime_support(runtime: str, target: Path) -> list[str]:
         return [prefix]
     missing = [
         f"{prefix}/{name}"
-        for name in SUPPORT_REQUIRED_DIRS
+        for name in SUPPORT_COMMON_REQUIRED_DIRS
         if _is_linklike(support_root / name) or not (support_root / name).is_dir()
     ]
+    required_files = (
+        SUPPORT_COMMON_REQUIRED_FILES + SUPPORT_RUNTIME_REQUIRED_FILES[runtime]
+    )
     missing.extend(
         f"{prefix}/{name}"
-        for name in SUPPORT_REQUIRED_FILES
+        for name in required_files
         if _is_linklike(support_root / name) or not (support_root / name).is_file()
     )
     marker_path = support_root / SUPPORT_MARKER_FILENAME

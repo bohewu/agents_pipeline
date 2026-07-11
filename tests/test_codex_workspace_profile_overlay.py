@@ -501,6 +501,99 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 )
             )
 
+    def test_codex_status_and_workspace_preflight_ignore_tier2_adapters(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            workspace = root / "project"
+            env = self.isolated_environment(home)
+            codex_home, wrapper = self.install_global_codex(home, env)
+            support_root = codex_home / "agents-pipeline"
+            for relative in (
+                "scripts/export-claude-agents.py",
+                "scripts/install-claude.sh",
+                "scripts/install-claude.ps1",
+                "scripts/export-copilot-agents.py",
+                "scripts/install-copilot.sh",
+                "scripts/install-copilot.ps1",
+            ):
+                (support_root / relative).unlink()
+
+            global_status = json.loads(
+                self.run_command(
+                    [
+                        "bash",
+                        wrapper.as_posix(),
+                        "status",
+                        "--runtime",
+                        "codex",
+                        "--scope",
+                        "global",
+                        "--target",
+                        codex_home.as_posix(),
+                        "--json",
+                    ],
+                    env=env,
+                ).stdout
+            )
+            self.assertEqual(global_status["health"], "ok")
+            self.assertEqual(global_status["missing_generated_files"], [])
+
+            self.run_profile(wrapper, "set", workspace, env=env)
+            workspace_status = self.workspace_status(wrapper, workspace, env=env)
+            self.assertEqual(workspace_status["health"], "ok")
+            local_roles = self.assert_workspace_local_profile(
+                workspace, codex_home, workspace_status
+            )
+            peon = tomllib.loads(local_roles["peon"].read_text(encoding="utf-8"))
+            self.assertEqual(peon["model"], "gpt-5.6-luna")
+            self.assertEqual(peon["model_provider"], "openai")
+
+    def test_codex_status_and_workspace_preflight_require_common_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            workspace = root / "project"
+            env = self.isolated_environment(home)
+            codex_home, wrapper = self.install_global_codex(home, env)
+            common_file = "scripts/agent_model_profiles.py"
+            (codex_home / "agents-pipeline" / common_file).unlink()
+
+            global_status = json.loads(
+                self.run_command(
+                    [
+                        "bash",
+                        wrapper.as_posix(),
+                        "status",
+                        "--runtime",
+                        "codex",
+                        "--scope",
+                        "global",
+                        "--target",
+                        codex_home.as_posix(),
+                        "--json",
+                    ],
+                    env=env,
+                ).stdout
+            )
+            self.assertEqual(global_status["health"], "incomplete")
+            self.assertTrue(
+                any(
+                    str(item).endswith(common_file)
+                    for item in global_status["missing_generated_files"]
+                )
+            )
+
+            completed = self.run_profile(
+                wrapper,
+                "set",
+                workspace,
+                env=env,
+                expected=2,
+            )
+            self.assertIn("Global neutral support tree is incomplete", completed.stderr)
+            self.assertIn(common_file, completed.stderr)
+
     def test_global_status_checks_active_agents_note_and_codex_registration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
@@ -551,8 +644,9 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             codex_home, wrapper = self.install_global_codex(home, env)
             self.run_profile(wrapper, "set", workspace, env=env)
 
+            major, minor, patch = (int(value) for value in RELEASE_VERSION.split("."))
             (codex_home / "agents-pipeline" / "VERSION").write_text(
-                "0.28.1\n", encoding="utf-8"
+                f"{major}.{minor}.{patch + 1}\n", encoding="utf-8"
             )
             status = self.workspace_status(wrapper, workspace, env=env)
             self.assertEqual(status["health"], "ok")

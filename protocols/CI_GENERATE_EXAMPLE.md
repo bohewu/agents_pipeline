@@ -1,6 +1,6 @@
 # CI/CD Generated Output Example (High-Level)
 
-This example shows the typical files produced by `/run-ci --generate`.
+This example shows the typical files produced by `$run-ci --generate`.
 Content varies by stack and repo layout.
 
 ## Expected Files

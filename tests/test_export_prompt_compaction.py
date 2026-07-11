@@ -40,14 +40,41 @@ def adapt_body(module, agent_name: str, body: str) -> str:
 
 
 class ExportPromptCompactionTest(unittest.TestCase):
+    def test_tier2_exports_translate_formal_codex_mode_entries(self) -> None:
+        modes = (
+            "simple",
+            "flow",
+            "pipeline",
+            "general",
+            "spec",
+            "ci",
+            "modernize",
+            "analysis",
+            "ux",
+            "committee",
+        )
+        body = " ".join(f"$run-{mode}" for mode in modes)
+
+        codex_adapted = adapt_body(CODEX, "executor", body)
+        for mode in modes:
+            self.assertIn(f"$run-{mode}", codex_adapted)
+
+        for label, module in (("claude", CLAUDE), ("copilot", COPILOT)):
+            adapted = adapt_body(module, "executor", body)
+            self.assertNotIn("$run-", adapted, label)
+            for mode in modes:
+                self.assertIn(f"/run-{mode}", adapted, label)
+
     def test_general_orchestrator_export_minifies_shared_sections(self) -> None:
         relative_path = "agents/orchestrator-general.md"
         for label, module in (("copilot", COPILOT), ("codex", CODEX), ("claude", CLAUDE)):
-            adapted = adapt_body(module, "orchestrator-general", parse_body(module, relative_path))
+            body = parse_body(module, relative_path)
+            self.assertIn("Parse the workflow invocation input.", body, label)
+            adapted = adapt_body(module, "orchestrator-general", body)
 
             self.assertNotIn("These rules apply to **all agents**.", adapted, label)
             self.assertNotIn("## ORCHESTRATOR -> SUBAGENT HANDOFF", adapted, label)
-            self.assertNotIn("You are given positional parameters via the slash command.", adapted, label)
+            self.assertNotIn("Parse the workflow invocation input.", adapted, label)
             self.assertNotIn("|------|------------------------|-------------------|", adapted, label)
             self.assertNotIn(
                 "If neither `--confirm` nor `--verbose` is set, report only the final outcome, key deliverables, and blockers/errors.",

@@ -1,6 +1,6 @@
 # Spec -> Pipeline Handoff
 
-This SOP explains how to take approved `/run-spec` outputs and use them as inputs for `/run-pipeline` implementation.
+This SOP explains how to take approved `$run-spec` outputs and use them as inputs for `$run-pipeline` implementation.
 
 ## Expected Spec Artifacts
 
@@ -20,7 +20,7 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 - `dev-spec.md` -> human review copy; useful context, but not the canonical machine contract
 - `plan-outline.json` -> optional planning accelerator; must not expand scope beyond the approved spec
 
-## How `/run-pipeline` Should Use Them
+## How `$run-pipeline` Should Use Them
 
 - Treat `problem-spec.json` as the scope boundary.
 - Treat `dev-spec.json` as the richer behavior contract.
@@ -30,7 +30,7 @@ If you used `--output-dir=<path>`, replace `.pipeline-output/` with that path.
 
 ## Recommended Handoff Note
 
-When invoking `/run-pipeline`, include a short note like this in the main prompt:
+When invoking `$run-pipeline`, include a short note like this in the main prompt:
 
 - "Use `.pipeline-output/spec/problem-spec.json` as the scope boundary and `.pipeline-output/spec/dev-spec.json` as the behavior and traceability contract."
 
@@ -39,20 +39,20 @@ When invoking `/run-pipeline`, include a short note like this in the main prompt
 Use one of these patterns:
 
 ```text
-/run-pipeline Implement the approved workspace invite spec. Use .pipeline-output/spec/problem-spec.json as the scope boundary and .pipeline-output/spec/dev-spec.json as the behavior and traceability contract.
+$run-pipeline Implement the approved workspace invite spec. Use .pipeline-output/spec/problem-spec.json as the scope boundary and .pipeline-output/spec/dev-spec.json as the behavior and traceability contract.
 ```
 
 ```text
-/run-pipeline Implement the reviewed checkout retry flow. Use .pipeline-output/spec/problem-spec.json and .pipeline-output/spec/dev-spec.json as approved inputs. Preserve task trace_ids back to the spec. --confirm
+$run-pipeline Implement the reviewed checkout retry flow. Use .pipeline-output/spec/problem-spec.json and .pipeline-output/spec/dev-spec.json as approved inputs. Preserve task trace_ids back to the spec. --confirm
 ```
 
 ```text
-/run-pipeline Implement the approved OAuth login spec. Use .pipeline-output/spec/problem-spec.json for scope, .pipeline-output/spec/dev-spec.json for scenarios and acceptance criteria, and .pipeline-output/spec/plan-outline.json as planning context.
+$run-pipeline Implement the approved OAuth login spec. Use .pipeline-output/spec/problem-spec.json for scope, .pipeline-output/spec/dev-spec.json for scenarios and acceptance criteria, and .pipeline-output/spec/plan-outline.json as planning context.
 ```
 
 ## End-To-End Reference Example
 
-For a concrete artifact set that starts at `/run-spec` outputs and ends at `task-list.json`, see:
+For a concrete artifact set that starts at `$run-spec` outputs and ends at `task-list.json`, see:
 
 - `protocols/SPEC_E2E_EXAMPLE.md`
 - `protocols/examples/spec-to-pipeline/problem-spec.json`
@@ -71,8 +71,8 @@ When spec artifacts are part of the handoff:
 
 ## If Spec Artifacts Are Missing Or Outdated
 
-- If the approved spec does not exist yet, run `/run-spec` first.
-- If the spec exists but has changed materially since approval, re-run `/run-spec` before implementation.
+- If the approved spec does not exist yet, run `$run-spec` first.
+- If the spec exists but has changed materially since approval, rerun `$run-spec` before implementation.
 - If only the Markdown copy exists, prefer regenerating the JSON contracts instead of implementing from prose alone.
 
 ## Practical Rule

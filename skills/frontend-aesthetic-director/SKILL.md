@@ -13,7 +13,7 @@ Use this skill when implementing or reviewing visible frontend UI. The goal is i
 
 - This is an implementation-facing skill for UI code changes and rendered visual QA.
 - It does not replace `ui-ux-workflow`; `ui-ux-workflow` remains the conceptual workflow, wireframe, communication, and handoff layer.
-- It does not replace `/run-ux`; `/run-ux` remains the formal audit and scoring workflow.
+- It does not replace `$run-ux`; `$run-ux` remains the formal audit and scoring workflow.
 - It does not replace `ui-communication-designer`; screenshot, wireframe, or copy critique should stay conceptual until the user asks for implementation.
 - It should preserve the current flow, IA, CTA priority, and trust posture unless the existing structure clearly blocks comprehension or task completion.
 - It does not require high or xhigh reasoning by default. For polish, cleanup, or approved redesign-without-flow-change implementation work, spend budget on repo scan, state coverage, responsive checks, and rendered evidence.

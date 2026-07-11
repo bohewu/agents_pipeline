@@ -81,7 +81,7 @@ Flow-Full:
 
 ## FLAG PARSING PROTOCOL (LIMITED)
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags. If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation.
 

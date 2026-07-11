@@ -2,7 +2,7 @@
 name: devtools-ux-audit
 description: Browser-backed UX audit workflow for Chrome DevTools. Use when auditing normal-user experience across desktop-first or responsive web apps, collecting viewport-specific evidence, and producing profile-aware UX findings without assuming mobile-first behavior.
 license: See repository license
-compatibility: Requires a runtime with Chrome DevTools browser tools; best paired with /run-ux for reporting.
+compatibility: Requires a runtime with Chrome DevTools browser tools; best paired with $run-ux for reporting.
 ---
 
 # DevTools UX Audit
@@ -24,7 +24,7 @@ Always run the helper with `--help` first before using it in a workflow.
 ## Pairing
 
 - Use this skill as the browser evidence workflow.
-- Use `/run-ux` as the reporting/scoring workflow when you want a formal scorecard and synthesized report.
+- Use `$run-ux` as the reporting/scoring workflow when you want a formal scorecard and synthesized report.
 - Use `../frontend-aesthetic-director/SKILL.md` for frontend implementation or polish that needs design direction, tokens, responsive behavior, accessibility states, and rendered visual QA. This skill remains the evidence/audit layer, not the implementation design layer.
 - When the audit target is a local preview or dev server, pair this skill with an equivalent local-server lifecycle workflow before starting any Chrome DevTools interaction.
 

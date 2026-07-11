@@ -51,7 +51,7 @@ These rules apply to **all agents**.
 
 # FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -228,17 +228,16 @@ STOP after delivering the report.
 
 # USAGE
 
-Use the command wrapper:
-- `modes.json`
+Use the formal `$run-analysis` workflow entry point.
 
 Examples:
 
 ```text
-/run-analysis src/parser/ --focus=src/parser/tokenizer.ts
-/run-analysis Analyze the backtesting engine for correctness and numerical stability
-/run-analysis src/algorithm/ --scout=skip
-/run-analysis Review the sorting implementation for complexity issues --focus=src/sort.ts
-/run-analysis Analyze the trading strategy module --confirm
+$run-analysis src/parser/ --focus=src/parser/tokenizer.ts
+$run-analysis Analyze the backtesting engine for correctness and numerical stability
+$run-analysis src/algorithm/ --scout=skip
+$run-analysis Review the sorting implementation for complexity issues --focus=src/sort.ts
+$run-analysis Analyze the trading strategy module --confirm
 ```
 
 # OUTPUT EXAMPLE
@@ -262,5 +261,5 @@ High:
   Recommendation: Add null guard before property access.
 
 Handoff available: 3 suggested fix tasks for orchestrator-pipeline.
-Run /run-pipeline to implement fixes, or review the full report first.
+Use `$run-pipeline` to implement fixes, or review the full report first.
 ```

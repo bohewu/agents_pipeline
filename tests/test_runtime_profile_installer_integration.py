@@ -177,6 +177,73 @@ class RuntimeProfileInstallerIntegrationTests(unittest.TestCase):
                     uniform_model=case.uniform_model,
                 )
 
+    def test_status_requires_only_the_selected_runtime_adapters(self) -> None:
+        runtime_files = {
+            "codex": (
+                "scripts/codex_mode_aliases.py",
+                "scripts/codex-project-profile.py",
+                "scripts/export-codex-agents.py",
+                "scripts/install-codex-config.py",
+                "scripts/install-codex.sh",
+                "scripts/install-codex.ps1",
+                "scripts/sync-codex-skills.py",
+            ),
+            "claude": (
+                "scripts/export-claude-agents.py",
+                "scripts/install-claude.sh",
+                "scripts/install-claude.ps1",
+            ),
+            "copilot": (
+                "scripts/export-copilot-agents.py",
+                "scripts/install-copilot.sh",
+                "scripts/install-copilot.ps1",
+            ),
+        }
+        for case in RUNTIME_CASES:
+            with self.subTest(runtime=case.name), tempfile.TemporaryDirectory() as temp_name:
+                target = Path(temp_name) / case.name / "agents"
+                self.run_command(self.installer_command(case, target))
+                support_root = target.parent / "agents-pipeline"
+
+                for runtime, files in runtime_files.items():
+                    if runtime == case.name:
+                        continue
+                    for relative in files:
+                        (support_root / relative).unlink()
+
+                decoupled = self.status(case, target)
+                self.assertEqual(decoupled["health"], "ok")
+                self.assertEqual(decoupled["missing_generated_files"], [])
+
+                own_exporter = f"scripts/export-{case.name}-agents.py"
+                (support_root / own_exporter).unlink()
+                incomplete = self.status(case, target)
+                self.assertEqual(incomplete["health"], "incomplete")
+                self.assertTrue(
+                    any(
+                        str(item).endswith(own_exporter)
+                        for item in incomplete["missing_generated_files"]
+                    )
+                )
+
+    def test_status_requires_common_support_for_each_runtime(self) -> None:
+        common_file = "scripts/agent_model_profiles.py"
+        for case in RUNTIME_CASES:
+            with self.subTest(runtime=case.name), tempfile.TemporaryDirectory() as temp_name:
+                target = Path(temp_name) / case.name / "agents"
+                self.run_command(self.installer_command(case, target))
+                support_root = target.parent / "agents-pipeline"
+                (support_root / common_file).unlink()
+
+                incomplete = self.status(case, target)
+                self.assertEqual(incomplete["health"], "incomplete")
+                self.assertTrue(
+                    any(
+                        str(item).endswith(common_file)
+                        for item in incomplete["missing_generated_files"]
+                    )
+                )
+
     def test_installed_codex_manager_relocates_tier2_roles_and_support(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)

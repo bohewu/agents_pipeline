@@ -50,7 +50,7 @@ These rules apply to **all agents**.
 
 # FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -215,7 +215,7 @@ Report to the user:
 - top findings with severity and affected journeys/viewports
 - 3-5 priority actions
 - confidence caveats, especially if no live browser evidence was available
-- suggested follow-up path (`/run-flow` vs `/run-pipeline` vs rerun `/run-ux` with stronger evidence)
+- suggested follow-up path (`$run-flow` vs `$run-pipeline` vs rerun `$run-ux` with stronger evidence)
 
 If `confirm_mode = true` or `verbose_mode = true`, include stage-by-stage progress updates in addition to the final brief.
 
@@ -223,13 +223,12 @@ STOP after delivering the report.
 
 # USAGE
 
-Use the command wrapper:
-- `modes.json`
+Use the formal `$run-ux` workflow entry point.
 
 Examples:
 
 ```text
-/run-ux Audit the signup flow for a new user --profile=responsive-web --journey=create-account
-/run-ux Evaluate our internal admin dashboard UX --profile=desktop-web --viewport-preset=desktop-3
-/run-ux Review the settings page for clarity and trust --focus=src/pages/settings.tsx --journey=update-notifications
+$run-ux Audit the signup flow for a new user --profile=responsive-web --journey=create-account
+$run-ux Evaluate our internal admin dashboard UX --profile=desktop-web --viewport-preset=desktop-3
+$run-ux Review the settings page for clarity and trust --focus=src/pages/settings.tsx --journey=update-notifications
 ```

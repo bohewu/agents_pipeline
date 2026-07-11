@@ -661,6 +661,15 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                     content = output_path.read_text(encoding="utf-8")
                     self.assertIn("## Canonical Definition Loading", content)
                     self.assertIn(f"`{definition_path}`", content)
+                    self.assertIn(
+                        "interpret every formal Codex `$run-<mode>` reference as the "
+                        "corresponding Copilot `/run-<mode>` compatibility alias",
+                        content,
+                    )
+                    self.assertIn(
+                        "do not emit a `$run-*` invocation to a Copilot user",
+                        content,
+                    )
 
     def test_copilot_settings_snippet_uses_path_boolean_object(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

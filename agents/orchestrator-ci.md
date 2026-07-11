@@ -68,7 +68,7 @@ These rules apply to **all agents**.
 
 ## FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -175,7 +175,7 @@ Stage 3: Synthesis
 
 - Collect artifacts and summarize key decisions.
 - List open questions and explicit risks.
-- Provide a short handoff note for `/run-pipeline` usage.
+- Provide a short handoff note for `$run-pipeline` usage.
 
 # OUTPUT TO USER
 

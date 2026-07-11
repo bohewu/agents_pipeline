@@ -6,9 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-07-11
+
 ### Changed
 
 - Made Codex model profiles workspace-only. Global Codex installs now always generate model-free roles that inherit the parent session; global `status` and `clear` remain available only for installation diagnostics and legacy profile cleanup. Claude Code and GitHub Copilot retain their global profile workflows.
+- Stopped Codex export and normal global install paths from writing `agents.max_threads` or `agents.max_depth`; existing user values are preserved and absent keys remain runtime-owned.
+- Scoped profile-installation health checks to the common neutral core plus the selected runtime's required assets, so missing Tier 2-only adapters do not make Codex unhealthy while Claude Code and Copilot still validate their own support files.
+- Standardized current workflow guidance on runtime-neutral invocation input and the formal Codex `$run-*` entry points; Claude Code and Copilot exports translate those references to their existing `/run-*` compatibility aliases.
+- Replaced the README's deprecated OpenCode command blocks with a concise notice that keeps OpenCode frozen at `v0.26.1`.
+
+### Removed
+
+- Removed the tracked Claude Code user-local permission file and ignored `.claude/settings.local.json`; the repository-level `CLAUDE.md` Tier 2 guide remains.
 
 ## [0.28.0] - 2026-07-11
 

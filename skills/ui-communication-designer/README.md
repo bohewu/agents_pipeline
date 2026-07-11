@@ -15,7 +15,7 @@ It is especially useful for:
 
 ## Recommended Pairing
 - Best fit: `ui-ux-workflow` for conceptual design, flow reframing, and screen or copy rewrite work
-- Secondary fit: run `/run-ux` first for audit findings, then feed those findings into this skill for a communication-first redesign
+- Secondary fit: run `$run-ux` first for audit findings, then feed those findings into this skill for a communication-first redesign
 - Not a fit: browser-backed audits, viewport scoring, or implementation-ready specs
 
 ## Files

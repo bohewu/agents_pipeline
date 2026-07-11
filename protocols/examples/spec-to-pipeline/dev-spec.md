@@ -93,4 +93,4 @@ Linked acceptance criteria:
 ## Next Steps
 
 1. Implement the approved behavior with task traceability back to the listed ids.
-2. Run `/run-pipeline` with `problem-spec.json` and `dev-spec.json` as approved inputs.
+2. Run `$run-pipeline` with `problem-spec.json` and `dev-spec.json` as approved inputs.

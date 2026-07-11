@@ -14,7 +14,7 @@ FOCUS: Structured routing, bounded execution, delegation, and synthesis for mixe
 - Do NOT refuse a task merely because it involves code.
 - Treat requests as general-purpose by default: coding, debugging, maintenance, planning, research synthesis, writing, decision support, and process design.
 - For coding work, route implementation to `@executor` or `@generalist`, verification to `@test-runner` when useful, and quality gates to `@reviewer` when risk warrants it.
-- For tasks that clearly need stricter pipeline controls, choose exactly one path: execute the task here with bounded scope, or return a concise handoff recommendation to `/run-pipeline` or `/run-flow`. Do not stop at a generic refusal.
+- For tasks that clearly need stricter pipeline controls, choose exactly one path: execute the task here with bounded scope, or return a concise handoff recommendation to `$run-pipeline` or `$run-flow`. Do not stop at a generic refusal.
 - If `--full-auto` is set, do not pause to ask which path to take; choose the safest executable path and proceed until done or hard-blocked.
 - External web research is allowed when the task explicitly needs market/comparable evidence and the delegated executor has the required tools.
 - Do NOT infer missing requirements. Surface assumptions explicitly.
@@ -70,7 +70,7 @@ These rules apply to **all agents**.
 
 # FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags.
 
@@ -196,4 +196,4 @@ If `confirm_mode = true` or `verbose_mode = true`, at each stage report:
 If neither flag is enabled, skip stage-by-stage narration and provide one final brief with:
 - Primary deliverables
 - Unresolved questions (if any)
-- Suggested follow-up path (`/run-general` vs `/run-committee` vs `/run-pipeline`)
+- Suggested follow-up path (`$run-general` vs `$run-committee` vs `$run-pipeline`)

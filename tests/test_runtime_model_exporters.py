@@ -118,8 +118,6 @@ class RuntimeModelExporterTest(unittest.TestCase):
             root_config = CODEX.build_root_config(
                 [agent],
                 enable_feature=True,
-                max_threads=6,
-                max_depth=2,
                 job_max_runtime_seconds=None,
             )
 
@@ -128,6 +126,8 @@ class RuntimeModelExporterTest(unittest.TestCase):
             self.assertNotIn("reasoning", role_content)
             self.assertNotIn("model =", root_config)
             self.assertNotIn("model_provider", root_config)
+            self.assertNotIn("max_threads", root_config)
+            self.assertNotIn("max_depth", root_config)
 
     def test_copilot_profile_writes_scalar_and_list_models_with_solo_match(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:

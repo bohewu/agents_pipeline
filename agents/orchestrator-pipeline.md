@@ -87,7 +87,7 @@ These rules apply to **all agents**.
 
 # FLAG PARSING PROTOCOL
 
-You are given positional parameters via the slash command.
+Parse the workflow invocation input.
 
 Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `--*` tokens are flags. If `main_task_prompt` is empty and `resume_mode = true`, treat as resume-only invocation.
 
@@ -171,7 +171,7 @@ Proceed with pipeline execution according to parsed flags.
 
 # MODERNIZE HANDOFF COMPATIBILITY (OPTIONAL INCOMING CONTRACT)
 
-This orchestrator may be invoked directly by a user (`/run-pipeline`) or delegated by `@orchestrator-modernize`.
+This orchestrator may be invoked directly by a user through `$run-pipeline` or delegated by `@orchestrator-modernize`.
 
 If the incoming handoff includes a modernize execution contract (for example fields such as `phase_execution_contract`, `modernize_constraints`, `context_paths`, or `working_project_dir`), then treat it as a **phase-scoped modernization execution run** and apply the following rules in addition to the normal pipeline behavior:
 
