@@ -31,10 +31,9 @@ on:
 jobs:
   bundle:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      attestations: write
-      id-token: write
+    # Inherit the reusable-workflow caller's least-privilege token. CI grants
+    # contents:read; the tag-driven release caller additionally grants the
+    # attestation and OIDC permissions used by the conditional publish steps.
     outputs:
       tag: ${{ steps.vars.outputs.tag }}
       artifact_name: ${{ steps.vars.outputs.artifact_name }}
