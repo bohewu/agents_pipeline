@@ -336,7 +336,7 @@ Describe "install-codex.ps1 workspace profile overlay" {
             Test-Path -LiteralPath (Join-Path $localCodex "agents-pipeline") |
                 Should -BeFalse
             @(Get-ChildItem -LiteralPath $userSkillsRoot -Directory -Filter "run-*").Count |
-                Should -Be 10
+                Should -Be 11
 
             & $profileTool clear -Runtime codex -Scope workspace -Workspace $workspace | Out-Null
             $LASTEXITCODE | Should -Be 0
