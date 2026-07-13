@@ -57,6 +57,14 @@ class CodexInstallExportTest(unittest.TestCase):
         "not automatically spawn subagents and does not override higher-priority "
         "rules for `spawn_agent` authorization."
     )
+    CUSTOM_ROLE_FORK_ISOLATION_LINE = (
+        "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
+        "any spawn that selects a registered custom role or a non-parent model/reasoning "
+        "configuration MUST use `fork_turns = none`. A full-history fork inherits the "
+        "parent agent type, model, and reasoning effort; use it only when that inheritance "
+        "is intentional. If the selectors are unavailable, do not claim that workspace "
+        "profile routing succeeded."
+    )
     MODE_ALIAS_DEFINITION_LOOKUP_LINE = (
         "1. On a recognized mode alias, read the globally installed "
         "`$CODEX_HOME/agents/orchestrator-<mode>.toml` (default "
@@ -139,6 +147,7 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
         )
+        self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, managed_block)
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
@@ -312,6 +321,7 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_SUBAGENT_SENTENCE,
             merged,
         )
+        self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, merged)
         self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_SENTENCE, merged)
         self.assertIn(self.MODE_ALIAS_NO_BYPASS_SENTENCE, merged)
         self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, merged)

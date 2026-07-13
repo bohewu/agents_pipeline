@@ -42,6 +42,14 @@ MODE_ALIAS_AUTHORIZATION_GUARD_LINE = (
     "automatically spawn subagents and does not override higher-priority rules for "
     "`spawn_agent` authorization."
 )
+CUSTOM_ROLE_FORK_ISOLATION_LINE = (
+    "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
+    "any spawn that selects a registered custom role or a non-parent model/reasoning "
+    "configuration MUST use `fork_turns = none`. A full-history fork inherits the "
+    "parent agent type, model, and reasoning effort; use it only when that inheritance "
+    "is intentional. If the selectors are unavailable, do not claim that workspace "
+    "profile routing succeeded."
+)
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."
 )
@@ -260,6 +268,7 @@ def build_mode_summary_lines() -> List[str]:
         MODE_ALIAS_SKILL_EQUIVALENCE_LINE,
         WORKSPACE_PROFILE_PREFLIGHT_LINE,
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
+        CUSTOM_ROLE_FORK_ISOLATION_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,
         MODE_ALIAS_DEFINITION_LOOKUP_LINE,

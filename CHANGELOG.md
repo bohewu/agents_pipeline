@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-07-13
+
 ### Added
 
 - Added the Codex-first `$run-adaptive` skill-only engineering router. It selects Simple, Flow, or Pipeline without adding an Adaptive role/profile entry, supports route-independent `balanced`, `autonomous`, `careful`, `delivery`, and `interactive` presets plus explicit policy overrides, and provides a side-effect-free `--prompt=on` mode that emits a pinned next Adaptive prompt instead of executing.
@@ -15,6 +17,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - Split Flow failure handling into up to two transient operational retries, `0..2` task-local modify-and-verify cycles after the first attempt, and one persisted Flow-level recovery re-dispatch per run. Repeated failure signatures, no progress, exhausted bounds, and scope expansion now stop local iteration explicitly.
 - Kept every Adaptive preset Simple-eligible by applying review, scout, handoff, kanban, commit, interaction, and autonomous settings as a bounded wrapper around the Simple core, while Flow and Pipeline receive equivalent native flags. Route promotion preserves and reapplies the normalized policy.
+- Required Codex custom-role or non-parent model/reasoning dispatches to use `fork_turns = none`; full-history forks remain reserved for intentional parent role/model inheritance and no longer count as evidence that workspace profile routing succeeded.
 
 ## [0.28.2] - 2026-07-11
 
