@@ -167,6 +167,10 @@ If an invalid `--commit` value is provided:
 - Warn the user.
 - Fall back to commit_mode = off.
 
+If an upstream Adaptive controller supplies `preset_mode`, persist it unchanged beside
+the already-expanded effective flags. It is provenance metadata, not a Pipeline parser
+control, and must not override explicit native flags during resume.
+
 Proceed with pipeline execution according to parsed flags.
 
 # MODERNIZE TRANSITION COMPATIBILITY (OPTIONAL INCOMING CONTRACT)

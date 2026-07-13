@@ -11,7 +11,11 @@ Execute EXACTLY ONE task. No scope creep.
 
 - Respect handoff controls such as `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class` when they are provided.
 - If they are omitted, use the smallest sufficient path that still satisfies the Definition of Done.
-- `repair_budget` only allows bounded in-task repair of the SAME task (for example test -> fix -> rerun). It does NOT allow new tasks or scope expansion.
+- The first implementation/content attempt does not consume `repair_budget`. Each later modify -> verify cycle after a concrete verification failure consumes one unit.
+- `repair_budget` only allows bounded in-task repair of the SAME task (for example test -> fix -> rerun). It does NOT allow new tasks, scope expansion, or orchestrator-level re-dispatch.
+- A transient operational failure may be retried at most twice without consuming `repair_budget` only when no implementation/content change is made. Examples include a mistyped command, a not-yet-ready local service, or a clearly transient tool/network failure.
+- Do not classify deterministic test, lint, type, build, logic, configuration, permission, or dependency failures as transient merely to avoid the repair budget.
+- Stop local iteration and return `blocked` or `partial` when the same normalized failure signature appears twice, the latest attempt produces no meaningful progress, the repair budget is exhausted, or the required fix expands scope.
 - Model/provider/reasoning selection belongs to the runtime; do not reinterpret workflow rigor fields as model controls.
 
 # FRONTEND UI TASKS
@@ -50,6 +54,9 @@ Rules:
   "status": "done | blocked | partial",
   "changes": [],
   "evidence": [],
+  "operational_retries_used": 0,
+  "repair_attempts_used": 0,
+  "last_failure_signature": "",
   "notes": "",
   "followups": []
 }

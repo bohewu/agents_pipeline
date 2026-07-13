@@ -119,7 +119,9 @@ class CodexInstallExportTest(unittest.TestCase):
             "current/main agent to adopt the requested mode directly", managed_block
         )
         self.assertIn("`$run-pipeline`", managed_block)
-        self.assertIn("formal mode entry points", managed_block)
+        self.assertIn("formal workflow entry points", managed_block)
+        self.assertIn("`$run-adaptive`", managed_block)
+        self.assertIn("no orchestrator role or compatibility mode alias", managed_block)
         self.assertIn("compatibility aliases", managed_block)
         self.assertIn("primary full-pipeline entry point", managed_block)
         self.assertIn(self.MODE_ALIAS_SKILL_EQUIVALENCE_LINE, managed_block)
@@ -194,7 +196,9 @@ class CodexInstallExportTest(unittest.TestCase):
             "current/main agent to adopt the requested mode directly", managed_block
         )
         self.assertIn("`$run-pipeline`", managed_block)
-        self.assertIn("formal mode entry points", managed_block)
+        self.assertIn("formal workflow entry points", managed_block)
+        self.assertIn("`$run-adaptive`", managed_block)
+        self.assertIn("no orchestrator role or compatibility mode alias", managed_block)
         self.assertIn("compatibility aliases", managed_block)
         self.assertIn(self.MODE_ALIAS_SKILL_EQUIVALENCE_LINE, managed_block)
         self.assertIn(self.WORKSPACE_PROFILE_PREFLIGHT_LINE, managed_block)

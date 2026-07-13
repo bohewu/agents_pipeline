@@ -218,6 +218,7 @@ Describe "install-codex.ps1 managed mode skills" {
     BeforeAll {
         $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         $managedSkillNames = @(
+            "run-adaptive",
             "run-simple",
             "run-flow",
             "run-pipeline",
@@ -250,6 +251,7 @@ Describe "install-codex.ps1 managed mode skills" {
         }
         Test-Path -LiteralPath (Join-Path $userSkillsRoot "run-goal") |
             Should -BeFalse
+        $output | Should -Match '\$run-adaptive'
         $output | Should -Match '\$run-pipeline <task>'
         $output | Should -Match 'compatibility aliases'
     }

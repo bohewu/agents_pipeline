@@ -475,7 +475,7 @@ else
   echo "Codex usage note: the optional manual snippet is in docs/codex-mapping.md#global-custom-instructions-snippet."
 fi
 if [[ ${INSTALL_USER_SKILLS} -eq 1 ]]; then
-  echo 'Formal mode entry points: `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
+  echo 'Formal workflow entry points: `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
   echo 'For the full workflow, prefer `$run-pipeline <task>`. `use pipeline` and `使用 pipeline` remain compatibility aliases.'
 else
   echo 'This target did not modify the Codex user skill root. Formal entry points are the `$run-*` skills once installed globally.'

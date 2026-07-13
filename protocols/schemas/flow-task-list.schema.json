@@ -84,7 +84,7 @@
           "repair_budget": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 1
+            "maximum": 2
           },
           "resource_class": {
             "type": "string",
@@ -127,7 +127,8 @@
                   ]
                 },
                 "repair_budget": {
-                  "const": 1
+                  "minimum": 1,
+                  "maximum": 2
                 }
               }
             }
@@ -152,7 +153,8 @@
                   "const": true
                 },
                 "repair_budget": {
-                  "const": 1
+                  "minimum": 1,
+                  "maximum": 2
                 }
               }
             }

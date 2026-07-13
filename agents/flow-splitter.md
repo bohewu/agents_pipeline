@@ -26,12 +26,16 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Prefer `generalist` only when the task is mixed-scope but non-coding.
 - Treat routine version-control actions (`git status`, `git add`, `git commit`, `git push`) as orchestrator helper work, not Flow tasks, unless version-control management is the user's primary requested outcome.
 - Set `risk` from concrete impact: `low` for localized/reversible work, `medium` for behavior or integration changes with bounded blast radius, and `high` for security, data, migration, destructive, or broad cross-surface risk.
-- Derive `verification`, `review_required`, and `repair_budget` from risk and the Definition of Done:
-  - low -> `verification = none | basic`, normally `review_required = false`, `repair_budget = 0`
-  - medium -> at least `verification = basic`, set `review_required = true` when behavior crosses an integration or user-critical boundary, `repair_budget = 1`
-  - high -> `verification = strong`, `review_required = true`, `repair_budget = 1`
-- Medium- and high-risk tasks MUST use `repair_budget = 1`; this permits at most one bounded retry of the SAME task and never permits scope expansion.
-- Low-risk tasks use `repair_budget = 0`.
+- Derive `verification` and `review_required` from risk and the Definition of Done:
+  - low -> `verification = none | basic`, normally `review_required = false`
+  - medium -> at least `verification = basic`; set `review_required = true` when behavior crosses an integration or user-critical boundary
+  - high -> `verification = strong`, `review_required = true`
+- Derive `repair_budget` from the work and verification loop rather than treating risk as a proxy for retry count. The first implementation/content attempt never consumes this budget.
+  - implementation or mixed implementation/verification work -> normally `repair_budget = 2`, including localized low-risk bug fixes
+  - verifiable document, plan, analysis, or mechanical work with one plausible correction pass -> `repair_budget = 1`
+  - output that genuinely needs no correction loop -> `repair_budget = 0`
+- Medium- and high-risk tasks MUST use `repair_budget = 1 | 2`; high risk still requires strong verification and review. Risk strengthens gates, not blind retry count.
+- `repair_budget` permits only modify -> verify cycles inside the SAME task. It never permits operational retries, orchestrator re-dispatch, new tasks, or scope expansion.
 - `resource_class = browser` or `server` should be used only when the task clearly requires those heavy resources.
 - Every task in the output must satisfy the FlowTaskList schema.
 

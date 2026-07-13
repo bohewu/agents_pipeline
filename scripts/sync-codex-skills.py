@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 MANAGED_SKILL_NAMES = (
+    "run-adaptive",
     "run-simple",
     "run-flow",
     "run-pipeline",

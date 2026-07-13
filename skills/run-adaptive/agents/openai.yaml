@@ -1,0 +1,6 @@
+interface:
+  display_name: "Run Adaptive"
+  short_description: "Route work with reusable execution presets"
+  default_prompt: "Use $run-adaptive to select the smallest sufficient workflow and apply the appropriate preset policy."
+policy:
+  allow_implicit_invocation: false

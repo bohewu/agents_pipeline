@@ -139,11 +139,12 @@ Schema: `./protocols/schemas/test-report.schema.json`
 ### Risk-Derived Execution Rigor
 
 - Pipeline TaskList entries explicitly provide `risk` and `complexity`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides `resource_class`. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
-- FlowTaskList entries explicitly provide `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts.
+- FlowTaskList entries explicitly provide `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
 - Model, provider, and model reasoning selection are owned by the runtime and are not workflow rigor controls.
-- Low-risk/S tasks normally use basic verification and no repair pass; low-risk Flow tasks may use `verification = none` for bounded non-executable outputs.
-- Medium-risk or M tasks use at least basic verification and one bounded repair pass; Flow review becomes required when they cross an integration or user-critical boundary.
-- High-risk or L tasks use strong verification and one bounded repair pass; high-risk Flow tasks require review, while Pipeline review is already global.
+- Pipeline low-risk/S tasks normally use basic verification and no repair pass; medium-risk/M and high-risk/L tasks use one bounded repair pass, with strong verification for high-risk/L work.
+- Flow low-risk tasks may use `verification = none` for bounded non-executable outputs, while localized implementation tasks normally receive two bounded in-task correction cycles.
+- Flow medium-risk tasks use at least basic verification and one or two bounded in-task correction cycles; Flow review becomes required when they cross an integration or user-critical boundary.
+- Flow high-risk tasks use strong verification, one or two bounded in-task correction cycles, and required review; Pipeline review remains global.
 - Resource class reflects actual process/browser/server lifecycle needs and must not be inferred from risk alone.
 - Retry-round precedence is deterministic: explicit `--max-retry` wins; `--full-auto` defaults to 5; otherwise derive 1/2/3 rounds from the highest TaskList risk (`low`/`medium`/`high`), using 2 provisionally before TaskList risk is available.
 
@@ -321,6 +322,7 @@ Required event vocabulary for Flow and Pipeline status/checkpoint writes:
 
 - `run.started`
 - `run.resumed`
+- `checkpoint.updated`
 - `stage.completed`
 - `tasks.registered`
 - `task.updated`
@@ -333,10 +335,11 @@ Minimal payload skeleton guidance:
 
 - Common envelope for every event: `{ "output_root": "...", "run_id": "..." }`
 - Cross-repo envelope extension: add `"working_project_dir": "..."` when status/checkpoint files must be anchored to a target project rather than the session's source repo.
-- `run.started`: add `orchestrator` and a non-empty `user_prompt`; include the initial effective `flags` when available. A fresh start MUST use a new `run_id`.
+- `run.started`: add `orchestrator` and a non-empty `user_prompt`; include the initial effective `flags` when available. Adaptive-originated Flow/Pipeline runs include `preset_mode` beside the expanded effective policy flags. A fresh start MUST use a new `run_id`.
 - Every non-`run.started` event MUST target a run that already has its canonical checkpoint and run-status files; failed pre-start updates MUST NOT reserve or create the run directory.
 - `run.resumed`: add the expected `orchestrator`; `run_id` may be omitted only for compatible-run discovery. Include `user_prompt` when known and current-invocation flag overrides in `flags`. The runtime MUST verify persisted run identity/orchestrator agreement. The runtime MUST merge these overrides over persisted `checkpoint.flags`, preserving unrelated persisted and derived values.
 - Resume flag precedence: hydrate persisted effective `checkpoint.flags` first, then apply only flags explicitly supplied by the current invocation. Parser defaults for omitted invocation flags MUST NOT overwrite persisted effective values.
+- `checkpoint.updated`: add a non-empty object `flags` delta when a derived flag must be persisted before the current stage can honestly be marked completed. The runtime merges the delta into `checkpoint.flags` and MUST NOT change `current_stage` or `completed_stages`.
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
 - Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode`.
 - `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.

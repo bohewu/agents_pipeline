@@ -15,6 +15,7 @@ CHECKS = {
         "skip the heartbeat and flush the final batch instead",
         'prefer one `event = "batch"` call',
         "runtime MUST merge these overrides over persisted `checkpoint.flags`",
+        "`checkpoint.updated`",
         "Required derived-flag persistence points",
     ],
     Path("agents/orchestrator-pipeline.md"): [
@@ -31,6 +32,7 @@ CHECKS = {
         "legacy task with `effort` but without required `risk` / `review_required`",
         "Start a fresh run with a new `run_id`",
         "Stage 2 completion event MUST persist the risk-derived `review_mode`",
+        "--event checkpoint.updated",
     ],
     Path("docs/status-implementation-checklist.md"): [
         "Send standalone heartbeats only for long-running active work",

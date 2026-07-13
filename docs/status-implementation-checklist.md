@@ -33,6 +33,7 @@ Use this checklist when wiring a runtime or generated orchestrator to the neutra
 ## Event order
 
 - Emit `run.started` with a non-empty `user_prompt` before any stage, task, or agent event.
+- Use `checkpoint.updated` with a non-empty `flags` delta when derived state must be persisted before a stage completes; verify it does not advance `current_stage` or append `completed_stages`.
 - Emit `tasks.registered` before updating or assigning a task.
 - Pair every `agent.started` with `agent.finished` unless the run is interrupted.
 - Emit `run.finished` only after task, agent, evidence, and cleanup truth has been reconciled.

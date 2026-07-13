@@ -78,19 +78,22 @@ Supported events are deliberately bounded:
 2. `run.resumed`
    - required `output_root` and `orchestrator`; `run_id` is optional for compatible-run discovery
    - may overlay invocation `flags`; in-flight tasks and agents are reconciled to `stale`
-3. `stage.completed`
+3. `checkpoint.updated`
+   - `run_id` plus a non-empty `flags` object
+   - merges derived flags without changing `current_stage` or `completed_stages`
+4. `stage.completed`
    - `run_id`, `stage`, `name`, `status`, and optional artifact/flag fields
-4. `tasks.registered`
+5. `tasks.registered`
    - `run_id` plus canonical task entries
-5. `task.updated`
+6. `task.updated`
    - `run_id`, `task_id`, and canonical task patch fields
-6. `agent.started`
+7. `agent.started`
    - `run_id`, non-empty `agent_id`, non-empty `agent`, and optional task/batch/attempt/resource fields
-7. `agent.heartbeat`
+8. `agent.heartbeat`
    - `run_id`, `agent_id`, and optional status/resource fields
-8. `agent.finished`
+9. `agent.finished`
    - `run_id`, `agent_id`, terminal status, and optional result/error/evidence fields
-9. `run.finished`
+10. `run.finished`
    - `run_id`, terminal `status`, and optional notes/error/waiting fields
 
 Every event other than `run.started` must target an initialized run. A rejected pre-start update does not create a run directory, so the same `run_id` can still be started normally.

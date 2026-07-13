@@ -437,7 +437,7 @@ def minify_checkpoint_protocol(text: str) -> str:
             return match.group(0)
         return (
             f"{match.group('heading')}\n\n"
-            "After each successful stage, run `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral writer updates `<run_output_dir>/checkpoint.json` (schema: `protocols/schemas/checkpoint.schema.json`).\n\n"
+            "After each successful stage, run `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral writer updates `<run_output_dir>/checkpoint.json` (schema: `protocols/schemas/checkpoint.schema.json`). Use `checkpoint.updated` with a non-empty `flags` delta when a derived flag must be persisted without marking the current stage complete.\n\n"
         )
 
     return CHECKPOINT_PROTOCOL_RE.sub(repl, text, count=1)
@@ -459,7 +459,7 @@ def minify_run_status_protocol(text: str) -> str:
                 "",
                 "- Emit updates with `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` per `protocols/PIPELINE_PROTOCOL.md`; preserve `working_project_dir` unchanged when present.",
                 "- Use expanded status files from Stage 3: `tasks/<task_id>.json` and `agents/<agent_id>.json`.",
-                "- Required events: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`.",
+                "- Event vocabulary: `run.started`/`run.resumed`, conditional `checkpoint.updated`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`.",
                 "- Prefer `--event batch` for related same-run deltas; keep standalone heartbeats coarse and skip redundant ones.",
             ]
             return "\n".join(lines) + "\n\n"
@@ -471,7 +471,7 @@ def minify_run_status_protocol(text: str) -> str:
                 "- Emit updates with `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` per `protocols/PIPELINE_PROTOCOL.md`; prefer `--event batch` for same-run task/agent deltas.",
                 "- Preserve `working_project_dir` unchanged when provided; if the runtime cannot honor a required delegated worktree, stop instead of silently using the caller repo.",
                 "- Use expanded status files after Stage 2 creates the task list.",
-                "- Required events: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Keep standalone heartbeats coarse unless an earlier semantic change makes one useful.",
+                "- Event vocabulary: `run.started`/`run.resumed`, conditional `checkpoint.updated`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Keep standalone heartbeats coarse unless an earlier semantic change makes one useful.",
             ]
             return "\n".join(lines) + "\n\n"
 

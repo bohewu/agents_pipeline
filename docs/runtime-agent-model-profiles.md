@@ -26,7 +26,7 @@ Profile status and workflow status are different surfaces:
 
 Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. For Codex, `set` is workspace-only; global `status` and `clear` are diagnostic/legacy-cleanup operations. `install` is accepted only as a deprecated compatibility alias for `set` where `set` is supported.
 
-The default Codex global installer additionally publishes the ten formal workflow skills under `~/.agents/skills/run-*/`. Each carries `.agents-pipeline-skill.json`; updates are rollback-capable and use an atomic rename per skill directory, while an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal. Those skills stay global and adopt global workflow definitions. Their workspace preflight stops on unverifiable or unhealthy local role state; only a healthy, eligible profile proceeds to workspace-specific routing.
+The default Codex global installer additionally publishes the eleven formal workflow skills under `~/.agents/skills/run-*/`. Each carries `.agents-pipeline-skill.json`; updates are rollback-capable and use an atomic rename per skill directory, while an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal. Those skills stay global and adopt global workflow definitions. `$run-adaptive` selects among the existing Simple, Flow, and Pipeline definitions without adding a role, while keeping its execution preset independent from model/profile routing. Their workspace preflight stops on unverifiable or unhealthy local role state before execution; only a healthy, eligible profile proceeds to workspace-specific routing.
 
 ## Interactive quick start
 
@@ -124,9 +124,9 @@ Codex workspace profiles inherit global `agents.max_threads` and `agents.max_dep
 
 ### Profile-aware workflow skills
 
-The formal `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. They adopt the globally installed orchestrator workflow and never manually trust a raw workspace role. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. A healthy but ineligible layer warns and uses global routing. A healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters.
+The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. Manifest-backed skills adopt the globally installed orchestrator workflow and never manually trust a raw workspace role; `$run-adaptive` selects one of the existing Simple, Flow, or Pipeline definitions in place. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. Prompt-only Adaptive generation warns instead of dispatching. A healthy but ineligible layer warns and uses global routing. A healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters.
 
-The managed `use <mode>` forms remain compatibility aliases. There is no `$run-goal` skill.
+The managed `use <mode>` forms remain compatibility aliases for manifest-backed modes. `$run-adaptive` intentionally has no compatibility alias or role. There is no `$run-goal` skill.
 
 ## Global Codex diagnostics and legacy cleanup
 

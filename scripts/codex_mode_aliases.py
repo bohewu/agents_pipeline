@@ -14,9 +14,10 @@ MODE_ALIAS_ADOPT_LINE = (
     "Those aliases tell the current/main agent to adopt the requested mode directly."
 )
 FORMAL_MODE_SKILLS_LINE = (
-    "Installed `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, "
+    "Installed `$run-adaptive` routing plus `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, "
     "`$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and "
-    "`$run-committee` skills are the formal mode entry points."
+    "`$run-committee` skills are the formal workflow entry points. Adaptive is skill-only "
+    "and intentionally has no orchestrator role or compatibility mode alias."
 )
 MODE_ALIAS_COMPATIBILITY_LINE = (
     "Natural-language forms such as `use pipeline` and `使用 pipeline` remain "

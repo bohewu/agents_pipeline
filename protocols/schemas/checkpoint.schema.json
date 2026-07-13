@@ -56,6 +56,10 @@
         "test_only": { "type": "boolean", "default": false },
         "loose_review": { "type": "boolean", "default": false },
         "decision_only": { "type": "boolean", "default": false },
+        "preset_mode": {
+          "type": "string",
+          "enum": ["balanced", "autonomous", "careful", "delivery", "interactive"]
+        },
         "scout_mode": {
           "type": "string",
           "enum": ["auto", "skip", "force"],
@@ -69,6 +73,21 @@
         "review_mode": {
           "type": "string",
           "enum": ["auto", "off", "on"]
+        },
+        "operational_retry_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "flow_recovery_limit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "flow_recovery_used": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
         },
         "handoff_mode": { "type": "boolean", "default": false },
         "kanban_mode": {

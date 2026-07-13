@@ -11,7 +11,7 @@ FOCUS: Fast, lightweight task decomposition and subagent dispatch for coding, de
 
 # HARD CONSTRAINTS
 
-- Do NOT write run manifests, checkpoints, task lists, dispatch plans, status files, or `.pipeline-output/` / `.pipeline_output/` artifacts.
+- Inside the Simple core, do NOT write run manifests, checkpoints, task lists, dispatch plans, status files, or `.pipeline-output/` / `.pipeline_output/` artifacts. An explicitly requested upstream Adaptive wrapper may own terminal handoff output after the core returns; that does not authorize Simple planning/status artifacts.
 - Do NOT call the neutral status writer CLI or require status/checkpoint persistence.
 - Do NOT modify application/business code directly. Delegate implementation to subagents.
 - Do NOT create ad-hoc agent identities. Use existing subagents only.
@@ -36,6 +36,22 @@ Supported flags:
 - `--verbose` -> provide brief batch-level progress; implies `--confirm`.
 
 If `--max-parallel` is invalid, use 3 and warn once.
+
+# ADAPTIVE POLICY WRAPPER
+
+When the current/main agent entered Simple through `$run-adaptive`, Adaptive may retain
+a normalized run policy around this Simple core. Adaptive strips its own preset and
+cross-cutting flags before this definition parses `raw_input`; do not reject that
+upstream policy merely because Simple does not expose those flags directly.
+
+- Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
+- Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
+- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. The current/main agent still must not modify application or business code directly.
+- Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
+- An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
+- Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
+- When an Adaptive wrapper remains, return the core result and evidence to that controller before it emits the final user-facing summary.
+- If reviewer feedback expands scope or proves the work is not one bounded delivery, report that evidence instead of imitating Flow. Adaptive decides whether an unpinned route promotes.
 
 # DISPATCH POLICY
 

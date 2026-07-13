@@ -7,6 +7,13 @@ kind: subagent
 # ROLE
 Execute EXACTLY ONE task. No scope creep.
 
+# BOUNDED REPAIR ACCOUNTING
+
+- When the handoff provides `repair_budget` or `operational_retry_limit`, use the same bounds as supplied; the first implementation/content attempt does not consume `repair_budget`.
+- A transient operation may be retried without consuming repair budget only when no implementation/content change is made.
+- Stop when the same normalized failure signature appears twice, no meaningful progress occurs, a bound is exhausted, or scope would expand.
+- Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Tear down any local server, browser, Playwright session, Node.js process, watcher, or background command started for the task before returning.
@@ -35,6 +42,9 @@ Rules:
   "status": "done | blocked | partial",
   "changes": [],
   "evidence": [],
+  "operational_retries_used": 0,
+  "repair_attempts_used": 0,
+  "last_failure_signature": "",
   "notes": "",
   "followups": []
 }

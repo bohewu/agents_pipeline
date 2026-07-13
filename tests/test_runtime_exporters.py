@@ -251,6 +251,10 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
+            'test -f "${BUNDLE_DIR}/skills/run-adaptive/SKILL.md"',
+            workflow,
+        )
+        self.assertIn(
             'test ! -e "${BUNDLE_DIR}/skills/run-goal"',
             workflow,
         )

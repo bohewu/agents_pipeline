@@ -130,6 +130,7 @@ jobs:
           test -f "${BUNDLE_DIR}/skills/run-analysis/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/run-ux/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/run-committee/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/run-adaptive/SKILL.md"
           test ! -e "${BUNDLE_DIR}/skills/run-goal"
           test ! -L "${BUNDLE_DIR}/skills/run-goal"
           test -f "${BUNDLE_DIR}/tools/status-event.js"
@@ -154,6 +155,7 @@ jobs:
           python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-copilot" --strict --dry-run
           bash "${BUNDLE_DIR}/scripts/install-codex.sh" --target "${BUNDLE_DIR}/.tmp-install-codex" --dry-run --no-backup
           python3 "${BUNDLE_DIR}/scripts/sync-codex-skills.py" --source-skills-root "${BUNDLE_DIR}/skills" --user-skills-root "${BUNDLE_DIR}/.tmp-user-skills"
+          test -f "${BUNDLE_DIR}/.tmp-user-skills/run-adaptive/SKILL.md"
           test -f "${BUNDLE_DIR}/.tmp-user-skills/run-pipeline/SKILL.md"
           test -f "${BUNDLE_DIR}/.tmp-user-skills/run-flow/.agents-pipeline-skill.json"
           test ! -e "${BUNDLE_DIR}/.tmp-user-skills/run-goal"

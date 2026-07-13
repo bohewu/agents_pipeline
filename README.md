@@ -24,11 +24,11 @@ Codex-first multi-agent workflow assets with a runtime-neutral source core and b
 
 Tier 2 is intentionally bounded: the adapters preserve useful prompt behavior and mode aliases, but do not promise Codex feature parity.
 
-## What changed in v0.28
+## Current architecture
 
 - Canonical sources moved from the runtime-named tree to `agents/`, `protocols/`, `skills/`, and `tools/`.
 - `modes.json` replaced runtime command files as the mode-routing source of truth.
-- Ten formal `run-*` skills provide the primary Codex workflow entry points; natural-language `use <mode>` forms remain compatibility aliases.
+- Eleven formal `run-*` skills provide the primary Codex workflow entry points. `$run-adaptive` is a skill-only Simple/Flow/Pipeline router; natural-language `use <mode>` forms remain compatibility aliases for manifest-backed modes.
 - Codex installs mirror the marker-owned neutral support tree under `.codex/agents-pipeline`, including the scripts and runtime catalogs needed to run the installed profile manager.
 - Status/checkpoint writing is a portable Node CLI instead of a runtime plugin.
 - A runtime-neutral profile manager provides interactive or scripted `set`/`status`/`clear`/`list` flows. Runtime assets and model-free Codex roles are installed globally once; Codex workspace profiles materialize only profile-specific role TOML plus a managed config block and manifest, without copying skills, scripts, protocols, or the support tree.
@@ -120,7 +120,7 @@ The normal global layout is:
 | Claude Code | `~/.claude/agents/` and `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-For the default `~/.codex` target, the Codex global installer also publishes exactly ten managed workflow skills under `~/.agents/skills/run-*/`; a custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each skill has an ownership marker; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt, linked, or junction-backed same-named skill directories are preserved and cause a safe refusal instead of being overwritten.
+For the default `~/.codex` target, the Codex global installer also publishes exactly eleven managed workflow skills under `~/.agents/skills/run-*/`; a custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each skill has an ownership marker; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt, linked, or junction-backed same-named skill directories are preserved and cause a safe refusal instead of being overwritten.
 
 Direct workspace targets remain available only as explicit materialization compatibility. They copy complete generated agents and support assets into a project; they are not the normal profile workflow. See [developer install](docs/developer-install.md#explicit-workspace-materialization-compatibility).
 
@@ -200,14 +200,15 @@ Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map tho
 
 ## Modes
 
-The primary Codex entry points are formal skills installed globally under `~/.agents/skills/`. Each skill adopts the globally installed orchestrator workflow in the current/main agent and never manually loads a raw repository role. Every invocation checks current-workspace profile status: a normal unconfigured workspace uses model-free global roles that inherit the parent session, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. Rerun workspace `set` to repair it or `clear` to return to model-free global roles. A healthy but ineligible profile warns and uses global routing. Only a healthy, eligible profile lets Codex's effective trusted project configuration apply workspace-specific models to dispatched role names. Invoking a skill does not spawn the same-named orchestrator merely to enter the workflow.
+The primary Codex entry points are formal skills installed globally under `~/.agents/skills/`. Manifest-backed mode skills adopt the globally installed orchestrator workflow in the current/main agent and never manually load a raw repository role. `$run-adaptive` is a thin skill-only router that selects and adopts the installed Simple, Flow, or Pipeline definition; it does not create an Adaptive role. Every invocation checks current-workspace profile status: a normal unconfigured workspace uses model-free global roles that inherit the parent session, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. Rerun workspace `set` to repair it or `clear` to return to model-free global roles. A healthy but ineligible profile warns and uses global routing. Only a healthy, eligible profile lets Codex's effective trusted project configuration apply workspace-specific models to dispatched role names. Invoking a skill does not spawn the same-named orchestrator merely to enter the workflow.
 
 | Primary skill | Compatibility alias | Typical use |
 |---|---|---|
+| `$run-adaptive` | — | Flow-biased engineering router with route-independent presets and prompt-only preparation |
 | `$run-simple` | `use simple` | One small, clear delivery with minimal ceremony |
 | `$run-flow` | `use flow` | Daily engineering, at most five bounded tasks |
 | `$run-pipeline` | `use pipeline` | High-risk or multi-module work with reviewer/retry gates |
-| `$run-general` | `use general` | Mixed work and adaptive dispatch; also handles monetization requests |
+| `$run-general` | `use general` | Mixed coding, planning, writing, analysis, maintenance, or monetization work |
 | `$run-spec` | `use spec` | Review-ready development specification |
 | `$run-ci` | `use ci` | CI/CD planning and optional generation |
 | `$run-modernize` | `use modernize` | Modernization planning and bounded in-place Pipeline execution |
@@ -218,12 +219,15 @@ The primary Codex entry points are formal skills installed globally under `~/.ag
 Examples:
 
 ```text
+$run-adaptive Fix the parser bug and add focused tests
+$run-adaptive Fix and locally finalize this task --preset=delivery
+$run-adaptive Plan the next workflow without executing it --preset=autonomous --prompt=on
 $run-flow Fix the parser bug and add focused tests
 $run-pipeline 實作跨模組權限變更
 $run-committee Compare the two migration designs
 ```
 
-The managed AGENTS note retains `use <mode>` and the documented Chinese leading forms as compatibility aliases for the matching formal skill. They follow the same workspace-profile preflight, definition-first, and current-agent adoption behavior, but the explicit `$run-*` skills are the recommended interface. `use monetize` remains a compatibility alias for the general workflow; use `$run-general` as the formal skill entry. Compatibility alias routing lives in `modes.json`; skill behavior lives in `skills/run-*/SKILL.md`. There is no `$run-goal` skill or goal mode.
+The managed AGENTS note retains `use <mode>` and the documented Chinese leading forms as compatibility aliases for the matching manifest-backed formal skill. They follow the same workspace-profile preflight, definition-first, and current-agent adoption behavior, but the explicit `$run-*` skills are the recommended interface. `$run-adaptive` is intentionally skill-only and has no `use adaptive` alias or `orchestrator-adaptive` role. `use monetize` remains a compatibility alias for the general workflow; use `$run-general` as the formal skill entry. Compatibility alias routing lives in `modes.json`; skill behavior lives in `skills/run-*/SKILL.md`. There is no `$run-goal` skill or goal mode.
 
 ## Workflow controls
 
@@ -231,8 +235,11 @@ Workflow rigor is risk-derived. Model reasoning belongs to the active runtime.
 
 Common controls include:
 
+- `--route=auto|simple|flow|pipeline`: Adaptive route selection; `auto` is Flow-biased.
+- `--preset=balanced|autonomous|careful|delivery|interactive`: Adaptive run policy; presets do not select the route.
+- `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
 - `--resume`: resume from a compatible checkpoint.
-- `--review=off|on`: Flow's optional bounded reviewer gate.
+- `--review=off|on`: Adaptive/Flow review policy. Adaptive maps `on` to a bounded Simple ad-hoc gate, Flow's reviewer gate, or Pipeline's already-mandatory review; Pipeline rejects `off`.
 - `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
 - `--confirm` / `--verbose`: add stage/task pauses.
 - `--autopilot` / `--full-auto`: non-interactive bounded execution with hard-blocker safeguards.
@@ -241,6 +248,24 @@ Common controls include:
 - `--force-scout` / `--skip-scout`: override evidence-driven repo scouting.
 
 The canonical semantics live in each orchestrator definition and `protocols/PIPELINE_PROTOCOL.md`.
+
+Adaptive first normalizes preset plus explicit policy overrides, then selects Simple, Flow, or Pipeline from task complexity alone, and finally maps the same policy to that workflow. Review, scout, kanban, commit, handoff, interaction, and full-auto policy do not force Flow. `--resume` follows the persisted Flow/Pipeline orchestrator, and Pipeline still rejects `--review=off`. Materially underestimated work may promote Simple -> Flow -> Pipeline while preserving and reapplying the policy; operational errors and localized bugs are not promotion reasons.
+
+For resumable Flow/Pipeline runs, Adaptive persists the selected preset plus its expanded effective flags. Resume keeps that preset locked: omit it or repeat the same value, then use individual flags for deliberate overrides. A different preset requires a fresh run so stale preset-owned values cannot leak across policies.
+
+| Adaptive preset | Policy |
+|---|---|
+| `balanced` | Selected workflow defaults and risk-derived rigor |
+| `autonomous` | Full-auto behavior within the selected workflow's existing safety and repair bounds |
+| `careful` | Focused scouting plus review |
+| `delivery` | Full-auto, review, kanban auto-sync, and one safe local commit after success |
+| `interactive` | Confirm and verbose interaction |
+
+All presets remain Simple-eligible. Under Simple, Adaptive applies requested policy as a bounded wrapper: optional focused scout/commit-before, one Simple core execution, at most one ad-hoc reviewer repair and re-review, then requested handoff, kanban, and commit-after helpers. The Simple core still creates no ProblemSpec, task list, checkpoint, status, or retry loop. Under Flow and Pipeline, Adaptive expands the same policy into their native flags. On a fresh run, standalone Adaptive `--full-auto` remains a compatibility form of `--preset=autonomous` when no explicit preset is present and normalizes to that preset without duplicating the flag; with an explicit preset it remains an individual override. On resume, `--full-auto` is always a current override of the locked preset rather than a preset change. Explicit individual flags override preset values, subject to workflow hard safety gates.
+
+For example, `--preset=delivery` retains the familiar `--full-auto --review=on --kanban=auto --commit=after` policy without forcing a route. A parser bug plus focused tests selects Flow first, then receives those Flow controls; a typo may remain Simple and receive the bounded equivalent wrapper.
+
+Flow keeps three separate bounded controls: up to two transient operational retries that make no implementation change, task-local `repair_budget` of `0..2` additional modify-and-verify cycles after the first attempt, and one total Flow-level recovery re-dispatch per run. The same failure signature twice, no meaningful progress, budget exhaustion, or scope expansion stops local iteration. Reviewer repair remains a separate single targeted repair plus one re-review.
 
 ## Runtime-neutral status writer
 
@@ -255,6 +280,7 @@ node tools/status-event.js \
 Batch task/agent deltas with `--event batch`. The CLI also accepts `--payload-file <path|->` and `--stdin`. Successful output is JSON; exit code `2` is an input error and `3` is a runtime/projection/filesystem error.
 
 IDs are safe filesystem basenames, fresh starts cannot reuse an existing `run_id`, and resume validates the persisted run identity plus expected orchestrator.
+Use `checkpoint.updated` with a non-empty `flags` delta when derived state must be persisted during a stage; unlike `stage.completed`, it does not advance `current_stage` or append a completed stage.
 
 Canonical files remain:
 

@@ -1,6 +1,6 @@
 ---
 name: run-general
-description: Adopt and execute the installed agents_pipeline general workflow for mixed coding, planning, writing, analysis, maintenance, or monetization work that needs adaptive routing. Use when the user explicitly invokes `$run-general` or asks for agents_pipeline general mode.
+description: Adopt and execute the installed agents_pipeline general workflow for mixed coding, planning, writing, analysis, maintenance, or monetization work that needs general-purpose routing. Use when the user explicitly invokes `$run-general` or asks for agents_pipeline general mode.
 ---
 
 # Run General
@@ -12,4 +12,4 @@ Use the installed `orchestrator-general` definition as the authoritative workflo
 3. If the global definition is absent, stop and ask for the global agents_pipeline Codex install. Do not reconstruct the workflow from memory.
 4. Remove only the `$run-general` token and preserve the remaining request as raw input.
 5. Adopt the definition in the current/main agent; do not spawn the same orchestrator merely to enter the mode.
-6. Obey its adaptive routing, delegation, verification, cleanup, and final-report constraints. Let effective Codex configuration select role models and reasoning.
+6. Obey its general-purpose routing, delegation, verification, cleanup, and final-report constraints. Let effective Codex configuration select role models and reasoning.

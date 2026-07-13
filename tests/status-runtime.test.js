@@ -82,6 +82,67 @@ test("resolveResumeRun picks newest compatible checkpoint-backed run", async (t)
   assert.equal(run.runId, "run-compatible");
 });
 
+test("resolveResumeRun ignores a newer checkpoint without matching run status", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "run-registry-status-pair-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const compatibleRun = path.join(tempRoot, "run-compatible");
+  const checkpointOnlyRun = path.join(tempRoot, "run-checkpoint-only");
+  await writeJson(path.join(compatibleRun, "checkpoint.json"), {
+    pipeline_id: "run-compatible",
+    orchestrator: "orchestrator-flow"
+  });
+  await writeJson(path.join(compatibleRun, "status", "run-status.json"), {
+    run_id: "run-compatible",
+    orchestrator: "orchestrator-flow"
+  });
+  await fs.mkdir(path.join(compatibleRun, "status", "tasks"), { recursive: true });
+  await fs.mkdir(path.join(compatibleRun, "status", "agents"), { recursive: true });
+  await writeJson(path.join(checkpointOnlyRun, "checkpoint.json"), {
+    pipeline_id: "run-checkpoint-only",
+    orchestrator: "orchestrator-flow"
+  });
+  await setMtime(path.join(compatibleRun, "checkpoint.json"), 1710000000);
+  await setMtime(path.join(checkpointOnlyRun, "checkpoint.json"), 1720000000);
+
+  const run = await new RunRegistry().resolveResumeRun({
+    output_root: tempRoot,
+    orchestrator: "orchestrator-flow"
+  });
+
+  assert.equal(run.runDir, compatibleRun);
+  assert.equal(run.runId, "run-compatible");
+});
+
+test("explicit resume rejects a symlinked run directory", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "run-registry-run-link-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const realRun = path.join(tempRoot, "real-run");
+  await writeJson(path.join(realRun, "checkpoint.json"), {
+    pipeline_id: "run-link",
+    orchestrator: "orchestrator-flow"
+  });
+  await writeJson(path.join(realRun, "status", "run-status.json"), {
+    run_id: "run-link",
+    orchestrator: "orchestrator-flow"
+  });
+  await fs.symlink(realRun, path.join(tempRoot, "run-link"), "dir");
+
+  await assert.rejects(
+    new RunRegistry().resolveResumeRun({
+      output_root: tempRoot,
+      run_id: "run-link",
+      orchestrator: "orchestrator-flow"
+    }),
+    /Resume run not found/
+  );
+});
+
 test("resolveResumeRun ignores candidates whose declared run ID differs from the directory basename", async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "run-registry-identity-"));
   t.after(async () => {
@@ -800,7 +861,7 @@ test("stage.completed persists derived flags without dropping existing checkpoin
   });
 });
 
-test("run.resumed overlays invocation flags and preserves unrelated derived flags", async (t) => {
+test("run.resumed overlays invocation flags and preserves Flow recovery usage", async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-resume-flags-"));
   t.after(async () => {
     await fs.rm(tempRoot, { recursive: true, force: true });
@@ -814,6 +875,10 @@ test("run.resumed overlays invocation flags and preserves unrelated derived flag
     user_prompt: "Persist derived review policy",
     flags: {
       confirm_mode: false,
+      flow_recovery_limit: 1,
+      flow_recovery_used: 0,
+      operational_retry_limit: 2,
+      preset_mode: "delivery",
       scout_mode: "skip"
     },
     timestamp: "2026-04-18T01:10:00.000Z"
@@ -829,6 +894,20 @@ test("run.resumed overlays invocation flags and preserves unrelated derived flag
     },
     timestamp: "2026-04-18T01:11:00.000Z"
   });
+  const recoveryUpdate = await runtime.applyEvent("checkpoint.updated", {
+    output_root: tempRoot,
+    run_id: "run-resume-flags",
+    flags: {
+      flow_recovery_used: 1
+    },
+    timestamp: "2026-04-18T01:11:30.000Z"
+  });
+  const checkpointBeforeResume = await readJson(recoveryUpdate.checkpoint_path);
+  assert.equal(checkpointBeforeResume.current_stage, 2);
+  assert.deepEqual(
+    checkpointBeforeResume.completed_stages.map((entry) => entry.stage),
+    [2]
+  );
 
   const result = await runtime.applyEvent("run.resumed", {
     output_root: tempRoot,
@@ -843,9 +922,26 @@ test("run.resumed overlays invocation flags and preserves unrelated derived flag
   const checkpoint = await readJson(result.checkpoint_path);
   assert.deepEqual(checkpoint.flags, {
     confirm_mode: true,
+    flow_recovery_limit: 1,
+    flow_recovery_used: 1,
+    operational_retry_limit: 2,
+    preset_mode: "delivery",
     review_mode: "on",
     scout_mode: "skip"
   });
+  assert.equal(checkpoint.current_stage, 2);
+});
+
+test("checkpoint.updated requires a non-empty flags delta", async () => {
+  const runtime = new StatusRuntime();
+  await assert.rejects(
+    runtime.applyEvent("checkpoint.updated", {
+      output_root: "/tmp/status-runtime-validation",
+      run_id: "run-checkpoint-update",
+      flags: {}
+    }),
+    /checkpoint\.updated requires non-empty flags/
+  );
 });
 
 test("status runtime rejects agent.started without agent_id and agent before registry work", async () => {

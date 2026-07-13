@@ -17,6 +17,7 @@ FOCUS: Explicit task dispatching with bounded flow, bounded parallelism, and an 
 - Do NOT create task DAGs or dependency graphs.
 - Reviewer need is risk-derived by default. Only one optional post-synthesis reviewer gate is allowed when `review_mode = on`; an explicit `--review=off|on` overrides the derived default.
 - No delta tasks or multi-round retry loops.
+- Transient operational retries, task-local modify-and-verify cycles, and the single Flow-level recovery are distinct bounded controls. Never charge one category against another or reset a consumed bound on resume.
 
 # RESPONSE MODE (DEFAULT)
 
@@ -53,7 +54,7 @@ Flow:
 - Max 5 atomic tasks
 - Parallel execution
 - Reviewer risk-derived (`--review=off|on` overrides)
-- No delta tasks / no retry loops
+- No delta tasks or multi-round workflow retry loops; only the separately bounded operational, task-local, recovery, and reviewer controls below
 
 Flow-Full:
 - CI / PR / high-risk
@@ -139,6 +140,19 @@ If `--full-auto` is provided:
 - Prefer the strongest safe bounded in-scope autonomous completion path available within the fixed Flow model.
 - Still stop on hard blockers.
 
+Internal recovery controls are not user-facing flags:
+
+- `operational_retry_limit = 2`
+- `flow_recovery_limit = 1`
+- `flow_recovery_used = 0` for a fresh run
+
+Persist these values in checkpoint flags. On resume, hydrate them before execution;
+never reset `flow_recovery_used` to zero.
+
+If an upstream Adaptive controller supplies `preset_mode`, persist it unchanged beside
+the already-expanded effective flags. It is provenance metadata, not a Flow parser
+control, and must not override explicit native flags during resume.
+
 If an invalid `--scout` value is provided:
 
 - Warn the user.
@@ -193,7 +207,7 @@ If an invalid `--review` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode`.
+After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode` and the internal recovery limits. Before a Flow-level recovery re-dispatch, increment `flow_recovery_used` and persist it with `node tools/status-event.js --event checkpoint.updated --payload-json '<json>'`; this merges flags without marking Stage 3 complete, so an interrupted/resumed run cannot repeat the consumed recovery or skip unfinished execution.
 
 ## STATUS ARTIFACT PROTOCOL
 
@@ -203,7 +217,7 @@ If a delegated caller or runtime provides `working_project_dir`, include it unch
 
 If an upstream caller/runtime expects this Flow run to execute against `working_project_dir`, worktree-aware runtimes SHOULD launch the Flow orchestrator in that repo. If the runtime cannot honor the delegated worktree safely, stop and report BLOCKED instead of silently running against the caller repo.
 
-Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required, and keep standalone heartbeats coarse (roughly >=15 seconds) unless a semantic state change makes an earlier heartbeat useful.
+Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `checkpoint.updated` when mid-stage derived flags must be persisted, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required, and keep standalone heartbeats coarse (roughly >=15 seconds) unless a semantic state change makes an earlier heartbeat useful.
 
 For `run.resumed`, send current-invocation flag overrides in `payload.flags`; the runtime merges that delta over persisted checkpoint flags rather than replacing the complete object.
 
@@ -259,6 +273,7 @@ Stage 2 — Flow Task Split (@flow-splitter)
   - `repair_budget`
   - `resource_class`
   - `definition_of_done`
+- Treat `repair_budget` only as additional modify -> verify cycles after the first implementation/content attempt. It does not include transient operational retries or Flow-level recovery re-dispatch.
 - If `review_mode = auto`, resolve it after task splitting: set `review_mode = on` when any task has `review_required = true`; otherwise set it to `off`.
 - Persist the resolved `review_mode` in the Stage 2 `stage.completed.flags` payload before any later stage can be skipped on resume.
 - No DAGs. No hidden dependencies. Keep tasks execution-ready.
@@ -268,9 +283,12 @@ Stage 3 — Dispatch & Execution
 - Group tasks into:
   - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
   - sequential_tasks (if ordering is required or the task is resource-heavy)
-- Default behavior is one execution attempt per task.
-- A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done.
-- If an executor returns `blocked` for a non-hard blocker and the task's `repair_budget > 0`, Flow may attempt ONE bounded recovery pass by clarifying the handoff or re-dispatching the SAME task once with stronger `verification` and, when warranted, `review_required = true`. If review was risk-derived rather than explicitly disabled, raising `review_required` also sets `review_mode = on`.
+- Default behavior is one orchestrator dispatch per task. Work inside that dispatch may use the separate operational and local-repair bounds below.
+- An executor may retry a clearly transient operation at most `operational_retry_limit` times without consuming `repair_budget`, but only when it makes no implementation/content change. Deterministic test, lint, type, build, logic, configuration, permission, and dependency failures are not transient.
+- A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done. The first implementation/content attempt is free; each later modify -> verify cycle consumes one unit.
+- Stop local iteration when the same normalized failure signature appears twice, an attempt produces no meaningful progress, the task budget is exhausted, or the fix would expand scope. Require the executor to report operational retries used, repair attempts used, and the last failure signature.
+- If an executor returns `blocked` for a non-hard blocker after local handling, Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and concrete evidence supports a changed handoff or strategy within the original scope. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
+- The Flow-level recovery is one total recovery across the run, not one recovery per task. Do not spend it on an identical retry, a transient operation, or a localized repair that belongs inside the executor task.
 - Flow still MUST NOT generate new user-visible tasks, delta tasks, or multi-round reviewer loops.
 - Classify each task conservatively as `light`, `process`, `server`, or `browser` using the Stage 2 task metadata.
 - `browser` and `server` tasks MUST stay in `sequential_tasks` with effective `max_parallelism = 1`.
@@ -280,6 +298,7 @@ Stage 3 — Dispatch & Execution
   - Task details
   - Expected output
   - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
+  - `operational_retry_limit`, the rule that the first implementation/content attempt is free, and the no-progress/failure-signature stop conditions
   - Artifact output contract (below)
 - For visible frontend UI implementation or polish tasks, include `skills/frontend-aesthetic-director/SKILL.md` in the handoff when relevant. If `ui-ux-workflow` output or wireframes are present, treat them as upstream source of truth rather than asking the executor to redesign the flow.
 - For each task handoff, include status instructions: executors may return semantic updates only for their assigned task and their own agent attempt; the orchestrator serializes those deltas through the neutral status CLI. Executors should request standalone heartbeats only for genuinely long-running active work, keep them coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), and reflect cleanup state before reporting success.
@@ -315,7 +334,9 @@ If primary_output is implementation:
   - CONTINUE pipeline.
 - Do NOT create new tasks or reviewer loops.
 - Do NOT generate delta tasks.
-- Only the single-task bounded recovery path in Stage 3 is allowed.
+- Only the single run-level Flow recovery path in Stage 3 is allowed for execution failures.
+- Operational retries and task-local repairs are not Flow recovery, but each remains independently bounded.
+- When a task cannot continue because it exceeds five-task/scope boundaries, reveals broad cross-module or security/data/migration risk, or needs multi-round repair, report that Pipeline escalation is recommended. Do not expand Flow to imitate Pipeline.
 
 # RESOURCE CONTROL POLICY
 
@@ -346,6 +367,7 @@ If primary_output is implementation:
   - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures.
   - After that repair, re-run `@reviewer` once on the repaired targets.
   - If the second review still fails, emit final failed/blocked task and run outcomes, stop before terminal helpers that would finalize success, and report blockers and required followups.
+- The reviewer repair cycle is separate from execution `flow_recovery_used`, but it is still limited to one targeted repair and one re-review. Neither allowance may reset or multiply the other.
 - `commit_mode = after` MUST wait for a passing review when `review_mode = on`.
 
 Optional terminal helper behavior:

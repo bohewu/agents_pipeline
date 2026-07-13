@@ -5,7 +5,7 @@ All JSON outputs must conform to these schemas.
 | Schema File | Output Type | Used By | Notes |
 |------|------|------|------|
 | `./protocols/schemas/problem-spec.schema.json` | ProblemSpec | specifier | Requirements only |
-| `./protocols/schemas/flow-task-list.schema.json` | FlowTaskList | flow-splitter / orchestrator-flow | Max-5 bounded Flow tasks |
+| `./protocols/schemas/flow-task-list.schema.json` | FlowTaskList | flow-splitter / orchestrator-flow | Max-5 bounded Flow tasks; `repair_budget` is `0..2` additional in-task correction cycles |
 | `./protocols/schemas/dev-spec.schema.json` | DevSpec (optional) | specifier / orchestrator-spec / future spec-focused stage | Human-readable + pipeline-consumable development spec |
 | `./protocols/schemas/ui-ux-bundle.schema.json` | UiUxBundle (optional conceptual artifact) | `ui-ux-workflow` / `ui-ux-designer` / doc-writer | Versioned conceptual UI/UX bundle; JSON is canonical when paired Markdown exists, with optional additive fields for communication-first redesign framing |
 | `./protocols/schemas/plan-outline.schema.json` | PlanOutline | planner | High-level plan |

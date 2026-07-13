@@ -125,6 +125,7 @@ jobs:
               ("dispatch-plan.schema.json", "dispatch-plan.process-unsafe.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.server-no-teardown.invalid.json"),
               ("flow-task-list.schema.json", "flow-task-list.high-risk-weak-controls.invalid.json"),
+              ("flow-task-list.schema.json", "flow-task-list.excessive-repair.invalid.json"),
               ("modernize-exec-handoff.schema.json", "modernize-exec-handoff.invalid.json"),
               ("task-list.schema.json", "task-list.trace.invalid.json"),
           ]
@@ -288,7 +289,10 @@ jobs:
           assert len(list((workspace / ".codex" / "agents").glob("*.toml"))) == 45
           assert not (workspace / ".codex" / "agents-pipeline").exists()
           PY
-          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 10
+          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 11
+          test -f "${HOME}/.agents/skills/run-adaptive/SKILL.md"
+          test ! -e "${HOME}/.codex/agents/orchestrator-adaptive.toml"
+          test ! -e "${workspace}/.codex/agents/orchestrator-adaptive.toml"
           test ! -e "${HOME}/.agents/skills/run-goal"
       - run: node scripts/validate-local-preview-lifecycle-smoke.cjs
 

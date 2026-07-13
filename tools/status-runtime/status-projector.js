@@ -39,6 +39,8 @@ class StatusProjector {
         return this.onRunStarted(state, payload, timestamp);
       case "run.resumed":
         return this.onRunResumed(state, payload, timestamp);
+      case "checkpoint.updated":
+        return this.onCheckpointUpdated(state, payload, timestamp);
       case "stage.completed":
         return this.onStageCompleted(state, payload, timestamp);
       case "tasks.registered":
@@ -187,6 +189,17 @@ class StatusProjector {
     }
     state.checkpoint.flags = mergeFlags(state.checkpoint.flags, payload.flags);
     state.checkpoint.updated_at = timestamp;
+
+    return this.recompute(state, timestamp);
+  }
+
+  onCheckpointUpdated(state, payload, timestamp) {
+    assert(state.runStatus, "run.started must be emitted before checkpoint.updated");
+    assert(state.checkpoint, "run.started must be emitted before checkpoint.updated");
+
+    state.checkpoint.flags = mergeFlags(state.checkpoint.flags, payload.flags);
+    state.checkpoint.updated_at = timestamp;
+    state.runStatus.updated_at = timestamp;
 
     return this.recompute(state, timestamp);
   }

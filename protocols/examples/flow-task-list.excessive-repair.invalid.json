@@ -1,0 +1,20 @@
+{
+  "tasks": [
+    {
+      "id": "f1",
+      "summary": "Loop on a localized parser repair",
+      "description": "Use an unbounded-looking local repair allowance in Flow.",
+      "primary_output": "implementation",
+      "assigned_agent": "executor",
+      "risk": "low",
+      "verification": "basic",
+      "review_required": false,
+      "repair_budget": 3,
+      "resource_class": "process",
+      "definition_of_done": [
+        "The parser behavior is corrected with focused evidence."
+      ],
+      "atomic": true
+    }
+  ]
+}

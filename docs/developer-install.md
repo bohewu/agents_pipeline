@@ -70,7 +70,7 @@ The Codex installer:
 - rewrites role references to that installed support tree
 - removes stale files previously owned by the installer without removing unrelated user files
 - manages the mode-alias block in the active global `AGENTS.md` or `AGENTS.override.md`
-- for the default global target (`~/.codex`), publishes exactly ten formal mode skills under `~/.agents/skills/run-*/`; a custom Codex home publishes skills only when `--user-skills-root` / `-UserSkillsRoot` is supplied
+- for the default global target (`~/.codex`), publishes exactly eleven formal workflow skills under `~/.agents/skills/run-*/`; a custom Codex home publishes skills only when `--user-skills-root` / `-UserSkillsRoot` is supplied; `$run-adaptive` is skill-only, keeps its presets route-independent, and does not add a generated role
 - backs up affected Codex configuration by default
 
 The marker-owned synchronized support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Status-capable roles therefore call the installed copy of:

@@ -14,6 +14,7 @@ const {
   assert,
   ensureSafeStatusId,
   isIsoDateTime,
+  isObject,
   nowIso,
   resolveContainedFile
 } = require("./utils");
@@ -21,6 +22,7 @@ const {
 const STATUS_RUNTIME_EVENTS = [
   "run.started",
   "run.resumed",
+  "checkpoint.updated",
   "stage.completed",
   "tasks.registered",
   "task.updated",
@@ -64,6 +66,10 @@ function validateEventPayload(eventName, payload) {
   }
   if (eventName === "run.started") {
     assert(isNonEmptyString(payload.user_prompt), "run.started requires a non-empty user_prompt");
+  }
+  if (eventName === "checkpoint.updated") {
+    assert(isObject(payload.flags), "checkpoint.updated requires object field: flags");
+    assert(Object.keys(payload.flags).length > 0, "checkpoint.updated requires non-empty flags");
   }
 
   for (const field of ["timestamp", "started_at", "completed_at", "last_heartbeat_at"]) {

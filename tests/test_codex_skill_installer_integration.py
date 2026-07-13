@@ -11,6 +11,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = REPO_ROOT / "scripts" / "install-codex.sh"
 MANAGED_SKILLS = (
+    "run-adaptive",
     "run-simple",
     "run-flow",
     "run-pipeline",
@@ -45,11 +46,21 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 self.assertTrue((skill_root / "SKILL.md").is_file())
                 skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
                 mode = name.removeprefix("run-")
-                self.assertIn(
-                    "${CODEX_HOME:-$HOME/.codex}/agents/"
-                    f"orchestrator-{mode}.toml",
-                    skill_text,
-                )
+                if name == "run-adaptive":
+                    for target in ("simple", "flow", "pipeline"):
+                        self.assertIn(f"orchestrator-{target}.toml", skill_text)
+                    self.assertNotIn("orchestrator-adaptive.toml", skill_text)
+                    self.assertIn("--prompt=off|on", skill_text)
+                    self.assertIn(
+                        "--preset=balanced|autonomous|careful|delivery|interactive",
+                        skill_text,
+                    )
+                else:
+                    self.assertIn(
+                        "${CODEX_HOME:-$HOME/.codex}/agents/"
+                        f"orchestrator-{mode}.toml",
+                        skill_text,
+                    )
                 self.assertIn("profile_eligibility", skill_text)
                 self.assertIn("Always query", skill_text)
                 self.assertIn("workspace without a profile reports global inheritance", skill_text)
@@ -80,6 +91,7 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             result = self.run_installer(home, "--no-backup")
 
             self.assert_managed_collection(home / ".agents" / "skills")
+            self.assertIn("`$run-adaptive`", result.stdout)
             self.assertIn("`$run-pipeline <task>`", result.stdout)
             self.assertIn("compatibility aliases", result.stdout)
 

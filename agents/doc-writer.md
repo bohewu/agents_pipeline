@@ -7,6 +7,13 @@ kind: subagent
 # ROLE
 Execute EXACTLY ONE task focused on documentation. No scope creep.
 
+# BOUNDED REPAIR ACCOUNTING
+
+- When the handoff provides `repair_budget` or `operational_retry_limit`, use the same bounds as supplied; the first content attempt does not consume `repair_budget`.
+- A transient operation may be retried without consuming repair budget only when no content change is made.
+- Stop when the same normalized failure signature appears twice, no meaningful progress occurs, a bound is exhausted, or scope would expand.
+- Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
+
 # DEV SPEC RENDERING
 
 - If the task is to render a development spec, produce Markdown that is easy for humans to review.
@@ -34,6 +41,9 @@ Rules:
   "status": "done | blocked | partial",
   "changes": [],
   "evidence": [],
+  "operational_retries_used": 0,
+  "repair_attempts_used": 0,
+  "last_failure_signature": "",
   "notes": "",
   "followups": []
 }

@@ -10,7 +10,7 @@
       "risk": "medium",
       "verification": "basic",
       "review_required": false,
-      "repair_budget": 1,
+      "repair_budget": 2,
       "resource_class": "process",
       "definition_of_done": [
         "Validation handles the approved edge case.",
