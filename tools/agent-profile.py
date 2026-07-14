@@ -24,6 +24,18 @@ from pathlib import Path
 from typing import IO, Any, Iterable, Mapping, Sequence
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if SCRIPT_DIR.as_posix() not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR.as_posix())
+
+from codex_skill_catalog import (  # noqa: E402 - support-tree sibling import.
+    MANAGED_SKILL_NAMES,
+    SKILL_MARKER_VERSION,
+    SKILL_SYNC_STATE_READY,
+    skill_collection_issues,
+)
+
+
 PUBLIC_ACTIONS = ("set", "install", "status", "clear", "list")
 INTERACTIVE_ACTIONS = ("set", "status", "clear", "list")
 INTERNAL_ACTION = "record"
@@ -34,8 +46,8 @@ CODEX_MANIFEST_FILENAME = ".agents-pipeline-codex-manifest.json"
 COMMON_MANIFEST_TOOL = "agents_pipeline.agent-profile"
 CODEX_MANIFEST_TOOL = "agents_pipeline.install-codex-config"
 COMMON_MANIFEST_VERSION = 1
-CODEX_MANIFEST_VERSION = 3
-SUPPORTED_CODEX_MANIFEST_VERSIONS = (2, CODEX_MANIFEST_VERSION)
+CODEX_MANIFEST_VERSION = 4
+SUPPORTED_CODEX_MANIFEST_VERSIONS = (2, 3, CODEX_MANIFEST_VERSION)
 
 RUNTIME_NAMES = {
     "codex": "Codex",
@@ -70,6 +82,8 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "AGENTS.md",
     "VERSION",
     "modes.json",
+    "protocols/UI_UX_WORKFLOW.md",
+    "protocols/UX_DEVTOOLS_WORKFLOW.md",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
@@ -82,6 +96,7 @@ SUPPORT_RUNTIME_REQUIRED_FILES = {
     "codex": (
         "scripts/codex_mode_aliases.py",
         "scripts/codex-project-profile.py",
+        "scripts/codex_skill_catalog.py",
         "scripts/export-codex-agents.py",
         "scripts/install-codex-config.py",
         "scripts/install-codex.sh",
@@ -706,6 +721,7 @@ def build_install_command(
         command = [shell, "-NoProfile", "-File", str(installer), "-Target", str(request.target)]
         names = {
             "global_agents": "-GlobalAgentsTarget",
+            "user_skills": "-UserSkillsRoot",
             "profile": "-AgentProfile",
             "model_set": "-ModelSet",
             "profile_dir": "-ProfileDir",
@@ -722,6 +738,7 @@ def build_install_command(
         command = [shell, str(installer), "--target", str(request.target)]
         names = {
             "global_agents": "--global-agents-target",
+            "user_skills": "--user-skills-root",
             "profile": "--agent-profile",
             "model_set": "--model-set",
             "profile_dir": "--profile-dir",
@@ -736,6 +753,14 @@ def build_install_command(
 
     if request.runtime == "codex" and request.scope == "workspace":
         command.extend([names["global_agents"], str(_canonical(home or Path.home()) / ".codex")])
+    elif (
+        request.runtime == "codex"
+        and request.scope == "global"
+        and request.action == "clear"
+    ):
+        managed_user_skills_root = _codex_manifest_user_skills_root(request.target)
+        if managed_user_skills_root is not None:
+            command.extend([names["user_skills"], managed_user_skills_root])
     if args.dry_run:
         command.append(names["dry_run"])
     if args.no_backup:
@@ -1090,6 +1115,61 @@ def _missing_codex_config_registration(target: Path, agent_names: Sequence[str])
     return missing
 
 
+def _codex_user_skill_status(
+    data: Mapping[str, Any], path: Path
+) -> tuple[str | None, list[str], list[str]]:
+    """Validate v4 discovery-skill metadata and return root, names, issues."""
+
+    if data.get("version") < 4:
+        return None, [], []
+    raw_root = data.get("managed_user_skills_root")
+    raw_names = data.get("managed_skill_names")
+    raw_marker_version = data.get("managed_skill_marker_version")
+    raw_sync_state = data.get("managed_skill_sync_state")
+    if raw_root is None:
+        if (
+            raw_names != []
+            or raw_marker_version is not None
+            or raw_sync_state is not None
+        ):
+            raise ProfileError(f"{path}: invalid unmanaged user skill declaration.")
+        return None, [], []
+    if (
+        not isinstance(raw_root, str)
+        or not Path(raw_root).is_absolute()
+        or raw_names != sorted(MANAGED_SKILL_NAMES)
+        or raw_marker_version != SKILL_MARKER_VERSION
+        or not isinstance(raw_sync_state, str)
+    ):
+        raise ProfileError(f"{path}: invalid managed user skill declaration.")
+    root = _canonical(raw_root)
+    names = list(raw_names)
+    issues = skill_collection_issues(root, names)
+    if raw_sync_state != SKILL_SYNC_STATE_READY:
+        issues.insert(0, "skills:sync-pending")
+    return root.as_posix(), names, issues
+
+
+def _codex_manifest_user_skills_root(target: Path) -> str | None:
+    """Recover installer-managed discovery root for a model-free global refresh."""
+
+    path = target / CODEX_MANIFEST_FILENAME
+    _validate_manifest_leaf(path)
+    if not path.exists():
+        return None
+    data = _load_json_object(path, "Runtime profile manifest")
+    _require_exact_string(data, "tool", CODEX_MANIFEST_TOOL, path)
+    if data.get("version") not in SUPPORTED_CODEX_MANIFEST_VERSIONS:
+        raise ProfileError(f"{path}: unsupported Codex manifest version.")
+    declared_target = data.get("target_dir")
+    if not isinstance(declared_target, str) or _canonical(declared_target) != target:
+        raise ProfileError(
+            f"{path}: manifest target does not match requested target {target}."
+        )
+    root, _names, _issues = _codex_user_skill_status(data, path)
+    return root
+
+
 def _markdown_marker_indexes(lines: Sequence[str], marker: str) -> list[int]:
     indexes: list[int] = []
     fence_char: str | None = None
@@ -1183,7 +1263,7 @@ def read_status(request: ResolvedRequest) -> dict[str, Any] | None:
         if data.get("version") not in SUPPORTED_CODEX_MANIFEST_VERSIONS:
             raise ProfileError(f"{path}: unsupported Codex manifest version.")
         if (
-            data.get("version") == CODEX_MANIFEST_VERSION
+            data.get("version") >= 3
             and data.get("managed_support_root") != "agents-pipeline"
         ):
             raise ProfileError(f"{path}: invalid managed support root.")
@@ -1207,6 +1287,8 @@ def read_status(request: ResolvedRequest) -> dict[str, Any] | None:
             _missing_codex_config_registration(request.target, agent_names)
         )
         missing_files.extend(_missing_codex_global_agents(request.target))
+        skill_root, skill_names, skill_issues = _codex_user_skill_status(data, path)
+        missing_files.extend(skill_issues)
         if mode != "inherit":
             missing_files.append(f"policy:global-profile-mode:{mode}")
         missing_files.extend(
@@ -1216,6 +1298,9 @@ def read_status(request: ResolvedRequest) -> dict[str, Any] | None:
             "health": "ok" if not missing_files else "incomplete",
             "managed_generated_count": len(files),
             "managed_generated_files": files,
+            "managed_skill_count": len(skill_names),
+            "managed_skill_names": skill_names,
+            "managed_user_skills_root": skill_root,
             "manifest": path.as_posix(),
             "missing_generated_files": missing_files,
             "mode": mode,
@@ -1282,6 +1367,9 @@ def print_status(status: dict[str, Any] | None, request: ResolvedRequest, *, as_
         print(f"Uniform model: {status['uniform_model']}")
     print(f"Health: {status['health']}")
     print(f"Managed generated files: {status['managed_generated_count']}")
+    if status.get("managed_user_skills_root"):
+        print(f"Managed global skills: {status.get('managed_skill_count', 0)}")
+        print(f"Global skill root: {status['managed_user_skills_root']}")
     if status["missing_generated_files"]:
         print(f"Missing generated files: {len(status['missing_generated_files'])}")
         for relative in status["missing_generated_files"]:

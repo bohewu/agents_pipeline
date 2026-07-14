@@ -5,6 +5,7 @@ Codex-first multi-agent workflow assets with a runtime-neutral source core and b
 ## Quick links
 
 - [Install globally once](#install-globally-once-from-a-release)
+- [Globally installed skills](#globally-installed-skills)
 - [Interactive profile manager](#interactive-runtime-and-model-profile-setup)
 - [Codex workspace profile](#codex-workspace-profile)
 - [Workspace trust and eligibility](#workspace-trust-and-eligibility)
@@ -28,7 +29,7 @@ Tier 2 is intentionally bounded: the adapters preserve useful prompt behavior an
 
 - Canonical sources moved from the runtime-named tree to `agents/`, `protocols/`, `skills/`, and `tools/`.
 - `modes.json` replaced runtime command files as the mode-routing source of truth.
-- Eleven formal `run-*` skills provide the primary Codex workflow entry points. `$run-adaptive` is a skill-only Simple/Flow/Pipeline router; natural-language `use <mode>` forms remain compatibility aliases for manifest-backed modes.
+- Eleven formal `run-*` skills provide the primary Codex workflow entry points. Five additional capability skills cover asset briefing, browser UX evidence, frontend polish, UI communication, and conceptual UI/UX handoff. `$run-adaptive` is a skill-only Simple/Flow/Pipeline router; natural-language `use <mode>` forms remain compatibility aliases for manifest-backed modes.
 - Codex installs mirror the marker-owned neutral support tree under `.codex/agents-pipeline`, including the scripts and runtime catalogs needed to run the installed profile manager.
 - Status/checkpoint writing is a portable Node CLI instead of a runtime plugin.
 - A runtime-neutral profile manager provides interactive or scripted `set`/`status`/`clear`/`list` flows. Runtime assets and model-free Codex roles are installed globally once; Codex workspace profiles materialize only profile-specific role TOML plus a managed config block and manifest, without copying skills, scripts, protocols, or the support tree.
@@ -45,6 +46,7 @@ modes.json                      mode names, aliases, orchestrator targets
 protocols/                      contracts, schemas, and fixtures
 skills/                         portable repo-managed skills
 skills/run-*/                   formal Codex workflow entry skills
+skills/<capability>/            reusable design and audit capability skills
 tools/status-event.js           runtime-neutral status/checkpoint CLI
 tools/status-runtime/           reusable status projection core
 tools/agent-profile.py          interactive/runtime-neutral profile manager
@@ -69,13 +71,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -83,13 +85,13 @@ tag="v0.29.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -97,16 +99,16 @@ tag="v0.29.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.29.0` must release as `v0.29.0`.
+Release invariant: `VERSION=0.29.1` must release as `v0.29.1`.
 
 <!-- END current-release -->
 
@@ -120,7 +122,23 @@ The normal global layout is:
 | Claude Code | `~/.claude/agents/` and `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-For the default `~/.codex` target, the Codex global installer also publishes exactly eleven managed workflow skills under `~/.agents/skills/run-*/`; a custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each skill has an ownership marker; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt, linked, or junction-backed same-named skill directories are preserved and cause a safe refusal instead of being overwritten.
+For the default `~/.codex` target, the Codex global installer publishes all 16 managed skills under `~/.agents/skills/`: eleven workflow skills and five capability skills. A custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each installed skill has a versioned ownership marker and content digest; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt-marker, linked, or junction-backed same-named directories cause a safe refusal. If a marker-owned skill's content was edited, reinstall preserves that copy in the sibling backup area before restoring the managed version.
+
+When upgrading a machine that already has an older unmarked copy of one of the five known capability skills, rerun the global installer once with `--migrate-legacy-skills` on Bash or `-MigrateLegacySkills` on PowerShell. The installer validates and moves each legacy directory into a timestamp-like hidden backup beside (not inside) the discovery root before installing the managed copy. This avoids duplicate skill discovery. The flag never takes over an unowned `run-*` skill or an unrelated skill name.
+
+### Globally installed skills
+
+Workflow entry skills are documented under [Modes](#modes). The additional global capability skills are:
+
+| Skill | Use |
+|---|---|
+| [`$artgen-scaffold`](skills/artgen-scaffold/SKILL.md) | Versioned 2D asset briefs and copy-ready generation prompts |
+| [`$devtools-ux-audit`](skills/devtools-ux-audit/SKILL.md) | Viewport-specific browser UX evidence |
+| [`$frontend-aesthetic-director`](skills/frontend-aesthetic-director/SKILL.md) | Visible frontend implementation, polish, accessibility states, and rendered QA |
+| [`$ui-communication-designer`](skills/ui-communication-designer/SKILL.md) | Task-flow, screen, and microcopy clarification |
+| [`$ui-ux-workflow`](skills/ui-ux-workflow/SKILL.md) | Bounded conceptual UI/UX handoffs |
+
+All 16 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
 
 Direct workspace targets remain available only as explicit materialization compatibility. They copy complete generated agents and support assets into a project; they are not the normal profile workflow. See [developer install](docs/developer-install.md#explicit-workspace-materialization-compatibility).
 
@@ -190,11 +208,11 @@ bash "$profile_tool" clear --runtime codex --scope global
 bash "$profile_tool" list --runtime codex
 ```
 
-`status` reports profile/install file health and trust eligibility, not workflow run progress or a full native Codex config evaluation. A Codex workspace with no overlay reports that it inherits the model-free global role definitions and parent-session model selection. Workspace `clear` removes the installer-owned workspace role files, managed config block, and project-profile manifest, preserving unrelated `.codex/config.toml` content and every global asset. Codex global status validates its native manifest, role registrations, active managed `AGENTS.md` block, generated model-free roles, and critical global support assets. Global `clear` regenerates those model-free roles to remove a legacy global profile; it is not a Codex profile-selection workflow. Claude Code and Copilot continue to validate and manage their global profile manifests, generated agents, and sibling support trees. None of these commands reads OpenCode settings.
+`status` reports profile/install file health and trust eligibility, not workflow run progress or a full native Codex config evaluation. A Codex workspace with no overlay reports that it inherits the model-free global role definitions and parent-session model selection. Workspace `clear` removes the installer-owned workspace role files, managed config block, and project-profile manifest, preserving unrelated `.codex/config.toml` content and every global asset. Codex global status validates its native manifest, role registrations, active managed `AGENTS.md` block, generated model-free roles, critical global support assets, and the marker/content integrity of all recorded discovery skills. Global `clear` regenerates those model-free roles to remove a legacy global profile; it is not a Codex profile-selection workflow. Claude Code and Copilot continue to validate and manage their global profile manifests, generated agents, and sibling support trees. None of these commands reads OpenCode settings.
 
 Codex exports and normal global installs do not write or replace `agents.max_threads` or `agents.max_depth`; configure those machine-level limits in your own global Codex config. Codex workspace profiles use local role definitions while inheriting the effective global limits. Formal `$run-*` skills adopt workflows in the current/main agent and dispatch worker roles directly, so `agents.max_depth = 1` is sufficient; even Modernize execution transitions into Pipeline in place instead of spawning another primary orchestrator. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
 
-The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. The formal `run-*` skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
+The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. All managed discovery-skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
 
 Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. For Codex, these mappings are emitted only into workspace-local roles; the global roles always omit model settings and inherit the parent session. Claude Code and Copilot retain global profile output. Profiles never control reasoning effort. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
 

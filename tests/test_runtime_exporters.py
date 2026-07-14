@@ -247,11 +247,19 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
+            'test -f "${BUNDLE_DIR}/scripts/codex_skill_catalog.py"',
+            workflow,
+        )
+        self.assertIn(
             'test -f "${BUNDLE_DIR}/skills/run-pipeline/SKILL.md"',
             workflow,
         )
         self.assertIn(
             'test -f "${BUNDLE_DIR}/skills/run-adaptive/SKILL.md"',
+            workflow,
+        )
+        self.assertIn(
+            'test -f "${BUNDLE_DIR}/skills/ui-communication-designer/SKILL.md"',
             workflow,
         )
         self.assertIn(

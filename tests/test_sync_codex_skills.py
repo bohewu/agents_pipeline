@@ -45,8 +45,9 @@ class CodexSkillSyncTest(unittest.TestCase):
             root = Path(raw_temp)
             source = self.make_source(root)
             target = root / "home" / ".agents" / "skills"
+            support = root / "home" / ".codex" / "agents-pipeline"
 
-            MODULE.sync_managed_skills(source, target, dry_run=False)
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
 
             self.assertEqual(
                 sorted(path.name for path in target.iterdir() if path.is_dir()),
@@ -66,24 +67,67 @@ class CodexSkillSyncTest(unittest.TestCase):
                     self.assertEqual(
                         marker["installed_root"], skill_root.resolve().as_posix()
                     )
+                    self.assertEqual(
+                        marker["content_sha256"],
+                        MODULE.expected_skill_marker(skill_root, name)["content_sha256"],
+                    )
 
     def test_repeat_sync_refreshes_owned_skills(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             source = self.make_source(root)
             target = root / "user-skills"
-            MODULE.sync_managed_skills(source, target, dry_run=False)
+            support = root / "global-support"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
             (source / "run-pipeline" / "SKILL.md").write_text(
                 "---\nname: run-pipeline\ndescription: Updated.\n---\n\nUpdated.\n",
                 encoding="utf-8",
             )
 
-            MODULE.sync_managed_skills(source, target, dry_run=False)
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
 
             self.assertIn(
                 "Updated.",
                 (target / "run-pipeline" / "SKILL.md").read_text(encoding="utf-8"),
             )
+
+    def test_v1_marker_upgrade_preserves_possible_user_edits(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "global-support"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            v1_skill = target / "run-pipeline"
+            edited_text = (
+                v1_skill.joinpath("SKILL.md").read_text(encoding="utf-8")
+                + "\nPossible V1 user edit.\n"
+            )
+            v1_skill.joinpath("SKILL.md").write_text(edited_text, encoding="utf-8")
+            v1_skill.joinpath(MODULE.MARKER_FILE).write_text(
+                json.dumps(MODULE._legacy_marker(v1_skill, "run-pipeline")) + "\n",
+                encoding="utf-8",
+            )
+
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            backups = list(
+                (target.parent / ".user-skills.agents-pipeline-backups").glob(
+                    "agents-pipeline-skills-*"
+                )
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(
+                (backups[0] / "run-pipeline" / "SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                edited_text,
+            )
+            upgraded_marker = json.loads(
+                (v1_skill / MODULE.MARKER_FILE).read_text(encoding="utf-8")
+            )
+            self.assertEqual(upgraded_marker["version"], 2)
 
     def test_dry_run_does_not_create_user_skill_root(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -91,7 +135,9 @@ class CodexSkillSyncTest(unittest.TestCase):
             source = self.make_source(root)
             target = root / "missing" / "skills"
 
-            MODULE.sync_managed_skills(source, target, dry_run=True)
+            MODULE.sync_managed_skills(
+                source, target, root / "support", dry_run=True
+            )
 
             self.assertFalse(target.exists())
 
@@ -105,7 +151,9 @@ class CodexSkillSyncTest(unittest.TestCase):
             (unowned / "SKILL.md").write_text("user content\n", encoding="utf-8")
 
             with self.assertRaisesRegex(MODULE.SkillSyncError, "unowned skill"):
-                MODULE.sync_managed_skills(source, target, dry_run=False)
+                MODULE.sync_managed_skills(
+                    source, target, root / "support", dry_run=False
+                )
             self.assertEqual(
                 (unowned / "SKILL.md").read_text(encoding="utf-8"), "user content\n"
             )
@@ -119,7 +167,9 @@ class CodexSkillSyncTest(unittest.TestCase):
             except (OSError, NotImplementedError):
                 self.skipTest("symbolic links are unavailable")
             with self.assertRaisesRegex(MODULE.SkillSyncError, "must not traverse"):
-                MODULE.sync_managed_skills(source, linked_root, dry_run=False)
+                MODULE.sync_managed_skills(
+                    source, linked_root, root / "support", dry_run=False
+                )
 
     def test_sync_refuses_linked_source_content(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -134,7 +184,9 @@ class CodexSkillSyncTest(unittest.TestCase):
                 self.skipTest("symbolic links are unavailable")
 
             with self.assertRaisesRegex(MODULE.SkillSyncError, "must not contain"):
-                MODULE.sync_managed_skills(source, root / "target", dry_run=False)
+                MODULE.sync_managed_skills(
+                    source, root / "target", root / "support", dry_run=False
+                )
 
     def test_sync_refuses_existing_root_below_linked_ancestor(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -153,6 +205,7 @@ class CodexSkillSyncTest(unittest.TestCase):
                 MODULE.sync_managed_skills(
                     source,
                     linked_parent / "skills",
+                    root / "support",
                     dry_run=True,
                 )
             self.assertEqual(list(target.iterdir()), [])
@@ -162,21 +215,26 @@ class CodexSkillSyncTest(unittest.TestCase):
             root = Path(raw_temp)
             source = self.make_source(root)
             with self.assertRaisesRegex(MODULE.SkillSyncError, "must not overlap"):
-                MODULE.sync_managed_skills(source, source / "nested", dry_run=False)
+                MODULE.sync_managed_skills(
+                    source, source / "nested", root / "support", dry_run=False
+                )
 
             (source / "run-flow" / "SKILL.md").write_text(
                 "---\nname: wrong-name\ndescription: Wrong.\n---\n",
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(MODULE.SkillSyncError, "name mismatch"):
-                MODULE.sync_managed_skills(source, root / "target", dry_run=False)
+                MODULE.sync_managed_skills(
+                    source, root / "target", root / "support", dry_run=False
+                )
 
     def test_install_failure_restores_every_previous_skill(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             source = self.make_source(root)
             target = root / "user-skills"
-            MODULE.sync_managed_skills(source, target, dry_run=False)
+            support = root / "support"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
             original = {
                 name: (target / name / "SKILL.md").read_bytes()
                 for name in MODULE.MANAGED_SKILL_NAMES
@@ -202,11 +260,104 @@ class CodexSkillSyncTest(unittest.TestCase):
                 with self.assertRaisesRegex(
                     MODULE.SkillSyncError, "Managed skill installation failed"
                 ):
-                    MODULE.sync_managed_skills(source, target, dry_run=False)
+                    MODULE.sync_managed_skills(
+                        source, target, support, dry_run=False
+                    )
 
             for name, expected in original.items():
                 with self.subTest(skill=name):
                     self.assertEqual((target / name / "SKILL.md").read_bytes(), expected)
+
+    def test_sync_rewrites_repo_support_references(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "codex" / "agents-pipeline"
+            skill_md = source / "ui-ux-workflow" / "SKILL.md"
+            skill_md.write_text(
+                "---\nname: ui-ux-workflow\ndescription: Test.\n---\n\n"
+                "Read `../../protocols/UI_UX_WORKFLOW.md`.\n",
+                encoding="utf-8",
+            )
+
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            installed = (target / "ui-ux-workflow" / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn(
+                f"`{support.resolve().as_posix()}/protocols/UI_UX_WORKFLOW.md`",
+                installed,
+            )
+            self.assertNotIn("../../protocols/", installed)
+
+    def test_legacy_capability_migration_requires_flag_and_preserves_backup(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "support"
+            legacy = target / "artgen-scaffold"
+            legacy.mkdir(parents=True)
+            legacy_text = (
+                "---\nname: artgen-scaffold\ndescription: Legacy copy.\n---\n\nLegacy.\n"
+            )
+            (legacy / "SKILL.md").write_text(legacy_text, encoding="utf-8")
+
+            with self.assertRaisesRegex(MODULE.SkillSyncError, "migrate-legacy-skills"):
+                MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            MODULE.sync_managed_skills(
+                source,
+                target,
+                support,
+                dry_run=False,
+                migrate_legacy_skills=True,
+            )
+
+            backups = list(
+                (target.parent / ".user-skills.agents-pipeline-backups").glob(
+                    "agents-pipeline-skills-*"
+                )
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(
+                (backups[0] / "artgen-scaffold" / "SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                legacy_text,
+            )
+            self.assertTrue((legacy / MODULE.MARKER_FILE).is_file())
+
+    def test_modified_owned_skill_is_preserved_and_repaired(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "support"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+            modified = target / "ui-ux-workflow" / "SKILL.md"
+            modified_text = modified.read_text(encoding="utf-8") + "\nUser edit.\n"
+            modified.write_text(modified_text, encoding="utf-8")
+
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            self.assertNotIn(
+                "User edit.", modified.read_text(encoding="utf-8")
+            )
+            backups = list(
+                (target.parent / ".user-skills.agents-pipeline-backups").glob(
+                    "agents-pipeline-skills-*"
+                )
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(
+                (backups[0] / "ui-ux-workflow" / "SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                modified_text,
+            )
 
 
 if __name__ == "__main__":

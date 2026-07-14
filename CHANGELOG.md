@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.29.1] - 2026-07-14
+
+### Added
+
+- Added all five reusable capability skills to the marker-owned global Codex discovery collection, with `agents/openai.yaml` metadata and an explicit, backup-preserving migration path for older unmarked copies.
+
+### Changed
+
+- Reduced duplicated guidance across the non-`run-*` skills, moved detailed UI communication templates and scoring into on-demand references, and made the browser-audit lifecycle tool-neutral while retaining Chrome DevTools guidance.
+
+### Fixed
+
+- Added content-digest health checks for all 16 installed skills, rewrote installed protocol references to the persistent global support tree, and made reinstall preserve modified marker-owned copies outside the discovery root before repairing them.
+- Made Codex global install sequencing interruption-safe with a manifest `pending`/`ready` skill-sync gate, preserved all V1 marker-owned skills before upgrading them, retained custom discovery roots during global `clear`, and made profile health require the capability protocols referenced by installed skills.
+
 ## [0.29.0] - 2026-07-13
 
 ### Added

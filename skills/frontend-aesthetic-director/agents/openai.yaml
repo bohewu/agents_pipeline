@@ -1,0 +1,4 @@
+interface:
+  display_name: "Frontend Aesthetic Director"
+  short_description: "Implement polished, responsive frontend UI"
+  default_prompt: "Use $frontend-aesthetic-director to implement and visually verify this bounded frontend UI change."

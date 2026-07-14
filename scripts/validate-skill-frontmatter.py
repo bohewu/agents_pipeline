@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
@@ -14,6 +15,9 @@ KEY_VALUE_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$")
 SPECIAL_STARTS = set("-?:,[]{}#&*!|>'\"%@`")
 RISKY_SUBSTRINGS = (": ", " #", "\t#")
 REQUIRED_KEYS = {"name", "description"}
+ALLOWED_KEYS = {"name", "description", "license", "allowed-tools", "metadata"}
+SKILL_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+OPENAI_INTERFACE_KEYS = {"display_name", "short_description", "default_prompt"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +34,56 @@ def parse_args() -> argparse.Namespace:
 
 def is_quoted_or_block(value: str) -> bool:
     return bool(value) and value[0] in {'"', "'", "|", ">"}
+
+
+def decode_quoted_scalar(value: str) -> str:
+    if value.startswith(('"', "'")):
+        decoded = ast.literal_eval(value)
+        if not isinstance(decoded, str):
+            raise ValueError("quoted value is not a string")
+        return decoded
+    return value
+
+
+def validate_openai_metadata(skill_dir: Path, skill_name: str) -> list[str]:
+    path = skill_dir / "agents" / "openai.yaml"
+    if path.is_symlink() or not path.is_file():
+        return [f"{path}: missing regular agents/openai.yaml metadata"]
+    fields: dict[str, tuple[int, str]] = {}
+    errors: list[str] = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "interface:":
+        errors.append(f"{path}: metadata must start with an interface mapping")
+    pattern = re.compile(
+        r"^  (display_name|short_description|default_prompt):\s*(.+)$"
+    )
+    for line_no, line in enumerate(lines, start=1):
+        match = pattern.match(line)
+        if match:
+            fields[match.group(1)] = (line_no, match.group(2).strip())
+    missing = sorted(OPENAI_INTERFACE_KEYS - set(fields))
+    if missing:
+        errors.append(f"{path}: missing interface key(s): {', '.join(missing)}")
+    decoded: dict[str, str] = {}
+    for key, (line_no, raw_value) in fields.items():
+        if not raw_value.startswith(('"', "'")):
+            errors.append(f"{path}:{line_no}: {key} must be a quoted string")
+            continue
+        try:
+            decoded[key] = decode_quoted_scalar(raw_value)
+        except (SyntaxError, ValueError):
+            errors.append(f"{path}:{line_no}: {key} must be a quoted string")
+    short_description = decoded.get("short_description")
+    if short_description is not None and not 25 <= len(short_description) <= 64:
+        errors.append(
+            f"{path}: short_description must be between 25 and 64 characters"
+        )
+    default_prompt = decoded.get("default_prompt")
+    if default_prompt is not None and f"${skill_name}" not in default_prompt:
+        errors.append(
+            f"{path}: default_prompt must explicitly mention ${skill_name}"
+        )
+    return errors
 
 
 def validate_scalar(path: Path, line_no: int, key: str, value: str) -> list[str]:
@@ -96,6 +150,12 @@ def validate_skill(path: Path) -> list[str]:
     if missing:
         errors.append(f"{path}: missing required frontmatter key(s): {', '.join(missing)}")
 
+    unexpected = sorted(set(seen) - ALLOWED_KEYS)
+    if unexpected:
+        errors.append(
+            f"{path}: unsupported frontmatter key(s): {', '.join(unexpected)}"
+        )
+
     expected_name = path.parent.name
     actual_name = ""
     for line_no, line in enumerate(lines[1 : frontmatter_end - 1], start=2):
@@ -107,6 +167,32 @@ def validate_skill(path: Path) -> list[str]:
         errors.append(
             f"{path}: frontmatter name must match skill directory: expected {expected_name!r}, got {actual_name!r}"
         )
+
+    try:
+        decoded_name = decode_quoted_scalar(actual_name)
+    except (SyntaxError, ValueError):
+        decoded_name = ""
+    if decoded_name and (
+        len(decoded_name) > 64 or SKILL_NAME_RE.fullmatch(decoded_name) is None
+    ):
+        errors.append(f"{path}: invalid skill name {decoded_name!r}")
+
+    description_value = ""
+    for line in lines[1 : frontmatter_end - 1]:
+        match = KEY_VALUE_RE.match(line)
+        if match and match.group(1) == "description":
+            description_value = match.group(2).strip()
+            break
+    try:
+        description = decode_quoted_scalar(description_value)
+    except (SyntaxError, ValueError):
+        description = ""
+    if description and (len(description) > 1024 or "<" in description or ">" in description):
+        errors.append(
+            f"{path}: description must be at most 1024 characters without angle brackets"
+        )
+
+    errors.extend(validate_openai_metadata(path.parent, expected_name))
 
     return errors
 

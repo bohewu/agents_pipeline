@@ -5,6 +5,7 @@ param(
     [string]$WorkspaceRoot,
     [string]$GlobalAgentsTarget,
     [string]$UserSkillsRoot,
+    [switch]$MigrateLegacySkills,
     [switch]$DryRun,
     [switch]$NoBackup,
     [switch]$Force,
@@ -206,6 +207,9 @@ if (-not $workspaceMaterialization) {
         $installUserSkills = $true
     }
 }
+if ($MigrateLegacySkills -and -not $installUserSkills) {
+    throw "-MigrateLegacySkills requires a global install that manages a user skill root."
+}
 if (-not $workspaceAgentsPath) {
     $globalAgentsMergePath = Get-GlobalAgentsMergePath -TargetPath $globalAgentsMergeDir
 }
@@ -240,8 +244,12 @@ if ($installUserSkills) {
     $skillSyncArgs = @(
         $skillSyncScript,
         "--source-skills-root", $sourceSkills,
-        "--user-skills-root", $userSkillsRootPath
+        "--user-skills-root", $userSkillsRootPath,
+        "--support-root", (Join-Path $targetPath "agents-pipeline")
     )
+    if ($MigrateLegacySkills) {
+        $skillSyncArgs += "--migrate-legacy-skills"
+    }
     & $pythonCmd @pythonArgs @skillSyncArgs --dry-run
     if ($LASTEXITCODE -ne 0) {
         throw "Codex skill sync preflight failed with exit code $LASTEXITCODE."
@@ -345,6 +353,10 @@ if ($WorkspaceRoot) {
 if ($globalAgentsTargetPath) {
     $exportArgs += @("--global-agents-target", $globalAgentsTargetPath)
 }
+if ($installUserSkills) {
+    $exportArgs += @("--user-skills-root", $userSkillsRootPath)
+    $exportArgs += "--defer-project-profile-cache-seed"
+}
 if ($AgentProfile) {
     $exportArgs += @("--agent-profile", $AgentProfile)
 }
@@ -358,15 +370,28 @@ if ($UniformModel) {
     $exportArgs += @("--uniform-model", $UniformModel)
 }
 
+if (-not $DryRun) {
+    & $pythonCmd @pythonArgs @exportArgs --dry-run
+    if ($LASTEXITCODE -ne 0) {
+        throw "Codex role export preflight failed with exit code $LASTEXITCODE."
+    }
+}
+
 & $pythonCmd @pythonArgs @exportArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Codex role export failed with exit code $LASTEXITCODE."
 }
-
-if ($installUserSkills -and -not $DryRun) {
+if (-not $DryRun -and $installUserSkills) {
+    # Publish the support tree and its integrity manifest before discovery
+    # skills that reference it. Export failure leaves the old skills untouched;
+    # skill-sync failure remains visible and repairable through the V4 manifest.
     & $pythonCmd @pythonArgs @skillSyncArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Codex skill sync failed with exit code $LASTEXITCODE."
+    }
+    & $pythonCmd @pythonArgs $mergeScript --target-dir $targetPath --seed-project-profile-caches-only
+    if ($LASTEXITCODE -ne 0) {
+        throw "Codex project profile cache seed failed with exit code $LASTEXITCODE."
     }
 }
 
@@ -379,6 +404,7 @@ if ($globalAgentsMergePath) {
 }
 if ($installUserSkills) {
     Write-Host 'Formal workflow entry points: `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
+    Write-Host 'Managed capability skills: `$artgen-scaffold`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
     Write-Host 'For the full workflow, prefer `$run-pipeline <task>`. `use pipeline` and `使用 pipeline` remain compatibility aliases.'
 } else {
     Write-Host 'This target did not modify the Codex user skill root. Formal entry points are the `$run-*` skills once installed globally.'

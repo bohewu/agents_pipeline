@@ -7,6 +7,7 @@ param(
     [string]$WorkspaceRoot,
     [string]$GlobalAgentsTarget,
     [string]$UserSkillsRoot,
+    [switch]$MigrateLegacySkills,
     [switch]$NoBackup,
     [switch]$Force,
     [switch]$DryRun,
@@ -250,6 +251,7 @@ try {
         "scripts/agent_model_profiles.py",
         "scripts/codex_mode_aliases.py",
         "scripts/codex-project-profile.py",
+        "scripts/codex_skill_catalog.py",
         "scripts/export-codex-agents.py",
         "scripts/install-codex-config.py",
         "scripts/path_safety.py",
@@ -275,6 +277,9 @@ try {
     }
     if ($UserSkillsRoot) {
         $installParams.UserSkillsRoot = $UserSkillsRoot
+    }
+    if ($MigrateLegacySkills) {
+        $installParams.MigrateLegacySkills = $true
     }
     if ($NoBackup) {
         $installParams.NoBackup = $true

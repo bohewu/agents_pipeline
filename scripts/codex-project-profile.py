@@ -21,6 +21,13 @@ try:  # Python 3.11+ is required for safe TOML validation.
 except ImportError:  # pragma: no cover - exercised only on Python 3.10.
     tomllib = None  # type: ignore[assignment]
 
+from codex_skill_catalog import (
+    MANAGED_SKILL_NAMES,
+    SKILL_MARKER_VERSION,
+    SKILL_SYNC_STATE_READY,
+    skill_collection_issues,
+)
+
 
 PROJECT_MANIFEST_FILENAME = ".agents-pipeline-project-profile.json"
 CACHE_MANIFEST_FILENAME = ".agents-pipeline-profile-cache.json"
@@ -34,7 +41,7 @@ PROJECT_MANIFEST_VERSION = 2
 SUPPORTED_PROJECT_MANIFEST_VERSIONS = (1, PROJECT_MANIFEST_VERSION)
 CACHE_MANIFEST_VERSION = 2
 SUPPORTED_CACHE_MANIFEST_VERSIONS = (1, CACHE_MANIFEST_VERSION)
-SUPPORTED_GLOBAL_MANIFEST_VERSIONS = (2, 3)
+SUPPORTED_GLOBAL_MANIFEST_VERSIONS = (2, 3, 4)
 SUPPORTED_SUPPORT_MARKER_VERSIONS = (1, 2, 3)
 SUPPORT_COMMON_REQUIRED_DIRS = (
     "agents",
@@ -48,6 +55,8 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "AGENTS.md",
     "VERSION",
     "modes.json",
+    "protocols/UI_UX_WORKFLOW.md",
+    "protocols/UX_DEVTOOLS_WORKFLOW.md",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
@@ -59,6 +68,7 @@ SUPPORT_COMMON_REQUIRED_FILES = (
 SUPPORT_CODEX_REQUIRED_FILES = (
     "scripts/codex_mode_aliases.py",
     "scripts/codex-project-profile.py",
+    "scripts/codex_skill_catalog.py",
     "scripts/export-codex-agents.py",
     "scripts/install-codex-config.py",
     "scripts/install-codex.sh",
@@ -423,6 +433,39 @@ def validate_global_install(global_target: Path) -> list[str]:
             "manager with 'clear --runtime codex --scope global' before using a "
             "workspace profile."
         )
+    if data.get("version") >= 4:
+        raw_skill_root = data.get("managed_user_skills_root")
+        raw_skill_names = data.get("managed_skill_names")
+        raw_marker_version = data.get("managed_skill_marker_version")
+        raw_sync_state = data.get("managed_skill_sync_state")
+        if raw_skill_root is None:
+            if (
+                raw_skill_names != []
+                or raw_marker_version is not None
+                or raw_sync_state is not None
+            ):
+                raise ProjectProfileError(
+                    "Global Codex skill metadata is invalid; rerun the global bootstrap."
+                )
+        elif (
+            not isinstance(raw_skill_root, str)
+            or not Path(raw_skill_root).is_absolute()
+            or raw_skill_names != sorted(MANAGED_SKILL_NAMES)
+            or raw_marker_version != SKILL_MARKER_VERSION
+            or raw_sync_state != SKILL_SYNC_STATE_READY
+        ):
+            raise ProjectProfileError(
+                "Global Codex skill metadata is missing or invalid; rerun the global bootstrap."
+            )
+        else:
+            skill_issues = skill_collection_issues(
+                _canonical(raw_skill_root), raw_skill_names
+            )
+            if skill_issues:
+                raise ProjectProfileError(
+                    "Global Codex discovery skills are incomplete or modified; rerun "
+                    "the global bootstrap. Issues: " + ", ".join(skill_issues)
+                )
     names = _safe_agent_names(data.get("managed_agent_names"), label="managed_agent_names")
     files = data.get("managed_agent_files")
     if not isinstance(files, list) or not all(isinstance(item, str) for item in files):

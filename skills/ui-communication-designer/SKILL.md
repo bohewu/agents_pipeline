@@ -1,338 +1,114 @@
 ---
 name: ui-communication-designer
-description: Communication-first UI design and critique workflow for task flows, screen-level recommendations, and microcopy rewrites.
+description: Communication-first conceptual UI design and critique for one task flow, screen, or bounded journey. Use to diagnose unclear interaction, restructure a flow, recommend screen-level changes, or rewrite labels, instructions, CTAs, helper text, errors, warnings, and confirmations from a PRD, screenshot, wireframe, copy set, or UX findings. Do not use for browser evidence collection or implementation-ready component specifications.
 license: See repository license
-compatibility: Docs-only scaffold; best paired with ui-ux-workflow for conceptual redesign and can consume $run-ux findings as input, but is not a browser-backed audit workflow.
 ---
 
 # UI Communication Designer
 
-Use this skill when you need a communication-first UI redesign or critique for one workflow, screen, or flow, especially for:
-- new flows or screens
-- forms, settings, navigation, checkout, onboarding, dashboards, and error states
-- label, instruction, warning, confirmation, and error-message rewrites
-- turning a PRD, user story, screenshot, wireframe, or existing flow into a clearer interaction model
-- explaining why an interface is hard to use in task language rather than aesthetic opinion
+Design the conversation before designing the screen. Explain UI problems through clarity, effort, trust, predictability, and recovery—not aesthetic preference.
 
-Do not use this skill for:
-- browser-backed UX audits, viewport scoring, or evidence collection; use `$run-ux`
-- implementation-ready UI specs, acceptance criteria, or component contracts
-- code generation or claims about rendered mockups, prototypes, or live previews
+## Boundary and Pairing
 
-## Pairing
+- Pair with `ui-ux-workflow` when a broader conceptual bundle or wireframe is needed.
+- Consume `$run-ux` findings when browser evidence already exists; this skill does not collect that evidence itself.
+- Hand approved implementation work to `frontend-aesthetic-director` or another implementation workflow.
+- Do not claim rendered behavior, accessibility results, or viewport evidence that was not observed.
 
-- Best fit: `ui-ux-workflow` conceptual design and rewrite work
-- Secondary fit: use after `$run-ux` when you already have findings and need a communication-first redesign direction
-- Reference files:
-  - `OUTPUT_TEMPLATE.md` for the standard response shape
-  - `RUBRIC.md` for the aligned 12-dimension review rubric
+Use a compact response for one copy or component question. Use the full format in `references/output-template.md` for a multi-screen critique, redesign handoff, or explicit scored review. The aligned heuristic is in `references/rubric.md`.
 
 ## Minimal Intake
 
-- product context
-- target user or persona
-- top task
-- platform
-- artifact (optional): screenshot, wireframe, copy, flow, spec, or `$run-ux` findings
+Identify the target user, immediate task, platform, success outcome, supplied artifact, and material risk. Ask only if a missing fact would change the recommended task flow; otherwise make the smallest safe assumption and label it.
 
-## Output Contract
+## Core Workflow
 
-- task summary
-- communication diagnosis
-- conversation model
-- revised task flow
-- screen-level recommendations
-- microcopy rewrite
-- prioritized fixes
-- five-second test questions
-- rubric scores
+### 1. Define the User's Situation
 
-## Core Belief
+State:
 
-Do not start with, "Should this be a dropdown or a radio group?"  
-Start with, "What does the interface need to make clear at this step?"
+- what the user is trying to accomplish now
+- why it matters to them
+- the questions or hesitations they bring
+- the value they receive on success
+- any cost, risk, commitment, or recovery concern
 
-This skill is not about stacking features onto a screen. It is about making the task understandable so users can complete it without guessing, memorizing, trial and error, or training.
+### 2. Write the Human Explanation First
 
-Treat the UI as a conversation between the product and the user:
-- the user has goals, questions, risks, and hesitation
-- the interface should answer questions, guide the next step, reduce effort, and build trust
-- every element should be able to answer: what is it communicating?
+Before choosing components, explain the task as a competent person would. Use user language, lead with the goal, put necessary information before secondary detail, and ask the real decision directly.
 
-## Design Principles
+### 3. Convert It into a Task Flow
 
-1. Define the message before choosing the UI form.  
-   First write how a competent person would naturally explain the task face to face, then translate that into UI language.
+Map the entry point, each user decision, the system response, required information, commit points, exception/recovery paths, and details that can be deferred. Preserve non-sensitive input across backtracking and recoverable errors.
 
-2. Every UI element needs a clear communication job.  
-   Controls, labels, layout, color, icons, feedback, and animation are not decoration; they are all speaking.
+### 4. Translate the Flow into UI Language
 
-3. Choose components by communication fit, not preference.  
-   There is no universally good or bad component, only whether it fits the message at that moment.
+For each screen or step, specify the element's communication job, discoverability, affordance, predicted outcome, feedback, and whether instruction is truly needed. Cover commands, labels, navigation, defaults, progressive disclosure, errors, warnings, confirmations, and notifications.
 
-4. Respect the user; do not make the product sound rude, mechanical, or bureaucratic.  
-   If a sentence, interruption, question, or warning would feel stupid in a real human conversation, it is also stupid in product form.
+Choose a component because it fits the decision—not because it is fashionable or familiar to the designer.
 
-5. Prioritize self-explanatory design.  
-   The interface should help the target user quickly understand actions and outcomes without relying on documentation, training, memory, or repeated attempts.
+### 5. Check Scanning and Trust
 
-6. Solve the task before asking for settings.  
-   Let users see results and complete the primary job first; defer settings and secondary detail.
+Verify that the focal point, eye path, primary action, and endpoint are obvious; essential information is on the scan path; and competing elements do not dilute attention. Make costs, consequences, data use, and irreversible actions clear before commitment.
 
-7. The layout should support scanning, not force reading.  
-   Users scan instead of reading line by line. Focus, path, hierarchy, and endpoint should be clear.
+### 6. Recommend Concrete Fixes
 
-8. Make the system behave like a competent, considerate, trustworthy person.  
-   Be specific, timely, empathetic, forgiving, calm, and accountable.
+Each material recommendation includes:
 
-## Agent Workflow
+- observed or supplied problem
+- why it harms clarity, efficiency, trust, or recovery
+- proposed change
+- expected improvement
+- High, Medium, or Low priority
 
-### Step 1. Define the situation
-Extract the following from the input:
-- who the user is
-- what task they are trying to complete now
-- why this task matters
-- how motivated they are
-- the most likely risks, questions, or concerns they have
-- what they get when the task is done successfully
+## Communication Rules
 
-If information is missing, make the lowest-risk assumption first and state it explicitly in the output.
+- Name concepts in user language, not database or internal workflow terms.
+- Prefer, in order: do not ask, infer safely, provide a safe default, ask later, then ask now only when necessary.
+- Ask once; reuse information the product already has.
+- Put critical wording on the control or adjacent label instead of burying it in instructions.
+- Make errors identify the affected object, the problem, and the next action.
+- Do not blame the user for system behavior.
+- Use warnings and confirmations only when they materially change behavior or prevent meaningful harm.
+- Make purchase, delete, submit, overwrite, and other commit points predictable.
+- Never preselect an option that creates hidden cost or risk.
+- Use hierarchy, grouping, order, and progressive disclosure before adding explanatory paragraphs.
+- Avoid vague recommendations such as “make it intuitive”; describe the causal improvement.
 
-### Step 2. Write the human-to-human explanation first
-Do not design the UI yet.  
-First write how a professional, natural person would guide the user through the task in real life.  
-Requirements:
-- explain the task in terms of the user goal, not the system mechanism
-- use user language, not internal terminology
-- say only what is necessary
-- say what the user needs first, then secondary detail
-- do not ask unnecessary questions
-- if you must ask, ask the real question directly
+## Response Contract
 
-### Step 3. Turn the conversation into a task flow
-Break the human explanation into:
-- entry point
-- what the user decides at each step
-- what the system must respond with at each step
-- what information the user needs
-- commit points, if there are irreversible consequences
-- return, edit, or cancel points
+For compact work, lead with the diagnosis and include only the relevant flow, screen, and copy changes.
 
-The output must mark:
-- primary flow
-- exception flows
-- error recovery
-- information that can be deferred
+For a full review, use `references/output-template.md` and include:
 
-### Step 4. Turn the task flow into UI language
-For each step, when choosing a UI expression, explain:
-- the purpose of the element
-- how the user will discover it
-- whether the affordance is clear
-- whether the outcome is predictable
-- whether it is lower effort than alternatives
-- whether extra instruction is needed, and if so why the label alone is not enough
+1. task summary
+2. three to five questions the user cares about now
+3. human-to-human explanation
+4. primary and recovery flow
+5. screen or section recommendations
+6. microcopy rewrites
+7. prioritized fixes
+8. three to five five-second test questions
+9. rubric scores when enough evidence exists
 
-This step must explicitly handle:
-- commands
-- labels
-- instructions
-- feedback
-- navigation
-- errors, warnings, confirmations, and notifications
-- progressive disclosure
-- defaults and recommendations
+Rewrite at least the title or main instruction, primary CTA, helper text, and error copy when those artifacts are in scope. Add warning or confirmation copy only when the flow needs it.
 
-### Step 5. Run a scanning-first layout check
-For each page, check:
-- whether the focal point is clear
-- whether the eye path is natural
-- whether the main CTA sits at a sensible endpoint
-- whether the primary task content appears on the scan path
-- whether important information is hidden inside long hard-to-scan paragraphs
-- whether must-read information is placed where users are most likely to miss it
-- whether too many elements compete for attention
+## Scoring Discipline
 
-### Step 6. Run a human-level quality check
-For each flow and screen, check:
-- whether value is clearly communicated
-- whether effort and perceived effort are reduced
-- whether the design is forgiving around errors
-- whether it builds trust
-- whether it is smart enough without being over-smart
-- whether it avoids annoyance
-- whether it interrupts only when necessary
-- whether it attracts attention in the least disruptive way
-- whether it gives people confidence to continue
+The 12-dimension rubric is a communication heuristic, not a substitute for user research or browser evidence. Score only dimensions supported by the supplied artifact or observed findings. Mark unseen dimensions `not assessed`, state confidence, and do not fabricate a total from missing evidence.
 
-### Step 7. Output actionable recommendations
-The response must be actionable, not abstract aesthetic commentary.  
-Each recommendation should include at least:
-- the problem
-- why it harms clarity, trust, or efficiency
-- the proposed change
-- the expected improvement
-- priority: High, Medium, or Low
+When all dimensions can be assessed, a score below `18/24` calls for structural flow or hierarchy changes rather than copy-only edits.
 
-## Hard Rules
+## Decision Priority
 
-1. Do not name the UI after engineering data structures.
-   Avoid moving backend models, database fields, or internal workflow names directly onto the screen.
+When recommendations conflict, prefer:
 
-2. Do not ask pointless questions.
-   Prefer, in order:
-   - do not ask
-   - infer automatically
-   - provide a sensible default
-   - ask later
-   - only ask when necessary
+1. comprehension
+2. lower task effort
+3. trust and risk reduction
+4. a clear next step
+5. simple scanning
+6. platform convention
+7. visual polish
 
-3. Ask once.
-   Do not request the same information repeatedly. If the system already knows it, fill it in.
-
-4. Ask the real question.
-   Do not ask around the mechanism; ask what the user actually needs to decide.
-
-5. Put important text on the control label whenever possible.
-   Instructions are easy to skip; labels are more likely to be read.
-
-6. Error messages must be specific.
-   They should include at least:
-   - which object has the problem
-   - what the problem is
-   - what the user can do now
-
-7. Do not blame the user.
-   Avoid accusatory tone and do not package system limitations as user mistakes.
-
-8. Use warnings and confirmations sparingly.
-   Use them only when behavior genuinely needs to change, and prefer the least disruptive option.
-
-9. Commit points must be obvious.
-   Any purchase, deletion, submission, overwrite, or irreversible action should make consequences predictable.
-
-10. Preserve user input.
-    When users go back, change options, or hit a timeout, keep non-sensitive input whenever possible.
-
-11. Use defaults to reduce work, but do not smuggle in business goals.
-    Any option that creates user cost or risk must be explicit and default-safe.
-
-12. If structure can explain it, do not patch it with long text.
-    Layout, hierarchy, grouping, and ordering are communication tools.
-
-## Output Format
-
-Return sections in this order. Use `OUTPUT_TEMPLATE.md` for the standard response shape and `RUBRIC.md` for scoring:
-
-### 1. Task Summary
-- user
-- goal
-- platform
-- success criteria
-
-### 2. What the User Cares About Most Right Now
-List 3-5 questions, for example:
-- What is this page for?
-- What am I supposed to do?
-- Which option is right for me?
-- What happens next?
-- Can I trust this system?
-
-### 3. Human-to-Human Explanation
-Write a short, natural, professional explanation of the task.
-
-### 4. Recommended Task Flow
-List step by step:
-- step
-- user decision
-- system response
-- whether extra explanation is needed
-- whether there is a commit point
-
-### 5. Screen or Component Recommendations
-Output by screen or section:
-- component
-- purpose
-- displayed content
-- microcopy
-- interaction behavior
-- feedback
-- risk
-
-### 6. Microcopy Rewrite
-Rewrite at least:
-- page title or main instruction
-- CTA
-- helper text
-- error
-- warning or confirmation, if needed
-
-### 7. Main Issues and Fix Priorities
-Sort by High, Medium, and Low.
-
-### 8. Five-Second Test Questions
-Write 3-5 five-second test questions for the key page.
-
-## Evaluation Dimensions
-
-Score each screen or flow using these dimensions from 0-2:
-
-- Value clarity
-- Task clarity
-- Discoverability
-- Understandability
-- Affordance
-- Predictability
-- Efficiency
-- Feedback
-- Trust
-- Forgiveness
-- Non-annoyance
-- Scanability
-
-Score definitions:
-- 0 = clearly problematic
-- 1 = usable but unstable
-- 2 = clear and reliable
-
-If the total score is below 18/24, propose structural changes, not just copy fixes.
-
-## Priority Decision Rules
-
-When design options conflict, use this priority order:
-1. Can the user quickly understand this step?
-2. Does it reduce task effort?
-3. Does it build trust and reduce risk?
-4. Does it make the next step clear?
-5. Does it keep the layout simple and scannable?
-6. Does it align with platform conventions?
-7. Does it improve visual polish or branding?
-
-## Anti-Patterns
-
-- Do not treat "looks modern" as a valid design reason
-- Do not cram everything onto one page just because the feature set is large
-- Do not use long instructions to patch a broken flow
-- Do not overuse modals, confirmations, warnings, red text, or flashing attention cues
-- Do not assume the user should already know
-- Do not assume the user is willing to sign up, configure, read, remember, or re-enter information
-- Do not front-load unnecessary setup work for system convenience
-
-## Suitable Input Types
-
-- PRD, spec, or user story
-- screen screenshot
-- wireframe
-- Figma export notes
-- existing UI copy
-- task flow
-- form field list
-- problem report or usability issue
-
-## Response Style
-
-- Lead with the conclusion, then explain the reasoning
-- Be as specific as possible at the component level
-- Avoid vague adjectives such as "more intuitive" or "cleaner"
-- Prefer causal wording such as "because... therefore..."
-- If information is missing, make the smallest necessary assumption and label it
+End with the highest-leverage change, not a list of generic design principles.

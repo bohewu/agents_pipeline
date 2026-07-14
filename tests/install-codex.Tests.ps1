@@ -228,7 +228,12 @@ Describe "install-codex.ps1 managed mode skills" {
             "run-modernize",
             "run-analysis",
             "run-ux",
-            "run-committee"
+            "run-committee",
+            "artgen-scaffold",
+            "devtools-ux-audit",
+            "frontend-aesthetic-director",
+            "ui-communication-designer",
+            "ui-ux-workflow"
         )
     }
 
@@ -337,6 +342,8 @@ Describe "install-codex.ps1 workspace profile overlay" {
                 Should -BeFalse
             @(Get-ChildItem -LiteralPath $userSkillsRoot -Directory -Filter "run-*").Count |
                 Should -Be 11
+            @(Get-ChildItem -LiteralPath $userSkillsRoot -Directory | Where-Object { -not $_.Name.StartsWith(".") }).Count |
+                Should -Be 16
 
             & $profileTool clear -Runtime codex -Scope workspace -Workspace $workspace | Out-Null
             $LASTEXITCODE | Should -Be 0
@@ -382,6 +389,7 @@ Describe "bootstrap-install-codex.ps1 release happy path" {
             "scripts/agent_model_profiles.py",
             "scripts/codex_mode_aliases.py",
             "scripts/codex-project-profile.py",
+            "scripts/codex_skill_catalog.py",
             "scripts/export-codex-agents.py",
             "scripts/install-codex-config.py",
             "scripts/path_safety.py",
@@ -399,6 +407,7 @@ param(
     [string]$WorkspaceRoot,
     [string]$GlobalAgentsTarget,
     [string]$UserSkillsRoot,
+    [switch]$MigrateLegacySkills,
     [switch]$NoBackup,
     [switch]$Force,
     [string]$AgentProfile,

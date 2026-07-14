@@ -182,6 +182,7 @@ class RuntimeProfileInstallerIntegrationTests(unittest.TestCase):
             "codex": (
                 "scripts/codex_mode_aliases.py",
                 "scripts/codex-project-profile.py",
+                "scripts/codex_skill_catalog.py",
                 "scripts/export-codex-agents.py",
                 "scripts/install-codex-config.py",
                 "scripts/install-codex.sh",

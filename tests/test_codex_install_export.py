@@ -559,6 +559,8 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn('"scripts/sync-runtime-support.py"', bootstrap_ps1)
         self.assertIn('"scripts/sync-codex-skills.py"', bootstrap_sh)
         self.assertIn('"scripts/sync-codex-skills.py"', bootstrap_ps1)
+        self.assertIn('"scripts/codex_skill_catalog.py"', bootstrap_sh)
+        self.assertIn('"scripts/codex_skill_catalog.py"', bootstrap_ps1)
         for required_path in (
             "AGENTS.md",
             "modes.json",
@@ -567,6 +569,7 @@ class CodexInstallExportTest(unittest.TestCase):
             "tools/status-runtime",
             "runtimes/codex/model-sets",
             "scripts/install-codex-config.py",
+            "scripts/codex_skill_catalog.py",
         ):
             self.assertIn(required_path, bootstrap_sh)
             self.assertIn(required_path, bootstrap_ps1)
@@ -593,11 +596,17 @@ class CodexInstallExportTest(unittest.TestCase):
         bootstrap_ps1 = BOOTSTRAP_PS1_PATH.read_text(encoding="utf-8")
 
         self.assertIn("--user-skills-root", install_sh)
+        self.assertIn("--migrate-legacy-skills", install_sh)
+        self.assertIn("--support-root", install_sh)
         self.assertIn("scripts/sync-codex-skills.py", install_sh)
         self.assertIn("[string]$UserSkillsRoot", install_ps1)
+        self.assertIn("[switch]$MigrateLegacySkills", install_ps1)
+        self.assertIn('"--support-root"', install_ps1)
         self.assertIn("scripts/sync-codex-skills.py", install_ps1)
         self.assertIn("--user-skills-root", bootstrap_sh)
         self.assertIn("[string]$UserSkillsRoot", bootstrap_ps1)
+        self.assertIn("--migrate-legacy-skills", bootstrap_sh)
+        self.assertIn("[switch]$MigrateLegacySkills", bootstrap_ps1)
         for content in (install_sh, install_ps1):
             self.assertIn("`$run-pipeline", content)
             self.assertIn("compatibility aliases", content)
@@ -622,8 +631,11 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertEqual(manifest["profile"], "premium")
             self.assertEqual(manifest["mode"], "profile")
             self.assertEqual(manifest["model_set"], "openai")
-            self.assertEqual(manifest["version"], 3)
+            self.assertEqual(manifest["version"], INSTALL_MODULE.MANIFEST_VERSION)
             self.assertEqual(manifest["managed_support_root"], "agents-pipeline")
+            self.assertIsNone(manifest["managed_user_skills_root"])
+            self.assertEqual(manifest["managed_skill_names"], [])
+            self.assertIsNone(manifest["managed_skill_sync_state"])
             self.assertNotIn("source_agents_dir", manifest)
             self.assertEqual(
                 manifest["managed_agent_names"], ["orchestrator-flow"]
@@ -652,6 +664,10 @@ class CodexInstallExportTest(unittest.TestCase):
                         "version": INSTALL_MODULE.MANIFEST_VERSION,
                         "target_dir": str(Path(temp_dir_name).resolve()),
                         "managed_support_root": INSTALL_MODULE.SUPPORT_TREE_DIRNAME,
+                        "managed_user_skills_root": None,
+                        "managed_skill_names": [],
+                        "managed_skill_marker_version": None,
+                        "managed_skill_sync_state": None,
                         "managed_agent_names": ["executor"],
                         "managed_agent_files": ["../victim.toml"],
                     }
@@ -674,7 +690,12 @@ class CodexInstallExportTest(unittest.TestCase):
                     {
                         "tool": INSTALL_MODULE.MANIFEST_TOOL,
                         "version": INSTALL_MODULE.MANIFEST_VERSION,
+                        "target_dir": target.resolve().as_posix(),
                         "managed_support_root": INSTALL_MODULE.SUPPORT_TREE_DIRNAME,
+                        "managed_user_skills_root": None,
+                        "managed_skill_names": [],
+                        "managed_skill_marker_version": None,
+                        "managed_skill_sync_state": None,
                         "managed_agent_names": ["victim"],
                         "managed_agent_files": ["../victim.toml"],
                     }

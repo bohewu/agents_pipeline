@@ -26,7 +26,7 @@ Profile status and workflow status are different surfaces:
 
 Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. For Codex, `set` is workspace-only; global `status` and `clear` are diagnostic/legacy-cleanup operations. `install` is accepted only as a deprecated compatibility alias for `set` where `set` is supported.
 
-The default Codex global installer additionally publishes the eleven formal workflow skills under `~/.agents/skills/run-*/`. Each carries `.agents-pipeline-skill.json`; updates are rollback-capable and use an atomic rename per skill directory, while an unowned, corrupt, linked, or junction-backed same-named target causes a safe refusal. Those skills stay global and adopt global workflow definitions. `$run-adaptive` selects among the existing Simple, Flow, and Pipeline definitions without adding a role, while keeping its execution preset independent from model/profile routing. Their workspace preflight stops on unverifiable or unhealthy local role state before execution; only a healthy, eligible profile proceeds to workspace-specific routing.
+The default Codex global installer additionally publishes all 16 managed discovery skills under `~/.agents/skills/`: eleven formal workflow skills and five capability skills. Each carries `.agents-pipeline-skill.json` with a content digest; updates are rollback-capable and use an atomic rename per skill directory. Unowned, corrupt-marker, linked, or junction-backed targets cause a safe refusal, while a modified marker-owned copy is preserved outside the discovery root before repair. The workflow skills stay global and adopt global workflow definitions. `$run-adaptive` selects among the existing Simple, Flow, and Pipeline definitions without adding a role, while keeping its execution preset independent from model/profile routing. Their workspace preflight stops on unverifiable or unhealthy local role state before execution; only a healthy, eligible profile proceeds to workspace-specific routing.
 
 ## Interactive quick start
 
@@ -113,7 +113,7 @@ Codex applies `.codex/config.toml` only for a trusted project. The profile manag
 
 ### Workspace status and clear
 
-- `status` validates the project manifest, managed block, workspace-local role ownership and content hashes, selected profile metadata, global Codex registration, active global mode guidance, and critical support assets. It separately reports whether the explicit project trust setting makes the layer eligible for Codex to load.
+- `status` validates the project manifest, managed block, workspace-local role ownership and content hashes, selected profile metadata, global Codex registration, active global mode guidance, critical support assets, and the recorded global discovery-skill collection. It separately reports whether the explicit project trust setting makes the layer eligible for Codex to load.
 - A workspace with no project overlay reports `mode: inherit`, uses the model-free global definitions, and inherits model selection from the parent session.
 - `clear` removes only the managed block, installer-owned workspace role files, and `.agents-pipeline-project-profile.json`.
 - If `.codex/config.toml` contains unrelated settings, `clear` preserves their TOML content outside the managed block. If the generated block was the only content, the empty config file may be removed.
@@ -140,7 +140,7 @@ bash "$profile_tool" clear --runtime codex --scope global
 bash "$profile_tool" list --runtime codex
 ```
 
-Global `status` validates the installer manifest, role registrations, generated role files, mode guidance, and critical support assets. Global `clear` regenerates the global roles without `model` or `model_provider`, returning them to parent-session inheritance; it is not an uninstall and does not select a profile. A normal global install already has this model-free state.
+Global `status` validates the installer manifest, role registrations, generated role files, mode guidance, critical support assets, and marker/content integrity for all recorded discovery skills. Global `clear` regenerates the global roles without `model` or `model_provider`, returning them to parent-session inheritance; it is not an uninstall and does not select a profile. A normal global install already has this model-free state.
 
 The global manifests are:
 

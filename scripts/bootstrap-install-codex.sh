@@ -21,7 +21,7 @@ usage() {
 Download a release bundle and run install-codex.sh without cloning this repository.
 
 Usage:
-  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [workspace profile options]
+  scripts/bootstrap-install-codex.sh [--repo <owner/repo>] [--version <tag|latest>] [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--migrate-legacy-skills] [--no-backup] [--force] [--dry-run] [--keep-temp] [--verbose] [workspace profile options]
 
 Options:
   --repo <owner/repo>   GitHub repository (default: bohewu/agents_pipeline)
@@ -33,6 +33,8 @@ Options:
                         Forward an explicit global AGENTS.md merge target
   --user-skills-root <path>
                         Forward a custom Codex user skill root for global/test installs
+  --migrate-legacy-skills
+                        Back up and replace known unmarked capability-skill copies
   --no-backup           Do not back up existing installed files
   --force               Accepted for backward compatibility; overwrite is already enabled by default
   --dry-run             Resolve release and print actions only
@@ -106,6 +108,7 @@ GLOBAL_AGENTS_TARGET=""
 GLOBAL_AGENTS_TARGET_SET=0
 USER_SKILLS_ROOT=""
 USER_SKILLS_ROOT_SET=0
+MIGRATE_LEGACY_SKILLS=0
 NO_BACKUP=0
 FORCE_OVERWRITE=0
 DRY_RUN=0
@@ -170,6 +173,10 @@ while [[ $# -gt 0 ]]; do
       USER_SKILLS_ROOT="$2"
       USER_SKILLS_ROOT_SET=1
       shift 2
+      ;;
+    --migrate-legacy-skills)
+      MIGRATE_LEGACY_SKILLS=1
+      shift
       ;;
     --no-backup)
       NO_BACKUP=1
@@ -442,6 +449,7 @@ REQUIRED_BUNDLE_PATHS=(
   "scripts/agent_model_profiles.py"
   "scripts/codex_mode_aliases.py"
   "scripts/codex-project-profile.py"
+  "scripts/codex_skill_catalog.py"
   "scripts/export-codex-agents.py"
   "scripts/install-codex-config.py"
   "scripts/path_safety.py"
@@ -467,6 +475,9 @@ if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
 fi
 if [[ -n "${USER_SKILLS_ROOT}" ]]; then
   INSTALL_CMD+=(--user-skills-root "${USER_SKILLS_ROOT}")
+fi
+if [[ ${MIGRATE_LEGACY_SKILLS} -eq 1 ]]; then
+  INSTALL_CMD+=(--migrate-legacy-skills)
 fi
 if [[ ${NO_BACKUP} -eq 1 ]]; then
   INSTALL_CMD+=(--no-backup)

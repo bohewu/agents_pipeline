@@ -497,6 +497,48 @@ class AgentProfileCommandTests(unittest.TestCase):
             self.assertNotIn("--uniform-model", joined)
             self.assertIn(str((Path(temp_name) / ".copilot/agents").resolve()), command)
 
+    def test_codex_global_clear_preserves_manifest_user_skill_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            target = (root / "custom-codex").resolve()
+            user_skills = (root / "custom-user-skills").resolve()
+            target.mkdir(parents=True)
+            (target / PROFILE.CODEX_MANIFEST_FILENAME).write_text(
+                json.dumps(
+                    {
+                        "managed_skill_marker_version": PROFILE.SKILL_MARKER_VERSION,
+                        "managed_skill_names": sorted(PROFILE.MANAGED_SKILL_NAMES),
+                        "managed_skill_sync_state": PROFILE.SKILL_SYNC_STATE_READY,
+                        "managed_user_skills_root": user_skills.as_posix(),
+                        "target_dir": target.as_posix(),
+                        "tool": PROFILE.CODEX_MANIFEST_TOOL,
+                        "version": PROFILE.CODEX_MANIFEST_VERSION,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            args, request = self.resolve(
+                "clear",
+                "--runtime",
+                "codex",
+                "--scope",
+                "global",
+                "--target",
+                str(target),
+            )
+
+            for windows, flag in (
+                (False, "--user-skills-root"),
+                (True, "-UserSkillsRoot"),
+            ):
+                with self.subTest(windows=windows):
+                    command = PROFILE.build_install_command(
+                        request, args, windows=windows
+                    )
+                    self.assertIn(flag, command)
+                    self.assertEqual(command[command.index(flag) + 1], user_skills.as_posix())
+
     def test_windows_command_dispatches_powershell_installer(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             args, request = self.resolve(
@@ -750,6 +792,10 @@ class AgentProfileManifestTests(unittest.TestCase):
                 "tool": PROFILE.CODEX_MANIFEST_TOOL,
                 "version": PROFILE.CODEX_MANIFEST_VERSION,
                 "managed_support_root": "agents-pipeline",
+                "managed_user_skills_root": None,
+                "managed_skill_names": [],
+                "managed_skill_marker_version": None,
+                "managed_skill_sync_state": None,
                 "target_dir": target.resolve().as_posix(),
                 "mode": "profile",
                 "profile": "balanced",

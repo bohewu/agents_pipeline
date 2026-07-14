@@ -38,6 +38,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             "tools/status-event.js",
             "scripts/agent_model_profiles.py",
             "scripts/codex-project-profile.py",
+            "scripts/codex_skill_catalog.py",
             "scripts/codex_mode_aliases.py",
             "scripts/export-codex-agents.py",
             "scripts/export-claude-agents.py",
@@ -235,6 +236,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
                     str(target),
                     "--user-skills-root",
                     str(user_skills),
+                    "--migrate-legacy-skills",
                 ],
                 cwd=ROOT,
                 env=env,
@@ -250,6 +252,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
                     str(target),
                     "--user-skills-root",
                     str(user_skills),
+                    "--migrate-legacy-skills",
                 ],
             )
 

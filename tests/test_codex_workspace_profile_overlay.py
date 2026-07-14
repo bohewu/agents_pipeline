@@ -549,14 +549,14 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             self.assertEqual(peon["model"], "gpt-5.6-luna")
             self.assertEqual(peon["model_provider"], "openai")
 
-    def test_codex_status_and_workspace_preflight_require_common_support(self) -> None:
+    def test_codex_status_and_workspace_preflight_require_capability_protocols(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
             home = root / "home"
             workspace = root / "project"
             env = self.isolated_environment(home)
             codex_home, wrapper = self.install_global_codex(home, env)
-            common_file = "scripts/agent_model_profiles.py"
+            common_file = "protocols/UI_UX_WORKFLOW.md"
             (codex_home / "agents-pipeline" / common_file).unlink()
 
             global_status = json.loads(

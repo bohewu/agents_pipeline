@@ -1,0 +1,4 @@
+interface:
+  display_name: "Artgen Scaffold"
+  short_description: "Create reusable 2D asset prompt handoffs"
+  default_prompt: "Use $artgen-scaffold to turn this 2D asset request into a versioned brief and copy-ready generation prompt."

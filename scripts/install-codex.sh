@@ -21,7 +21,7 @@ usage() {
 Install Codex multi-agent role config generated from neutral source agents.
 
 Usage:
-  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--dry-run] [--no-backup] [--force] [workspace profile options]
+  scripts/install-codex.sh [--target <path>] [--workspace-root <path>] [--global-agents-target <path>] [--user-skills-root <path>] [--migrate-legacy-skills] [--dry-run] [--no-backup] [--force] [workspace profile options]
 
 Options:
   --target <path>  Install destination (default: ~/.codex)
@@ -30,8 +30,10 @@ Options:
   --global-agents-target <path>
                     Codex home directory whose AGENTS file receives the managed global block
   --user-skills-root <path>
-                    Install formal run-* skills here for a global/custom install
+                    Install all agents_pipeline skills here for a global/custom install
                     (default global install: ~/.agents/skills)
+  --migrate-legacy-skills
+                    Back up and replace known unmarked capability-skill copies
   --dry-run        Print actions without writing files
   --no-backup      Skip backup of existing config.toml, agents/*.toml, and managed AGENTS.md files
   --force          Accepted for backward compatibility; merged install is already enabled by default
@@ -93,6 +95,7 @@ WORKSPACE_ROOT=""
 GLOBAL_AGENTS_TARGET=""
 USER_SKILLS_ROOT=""
 USER_SKILLS_ROOT_SET=0
+MIGRATE_LEGACY_SKILLS=0
 DRY_RUN=0
 NO_BACKUP=0
 FORCE_OVERWRITE=1
@@ -138,6 +141,10 @@ while [[ $# -gt 0 ]]; do
       USER_SKILLS_ROOT="$2"
       USER_SKILLS_ROOT_SET=1
       shift 2
+      ;;
+    --migrate-legacy-skills)
+      MIGRATE_LEGACY_SKILLS=1
+      shift
       ;;
     --dry-run)
       DRY_RUN=1
@@ -323,6 +330,10 @@ if [[ ${WORKSPACE_MATERIALIZATION} -eq 0 ]]; then
     INSTALL_USER_SKILLS=1
   fi
 fi
+if [[ ${MIGRATE_LEGACY_SKILLS} -eq 1 && ${INSTALL_USER_SKILLS} -ne 1 ]]; then
+  echo "--migrate-legacy-skills requires a global install that manages a user skill root." >&2
+  exit 2
+fi
 GLOBAL_AGENTS_MERGE_PATH=""
 GLOBAL_AGENTS_MERGE_DIR="${TARGET_DIR}"
 if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
@@ -353,7 +364,11 @@ if [[ ${INSTALL_USER_SKILLS} -eq 1 ]]; then
     "${PYTHON_BIN}" "${SKILL_SYNC_SCRIPT}"
     --source-skills-root "${SOURCE_SKILLS}"
     --user-skills-root "${USER_SKILLS_ROOT}"
+    --support-root "${TARGET_DIR}/agents-pipeline"
   )
+  if [[ ${MIGRATE_LEGACY_SKILLS} -eq 1 ]]; then
+    SKILL_SYNC_CMD+=(--migrate-legacy-skills)
+  fi
   "${SKILL_SYNC_CMD[@]}" --dry-run
 fi
 
@@ -449,6 +464,10 @@ fi
 if [[ -n "${GLOBAL_AGENTS_TARGET}" ]]; then
   EXPORT_CMD+=(--global-agents-target "${GLOBAL_AGENTS_TARGET}")
 fi
+if [[ ${INSTALL_USER_SKILLS} -eq 1 ]]; then
+  EXPORT_CMD+=(--user-skills-root "${USER_SKILLS_ROOT}")
+  EXPORT_CMD+=(--defer-project-profile-cache-seed)
+fi
 if [[ -n "${AGENT_PROFILE}" ]]; then
   EXPORT_CMD+=(--agent-profile "${AGENT_PROFILE}")
 fi
@@ -461,10 +480,31 @@ fi
 if [[ -n "${UNIFORM_MODEL}" ]]; then
   EXPORT_CMD+=(--uniform-model "${UNIFORM_MODEL}")
 fi
-"${EXPORT_CMD[@]}"
-
-if [[ ${INSTALL_USER_SKILLS} -eq 1 && ${DRY_RUN} -eq 0 ]]; then
-  "${SKILL_SYNC_CMD[@]}"
+if [[ ${DRY_RUN} -eq 0 ]]; then
+  if ! "${EXPORT_CMD[@]}" --dry-run; then
+    echo "Codex role export preflight failed." >&2
+    exit 2
+  fi
+fi
+if ! "${EXPORT_CMD[@]}"; then
+  echo "Codex role export failed." >&2
+  exit 2
+fi
+if [[ ${DRY_RUN} -eq 0 && ${INSTALL_USER_SKILLS} -eq 1 ]]; then
+  # Publish the support tree and its integrity manifest before discovery skills
+  # that reference it. A failed role/support install therefore leaves the
+  # previous skill collection untouched; a later skill-sync failure remains
+  # visible through the already-written V4 manifest and is repairable by rerun.
+  if ! "${SKILL_SYNC_CMD[@]}"; then
+    echo "Codex skill sync failed; rerun the installer to repair the manifest-tracked collection." >&2
+    exit 2
+  fi
+  if ! "${PYTHON_BIN}" "${MERGE_SCRIPT}" \
+    --target-dir "${TARGET_DIR}" \
+    --seed-project-profile-caches-only; then
+    echo "Codex project profile cache seed failed; rerun the installer to regenerate caches." >&2
+    exit 2
+  fi
 fi
 
 echo
@@ -476,6 +516,7 @@ else
 fi
 if [[ ${INSTALL_USER_SKILLS} -eq 1 ]]; then
   echo 'Formal workflow entry points: `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
+  echo 'Managed capability skills: `$artgen-scaffold`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
   echo 'For the full workflow, prefer `$run-pipeline <task>`. `use pipeline` and `使用 pipeline` remain compatibility aliases.'
 else
   echo 'This target did not modify the Codex user skill root. Formal entry points are the `$run-*` skills once installed globally.'

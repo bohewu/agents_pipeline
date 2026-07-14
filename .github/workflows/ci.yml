@@ -290,7 +290,9 @@ jobs:
           assert not (workspace / ".codex" / "agents-pipeline").exists()
           PY
           test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 11
+          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')" -eq 16
           test -f "${HOME}/.agents/skills/run-adaptive/SKILL.md"
+          test -f "${HOME}/.agents/skills/ui-ux-workflow/SKILL.md"
           test ! -e "${HOME}/.codex/agents/orchestrator-adaptive.toml"
           test ! -e "${workspace}/.codex/agents/orchestrator-adaptive.toml"
           test ! -e "${HOME}/.agents/skills/run-goal"

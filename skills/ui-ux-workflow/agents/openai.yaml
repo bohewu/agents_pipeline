@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI/UX Workflow"
+  short_description: "Create bounded conceptual UI/UX handoffs"
+  default_prompt: "Use $ui-ux-workflow to create a bounded conceptual handoff for this surface or user journey."

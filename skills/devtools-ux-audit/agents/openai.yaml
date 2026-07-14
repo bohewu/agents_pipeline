@@ -1,0 +1,4 @@
+interface:
+  display_name: "DevTools UX Audit"
+  short_description: "Collect viewport-specific browser UX evidence"
+  default_prompt: "Use $devtools-ux-audit to collect browser evidence for this user journey across the relevant viewports."

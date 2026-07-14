@@ -1,211 +1,137 @@
 ---
 name: artgen-scaffold
-description: Docs-only guidance for turning bounded 2D asset requests into reusable briefs, prompts, Direct Use Prompts, and External Handoff Packages with explicit style, size, suggested outputs, and version markers.
+description: Docs-only guidance for turning a bounded 2D asset request into a reusable brief, provider-neutral generation prompt, versioned output plan, manual checks, and copy-ready handoff. Use for sprites, animation frames, tiles, icons, UI elements, and simple props; do not use it to claim that image generation or asset processing has occurred.
 license: See repository license
-compatibility: Docs-only scaffold; raw image generation and any later execution remain outside this repo.
 ---
 
 # Artgen Scaffold
 
-Use this skill when you need a structured brief, reusable prompt, final Direct Use Prompt, and standardized External Handoff Package for bounded 2D game assets, especially:
-- sprites
-- animations
-- tilesets
-- icons
-- UI elements
-- simple props
+Create a reviewable asset brief and prompt package for one bounded 2D asset or asset family. Pixel art is the canonical example, but the contract works for adjacent 2D styles when style and dimensions are explicit.
 
-Pixel art remains the canonical example profile, but the brief model also supports adjacent 2D asset styles when style and size are stated explicitly.
-
-If a request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
-
-Do not use this skill to claim that this repo renders images, stores raw assets, creates files, runs provider integrations, calls Codex, calls MCP servers, or executes a downstream asset pipeline.
+If the request says `sprite` without mentioning animation, frames, a loop, a cycle, or a sequence, treat it as one static sprite.
 
 ## Boundary
 
-This scaffold outputs documentation artifacts plus formatting-oriented handoff packaging only:
-- request record
-- asset brief
-- reusable prompt
-- suggested outputs
-- manual checks
-- External Handoff Package
-- Direct Use Prompt
+This skill produces documentation only. It does not generate images, call a provider, run post-processing, pack atlases, or promise emitted files. A later, separately requested generation task may place assets in the consuming project or another user-selected location.
 
-Raw image generation happens elsewhere.
-Keep candidate images, approvals, and any generated files outside this repo.
-The External Handoff Package is standard output on this surface.
-That package must stay generic, human-readable, copy-ready, and non-operative.
-Do not add helper commands, emitted-file promises, provider-specific execution promises, or workflow-automation claims.
-Always end the response with a Direct Use Prompt section so the user can copy one ready-to-paste prompt without extracting it manually from the handoff package.
-The Direct Use Prompt should already be suitable for direct use with external image-generation tools and should not depend on Codex-specific wrappers.
+Return:
+
+- a request record
+- an asset brief
+- one reusable prompt
+- a suggested output plan
+- manual checks
+- an external handoff package
+- a final direct-use prompt
+
+Keep the handoff provider-neutral, human-readable, copy-ready, and non-operative. Do not add wrapper commands, job metadata, queues, retries, or provider-specific promises.
+
+## Resolve Only Material Gaps
+
+Infer conservative details when doing so is low risk and label every inferred value `Assumption: ...`. Ask only when a missing choice would materially change the asset family, dimensions, viewpoint, or style.
+
+Always make these explicit:
+
+- asset type and subject
+- style
+- size plan
+- viewpoint or screen role
+- palette direction
+- background rule
+- variant, state, tile-role, or frame requirements
+
+Use the appropriate size form:
+
+- static sprite or prop: canvas dimensions
+- animation: frame dimensions and frame count or loop range
+- tileset: tile dimensions and required tile roles
+- icon: output dimensions
+- UI element: dimensions plus states or layout role
+
+When background is unspecified for a production asset, prefer a visibly labeled transparent-background assumption.
 
 ## Output Contract
 
-Return concise Markdown with these sections:
-
-Use the exact field labels below.
-When a value is inferred, write it as `Assumption: ...`.
-Do not bold, rename, or restyle the field labels.
+Use these headings and exact field labels. Keep one shared lowercase kebab-case `asset_slug` and one visible version marker across the package. Default to `v001` unless the user provides an existing version family.
 
 ### Request Record
-- request_id
-- asset_slug
-- version_marker (`v001` style by default)
-- asset type
-- asset style or visible style assumption
-- size input or visible size assumption
-- subject / use case
+
+- `request_id`
+- `asset_slug`
+- `version_marker`
+- `asset type`
+- `asset style or visible style assumption`
+- `size input or visible size assumption`
+- `subject / use case`
 
 ### Asset Brief
-- brief_id
-- version_marker (`v001` style by default)
-- type
-- style
-- size plan
-- subject
-- viewpoint or screen role
-- background guidance
-- palette target
+
+- `brief_id`
+- `version_marker`
+- `type`
+- `style`
+- `size plan`
+- `subject`
+- `viewpoint or screen role`
+- `background guidance`
+- `palette target`
 
 ### Reusable Prompt
-- prompt_id
-- version_marker (`v001` style by default)
-- one reusable image-generation prompt with optional negatives when helpful
+
+- `prompt_id`
+- `version_marker`
+- one reusable prompt; add negative constraints only when useful
 
 ### Suggested Outputs
-- output_id
-- version_marker (`v001` style by default)
-- file stem (default: `<asset_slug>`)
-- example filenames
-- output folder structure
+
+- `output_id`
+- `version_marker`
+- `file stem`
+- `example filenames`
+- `output folder structure`
+
+Render the folder structure as a relative path or small tree rooted in the consuming project. Do not use an absolute path.
 
 ### Manual Checks
-- what a human should confirm before reusing the brief or prompt
+
+List what a human must confirm before generation or reuse.
 
 ### External Handoff Package
-- bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into the normal output
-- default package must be generic, human-readable, copy-ready, and aligned to the exact field labels and shared identifiers above
+
+Bundle the same records without inventing alternate IDs or execution metadata.
 
 ### Direct Use Prompt
-- final section of the response
-- fenced `text` block only
-- restates the same reusable prompt in directly pasteable form
-- provider-agnostic and non-operative
 
-## Make Style and Size Explicit
+Make this the final response section. Include only a fenced `text` block containing the reusable provider-neutral prompt in paste-ready form.
 
-- Always state style explicitly. If style is omitted, label the assumption.
-- Always state size explicitly. Use the asset-appropriate form instead of a hidden default:
-  - sprite or simple prop: canvas size
-  - animation: frame size plus frame count or target loop range
-  - tileset: tile size plus required tile roles
-  - icon: output dimensions
-  - UI element: output dimensions or state/layout size
-- If the request is underspecified, surface conservative assumptions instead of implying them.
-- Prefix inferred values consistently with `Assumption:`.
-- Do not use loose variants such as `assume`, `assumed`, or unlabeled inferred values.
-- When background is unspecified, prefer a visible transparent-background assumption for production assets.
+## Prompt Rules
 
-## Prompt Construction
+State the asset type, style, exact size plan, subject, viewpoint or screen role, palette target, background rule, and consistency requirements. For related outputs, use one reusable family prompt with controlled substitutions.
 
-Build the reusable prompt from the approved brief.
-Prefer prompts that explicitly state:
-- asset type
-- style
-- exact size or size plan
-- subject
-- viewpoint or screen role
-- palette target
-- background rule
-- consistent proportions across related outputs
+For pixel art, explicitly request crisp edges, a restrained palette, fixed viewpoint and proportions, and transparent background when appropriate. Useful negatives may include no anti-aliasing, gradients, painterly texture, photoreal lighting, motion blur, text, or background scene unless requested.
 
-Add negatives when helpful, for example:
-- no anti-aliasing
-- no painterly texture
-- no photoreal lighting
-- no gradients
-- no motion blur
-- no text unless requested
-- no background scene unless requested
+## Naming and Versioning
 
-Keep prompts reusable.
-Prefer one prompt per asset family with small controlled substitutions for variants, states, or frame roles.
+Use these defaults:
 
-## Canonical Pixel-Art Example Profile
-
-When the request is for pixel art, keep the canonical profile explicit:
-- crisp edges
-- restrained low-color palette
-- transparent background by default
-- fixed viewpoint across related outputs
-- consistent proportions across frames, tiles, or variants
-
-## Suggested Outputs, Packaging, and Version Discipline
-
-Keep request, brief, prompt, and suggested-output identifiers aligned with one visible version marker.
-Default to `v001` unless the user explicitly supplies an existing version family.
-Derive one shared lowercase kebab-case `asset_slug` from the asset type, subject, and key distinguishing qualifiers.
-Use these default templates unless the user explicitly supplies an existing family to continue:
 - `request_id = <asset_slug>-request-v001`
 - `brief_id = <asset_slug>-brief-v001`
 - `prompt_id = <asset_slug>-prompt-v001`
 - `output_id = <asset_slug>-output-v001`
 - `file stem = <asset_slug>`
-- Do not shorten, restyle, or partially omit these identifier templates.
-- Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
-If assumptions materially change, bump the version marker instead of silently reusing it.
 
-The External Handoff Package must reuse the same `request_id`, `brief_id`, `prompt_id`, `output_id`, and shared `version_marker` already established in the record set.
-Do not introduce alternate identifier families, helper-command wrappers, or packaging-specific execution metadata.
+Suggested filenames:
 
-Use lowercase kebab-case or snake_case consistently.
-Suggested patterns:
 - sprite: `<asset-name>_<view>_v001.png`
 - animation frame: `<asset-name>_<action>_<view>_f01_v001.png`
-- tileset tile: `<tileset-name>_<tile-role>_v001.png`
+- tile: `<tileset-name>_<tile-role>_v001.png`
 - icon: `<asset-name>_<style>_v001.png`
 - UI element: `<asset-name>_<state>_v001.png`
 
-For animations, suggested outputs stay at separate frame files only in this scaffold.
-Do not suggest spritesheets, atlases, packing, or sheet exports.
+For animations, suggest separate frame files. For tilesets, suggest separate tiles or small logical groups. Packing, spritesheets, atlases, slicing, provider adapters, and deterministic cleanup remain outside this scaffold.
 
-For tilesets, suggested outputs stay at separate tiles or small logical groups only in this scaffold.
-Do not suggest packed atlas outputs.
+If a material assumption changes, bump the version instead of silently reusing the old identifiers.
 
-Suggested outputs are documentation only.
-Raw files, generated candidates, and approved exports stay in the consuming project or an external workspace, not in this repo.
+## Final Check
 
-## Manual Checks
-
-Before reuse, confirm:
-- style matches the brief
-- size is explicit and correct
-- palette and viewpoint/screen role still match intent
-- naming and version markers stay aligned
-- suggested outputs remain reviewable and externally generated
-
-## External Handoff Package
-
-This package is the standardized handoff surface.
-It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal output.
-
-The default package must be:
-- generic
-- human-readable
-- copy-ready
-- aligned to the exact field labels and shared identifiers already established in the scaffold
-- suitable for future external generation or review reference without adding execution behavior
-
-The response should still end with a Direct Use Prompt section containing the same reusable prompt in a fenced text block for immediate copy/paste use.
-
-## Remaining Deferrals
-
-The following remain outside this scaffold after the current packaging addition:
-- deterministic post-process or cleanup
-- provider adapters
-- integrations
-- jobs, queues, or retries
-- manifests or schemas
-- packing, atlas or spritesheet generation, and slicing
-- broader pipeline behavior beyond this scaffold
+Confirm that style and dimensions are explicit, assumptions are labeled, IDs and version markers align, the prompt matches the brief, suggested outputs remain independently reviewable, and no generation claim was made.

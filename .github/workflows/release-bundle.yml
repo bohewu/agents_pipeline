@@ -120,6 +120,11 @@ jobs:
           test -f "${BUNDLE_DIR}/agents/orchestrator-pipeline.md"
           test -f "${BUNDLE_DIR}/protocols/PIPELINE_PROTOCOL.md"
           test -f "${BUNDLE_DIR}/skills/ui-ux-workflow/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/ui-ux-workflow/agents/openai.yaml"
+          test -f "${BUNDLE_DIR}/skills/artgen-scaffold/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/devtools-ux-audit/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/frontend-aesthetic-director/SKILL.md"
+          test -f "${BUNDLE_DIR}/skills/ui-communication-designer/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/run-pipeline/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/run-simple/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/run-flow/SKILL.md"
@@ -139,6 +144,7 @@ jobs:
           test -f "${BUNDLE_DIR}/scripts/agent-profile.sh"
           test -f "${BUNDLE_DIR}/scripts/agent-profile.ps1"
           test -f "${BUNDLE_DIR}/scripts/codex-project-profile.py"
+          test -f "${BUNDLE_DIR}/scripts/codex_skill_catalog.py"
           test -f "${BUNDLE_DIR}/scripts/sync-codex-skills.py"
           test -f "${BUNDLE_DIR}/scripts/sync-runtime-support.py"
           test -f "${BUNDLE_DIR}/scripts/path_safety.py"
@@ -154,10 +160,12 @@ jobs:
           python3 "${BUNDLE_DIR}/scripts/export-claude-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-claude" --strict --dry-run
           python3 "${BUNDLE_DIR}/scripts/export-copilot-agents.py" --source-agents "${BUNDLE_DIR}/agents" --target-dir "${BUNDLE_DIR}/.tmp-copilot" --strict --dry-run
           bash "${BUNDLE_DIR}/scripts/install-codex.sh" --target "${BUNDLE_DIR}/.tmp-install-codex" --dry-run --no-backup
-          python3 "${BUNDLE_DIR}/scripts/sync-codex-skills.py" --source-skills-root "${BUNDLE_DIR}/skills" --user-skills-root "${BUNDLE_DIR}/.tmp-user-skills"
+          python3 "${BUNDLE_DIR}/scripts/sync-codex-skills.py" --source-skills-root "${BUNDLE_DIR}/skills" --user-skills-root "${BUNDLE_DIR}/.tmp-user-skills" --support-root "${BUNDLE_DIR}"
           test -f "${BUNDLE_DIR}/.tmp-user-skills/run-adaptive/SKILL.md"
           test -f "${BUNDLE_DIR}/.tmp-user-skills/run-pipeline/SKILL.md"
           test -f "${BUNDLE_DIR}/.tmp-user-skills/run-flow/.agents-pipeline-skill.json"
+          test -f "${BUNDLE_DIR}/.tmp-user-skills/ui-ux-workflow/SKILL.md"
+          test -f "${BUNDLE_DIR}/.tmp-user-skills/frontend-aesthetic-director/agents/openai.yaml"
           test ! -e "${BUNDLE_DIR}/.tmp-user-skills/run-goal"
           rm -rf "${BUNDLE_DIR}/.tmp-user-skills"
           bash "${BUNDLE_DIR}/scripts/install-claude.sh" --target "${BUNDLE_DIR}/.tmp-install-claude" --dry-run --no-backup
