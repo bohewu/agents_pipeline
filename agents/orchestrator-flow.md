@@ -361,7 +361,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
-- If `review_reasoning_effort = max`, apply it to the initial reviewer and the single re-review. On Codex surfaces with spawn selectors, use the registered `reviewer` role with `reasoning_effort = max` and `fork_turns = none`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No non-review role receives this override.
+- If `review_reasoning_effort = max`, apply it to the initial reviewer and the single re-review. On Codex surfaces with spawn selectors, use the registered `reviewer` role without a full-history fork and with `reasoning_effort = max`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

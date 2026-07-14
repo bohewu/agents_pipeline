@@ -59,10 +59,11 @@ class CodexInstallExportTest(unittest.TestCase):
     )
     CUSTOM_ROLE_FORK_ISOLATION_LINE = (
         "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
-        "any spawn that selects a registered custom role or a non-parent model/reasoning "
-        "configuration MUST use `fork_turns = none`. A full-history fork inherits the "
-        "parent agent type, model, and reasoning effort; use it only when that inheritance "
-        "is intentional. If the selectors are unavailable, do not claim that workspace "
+        "select a registered custom role or non-parent model/reasoning configuration "
+        "through the native spawn selector without a full-history fork, then verify "
+        "the spawned child trace. A full-history fork may inherit the parent agent "
+        "type, model, and reasoning effort; use it only when that inheritance is "
+        "intentional. If the selectors are unavailable, do not claim that workspace "
         "profile routing succeeded."
     )
     MODE_ALIAS_DEFINITION_LOOKUP_LINE = (
@@ -192,6 +193,41 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         self.assertNotIn("Available subagents (practical set):", managed_block)
         self.assertNotIn("routing aliases for installed Codex roles", managed_block)
+
+    def test_release_codex_guidance_omits_removed_spawn_key(self) -> None:
+        removed_spawn_key = "fork" + "_turns"
+        release_guidance_paths = [
+            REPO_ROOT / "AGENTS.md",
+            CODEX_MAPPING_DOC_PATH,
+            REPO_ROOT / "scripts" / "codex_mode_aliases.py",
+            REPO_ROOT / "agents" / "orchestrator-flow.md",
+            REPO_ROOT / "agents" / "orchestrator-pipeline.md",
+            REPO_ROOT / "agents" / "orchestrator-simple.md",
+            REPO_ROOT / "skills" / "run-adaptive" / "SKILL.md",
+            REPO_ROOT / "skills" / "run-flow" / "SKILL.md",
+            REPO_ROOT / "skills" / "run-pipeline" / "SKILL.md",
+            REPO_ROOT / "skills" / "run-simple" / "SKILL.md",
+        ]
+
+        generated_guidance = {
+            "global managed AGENTS block": INSTALL_MODULE.build_global_agents_managed_block(
+                MODES_PATH
+            ),
+            "workspace managed AGENTS block": INSTALL_MODULE.build_workspace_agents_managed_block(
+                MODES_PATH
+            ),
+        }
+
+        for path in release_guidance_paths:
+            with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
+                self.assertNotIn(
+                    removed_spawn_key,
+                    path.read_text(encoding="utf-8"),
+                )
+
+        for label, text in generated_guidance.items():
+            with self.subTest(generated=label):
+                self.assertNotIn(removed_spawn_key, text)
 
     def test_build_workspace_agents_managed_block_uses_workspace_definition_path(
         self,
