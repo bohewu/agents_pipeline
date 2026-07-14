@@ -44,10 +44,11 @@ MODE_ALIAS_AUTHORIZATION_GUARD_LINE = (
 )
 CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
-    "any spawn that selects a registered custom role or a non-parent model/reasoning "
-    "configuration MUST use `fork_turns = none`. A full-history fork inherits the "
-    "parent agent type, model, and reasoning effort; use it only when that inheritance "
-    "is intentional. If the selectors are unavailable, do not claim that workspace "
+    "select a registered custom role or non-parent model/reasoning configuration "
+    "through the native spawn selector without a full-history fork, then verify "
+    "the spawned child trace. A full-history fork may inherit the parent agent "
+    "type, model, and reasoning effort; use it only when that inheritance is "
+    "intentional. If the selectors are unavailable, do not claim that workspace "
     "profile routing succeeded."
 )
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (

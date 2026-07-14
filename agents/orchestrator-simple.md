@@ -86,7 +86,7 @@ second failure stops; do not create a broader retry loop.
 When `review_reasoning_effort = max`, apply it to the initial review and re-review only:
 
 - On Codex surfaces that expose spawn selectors, dispatch the registered `reviewer`
-  role with `reasoning_effort = max` and `fork_turns = none`, without passing a model;
+  role without a full-history fork and with `reasoning_effort = max`, without passing a model;
   effective workspace/global role routing still selects it.
 - On runtimes without an enforceable per-spawn reasoning selector, warn once and run
   the normal reviewer. Do not claim that maximum reasoning was applied.

@@ -192,9 +192,10 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         for text in (adaptive, simple, flow):
             self.assertIn("--review=off|on|max", text)
         self.assertIn("--review=on|max", pipeline)
+        removed_spawn_key = "fork" + "_turns"
         for text in (adaptive, simple, flow, pipeline):
             self.assertIn("reasoning_effort = max", text)
-            self.assertIn("fork_turns = none", text)
+            self.assertNotIn(removed_spawn_key, text)
             self.assertIn("without passing a model", text)
         self.assertIn("No non-review role receives this override", flow)
         self.assertIn("No executor, test runner, or other role receives this override", pipeline)
@@ -218,7 +219,7 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             with self.subTest(direct_skill=skill_name):
                 self.assertIn("--review=max", direct_skill)
                 self.assertIn("reasoning_effort = max", direct_skill)
-                self.assertIn("fork_turns = none", direct_skill)
+                self.assertNotIn(removed_spawn_key, direct_skill)
                 self.assertIn("without passing a model", direct_skill)
                 self.assertIn("non-review role", direct_skill)
 
