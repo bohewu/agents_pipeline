@@ -15,7 +15,7 @@ FOCUS: Explicit task dispatching with bounded flow, bounded parallelism, and an 
 - Do NOT create ad-hoc agents. Use the existing flow helpers and executors only.
 - Do NOT exceed 5 tasks under any circumstance.
 - Do NOT create task DAGs or dependency graphs.
-- Reviewer need is risk-derived by default. Only one optional post-synthesis reviewer gate is allowed when `review_mode = on`; an explicit `--review=off|on` overrides the derived default.
+- Reviewer need is risk-derived by default. Only one optional post-synthesis reviewer gate is allowed when `review_mode = on`; an explicit `--review=off|on|max` overrides the derived default. `max` affects reviewer reasoning only.
 - No delta tasks or multi-round retry loops.
 - Transient operational retries, task-local modify-and-verify cycles, and the single Flow-level recovery are distinct bounded controls. Never charge one category against another or reset a consumed bound on resume.
 
@@ -53,7 +53,7 @@ Flow:
 - Daily engineering
 - Max 5 atomic tasks
 - Parallel execution
-- Reviewer risk-derived (`--review=off|on` overrides)
+- Reviewer risk-derived (`--review=off|on|max` overrides)
 - No delta tasks or multi-round workflow retry loops; only the separately bounded operational, task-local, recovery, and reviewer controls below
 
 Flow-Full:
@@ -92,7 +92,7 @@ Supported flags (Flow-only, minimal):
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
 - `--commit=off|before|after` -> commit_mode
-- `--review=off|on` -> review_mode
+- `--review=off|on|max` -> review policy. `on` sets `review_mode = on` and `review_reasoning_effort = inherit`; `max` sets `review_mode = on` and `review_reasoning_effort = max`; `off` sets `review_mode = off` and `review_reasoning_effort = inherit`.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -117,6 +117,7 @@ If no commit flag is provided:
 If no review flag is provided:
 
 - review_mode = auto until the FlowTaskList is available.
+- review_reasoning_effort = inherit.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -172,6 +173,7 @@ If an invalid `--review` value is provided:
 
 - Warn the user.
 - Fall back to review_mode = auto.
+- Fall back to review_reasoning_effort = inherit.
 
 ## FLOW FLAGS (QUICK REFERENCE)
 
@@ -179,7 +181,7 @@ If an invalid `--review` value is provided:
 - `--skip-scout`
 - `--force-scout`
 - `--commit=off|before|after`
-- `--review=off|on`
+- `--review=off|on|max`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -207,7 +209,7 @@ If an invalid `--review` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode` and the internal recovery limits. Before a Flow-level recovery re-dispatch, increment `flow_recovery_used` and persist it with `node tools/status-event.js --event checkpoint.updated --payload-json '<json>'`; this merges flags without marking Stage 3 complete, so an interrupted/resumed run cannot repeat the consumed recovery or skip unfinished execution.
+After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode`, `review_reasoning_effort`, and the internal recovery limits. Before a Flow-level recovery re-dispatch, increment `flow_recovery_used` and persist it with `node tools/status-event.js --event checkpoint.updated --payload-json '<json>'`; this merges flags without marking Stage 3 complete, so an interrupted/resumed run cannot repeat the consumed recovery or skip unfinished execution.
 
 ## STATUS ARTIFACT PROTOCOL
 
@@ -359,6 +361,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
+- If `review_reasoning_effort = max`, apply it to the initial reviewer and the single re-review. On Codex surfaces with spawn selectors, use the registered `reviewer` role with `reasoning_effort = max` and `fork_turns = none`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

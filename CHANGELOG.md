@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-07-14
+
+### Added
+
+- Added `--review=max` to Adaptive, Simple, Flow, and Pipeline review controls. Codex applies maximum reasoning only to the registered reviewer role, including re-review, while preserving the workspace-profile-selected reviewer model and leaving all other roles unchanged.
+- Added checkpoint persistence for inherited versus maximum reviewer reasoning so resumed Adaptive, Flow, and Pipeline runs retain the selected review policy.
+
+### Changed
+
+- Hardened the reusable reviewer role for both pipeline and ad hoc reviews with read-only constraints, explicit source-of-truth rules, P0-P3 severity guidance, evidence-backed findings, and deterministic pass/fail invariants.
+- Clarified that the cross-runtime `reviewer` role and `$run-* --review=*` controls are separate from Codex's native `/review` command.
+
 ## [0.29.1] - 2026-07-14
 
 ### Added

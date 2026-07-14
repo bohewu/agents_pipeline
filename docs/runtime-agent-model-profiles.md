@@ -170,7 +170,7 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
-Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; the effective Codex session or explicit role configuration owns that decision.
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; the effective Codex session, explicit role configuration, or a bounded per-spawn workflow override such as `--review=max` owns that decision.
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|

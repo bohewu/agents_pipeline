@@ -97,6 +97,8 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("- Reviewer -> orchestrator:", adapted, label)
             self.assertIn("required_followups", adapted, label)
             self.assertIn("max_retry_rounds", adapted, label)
+            self.assertIn("`--review=on|max`", adapted, label)
+            self.assertIn("`reasoning_effort = max`", adapted, label)
 
     def test_flow_export_keeps_autopilot_guard_while_minifying_progress_boilerplate(self) -> None:
         relative_path = "agents/orchestrator-flow.md"
@@ -112,7 +114,8 @@ class ExportPromptCompactionTest(unittest.TestCase):
             self.assertIn("`autopilot_mode = false`", adapted, label)
             self.assertIn("`confirm_mode` (when not autopilot): after each stage, pause", adapted, label)
             self.assertIn("`verbose_mode` (implies confirm): pause after each task in Stage 3.", adapted, label)
-            self.assertIn("`--review=off|on`", adapted, label)
+            self.assertIn("`--review=off|on|max`", adapted, label)
+            self.assertIn("`reasoning_effort = max`", adapted, label)
             self.assertIn("ONE bounded repair cycle", adapted, label)
 
 

@@ -74,6 +74,11 @@
           "type": "string",
           "enum": ["auto", "off", "on"]
         },
+        "review_reasoning_effort": {
+          "type": "string",
+          "enum": ["inherit", "max"],
+          "default": "inherit"
+        },
         "operational_retry_limit": {
           "type": "integer",
           "minimum": 0,

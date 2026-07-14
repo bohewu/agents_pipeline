@@ -341,7 +341,7 @@ Minimal payload skeleton guidance:
 - Resume flag precedence: hydrate persisted effective `checkpoint.flags` first, then apply only flags explicitly supplied by the current invocation. Parser defaults for omitted invocation flags MUST NOT overwrite persisted effective values.
 - `checkpoint.updated`: add a non-empty object `flags` delta when a derived flag must be persisted before the current stage can honestly be marked completed. The runtime merges the delta into `checkpoint.flags` and MUST NOT change `current_stage` or `completed_stages`.
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
-- Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode`.
+- Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode` plus `review_reasoning_effort`. An explicit `--review=max` persists `review_reasoning_effort = max` so resume and every re-review keep the same reviewer-only override.
 - `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.

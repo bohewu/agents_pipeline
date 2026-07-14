@@ -31,7 +31,7 @@ CHECKS = {
         '`--event batch`',
         "legacy task with `effort` but without required `risk` / `review_required`",
         "Start a fresh run with a new `run_id`",
-        "Stage 2 completion event MUST persist the risk-derived `review_mode`",
+        "Stage 2 completion event MUST persist the risk-derived `review_mode`, `review_reasoning_effort`",
         "--event checkpoint.updated",
     ],
     Path("docs/status-implementation-checklist.md"): [

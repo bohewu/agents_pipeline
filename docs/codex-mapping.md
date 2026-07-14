@@ -93,6 +93,10 @@ The exporter intentionally omits `agents.max_threads` and `agents.max_depth`; ma
 Codex defines the root session at depth `0`, and `max_depth = 1` allows only a direct child agent.
 Formal `$run-*` skills adopt their primary workflow in the current/main agent and dispatch executor/reviewer roles as direct children. Modernize execution adopts the Pipeline definition in that same agent rather than spawning `orchestrator-pipeline`, so supported workflows remain compatible with `max_depth = 1`.
 
+`--review=max` is a reviewer-only per-spawn override. The current/main agent dispatches the registered `reviewer` role with `reasoning_effort = max` and `fork_turns = none`, while omitting `model` so the effective workspace profile continues to select the role model. Initial review and every bounded re-review use the same override; executors, test runners, and the main orchestrator do not. If a Codex surface does not expose the selector, it must warn rather than claim Max was enforced.
+
+The custom `reviewer` role is not Codex's native `/review` command. The former is a cross-runtime Pipeline/ad-hoc quality-gate role with ReviewReport output; the latter is Codex's dedicated Git diff/branch/commit review experience and may use the separate `review_model` setting.
+
 Use standalone exporter flags to adjust this output when needed:
 
 - `--job-max-runtime-seconds=<n>`

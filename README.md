@@ -71,13 +71,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.30.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.30.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -85,13 +85,13 @@ tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.30.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.30.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -99,16 +99,16 @@ tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.29.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.30.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.29.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.30.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.29.1` must release as `v0.29.1`.
+Release invariant: `VERSION=0.30.0` must release as `v0.30.0`.
 
 <!-- END current-release -->
 
@@ -257,7 +257,7 @@ Common controls include:
 - `--preset=balanced|autonomous|careful|delivery|interactive`: Adaptive run policy; presets do not select the route.
 - `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
 - `--resume`: resume from a compatible checkpoint.
-- `--review=off|on`: Adaptive/Flow review policy. Adaptive maps `on` to a bounded Simple ad-hoc gate, Flow's reviewer gate, or Pipeline's already-mandatory review; Pipeline rejects `off`.
+- `--review=off|on|max`: reviewer policy for Adaptive and the supported engineering workflows. `on` uses the effective session/role reasoning, while `max` enables review and requests maximum reasoning only for each reviewer spawn and re-review. Simple uses a bounded ad-hoc gate, Flow uses its optional gate, and Pipeline is mandatory and rejects `off`. The workspace profile still selects the reviewer model; `max` does not affect executors, test runners, or the main orchestrator. Codex enforces the per-spawn selector; runtimes without an equivalent must warn rather than claim it was applied.
 - `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
 - `--confirm` / `--verbose`: add stage/task pauses.
 - `--autopilot` / `--full-auto`: non-interactive bounded execution with hard-blocker safeguards.
@@ -282,6 +282,8 @@ For resumable Flow/Pipeline runs, Adaptive persists the selected preset plus its
 All presets remain Simple-eligible. Under Simple, Adaptive applies requested policy as a bounded wrapper: optional focused scout/commit-before, one Simple core execution, at most one ad-hoc reviewer repair and re-review, then requested handoff, kanban, and commit-after helpers. The Simple core still creates no ProblemSpec, task list, checkpoint, status, or retry loop. Under Flow and Pipeline, Adaptive expands the same policy into their native flags. On a fresh run, standalone Adaptive `--full-auto` remains a compatibility form of `--preset=autonomous` when no explicit preset is present and normalizes to that preset without duplicating the flag; with an explicit preset it remains an individual override. On resume, `--full-auto` is always a current override of the locked preset rather than a preset change. Explicit individual flags override preset values, subject to workflow hard safety gates.
 
 For example, `--preset=delivery` retains the familiar `--full-auto --review=on --kanban=auto --commit=after` policy without forcing a route. A parser bug plus focused tests selects Flow first, then receives those Flow controls; a typo may remain Simple and receive the bounded equivalent wrapper.
+
+The agents_pipeline `reviewer` custom role is separate from Codex's native `/review` command. `$run-* --review=*` dispatches the registered cross-runtime role and follows the workflow ReviewReport contract; `/review` uses Codex's native Git diff/branch/commit review experience. For a standalone cross-runtime review without Flow or Pipeline, ask the current agent to dispatch `reviewer` in `mode = ad_hoc` with explicit targets.
 
 Flow keeps three separate bounded controls: up to two transient operational retries that make no implementation change, task-local `repair_budget` of `0..2` additional modify-and-verify cycles after the first attempt, and one total Flow-level recovery re-dispatch per run. The same failure signature twice, no meaningful progress, budget exhaustion, or scope expansion stops local iteration. Reviewer repair remains a separate single targeted repair plus one re-review.
 

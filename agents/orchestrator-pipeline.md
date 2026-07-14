@@ -104,6 +104,7 @@ Flag semantics:
 - `--max-retry=<int>` -> max_retry_rounds
 - `--compress` -> compress_mode = true
 - `--commit=off|before|after` -> commit_mode
+- `--review=on|max` -> mandatory review policy. `on` keeps inherited reviewer reasoning; `max` requests maximum reasoning for every reviewer dispatch. `--review=off` is invalid because Pipeline review is mandatory.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -124,6 +125,16 @@ If no kanban flag is provided:
 If no commit flag is provided:
 
 - commit_mode = off.
+
+If no review flag is provided:
+
+- review_mode = on.
+- review_reasoning_effort = inherit.
+
+Parse `--review=on` as `review_mode = on` plus `review_reasoning_effort = inherit`.
+Parse `--review=max` as `review_mode = on` plus `review_reasoning_effort = max`.
+Reject `--review=off` rather than weakening the mandatory review gate. For any other
+invalid value, warn once and fall back to the mandatory inherited-effort default.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -351,7 +362,7 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. If `review_reasoning_effort = max`, apply it to every Stage 6 reviewer dispatch, including post-repair and delta-round re-reviews: on Codex surfaces with spawn selectors, use the registered `reviewer` role with `reasoning_effort = max` and `fork_turns = none`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No executor, test runner, or other role receives this override.
 Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 

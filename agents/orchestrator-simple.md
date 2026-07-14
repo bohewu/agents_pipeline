@@ -32,10 +32,17 @@ Parse `raw_input`: tokens before the first `--*` flag form `main_task_prompt`; `
 Supported flags:
 
 - `--max-parallel=<n>` -> maximum concurrent subagent dispatches. Default: 3. Minimum: 1. Maximum: 8.
+- `--review=off|on|max` -> direct Simple review policy. `max` enables review and requests maximum reasoning for each reviewer dispatch.
 - `--confirm` -> ask before dispatching the first batch.
 - `--verbose` -> provide brief batch-level progress; implies `--confirm`.
 
 If `--max-parallel` is invalid, use 3 and warn once.
+
+If no review flag is provided, set `review_mode = off` and `review_reasoning_effort = inherit`.
+Parse `--review=on` as `review_mode = on` plus `review_reasoning_effort = inherit`,
+`--review=max` as `review_mode = on` plus `review_reasoning_effort = max`, and
+`--review=off` as `review_mode = off` plus `review_reasoning_effort = inherit`.
+If the value is invalid, warn once and fall back to the default.
 
 # ADAPTIVE POLICY WRAPPER
 
@@ -46,7 +53,7 @@ upstream policy merely because Simple does not expose those flags directly.
 
 - Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
-- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. The current/main agent still must not modify application or business code directly.
+- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
 - An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
@@ -67,6 +74,24 @@ upstream policy merely because Simple does not expose those flags directly.
 10. Use `@doc-writer` for pure docs deliverables.
 11. Use `@test-runner` for tests, builds, linters, and smoke checks.
 12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc` and explicit review targets.
+
+# OPTIONAL DIRECT REVIEW
+
+When Simple is invoked directly with `review_mode = on`, run one ad-hoc reviewer after
+the implementation and available verification complete. Include the changed targets,
+scoped requirements, and evidence. On failure, dispatch at most one narrow same-scope
+repair through the original worker or an existing executor, then run one re-review. A
+second failure stops; do not create a broader retry loop.
+
+When `review_reasoning_effort = max`, apply it to the initial review and re-review only:
+
+- On Codex surfaces that expose spawn selectors, dispatch the registered `reviewer`
+  role with `reasoning_effort = max` and `fork_turns = none`, without passing a model;
+  effective workspace/global role routing still selects it.
+- On runtimes without an enforceable per-spawn reasoning selector, warn once and run
+  the normal reviewer. Do not claim that maximum reasoning was applied.
+- The repair worker, test runner, and every non-review role retain their normal model
+  and reasoning settings.
 
 # QUALITY RULES
 

@@ -14,6 +14,10 @@ CHECKS = {
         "[artifact]",
         "[evidence]",
         "[logic]",
+        "Do not edit files, apply fixes, stage, commit",
+        "the actual files and diff are the PRIMARY source of truth",
+        "[logic][P1] src/auth.ts:84",
+        "`overall_status = fail` requires at least one issue and at least one actionable required followup",
         "For review failures caused only by artifact/evidence gaps",
     ],
     Path("agents/orchestrator-pipeline.md"): [

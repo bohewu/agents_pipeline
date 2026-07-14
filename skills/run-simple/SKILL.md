@@ -12,4 +12,4 @@ Use the installed `orchestrator-simple` definition as the authoritative workflow
 3. If the global definition is absent, stop and ask for the global agents_pipeline Codex install. Do not reconstruct the workflow from memory.
 4. Remove only the `$run-simple` token and preserve the remaining request as raw input.
 5. Adopt the definition in the current/main agent; do not spawn the same orchestrator merely to enter the mode.
-6. Obey its scope, delegation, verification, cleanup, and final-report constraints. Let effective Codex configuration select role models and reasoning.
+6. Obey its scope, delegation, verification, cleanup, and final-report constraints. Let effective Codex configuration select role models and inherited reasoning. The only exception is an authoritative `--review=max` policy: dispatch the registered `reviewer` with `reasoning_effort = max` and `fork_turns = none`, without passing a model. Do not apply that override to the main agent or any non-review role.

@@ -10,9 +10,12 @@ SKILL = REPO_ROOT / "skills" / "run-adaptive" / "SKILL.md"
 FLOW = REPO_ROOT / "agents" / "orchestrator-flow.md"
 SIMPLE = REPO_ROOT / "agents" / "orchestrator-simple.md"
 HANDOFF = REPO_ROOT / "agents" / "handoff-writer.md"
+PIPELINE = REPO_ROOT / "agents" / "orchestrator-pipeline.md"
+REVIEWER = REPO_ROOT / "agents" / "reviewer.md"
 EXECUTOR = REPO_ROOT / "agents" / "executor.md"
 SPLITTER = REPO_ROOT / "agents" / "flow-splitter.md"
 FLOW_WORKERS = ("executor", "peon", "generalist", "doc-writer")
+DIRECT_RUN_SKILLS = ("run-simple", "run-flow", "run-pipeline")
 
 
 class RunAdaptiveSkillContractTest(unittest.TestCase):
@@ -173,6 +176,51 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
                 self.assertIn('"operational_retries_used": 0', worker)
                 self.assertIn('"repair_attempts_used": 0', worker)
                 self.assertIn('"last_failure_signature": ""', worker)
+
+    def test_review_max_is_reviewer_only_and_resume_safe(self) -> None:
+        adaptive = SKILL.read_text(encoding="utf-8")
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        reviewer = REVIEWER.read_text(encoding="utf-8")
+        checkpoint_schema = json.loads(
+            (REPO_ROOT / "protocols" / "schemas" / "checkpoint.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        for text in (adaptive, simple, flow):
+            self.assertIn("--review=off|on|max", text)
+        self.assertIn("--review=on|max", pipeline)
+        for text in (adaptive, simple, flow, pipeline):
+            self.assertIn("reasoning_effort = max", text)
+            self.assertIn("fork_turns = none", text)
+            self.assertIn("without passing a model", text)
+        self.assertIn("No non-review role receives this override", flow)
+        self.assertIn("No executor, test runner, or other role receives this override", pipeline)
+        self.assertIn("review_reasoning_effort = max", adaptive)
+        self.assertIn("Preserve `--review=max`", adaptive)
+
+        effort = checkpoint_schema["properties"]["flags"]["properties"][
+            "review_reasoning_effort"
+        ]
+        self.assertEqual(effort["enum"], ["inherit", "max"])
+
+        self.assertIn("Do not edit files, apply fixes, stage, commit", reviewer)
+        self.assertIn("the actual files and diff are the PRIMARY source of truth", reviewer)
+        self.assertIn("`overall_status = pass` requires `required_followups = []`", reviewer)
+        self.assertIn("at least one actionable required followup", reviewer)
+
+        for skill_name in DIRECT_RUN_SKILLS:
+            direct_skill = (
+                REPO_ROOT / "skills" / skill_name / "SKILL.md"
+            ).read_text(encoding="utf-8")
+            with self.subTest(direct_skill=skill_name):
+                self.assertIn("--review=max", direct_skill)
+                self.assertIn("reasoning_effort = max", direct_skill)
+                self.assertIn("fork_turns = none", direct_skill)
+                self.assertIn("without passing a model", direct_skill)
+                self.assertIn("non-review role", direct_skill)
 
 
 if __name__ == "__main__":

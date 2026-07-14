@@ -890,7 +890,8 @@ test("run.resumed overlays invocation flags and preserves Flow recovery usage", 
     name: "Flow Task Split",
     status: "completed",
     flags: {
-      review_mode: "on"
+      review_mode: "on",
+      review_reasoning_effort: "max"
     },
     timestamp: "2026-04-18T01:11:00.000Z"
   });
@@ -927,6 +928,7 @@ test("run.resumed overlays invocation flags and preserves Flow recovery usage", 
     operational_retry_limit: 2,
     preset_mode: "delivery",
     review_mode: "on",
+    review_reasoning_effort: "max",
     scout_mode: "skip"
   });
   assert.equal(checkpoint.current_stage, 2);
