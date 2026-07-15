@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.1",
+  "runtime": "codex",
+  "agent_id": "019f648d-687c-73e0-ab26-1c288541670c",
+  "trace_found": true,
+  "agent_role": null,
+  "model": null,
+  "effective_effort": "max",
+  "role_matches": true,
+  "effort_matches": true,
+  "parent_trace_found": true,
+  "parent_effective_effort": "max",
+  "inheritance_consistent": false,
+  "selector_evidence": "distinct_from_parent"
+}

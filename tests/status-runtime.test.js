@@ -940,6 +940,24 @@ test("version 2 records bind selector, class requests, role identity, and dispat
     /below dispatch context floor/
   );
 
+  const highRequested = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    model_tier: "standard",
+    selector_available: true
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...highRequested,
+      effective_effort: "medium",
+      enforcement_status: "degraded",
+      degraded: true,
+      degradation_reason: "effective_effort_mismatch"
+    }),
+    /requires effective effort above dispatch effort/
+  );
+
   const deepStandard = resolveReasoning({
     role: "executor",
     mode: "adaptive",
@@ -1315,6 +1333,22 @@ test("exact effort and final recovery semantics survive every persisted reasonin
       reasoning: decision
     }), explicitEffort);
   }
+
+  const shadowExact = resolveReasoning({
+    role: "reviewer",
+    mode: "shadow",
+    dispatch_context: "ad-hoc-review",
+    model_tier: "strong",
+    explicit_effort: "max"
+  });
+  assert.equal(shadowExact.enforcement_status, "shadow");
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...shadowExact,
+      effective_effort: "xhigh"
+    }),
+    /exact effort override must observe requested effort/
+  );
 
   const assurance = resolveReasoning({
     role: "reviewer",

@@ -61,6 +61,7 @@ jobs:
           test -f protocols/reasoning-policy.json
           test -f tools/reasoning-policy.js
           test -f tools/reasoning-vocabulary.js
+          test -f tools/codex-child-trace.js
           test -f modes.json
           test ! -e opencode
           test ! -L opencode
@@ -110,6 +111,7 @@ jobs:
           tool = [sys.executable, "tools/validate-schema.py", "--require-jsonschema"]
           positive = [
               ("checkpoint.schema.json", "checkpoint.reasoning-v2.valid.json"),
+              ("codex-child-trace.schema.json", "codex-child-trace.valid.json"),
               ("dev-spec.schema.json", "dev-spec.valid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.valid.json"),
               ("flow-task-list.schema.json", "flow-task-list.valid.json"),
@@ -126,12 +128,17 @@ jobs:
               ("reasoning-decision.schema.json", "reasoning-decision.degraded-deep.valid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.legacy.valid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.null-intent.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.overprovisioned.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.observed-ceiling-conflict.valid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.valid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.overprovisioned.valid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.legacy.valid.json"),
               ("reasoning-policy.schema.json", "reasoning-policy.legacy.valid.json"),
           ]
           negative = [
               ("checkpoint.schema.json", "checkpoint.allow-degraded-deep-incomplete.invalid.json"),
+              ("codex-child-trace.schema.json", "codex-child-trace.causal-overclaim.invalid.json"),
+              ("codex-child-trace.schema.json", "codex-child-trace.known-efforts-null-comparison.invalid.json"),
               ("dev-spec.schema.json", "dev-spec.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.browser-unsafe.invalid.json"),
@@ -147,6 +154,7 @@ jobs:
               ("reasoning-decision.schema.json", "reasoning-decision.selector-unavailable-enforced.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.requested-assurance-downgraded.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.selector-conflict-effective.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.shadow-exact-mismatch.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.explicit-xhigh-downgraded.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.legacy-explicit-missing-request.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.legacy-target-underclass.invalid.json"),
@@ -155,6 +163,7 @@ jobs:
               ("reasoning-decision.schema.json", "reasoning-decision.legacy-adaptive-null-class.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.custom-context.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.conflict-reason-mismatch.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.underprovisioned-degraded.invalid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.assurance-forged.invalid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.content.invalid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.deep-standard-under-effort.invalid.json"),
@@ -162,6 +171,7 @@ jobs:
               ("reasoning-observation.schema.json", "reasoning-observation.selector-conflict-effective.invalid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.legacy-adaptive-null-class.invalid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.custom-context.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.underprovisioned-degraded.invalid.json"),
               ("task-list.schema.json", "task-list.intent-baseline.invalid.json"),
               ("task-list.schema.json", "task-list.intent-unsupported.invalid.json"),
               ("task-list.schema.json", "task-list.trace.invalid.json"),
@@ -233,7 +243,8 @@ jobs:
           node --check tools/status-event.js
           node --check tools/reasoning-policy.js
           node --check tools/reasoning-vocabulary.js
-          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js
+          node --check tools/codex-child-trace.js
+          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/codex-child-trace.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate local-preview lifecycle
@@ -247,6 +258,11 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           ref: ${{ inputs.checkout_ref || github.ref }}
+      - name: Validate Codex child trace on Windows
+        shell: pwsh
+        run: |
+          node --check tools/codex-child-trace.js
+          node --test --test-name-pattern="symlink or Windows junction ancestor" tests/codex-child-trace.test.js
       - name: Validate PowerShell runtime installers
         shell: pwsh
         run: |

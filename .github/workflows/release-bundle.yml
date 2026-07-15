@@ -107,6 +107,7 @@ jobs:
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
           chmod 755 "dist/${BUNDLE_DIR}/tools/status-event.js"
           chmod 755 "dist/${BUNDLE_DIR}/tools/reasoning-policy.js"
+          chmod 755 "dist/${BUNDLE_DIR}/tools/codex-child-trace.js"
           chmod 755 "dist/${BUNDLE_DIR}/tools/agent-profile.py"
           (
             cd dist
@@ -144,6 +145,7 @@ jobs:
           test -f "${BUNDLE_DIR}/tools/status-event.js"
           test -f "${BUNDLE_DIR}/tools/reasoning-policy.js"
           test -f "${BUNDLE_DIR}/tools/reasoning-vocabulary.js"
+          test -f "${BUNDLE_DIR}/tools/codex-child-trace.js"
           test -f "${BUNDLE_DIR}/tools/agent-profile.py"
           test -f "${BUNDLE_DIR}/tools/agent-profiles/balanced.json"
           test -f "${BUNDLE_DIR}/scripts/agent-profile.sh"
@@ -178,6 +180,7 @@ jobs:
           bash "${BUNDLE_DIR}/scripts/install-copilot.sh" --target "${BUNDLE_DIR}/.tmp-install-copilot" --dry-run --no-backup
           node "${BUNDLE_DIR}/tools/status-event.js" --help >/dev/null
           node "${BUNDLE_DIR}/tools/reasoning-policy.js" --help >/dev/null
+          node "${BUNDLE_DIR}/tools/codex-child-trace.js" --help >/dev/null
           python3 "${BUNDLE_DIR}/tools/agent-profile.py" list --runtime codex --json >/dev/null
           test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
           test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.zip"

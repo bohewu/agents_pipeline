@@ -904,6 +904,23 @@
               }
             ]
           }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "explicit_override": {
+                    "type": "object",
+                    "required": ["effort"]
+                  },
+                  "effective_effort": { "$ref": "#/$defs/nonNullEffort" }
+                }
+              },
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } }
+            ]
+          },
+          "then": { "$ref": "#/$defs/matchingRequestedEffectiveEffort" }
         }
       ]
     },
@@ -1150,6 +1167,56 @@
         {
           "properties": {
             "dispatch_effort": { "const": "max" },
+            "effective_effort": { "const": "max" }
+          }
+        }
+      ]
+    },
+    "matchingRequestedEffectiveEffort": {
+      "oneOf": [
+        {
+          "properties": {
+            "requested_effort": { "const": "medium" },
+            "effective_effort": { "const": "medium" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "high" },
+            "effective_effort": { "const": "high" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "xhigh" },
+            "effective_effort": { "const": "xhigh" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "max" },
+            "effective_effort": { "const": "max" }
+          }
+        }
+      ]
+    },
+    "effectiveEffortAboveDispatch": {
+      "oneOf": [
+        {
+          "properties": {
+            "dispatch_effort": { "const": "medium" },
+            "effective_effort": { "enum": ["high", "xhigh", "max"] }
+          }
+        },
+        {
+          "properties": {
+            "dispatch_effort": { "const": "high" },
+            "effective_effort": { "enum": ["xhigh", "max"] }
+          }
+        },
+        {
+          "properties": {
+            "dispatch_effort": { "const": "xhigh" },
             "effective_effort": { "const": "max" }
           }
         }
@@ -1675,7 +1742,7 @@
               "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" },
               "effective_effort": { "$ref": "#/$defs/nonNullEffort" }
             },
-            "not": { "$ref": "#/$defs/matchingDispatchEffectiveEffort" }
+            "$ref": "#/$defs/effectiveEffortAboveDispatch"
           }
         },
         {

@@ -67,6 +67,9 @@ diagnostic no-enforcement mode. `inherit` preserves classification metadata but
 never applies a selector, so exact overrides and strict assurance conflict.
 `shadow` computes requested effort without applying it; strict assurance
 conflicts, while an ordinary shadowed review-max request remains unenforced.
+`adaptive` requests the per-spawn selector and follows the selected workflow's
+local Codex trace-verification contract for both wrapper and core children;
+selector presence alone is never enforcement evidence.
 
 Reject unknown Adaptive-only values rather than guessing. An invalid preset falls back
 to `balanced` with one warning. On a fresh run, treat standalone `--full-auto` as the

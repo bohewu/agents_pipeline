@@ -112,7 +112,7 @@ A formal accept/reject gate must use `certify`, `formal_accept_reject`, or the
 - `shadow` computes the requested effort and records it without applying a
   selector. Strict assurance conflicts; ordinary shadowed review-max remains a
   computed, not enforced, request.
-- `adaptive` applies the returned child selector. A non-strict, non-exact
+- `adaptive` requests the returned child selector and verifies effective effort. A non-strict, non-exact
   selector-unavailable decision may be degraded; strict and exact requests
   conflict.
 
@@ -178,6 +178,14 @@ metadata, outcome, and optional timing, but not prompts, code, paths,
 commands, result bodies, evidence contents, free-text reasons, or conflict
 text.
 
+Local Codex runs also use `tools/codex-child-trace.js` as an ephemeral evidence
+adapter. It reads only the child role/effort metadata needed for comparison and
+the parent's effective effort at child creation; its raw output is not an
+observation record. Output redacts raw role/model values and the parent ID. The
+observed child effort is fed back to the shared resolver, while paths and
+session content remain excluded. Parent/request/child equality is explicitly
+indeterminate between same-value selection and inheritance.
+
 ### Calibration without model routing
 
 Future evaluation can test whether the policy's effort projection is well
@@ -210,6 +218,9 @@ Before changing a class floor or effort projection:
   in-memory only?
 - What evidence threshold should justify a future policy-table revision without
   weakening deep or assurance safeguards?
+- Which upstream Codex release first guarantees that per-spawn effort survives
+  custom-role config application, allowing mismatch telemetry to become an
+  exceptional guard instead of a routinely exercised compatibility check?
 
 ## Related documents
 

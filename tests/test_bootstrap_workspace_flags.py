@@ -16,7 +16,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BootstrapWorkspaceFlagTests(unittest.TestCase):
-    def _write_fake_release(self, temp_root: Path) -> tuple[dict[str, str], Path]:
+    def _write_fake_release(
+        self,
+        temp_root: Path,
+        *,
+        release_tag: str = "v0.28.0",
+        include_child_trace: bool = False,
+    ) -> tuple[dict[str, str], Path]:
         bundle_root = temp_root / "bundle"
         required_dirs = (
             "agents",
@@ -31,7 +37,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
         for relative in required_dirs:
             (bundle_root / relative).mkdir(parents=True, exist_ok=True)
 
-        required_files = (
+        required_files = [
             "AGENTS.md",
             "modes.json",
             "protocols/reasoning-policy.json",
@@ -49,7 +55,9 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             "scripts/path_safety.py",
             "scripts/sync-codex-skills.py",
             "scripts/sync-runtime-support.py",
-        )
+        ]
+        if include_child_trace:
+            required_files.append("tools/codex-child-trace.js")
         for relative in required_files:
             (bundle_root / relative).write_text("fixture\n", encoding="utf-8")
 
@@ -68,12 +76,13 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             path.write_text(installer, encoding="utf-8")
             path.chmod(0o755)
 
-        archive_name = "agents-pipeline-bundle-v0.28.0.tar.gz"
+        bundle_name = f"agents-pipeline-bundle-{release_tag}"
+        archive_name = f"{bundle_name}.tar.gz"
         archive_path = temp_root / archive_name
         with tarfile.open(archive_path, "w:gz") as archive:
-            archive.add(bundle_root, arcname="agents-pipeline-bundle-v0.28.0")
+            archive.add(bundle_root, arcname=bundle_name)
 
-        checksum_name = "agents-pipeline-bundle-v0.28.0.SHA256SUMS.txt"
+        checksum_name = f"{bundle_name}.SHA256SUMS.txt"
         checksum_path = temp_root / checksum_name
         checksum = hashlib.sha256(archive_path.read_bytes()).hexdigest()
         checksum_path.write_text(f"{checksum}  {archive_name}\n", encoding="utf-8")
@@ -82,7 +91,7 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
         release_path.write_text(
             json.dumps(
                 {
-                    "tag_name": "v0.28.0",
+                    "tag_name": release_tag,
                     "assets": [
                         {
                             "name": archive_name,
@@ -143,6 +152,35 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             }
         )
         return env, temp_root / "forwarded-arguments.txt"
+
+    def test_codex_bash_bootstrap_requires_child_trace_after_v0320(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            temp_root = Path(raw_temp)
+            env, _ = self._write_fake_release(
+                temp_root,
+                release_tag="v0.32.1",
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "scripts/bootstrap-install-codex.sh"),
+                    "--repo",
+                    "example/project",
+                    "--version",
+                    "v0.32.1",
+                    "--target",
+                    str(temp_root / "codex-home"),
+                ],
+                cwd=ROOT,
+                env=env,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("missing: tools/codex-child-trace.js", result.stderr)
 
     def test_codex_bash_bootstrap_forwards_workspace_targets(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:

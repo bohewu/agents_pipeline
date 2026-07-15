@@ -364,6 +364,9 @@ function validateV2ReasoningState(result) {
     if (result.mode === "inherit") {
       assert(conflict, "exact effort override cannot run in inherit mode");
     }
+    if (!conflict && result.effective_effort !== null) {
+      assert(result.effective_effort === result.requested_effort, "exact effort override must observe requested effort");
+    }
     if (result.mode === "adaptive" && !conflict) {
       assert(result.selector_available !== false, "exact effort override requires an available selector");
       assert(
@@ -372,9 +375,6 @@ function validateV2ReasoningState(result) {
         "exact effort override cannot use a runtime effort fallback"
       );
       assert(result.dispatch_effort === result.requested_effort, "exact effort override must dispatch requested effort");
-      if (result.effective_effort !== null) {
-        assert(result.effective_effort === result.requested_effort, "exact effort override must observe requested effort");
-      }
     }
   }
 
@@ -473,8 +473,8 @@ function validateV2ReasoningState(result) {
     assert(
       result.dispatch_effort !== null
         && result.effective_effort !== null
-        && result.dispatch_effort !== result.effective_effort,
-      "effective-effort mismatch requires distinct dispatch and effective efforts"
+        && effortIndex(result.effective_effort) > effortIndex(result.dispatch_effort),
+      "effective-effort mismatch degradation requires effective effort above dispatch effort"
     );
   } else if (result.degradation_reason === "runtime_effort_unavailable") {
     assert(result.mode === "adaptive", "runtime-effort degradation requires adaptive mode");

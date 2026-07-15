@@ -16,6 +16,7 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/reasoning-decision.schema.json` | ReasoningDecision | reasoning resolver / orchestrators | Schema-2.0 bounded policy-v2 per-spawn decision, including intent/source and selected-tier metadata; no prompt or source content |
 | `./protocols/schemas/reasoning-task-hints.schema.json` | ReasoningTaskHints | TaskList / FlowTaskList / DispatchPlan / TaskStatus / ReasoningDecision / ReasoningObservation | Shared intent-baseline and signal-to-minimum-class consistency rules; legacy fields remain optional for compatibility |
 | `./protocols/schemas/reasoning-observation.schema.json` | ReasoningObservation | runtime-neutral status writer | Schema-2.0 local-only terminal attempt metadata with a free-text-free decision summary under `<run_output_dir>/observations/reasoning/` |
+| `./protocols/schemas/codex-child-trace.schema.json` | CodexChildTrace | local Codex trace verifier | Schema-1.1 ephemeral child/parent-at-spawn effort evidence and non-causal comparison with raw role/model values redacted; never persisted as a ReasoningObservation |
 | `./protocols/schemas/run-status.schema.json` | RunStatus | the runtime-neutral status writer / status writers | Required top-level status index at `<run_output_dir>/status/run-status.json` |
 | `./protocols/schemas/task-status.schema.json` | TaskStatus | the runtime-neutral status writer / orchestrators / executors | Optional expanded status-protocol-1.0 record with additive intent metadata at `<run_output_dir>/status/tasks/<task_id>.json` |
 | `./protocols/schemas/agent-status.schema.json` | AgentStatus | the runtime-neutral status writer / executors | Optional expanded executor/resource record at `<run_output_dir>/status/agents/<agent_id>.json` |
@@ -42,13 +43,17 @@ Repository validation and CI must validate the positive fixtures against the mat
 - Policy: `./protocols/reasoning-policy.json`
 - Positive decision: `./protocols/examples/reasoning-decision.valid.json`
 - Positive degraded-deep decision: `./protocols/examples/reasoning-decision.degraded-deep.valid.json`
+- Positive overprovisioned decision: `./protocols/examples/reasoning-decision.overprovisioned.valid.json`
+- Positive observed-ceiling conflict: `./protocols/examples/reasoning-decision.observed-ceiling-conflict.valid.json`
 - Positive local observation: `./protocols/examples/reasoning-observation.valid.json`
+- Positive overprovisioned local observation: `./protocols/examples/reasoning-observation.overprovisioned.valid.json`
 - Negative selector/class decisions: `./protocols/examples/reasoning-decision.selector-unavailable-enforced.invalid.json` and `./protocols/examples/reasoning-decision.requested-assurance-downgraded.invalid.json`
 - Negative selector-conflict records: `./protocols/examples/reasoning-decision.selector-conflict-effective.invalid.json`, `./protocols/examples/reasoning-observation.selector-conflict-effective.invalid.json`, and `./protocols/examples/agent-status.reasoning-selector-conflict-effective.invalid.json`
 - Negative explicit/provenance/conflict decisions: `./protocols/examples/reasoning-decision.explicit-xhigh-downgraded.invalid.json`, `./protocols/examples/reasoning-decision.legacy-explicit-missing-request.invalid.json`, `./protocols/examples/reasoning-decision.legacy-target-underclass.invalid.json`, `./protocols/examples/reasoning-decision.formal-context-relabeled-conflict.invalid.json`, and `./protocols/examples/reasoning-decision.recovery-conflict-under-effort.invalid.json`
 - Negative legacy null-class records: `./protocols/examples/reasoning-decision.legacy-adaptive-null-class.invalid.json`, `./protocols/examples/reasoning-observation.legacy-adaptive-null-class.invalid.json`, and `./protocols/examples/agent-status.reasoning-legacy-adaptive-null-class.invalid.json`
 - Negative context/identity records: `./protocols/examples/reasoning-decision.custom-context.invalid.json`, `./protocols/examples/reasoning-observation.custom-context.invalid.json`, `./protocols/examples/agent-status.reasoning-custom-context.invalid.json`, `./protocols/examples/reasoning-observation.pipeline-context-forged.invalid.json`, `./protocols/examples/agent-status.reasoning-role-mismatch.invalid.json`, and `./protocols/examples/agent-status.reasoning-unlisted-role.invalid.json`
 - Negative conflict-representation records: `./protocols/examples/reasoning-decision.conflict-reason-mismatch.invalid.json` and `./protocols/examples/agent-status.reasoning-conflict-reason-mismatch.invalid.json`
+- Negative underprovisioning relabels: `./protocols/examples/reasoning-decision.underprovisioned-degraded.invalid.json` and `./protocols/examples/reasoning-observation.underprovisioned-degraded.invalid.json`
 
 Current task-producing artifacts emit `task_intent`, `intent_baseline_class`,
 and `classification_source` beside the legacy-compatible `reasoning_class` /

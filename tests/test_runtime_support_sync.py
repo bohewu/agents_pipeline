@@ -35,7 +35,8 @@ class RuntimeSupportSyncTest(unittest.TestCase):
         (source / "agents" / "orchestrator-flow.md").write_text(
             "Parse `$ARGUMENTS`; read `protocols/PIPELINE_PROTOCOL.md`; "
             "run `node tools/status-event.js --help` and "
-            "`node tools/reasoning-policy.js --help`.\n",
+            "`node tools/reasoning-policy.js --help`; inspect with "
+            "`node tools/codex-child-trace.js --help`.\n",
             encoding="utf-8",
         )
         (source / "protocols" / "PIPELINE_PROTOCOL.md").write_text(
@@ -52,6 +53,10 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             encoding="utf-8",
         )
         (source / "tools" / "reasoning-vocabulary.js").write_text(
+            'module.exports = {};\n',
+            encoding="utf-8",
+        )
+        (source / "tools" / "codex-child-trace.js").write_text(
             'module.exports = {};\n',
             encoding="utf-8",
         )
@@ -86,6 +91,10 @@ class RuntimeSupportSyncTest(unittest.TestCase):
                 f'node "{target.as_posix()}/tools/reasoning-policy.js" --help',
                 agent,
             )
+            self.assertIn(
+                f'node "{target.as_posix()}/tools/codex-child-trace.js" --help',
+                agent,
+            )
             marker = json.loads(
                 (target / MODULE.MARKER_FILE).read_text(encoding="utf-8")
             )
@@ -96,6 +105,7 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             self.assertTrue((target / "AGENTS.md").is_file())
             self.assertTrue((target / "tools" / "reasoning-policy.js").is_file())
             self.assertTrue((target / "tools" / "reasoning-vocabulary.js").is_file())
+            self.assertTrue((target / "tools" / "codex-child-trace.js").is_file())
             self.assertTrue((target / "protocols" / "reasoning-policy.json").is_file())
             self.assertEqual(
                 (target / "VERSION").read_text(encoding="utf-8"), "0.28.0\n"

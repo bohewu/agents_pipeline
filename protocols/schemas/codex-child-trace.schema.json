@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodexChildTrace",
+  "description": "Ephemeral, local-only, bounded metadata extracted from one Codex child session and its parent-at-spawn context for role and effort verification.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "runtime",
+    "agent_id",
+    "trace_found",
+    "agent_role",
+    "model",
+    "effective_effort",
+    "role_matches",
+    "effort_matches",
+    "parent_trace_found",
+    "parent_effective_effort",
+    "inheritance_consistent",
+    "selector_evidence"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.1" },
+    "runtime": { "const": "codex" },
+    "agent_id": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      ]
+    },
+    "trace_found": { "type": "boolean" },
+    "agent_role": {
+      "description": "Reserved and always redacted; use role_matches for verification.",
+      "const": null
+    },
+    "model": {
+      "description": "Reserved and always redacted; raw model metadata is never emitted.",
+      "const": null
+    },
+    "effective_effort": {
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "role_matches": { "type": ["boolean", "null"] },
+    "effort_matches": { "type": ["boolean", "null"] },
+    "parent_trace_found": {
+      "description": "Whether the referenced parent session was found. No parent identifier or path is emitted.",
+      "type": "boolean"
+    },
+    "parent_effective_effort": {
+      "description": "The parent's last observed effort at or before child creation.",
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "inheritance_consistent": {
+      "description": "Whether child and parent effective effort are equal. Equality is consistent with inheritance but does not prove it.",
+      "type": ["boolean", "null"]
+    },
+    "selector_evidence": {
+      "description": "Observational evidence only: distinct_from_parent excludes simple parent inheritance; matches_parent cannot distinguish a same-value selector from inheritance; mismatch means the expected effort was not observed.",
+      "enum": [
+        null,
+        "distinct_from_parent",
+        "matches_parent",
+        "indeterminate",
+        "mismatch"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["trace_found"],
+        "properties": { "trace_found": { "const": false } }
+      },
+      "then": {
+        "properties": {
+          "agent_role": { "const": null },
+          "model": { "const": null },
+          "effective_effort": { "const": null },
+          "role_matches": { "const": null },
+          "effort_matches": { "const": null },
+          "parent_trace_found": { "const": false },
+          "parent_effective_effort": { "const": null },
+          "inheritance_consistent": { "const": null },
+          "selector_evidence": { "const": null }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["trace_found"],
+        "properties": { "trace_found": { "const": true } }
+      },
+      "then": {
+        "properties": {
+          "agent_id": { "type": "string" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["effort_matches"],
+        "properties": { "effort_matches": { "const": true } }
+      },
+      "then": {
+        "properties": { "effective_effort": { "type": "string" } }
+      }
+    },
+    {
+      "if": {
+        "required": ["parent_trace_found"],
+        "properties": { "parent_trace_found": { "const": false } }
+      },
+      "then": {
+        "properties": {
+          "parent_effective_effort": { "const": null },
+          "inheritance_consistent": { "const": null }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["inheritance_consistent"],
+        "properties": { "inheritance_consistent": { "type": "boolean" } }
+      },
+      "then": {
+        "properties": {
+          "effective_effort": { "type": "string" },
+          "parent_effective_effort": { "type": "string" },
+          "parent_trace_found": { "const": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["effort_matches"],
+        "properties": { "effort_matches": { "const": null } }
+      },
+      "then": {
+        "properties": { "selector_evidence": { "const": null } }
+      }
+    },
+    {
+      "if": {
+        "required": ["selector_evidence"],
+        "properties": { "selector_evidence": { "const": "mismatch" } }
+      },
+      "then": {
+        "properties": { "effort_matches": { "const": false } }
+      }
+    },
+    {
+      "if": {
+        "required": ["selector_evidence"],
+        "properties": {
+          "selector_evidence": {
+            "enum": ["distinct_from_parent", "matches_parent", "indeterminate"]
+          }
+        }
+      },
+      "then": {
+        "properties": { "effort_matches": { "const": true } }
+      }
+    },
+    {
+      "if": {
+        "required": ["selector_evidence"],
+        "properties": { "selector_evidence": { "const": "matches_parent" } }
+      },
+      "then": {
+        "properties": { "inheritance_consistent": { "const": true } }
+      }
+    },
+    {
+      "if": {
+        "required": ["selector_evidence"],
+        "properties": { "selector_evidence": { "const": "distinct_from_parent" } }
+      },
+      "then": {
+        "properties": { "inheritance_consistent": { "const": false } }
+      }
+    },
+    {
+      "if": {
+        "required": ["effort_matches"],
+        "properties": { "effort_matches": { "const": false } }
+      },
+      "then": {
+        "properties": { "selector_evidence": { "const": "mismatch" } }
+      }
+    },
+    {
+      "if": {
+        "required": ["effort_matches"],
+        "properties": { "effort_matches": { "const": true } }
+      },
+      "then": {
+        "properties": {
+          "selector_evidence": {
+            "enum": ["distinct_from_parent", "matches_parent", "indeterminate"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["selector_evidence"],
+        "properties": { "selector_evidence": { "const": "indeterminate" } }
+      },
+      "then": {
+        "properties": {
+          "parent_effective_effort": { "const": null },
+          "inheritance_consistent": { "const": null }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["inheritance_consistent"],
+        "properties": { "inheritance_consistent": { "const": true } }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "effective_effort": { "const": "medium" },
+              "parent_effective_effort": { "const": "medium" }
+            }
+          },
+          {
+            "properties": {
+              "effective_effort": { "const": "high" },
+              "parent_effective_effort": { "const": "high" }
+            }
+          },
+          {
+            "properties": {
+              "effective_effort": { "const": "xhigh" },
+              "parent_effective_effort": { "const": "xhigh" }
+            }
+          },
+          {
+            "properties": {
+              "effective_effort": { "const": "max" },
+              "parent_effective_effort": { "const": "max" }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": ["inheritance_consistent"],
+        "properties": { "inheritance_consistent": { "const": false } }
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "properties": {
+                "effective_effort": { "const": "medium" },
+                "parent_effective_effort": { "const": "medium" }
+              }
+            },
+            {
+              "properties": {
+                "effective_effort": { "const": "high" },
+                "parent_effective_effort": { "const": "high" }
+              }
+            },
+            {
+              "properties": {
+                "effective_effort": { "const": "xhigh" },
+                "parent_effective_effort": { "const": "xhigh" }
+              }
+            },
+            {
+              "properties": {
+                "effective_effort": { "const": "max" },
+                "parent_effective_effort": { "const": "max" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["effective_effort", "parent_effective_effort"],
+        "properties": {
+          "effective_effort": { "type": "string" },
+          "parent_effective_effort": { "type": "string" }
+        }
+      },
+      "then": {
+        "properties": { "inheritance_consistent": { "type": "boolean" } }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

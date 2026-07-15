@@ -704,7 +704,7 @@ def rewrite_neutral_refs(
     if source_support_root_ref:
         text = text.replace(source_support_root_ref.rstrip("/\\"), normalized_root)
     text = re.sub(
-        r"\bnode\s+[\"']?(?:\./)?tools/(status-event|reasoning-policy)\.js[\"']?",
+        r"\bnode\s+[\"']?(?:\./)?tools/(status-event|reasoning-policy|codex-child-trace)\.js[\"']?",
         lambda match: f'node "{normalized_root}/tools/{match.group(1)}.js"',
         text,
     )

@@ -223,8 +223,8 @@ Policy v2 defaults to `adaptive`.
 | Mode | Resolution and selector behavior |
 |---|---|
 | `inherit` | Preserves intent/classification metadata, but never requests or applies a selector. Exact effort overrides and strict requirements conflict. |
-| `shadow` | Fully computes and records the requested effort, but never applies a selector. Strict assurance conflicts. An ordinary `--review=max` can be computed and recorded as shadowed, not enforced. |
-| `adaptive` | Applies a non-null `dispatch_effort` through the native child-spawn selector. A non-strict, non-exact selector-unavailable case is degraded with no selector; strict assurance and exact overrides conflict. |
+| `shadow` | Fully computes and records the requested effort, but never applies a selector. Strict assurance conflicts. An ordinary `--review=max` can be computed and recorded as shadowed when runtime evidence is absent; any observed mismatch conflicts. |
+| `adaptive` | Requests a non-null `dispatch_effort` through the native child-spawn selector. A non-strict, non-exact selector-unavailable case is degraded with no selector; strict assurance and exact overrides conflict. Only matching runtime evidence proves effective-effort contract enforcement, not selector causality. |
 
 All modes validate intent, signals, role ceilings, and model capability.
 `shadow` and `adaptive` also compute the effort and validate the workspace
@@ -305,17 +305,64 @@ non-conflict record must remain non-strict `degraded` with
 no dispatch effort and no effective-effort claim.
 
 Observed effort proves what ran, not that an unmet policy requirement
-disappeared. A runtime-supported fallback remains `degraded` even when the
-observed effort matches that fallback, and degraded deep compatibility remains
-`degraded` even when its observed effort is `max`. Neither may be relabeled
-`enforced` or described as a complete high-assurance result.
+disappeared. An observed effort below the dispatched effort is a conflict. An
+observed effort above the workspace ceiling is also a conflict. For a
+non-strict, non-exact dispatch, an observed effort above the dispatch but still
+within the workspace ceiling is overprovisioning: retain it as `degraded` with
+`degradation_reason = effective_effort_mismatch`. A runtime-supported fallback
+remains `degraded` even when the observed effort matches that fallback, and
+degraded deep compatibility remains `degraded` even when its observed effort
+is `max`. None of these states may be relabeled `enforced` or described as a
+complete high-assurance result.
 
-In adaptive mode, apply a non-null `dispatch_effort` through the native
+Observed workspace-ceiling checks apply before `inherit`, `shadow`, or
+selector-unavailable early returns. Likewise, an observed mismatch for strict,
+exact, or degraded-deep requirements conflicts before those returns. A mode
+that does not apply a selector cannot use that fact to discard contradictory
+runtime evidence.
+
+`enforced` is the resolver's observed contract-satisfaction state. It means the
+required effective effort ran; it does not by itself prove that the native
+selector caused that value. A child whose effective effort equals both the
+request and the parent's effort could have received an explicit same-value
+selector or inherited the parent, and those paths are observationally
+indistinguishable.
+
+In adaptive mode, request a non-null `dispatch_effort` through the native
 per-spawn effort selector while omitting `model`. Include the complete
-ReasoningDecision in Flow/Pipeline agent lifecycle status. If child trace
-evidence reports an effective effort, resolve again with that observation;
-never label a request as enforced without it. Simple follows the same contract
-in memory and writes no status artifact.
+ReasoningDecision in Flow/Pipeline agent lifecycle status. Selector presence
+and a successful spawn prove only `requested`, not `enforced`.
+
+On local Codex, after a spawn returns its agent ID and before accepting the
+terminal child result, inspect the child trace with:
+
+```text
+node tools/codex-child-trace.js --agent-id '<agent-id>' --expected-role '<role>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
+```
+
+Omit `--expected-effort` when no effort was dispatched. This verification
+attempt is mandatory when the installed helper is available. A role mismatch
+blocks acceptance because it means the configured role was not applied. When
+the helper reports an effective effort, rerun the same resolver input with
+`observed_effective_effort` and use that updated decision for the next lifecycle
+event and final acceptance. If trace evidence is unavailable, keep the decision
+`requested`/unverified; never convert it to `enforced`. Formal assurance and an
+exact effort override cannot complete successfully without matching evidence.
+Ordinary non-strict work may continue only with an explicit unverified warning.
+
+The trace helper reads local Codex session metadata plus the parent session's
+last effective effort at child creation. `selector_evidence =
+distinct_from_parent` rules out simple parent-effort inheritance but does not
+attest Codex's internal implementation path. `matches_parent` means a
+same-value selector and inheritance cannot be distinguished; `mismatch` means
+the requested effort was not observed. `inheritance_consistent` is likewise
+observational, not causal. The helper emits only the child ID, closed effort
+values, and boolean/enum comparisons; raw child role/model values and the
+parent ID are always redacted. Do not copy parent comparison fields into a
+ReasoningObservation, and never persist trace paths or session contents. Simple
+follows the same contract in memory and writes no status artifact. Searches
+fail closed when the Codex home, a parent directory, or a candidate trace is
+reached through a symlink, Windows junction, or other path redirection.
 
 Terminal Flow/Pipeline attempts may write a content-free local observation at:
 

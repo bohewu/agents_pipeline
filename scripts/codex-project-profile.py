@@ -66,6 +66,7 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "tools/status-event.js",
 )
 SUPPORT_CODEX_REQUIRED_FILES = (
+    "tools/codex-child-trace.js",
     "scripts/codex_mode_aliases.py",
     "scripts/codex-project-profile.py",
     "scripts/codex_skill_catalog.py",

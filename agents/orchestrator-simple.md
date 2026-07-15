@@ -94,8 +94,16 @@ so exact overrides and strict assurance conflict. `shadow` computes requested
 effort but omits the selector; strict assurance conflicts. Use
 `dispatch_context = ad-hoc-review` for reviewer attempts; `--review=max` passes
 `explicit_effort = max` only for that reviewer, stays deep, does not certify the
-review, and does not change the model. Verify the child trace when available and
-never claim `enforced` without effective-effort evidence.
+review, and does not change the model. On local Codex, after every spawn returns
+its agent ID, run `node tools/codex-child-trace.js` with the expected role and,
+when non-null, expected `dispatch_effort`; rerun the resolver with the reported
+`observed_effective_effort` before accepting the child result. A role mismatch,
+an effort below dispatch, or an effort above the workspace ceiling blocks;
+within-ceiling overprovisioning is degraded. Missing trace evidence stays
+unverified and blocks formal assurance or exact overrides. Never claim
+`enforced` without matching effective-effort evidence. Here `enforced` means
+the effort contract matched; `selector_evidence = matches_parent` remains
+indeterminate between a same-value selector and inheritance.
 
 # DISPATCH POLICY
 
@@ -122,8 +130,8 @@ second failure stops; do not create a broader retry loop.
 
 Resolve the initial review and re-review independently under the reasoning dispatch
 policy. `review_reasoning_effort = max` is supplied as the exact reviewer-only
-`explicit_effort = max`; adaptive mode applies that selector, shadow records it
-without applying it, and inherit conflicts. The repair worker, test runner, and
+`explicit_effort = max`; adaptive mode requests and verifies that selector,
+shadow records it without applying it, and inherit conflicts. The repair worker, test runner, and
 every non-review role use their own normal policy decisions.
 
 # QUALITY RULES

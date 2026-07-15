@@ -59,6 +59,33 @@ log_verbose() {
   fi
 }
 
+release_at_least() {
+  local release_tag="$1"
+  local minimum_tag="$2"
+  local release_major release_minor release_patch
+  local minimum_major minimum_minor minimum_patch
+
+  if [[ ! "${release_tag}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+    return 1
+  fi
+  release_major="${BASH_REMATCH[1]}"
+  release_minor="${BASH_REMATCH[2]}"
+  release_patch="${BASH_REMATCH[3]}"
+
+  if [[ ! "${minimum_tag}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
+    return 1
+  fi
+  minimum_major="${BASH_REMATCH[1]}"
+  minimum_minor="${BASH_REMATCH[2]}"
+  minimum_patch="${BASH_REMATCH[3]}"
+
+  ((
+    10#${release_major} > 10#${minimum_major} ||
+    (10#${release_major} == 10#${minimum_major} && 10#${release_minor} > 10#${minimum_minor}) ||
+    (10#${release_major} == 10#${minimum_major} && 10#${release_minor} == 10#${minimum_minor} && 10#${release_patch} >= 10#${minimum_patch})
+  ))
+}
+
 require_neutral_bundle_release() {
   local release_tag="$1"
   if [[ ! "${release_tag}" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$ ]]; then
@@ -459,6 +486,10 @@ REQUIRED_BUNDLE_PATHS=(
   "scripts/sync-codex-skills.py"
   "scripts/sync-runtime-support.py"
 )
+# v0.32.0 and older neutral bundles predate the child trace verifier.
+if release_at_least "${RELEASE_TAG}" "v0.32.1"; then
+  REQUIRED_BUNDLE_PATHS+=("tools/codex-child-trace.js")
+fi
 for required_path in "${REQUIRED_BUNDLE_PATHS[@]}"; do
   if [[ ! -e "${BUNDLE_DIR}/${required_path}" ]]; then
     echo "Codex bundle layout is incomplete; missing: ${required_path}" >&2

@@ -324,9 +324,17 @@ and does not change the selected model. Conflicts block the spawn. Deep
 It never permits assurance or model routing.
 
 Include the complete decision in each `agent.started` status payload as
-`reasoning`. When child trace evidence exposes effective effort, rerun the
-resolver with `observed_effective_effort` and persist the updated decision in
-the next lifecycle event. Do not claim enforcement without trace evidence.
+`reasoning`. On local Codex, after every spawn returns its agent ID, run
+`node tools/codex-child-trace.js` with the expected role and, when non-null,
+expected `dispatch_effort`; rerun the resolver with the reported
+`observed_effective_effort` and persist the updated decision in the next
+lifecycle event before accepting the child result. A role mismatch, effort below
+dispatch, or effort above the workspace ceiling blocks; within-ceiling
+overprovisioning is degraded. Missing evidence remains unverified and blocks
+formal assurance or exact overrides. Do not claim enforcement without matching
+trace evidence. Matching effort enforces the policy contract;
+`selector_evidence = matches_parent` remains indeterminate between a same-value
+selector and inheritance.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -413,7 +421,7 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive applies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
 Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 

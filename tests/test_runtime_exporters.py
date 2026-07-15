@@ -247,6 +247,10 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
+            'test -f "${BUNDLE_DIR}/tools/codex-child-trace.js"',
+            workflow,
+        )
+        self.assertIn(
             'test -f "${BUNDLE_DIR}/tools/reasoning-vocabulary.js"',
             workflow,
         )
@@ -762,6 +766,7 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                     )
                     self.assertTrue((support_root / "tools" / "status-event.js").is_file())
                     self.assertTrue((support_root / "tools" / "reasoning-policy.js").is_file())
+                    self.assertTrue((support_root / "tools" / "codex-child-trace.js").is_file())
                     self.assertTrue((support_root / "tools" / "reasoning-vocabulary.js").is_file())
                     self.assertTrue((support_root / "protocols" / "reasoning-policy.json").is_file())
 
@@ -773,6 +778,9 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                     quoted_reasoning_command = (
                         f'node "{support_root.as_posix()}/tools/reasoning-policy.js"'
                     )
+                    quoted_trace_command = (
+                        f'node "{support_root.as_posix()}/tools/codex-child-trace.js"'
+                    )
                     for flow_path in (
                         target / flow_filename,
                         support_root / "agents" / "orchestrator-flow.md",
@@ -780,6 +788,7 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                         content = flow_path.read_text(encoding="utf-8")
                         self.assertIn(quoted_status_command, content)
                         self.assertIn(quoted_reasoning_command, content)
+                        self.assertIn(quoted_trace_command, content)
                         self.assertNotIn(
                             f"node {support_root.as_posix()}/tools/status-event.js",
                             content,

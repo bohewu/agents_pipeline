@@ -66,15 +66,16 @@ These gates define minimal acceptance for each stage output.
 - Workspace profiles select the actual role model/tier. The resolver selects child effort only: it never routes a raw/dynamic model, downgrades a model, or changes current/main-agent effort.
 - Deep work on `mini` or `unknown` conflicts by default. An explicit `allow_degraded_deep` compatibility input may produce only degraded deep `max` with `model_tier_below_deep_requirement`; it never permits assurance.
 - `ad-hoc-review` is non-strict deep, `pipeline-review` is non-strict deep with a strong-tier minimum, and `formal-assurance` is fixed strict assurance on strong. `--review=max` remains an ordinary deep review effort override, not certification.
-- `inherit` keeps classification metadata without a selector and conflicts for exact/strict requirements; `shadow` computes without applying and conflicts for strict assurance; `adaptive` applies the child selector.
+- `inherit` keeps classification metadata without a selector and conflicts for exact/strict requirements; `shadow` computes without applying and conflicts for strict assurance; `adaptive` requests the child selector and requires matching trace evidence before claiming the effective-effort contract was enforced. Parent/request/child equality remains selector-causality indeterminate.
 - Only `reasoning_failure` raises routine to deliberative or deliberative to deep. Deep receives a max recovery boost without becoming assurance; operational failures never escalate reasoning.
 - `conflict` blocks a spawn. In policy v2 it is the fixed `"conflict"` token and `conflict_reason` is the single explanatory string. `requested` is not proof of enforcement; only observed trace agreement may produce `enforced`.
-- Decision, observation, and status validation must derive minimum tier and requested-effort floors from the class/tier table, reject impossible mode/state/evidence combinations and forged assurance, require exact requested/dispatch/effective equality for `enforced`, and reject degraded-deep claims outside the exact compatibility contract.
+- Decision, observation, and status validation must derive minimum tier and requested-effort floors from the class/tier table, reject impossible mode/state/evidence combinations and forged assurance, require exact requested/dispatch/effective equality for `enforced`, reject observed effort below dispatch, and permit `effective_effort_mismatch` degradation only in the overprovisioning direction. The resolver separately enforces the workspace ceiling against observed effort.
 - Decision, observation, and status validation must treat requested/override classes as upward-only floors, bind managed role-policy and the three canonical v2 dispatch contexts to their identifiers, require managed-only AgentStatus `agent`/reasoning-role identity, and reject selector-unavailable records that claim dispatch or effective effort.
 - Schema-v1 shadow/adaptive Decision, Observation, and AgentStatus reasoning must retain a non-null `effective_class`; only schema-v1 inherit records use null.
 - Every explicit effort value is an exact upward floor. Legacy explicit-class records require a non-null requested class; legacy role-target records require a null requested class and may not resolve below the canonical role target. Conflict records retain selector, context, provenance, and recovery semantics.
-- Strict and exact requests, including `--review=max`, become conflicts when observed effort differs; they never silently downgrade or override the selected model.
+- Strict and exact requests, including `--review=max`, become conflicts when observed effort differs, including in shadow or selector-unavailable paths; they never silently downgrade or override the selected model.
 - A workspace ceiling below the projected class effort conflicts; it never clips a deliberative, deep, or assurance request downward.
+- Local Codex workflows must attempt bounded child-trace verification with `./tools/codex-child-trace.js`; role mismatch, underprovisioning, and observed effort above the workspace ceiling block acceptance, while missing evidence stays unverified and cannot satisfy strict or exact work. The helper compares parent-at-spawn effort without exposing raw role/model metadata or the parent ID: equality is inheritance-consistent but not causal proof, while a matching request distinct from the parent excludes simple inheritance. Trace discovery rejects symlinked or redirected ancestors, files, junctions, and reparse-like paths.
 - Terminal ReasoningObservation files validate against their schema, omit free-text `agent`, `reasons`, and `conflict`, and contain no prompt, result summary, source, path, command, log, evidence-content, or artifact-content fields.
 - Fresh `run.started` projections validate checkpoint and run-status data in memory before the status runtime creates the run directory, so a corrected retry can reuse a rejected run id.
 
@@ -102,6 +103,7 @@ Run the helper artifact contract checks locally or in automation with `python3 s
 
 Current repository coverage validates:
 
+- `./protocols/examples/codex-child-trace.valid.json`
 - `./protocols/reasoning-policy.json`
 - `./protocols/examples/reasoning-decision.valid.json`
 - `./protocols/examples/reasoning-observation.valid.json`

@@ -86,18 +86,24 @@ function Get-ReleaseApiUrl {
     return "https://api.github.com/repos/$RepoName/releases/tags/$tag"
 }
 
-function Assert-NeutralBundleRelease {
+function ConvertTo-NeutralBundleVersion {
     param([string]$ReleaseTag)
 
     $match = [regex]::Match($ReleaseTag, '^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$')
     if (-not $match.Success) {
         throw "Unsupported release tag format: $ReleaseTag"
     }
-    $resolvedVersion = [version]::new(
+    return [version]::new(
         [int]$match.Groups[1].Value,
         [int]$match.Groups[2].Value,
         [int]$match.Groups[3].Value
     )
+}
+
+function Assert-NeutralBundleRelease {
+    param([string]$ReleaseTag)
+
+    $resolvedVersion = ConvertTo-NeutralBundleVersion -ReleaseTag $ReleaseTag
     if ($resolvedVersion -lt [version]"0.28.0") {
         throw "The current neutral Codex bootstrap supports v0.28.0 or newer. For an older release, use the bootstrap shipped with that release."
     }
@@ -261,6 +267,10 @@ try {
         "scripts/sync-codex-skills.py",
         "scripts/sync-runtime-support.py"
     )
+    # v0.32.0 and older neutral bundles predate the child trace verifier.
+    if ((ConvertTo-NeutralBundleVersion -ReleaseTag $releaseTag) -ge [version]"0.32.1") {
+        $requiredBundlePaths += "tools/codex-child-trace.js"
+    }
     foreach ($requiredPath in $requiredBundlePaths) {
         $resolvedRequiredPath = Join-Path $bundleDir.FullName $requiredPath
         if (-not (Test-Path -LiteralPath $resolvedRequiredPath)) {

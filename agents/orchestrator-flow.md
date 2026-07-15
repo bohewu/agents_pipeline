@@ -276,9 +276,16 @@ fully computes requested effort but omits the selector; strict assurance
 conflicts. An ordinary review-max request remains deep and does not certify or
 change the selected model.
 Before a spawn, include the complete decision in the `agent.started` status
-payload as `reasoning`; if child trace evidence reveals effective effort,
-rerun the resolver with `observed_effective_effort` and include the updated
-decision in the next agent lifecycle event. Conflicts block the spawn. Deep
+payload as `reasoning`. On local Codex, after every spawn returns its agent ID,
+run `node tools/codex-child-trace.js` with the expected role and, when non-null,
+expected `dispatch_effort`; rerun the resolver with the reported
+`observed_effective_effort` and include the updated decision in the next agent
+lifecycle event before accepting the child result. A role mismatch, effort below
+dispatch, or effort above the workspace ceiling blocks; within-ceiling
+overprovisioning is degraded. Missing evidence remains unverified and blocks
+formal assurance or exact overrides. Matching effort enforces the policy
+contract, but `selector_evidence = matches_parent` does not prove selector
+causality. Conflicts block the spawn. Deep
 `mini`/`unknown` work conflicts by default; only an explicitly supplied
 `allow_degraded_deep` compatibility input may continue as degraded deep `max`.
 It never permits assurance or changes the model.
@@ -426,7 +433,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
-- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive applies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
+- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

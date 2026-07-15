@@ -858,6 +858,26 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     reasons.push("degraded_deep_compatibility");
   }
 
+  if (
+    input.mode === "inherit"
+    && input.observedEffectiveEffort
+    && effortIndex(input.observedEffectiveEffort) > effortIndex(input.workspaceCeiling)
+  ) {
+    return makeConflictDecision(
+      {
+        ...base,
+        reasoning_class: effectiveClass,
+        effective_class: effectiveClass,
+        minimum_model_tier: minimumModelTier,
+        requires_model_escalation: requiresModelEscalation,
+        strict,
+        recovery_boost: recoveryBoost
+      },
+      `Observed effort ${input.observedEffectiveEffort} exceeds workspace ceiling ${input.workspaceCeiling}`,
+      [...reasons, `observed_effort:${input.observedEffectiveEffort}`, "observed_effort_above_workspace_ceiling"]
+    );
+  }
+
   if (input.mode === "inherit") {
     if (strict || input.explicitEffort) {
       return makeConflictDecision(
@@ -930,6 +950,16 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
       reasons
     );
   }
+  if (
+    input.observedEffectiveEffort
+    && effortIndex(input.observedEffectiveEffort) > effortIndex(input.workspaceCeiling)
+  ) {
+    return makeConflictDecision(
+      resolvedBase,
+      `Observed effort ${input.observedEffectiveEffort} exceeds workspace ceiling ${input.workspaceCeiling}`,
+      [...reasons, `observed_effort:${input.observedEffectiveEffort}`, "observed_effort_above_workspace_ceiling"]
+    );
+  }
 
   const supported = resolveSupportedEffort(
     requestedEffort,
@@ -943,6 +973,18 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
       resolvedBase,
       supported.conflict,
       reasons
+    );
+  }
+
+  if (
+    input.observedEffectiveEffort
+    && input.observedEffectiveEffort !== supported.effort
+    && (strict || input.explicitEffort || canRunDegradedDeep)
+  ) {
+    return makeConflictDecision(
+      resolvedBase,
+      `Observed effort ${input.observedEffectiveEffort} does not satisfy ${strict ? "strict" : "exact"} requested effort ${supported.effort}`,
+      [...reasons, `observed_effort:${input.observedEffectiveEffort}`]
     );
   }
 
@@ -986,13 +1028,12 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   if (
     input.mode === "adaptive"
     && input.observedEffectiveEffort
-    && input.observedEffectiveEffort !== supported.effort
-    && (strict || input.explicitEffort || canRunDegradedDeep)
+    && effortIndex(input.observedEffectiveEffort) < effortIndex(supported.effort)
   ) {
     return makeConflictDecision(
       resolvedBase,
-      `Observed effort ${input.observedEffectiveEffort} does not satisfy ${strict ? "strict" : "exact"} requested effort ${supported.effort}`,
-      [...reasons, `observed_effort:${input.observedEffectiveEffort}`]
+      `Observed effort ${input.observedEffectiveEffort} is below dispatched effort ${supported.effort}`,
+      [...reasons, `observed_effort:${input.observedEffectiveEffort}`, "observed_effort_below_dispatch"]
     );
   }
   if (input.mode === "adaptive" && input.observedEffectiveEffort) {

@@ -61,7 +61,11 @@ class CodexInstallExportTest(unittest.TestCase):
         "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
         "select a registered custom role or non-parent model/reasoning configuration "
         "through the native spawn selector without a full-history fork, then verify "
-        "the spawned child trace. A full-history fork may inherit the parent agent "
+        "the spawned child trace with the installed local `codex-child-trace.js` helper "
+        "when available. Matching effective effort satisfies the policy contract, but "
+        "child/parent equality cannot distinguish an explicit same-value selector from "
+        "inheritance and must not be described as selector causality. A full-history "
+        "fork may inherit the parent agent "
         "type, model, and reasoning effort; use it only when that inheritance is "
         "intentional. If the selectors are unavailable, do not claim that workspace "
         "profile routing succeeded."
@@ -601,6 +605,7 @@ class CodexInstallExportTest(unittest.TestCase):
             "AGENTS.md",
             "modes.json",
             "tools/agent-profile.py",
+            "tools/codex-child-trace.js",
             "tools/reasoning-policy.js",
             "tools/reasoning-vocabulary.js",
             "tools/status-event.js",
@@ -1112,7 +1117,8 @@ class CodexInstallExportTest(unittest.TestCase):
             (source / "README.md").write_text("do not copy", encoding="utf-8")
             (source / "protocols" / "contract.md").write_text(
                 "See `./protocols/schemas/example.json`.\n"
-                "Run `node tools/status-event.js --help`.\n",
+                "Run `node tools/status-event.js --help`.\n"
+                "Inspect `node tools/codex-child-trace.js --help`.\n",
                 encoding="utf-8",
             )
             INSTALL_MODULE.sync_support_tree(source, target)
@@ -1138,6 +1144,10 @@ class CodexInstallExportTest(unittest.TestCase):
             )
             self.assertIn(
                 f'node "{target.as_posix()}/tools/status-event.js" --help',
+                installed_contract,
+            )
+            self.assertIn(
+                f'node "{target.as_posix()}/tools/codex-child-trace.js" --help',
                 installed_contract,
             )
 
@@ -1200,12 +1210,33 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertEqual(status_help.returncode, 0, status_help.stderr)
             self.assertIn("node tools/status-event.js --event", status_help.stdout)
 
+            trace_help = subprocess.run(
+                [
+                    "node",
+                    (support_root / "tools" / "codex-child-trace.js").as_posix(),
+                    "--help",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(trace_help.returncode, 0, trace_help.stderr)
+            self.assertIn("--agent-id <uuid>", trace_help.stdout)
+
             installed_protocol = (
                 support_root / "protocols" / "PIPELINE_PROTOCOL.md"
             ).read_text(encoding="utf-8")
             self.assertIn(
                 f'node "{support_root.as_posix()}/tools/status-event.js"',
                 installed_protocol,
+            )
+            installed_reasoning_protocol = (
+                support_root / "protocols" / "REASONING_POLICY.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn(
+                f'node "{support_root.as_posix()}/tools/codex-child-trace.js"',
+                installed_reasoning_protocol,
             )
 
     def test_install_helper_rejects_shell_active_target_before_mutation(self) -> None:

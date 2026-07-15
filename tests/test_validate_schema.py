@@ -177,6 +177,14 @@ class ValidateSchemaFormatTest(unittest.TestCase):
     def test_reasoning_semantic_forgery_fixtures_are_invalid(self) -> None:
         cases = (
             (
+                "codex-child-trace.schema.json",
+                "codex-child-trace.causal-overclaim.invalid.json",
+            ),
+            (
+                "codex-child-trace.schema.json",
+                "codex-child-trace.known-efforts-null-comparison.invalid.json",
+            ),
+            (
                 "reasoning-decision.schema.json",
                 "reasoning-decision.deep-mini-minimum-forged.invalid.json",
             ),
@@ -195,6 +203,10 @@ class ValidateSchemaFormatTest(unittest.TestCase):
             (
                 "reasoning-decision.schema.json",
                 "reasoning-decision.selector-conflict-effective.invalid.json",
+            ),
+            (
+                "reasoning-decision.schema.json",
+                "reasoning-decision.shadow-exact-mismatch.invalid.json",
             ),
             (
                 "reasoning-decision.schema.json",
@@ -229,6 +241,10 @@ class ValidateSchemaFormatTest(unittest.TestCase):
                 "reasoning-decision.conflict-reason-mismatch.invalid.json",
             ),
             (
+                "reasoning-decision.schema.json",
+                "reasoning-decision.underprovisioned-degraded.invalid.json",
+            ),
+            (
                 "reasoning-observation.schema.json",
                 "reasoning-observation.deep-standard-under-effort.invalid.json",
             ),
@@ -247,6 +263,10 @@ class ValidateSchemaFormatTest(unittest.TestCase):
             (
                 "reasoning-observation.schema.json",
                 "reasoning-observation.custom-context.invalid.json",
+            ),
+            (
+                "reasoning-observation.schema.json",
+                "reasoning-observation.underprovisioned-degraded.invalid.json",
             ),
             (
                 "agent-status.schema.json",

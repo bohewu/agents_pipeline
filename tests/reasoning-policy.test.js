@@ -188,6 +188,39 @@ test("the degraded-deep fixture is an exact resolver projection", () => {
   assert.deepEqual(decision, fixture);
 });
 
+test("the overprovisioned-effort fixture is an exact resolver projection", () => {
+  const fixture = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, "..", "protocols", "examples", "reasoning-decision.overprovisioned.valid.json"),
+    "utf8"
+  ));
+  const decision = resolveReasoning({
+    role: "repo-scout",
+    mode: "adaptive",
+    task_intent: "inspect",
+    model_tier: "mini",
+    selector_available: true,
+    observed_effective_effort: "xhigh"
+  });
+  assert.deepEqual(decision, fixture);
+});
+
+test("the observed-ceiling conflict fixture is an exact resolver projection", () => {
+  const fixture = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, "..", "protocols", "examples", "reasoning-decision.observed-ceiling-conflict.valid.json"),
+    "utf8"
+  ));
+  const decision = resolveReasoning({
+    role: "repo-scout",
+    mode: "adaptive",
+    task_intent: "inspect",
+    model_tier: "mini",
+    selector_available: true,
+    workspace_ceiling: "high",
+    observed_effective_effort: "xhigh"
+  });
+  assert.deepEqual(decision, fixture);
+});
+
 test("routine work resolves to medium on standard and high on mini", () => {
   const standard = resolveReasoning({
     role: "test-runner",
@@ -531,10 +564,10 @@ test("shadow mode rejects formal assurance instead of silently observing it", ()
   assert.equal(decision.dispatch_effort, null);
   assert.equal(decision.effective_effort, "high");
   assert.equal(decision.enforcement_status, "conflict");
-  assert.match(decision.conflict_reason, /Shadow mode cannot satisfy strict reasoning policy/);
+  assert.match(decision.conflict_reason, /does not satisfy strict requested effort max/);
 });
 
-test("shadow mode computes an exact review max request without applying it", () => {
+test("shadow mode conflicts when observed effort misses an exact review max request", () => {
   const decision = resolveReasoning({
     role: "reviewer",
     mode: "shadow",
@@ -545,8 +578,24 @@ test("shadow mode computes an exact review max request without applying it", () 
   });
   assert.equal(decision.requested_effort, "max");
   assert.equal(decision.dispatch_effort, null);
-  assert.equal(decision.enforcement_status, "shadow");
+  assert.equal(decision.effective_effort, "xhigh");
+  assert.equal(decision.enforcement_status, "conflict");
   assert.equal(decision.reasoning_class, "deep");
+  assert.match(decision.conflict_reason, /does not satisfy exact requested effort max/);
+});
+
+test("shadow mode retains an exact review max request when no runtime evidence exists", () => {
+  const decision = resolveReasoning({
+    role: "reviewer",
+    mode: "shadow",
+    dispatch_context: "ad-hoc-review",
+    model_tier: "strong",
+    explicit_effort: "max"
+  });
+  assert.equal(decision.requested_effort, "max");
+  assert.equal(decision.dispatch_effort, null);
+  assert.equal(decision.effective_effort, null);
+  assert.equal(decision.enforcement_status, "shadow");
   assert.equal(decision.conflict, null);
 });
 
@@ -946,7 +995,7 @@ test("shadow mode never relabels an observed inherited effort as policy enforcem
   assert.equal(decision.dispatch_effort, null);
 });
 
-test("observed effective effort marks a matching selector as enforced", () => {
+test("observed effective effort marks a matching policy contract as enforced", () => {
   const decision = resolveReasoning({
     role: "executor",
     mode: "adaptive",
@@ -956,6 +1005,77 @@ test("observed effective effort marks a matching selector as enforced", () => {
   });
   assert.equal(decision.enforcement_status, "enforced");
   assert.equal(decision.effective_effort, "high");
+});
+
+test("observed effort below a non-strict dispatch is a capability conflict", () => {
+  const decision = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    model_tier: "standard",
+    workspace_ceiling: "max",
+    observed_effective_effort: "medium"
+  });
+  assert.equal(decision.requested_effort, "high");
+  assert.equal(decision.dispatch_effort, null);
+  assert.equal(decision.effective_effort, "medium");
+  assert.equal(decision.enforcement_status, "conflict");
+  assert.equal(decision.degraded, false);
+  assert.match(decision.conflict_reason, /below dispatched effort high/);
+});
+
+test("observed effort above a non-strict dispatch is degraded within the workspace ceiling", () => {
+  const decision = resolveReasoning({
+    role: "repo-scout",
+    mode: "adaptive",
+    task_intent: "inspect",
+    model_tier: "mini",
+    workspace_ceiling: "max",
+    observed_effective_effort: "xhigh"
+  });
+  assert.equal(decision.requested_effort, "high");
+  assert.equal(decision.dispatch_effort, "high");
+  assert.equal(decision.effective_effort, "xhigh");
+  assert.equal(decision.enforcement_status, "degraded");
+  assert.equal(decision.degradation_reason, "effective_effort_mismatch");
+  assert.equal(decision.conflict, null);
+});
+
+test("observed effort above the workspace ceiling is a capability conflict", () => {
+  const decision = resolveReasoning({
+    role: "repo-scout",
+    mode: "adaptive",
+    task_intent: "inspect",
+    model_tier: "mini",
+    workspace_ceiling: "high",
+    observed_effective_effort: "xhigh"
+  });
+  assert.equal(decision.requested_effort, "high");
+  assert.equal(decision.dispatch_effort, null);
+  assert.equal(decision.effective_effort, "xhigh");
+  assert.equal(decision.enforcement_status, "conflict");
+  assert.match(decision.conflict_reason, /exceeds workspace ceiling high/);
+});
+
+test("observed effort above the workspace ceiling conflicts before mode early returns", () => {
+  const cases = [
+    { mode: "inherit" },
+    { mode: "shadow" },
+    { mode: "adaptive", selector_available: false }
+  ];
+  for (const entry of cases) {
+    const decision = resolveReasoning({
+      role: "repo-scout",
+      model_tier: "mini",
+      task_intent: "inspect",
+      workspace_ceiling: "high",
+      observed_effective_effort: "xhigh",
+      ...entry
+    });
+    assert.equal(decision.enforcement_status, "conflict", entry.mode);
+    assert.equal(decision.dispatch_effort, null, entry.mode);
+    assert.match(decision.conflict_reason, /exceeds workspace ceiling high/, entry.mode);
+  }
 });
 
 test("adaptive mode reports an unavailable selector without claiming enforcement", () => {

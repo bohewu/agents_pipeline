@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Fixed
+
+- Applied observed workspace-ceiling and strict/exact mismatch validation before inherit, shadow, and selector-unavailable early returns, preventing runtime evidence from being silently discarded.
+- Redacted raw child role/model values from Codex trace output and rejected trace roots or candidates reached through symlinked ancestors, Windows junctions, or other redirected paths.
+- Required child/parent inheritance comparison whenever both effective efforts are known.
+- Made Codex child trace evidence compare the child with the parent's effective effort at spawn, so a matching same-value request is marked `matches_parent`/causally indeterminate instead of being presented as proof that the native selector applied it.
+- Added local Codex child-trace verification so managed workflows distinguish a requested per-spawn effort from the effort that actually ran, including custom-role runtimes that reapply parent effort.
+- Made observed effort below dispatch or above the workspace ceiling a conflict; non-strict overprovisioning within the ceiling remains explicit `effective_effort_mismatch` degradation instead of being mislabeled as enforced.
+
 ## [0.32.0] - 2026-07-15
 
 ### Added
