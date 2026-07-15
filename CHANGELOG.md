@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-07-15
+
+### Fixed
+
+- Updated the PowerShell bootstrap happy-path fixture with the adaptive reasoning policy and resolver assets required by the hardened bundle preflight, restoring native Windows release validation.
+
 ## [0.31.0] - 2026-07-15
 
 ### Added
