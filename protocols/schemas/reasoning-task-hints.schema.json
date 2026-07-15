@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReasoningTaskHints",
+  "description": "Cross-artifact consistency rules for bounded reasoning signals and task or effective class.",
+  "type": "object",
+  "allOf": [
+    {
+      "if": {
+        "required": ["reasoning_signals"],
+        "properties": {
+          "reasoning_signals": {
+            "contains": {
+              "enum": ["multi_step", "cross_module"]
+            }
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/deliberativeOrHigher"
+      }
+    },
+    {
+      "if": {
+        "required": ["reasoning_signals"],
+        "properties": {
+          "reasoning_signals": {
+            "contains": {
+              "enum": [
+                "cross_system",
+                "ambiguous_root_cause",
+                "architecture_tradeoff",
+                "non_local_invariant",
+                "adversarial_input",
+                "numerical_sensitivity",
+                "security_boundary",
+                "data_integrity"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/deepOrHigher"
+      }
+    },
+    {
+      "if": {
+        "required": ["reasoning_signals"],
+        "properties": {
+          "reasoning_signals": {
+            "contains": {
+              "const": "formal_accept_reject"
+            }
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/assurance"
+      }
+    }
+  ],
+  "$defs": {
+    "deliberativeOrHigher": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": {
+              "enum": ["deliberative", "deep", "assurance"]
+            }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "deliberative", "deep", "assurance"]
+            }
+          }
+        }
+      ]
+    },
+    "deepOrHigher": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": {
+              "enum": ["deep", "assurance"]
+            }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "deep", "assurance"]
+            }
+          }
+        }
+      ]
+    },
+    "assurance": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": { "const": "assurance" }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "assurance"]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -3,6 +3,7 @@ import argparse
 import datetime
 import json
 import os
+import pathlib
 import re
 import sys
 
@@ -137,10 +138,15 @@ def main():
         try:
             format_checker = jsonschema.FormatChecker()
             format_checker.checks("date-time")(is_rfc3339_datetime)
+            resolver = jsonschema.RefResolver(
+                base_uri=pathlib.Path(schema_path).resolve().as_uri(),
+                referrer=schema,
+            )
             jsonschema.validate(
                 instance=data,
                 schema=schema,
                 format_checker=format_checker,
+                resolver=resolver,
             )
             print("OK: schema validation passed")
             return 0

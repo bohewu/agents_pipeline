@@ -1,3 +1,4 @@
+const path = require("path");
 const { isDeepStrictEqual } = require("util");
 
 const { RunRegistry } = require("./run-registry");
@@ -7,6 +8,7 @@ const { ORCHESTRATORS } = require("./constants");
 const {
   canonicalizeAgentStatus,
   canonicalizeCheckpoint,
+  canonicalizeReasoningObservation,
   canonicalizeRunStatus,
   canonicalizeTaskStatus
 } = require("./schema-lite");
@@ -33,6 +35,7 @@ const STATUS_RUNTIME_EVENTS = [
 ];
 const STATUS_RUNTIME_BATCH_EVENT = "batch";
 const HEARTBEAT_DEBOUNCE_MS = 15000;
+const OBSERVABLE_AGENT_OUTCOMES = new Set(["done", "blocked", "failed", "stale"]);
 const HEARTBEAT_IGNORED_FIELDS = new Set([
   "checkpoint_path",
   "last_heartbeat_at",
@@ -118,6 +121,9 @@ class StatusRuntime {
       eventPayload.timestamp = nowIso();
     }
     validateEventPayload(eventName, eventPayload);
+    if (eventName === "run.started") {
+      this.prevalidateFreshProjection([{ event: eventName, payload: eventPayload }]);
+    }
 
     const run = await this.resolveRun(eventName, eventPayload);
 
@@ -161,7 +167,6 @@ class StatusRuntime {
     });
 
     const first = normalizedEvents[0];
-    const run = await this.resolveRun(first.event, first.payload);
     for (const entry of normalizedEvents.slice(1)) {
       assert(
         entry.payload.output_root === first.payload.output_root,
@@ -169,6 +174,10 @@ class StatusRuntime {
       );
       assert(entry.payload.run_id === first.payload.run_id, "batch events must share the same run_id");
     }
+    if (first.event === "run.started") {
+      this.prevalidateFreshProjection(normalizedEvents);
+    }
+    const run = await this.resolveRun(first.event, first.payload);
 
     const state = await this.registry.loadState(run.runDir);
     state.runDir = run.runDir;
@@ -214,6 +223,29 @@ class StatusRuntime {
     });
   }
 
+  prevalidateFreshProjection(events) {
+    const firstPayload = events[0].payload;
+    const state = {
+      runDir: path.join(path.resolve(firstPayload.output_root), firstPayload.run_id),
+      runStatus: undefined,
+      checkpoint: undefined,
+      tasks: new Map(),
+      agents: new Map()
+    };
+
+    for (const entry of events) {
+      this.projector.applyEvent(state, entry.event, entry.payload);
+    }
+    canonicalizeCheckpoint(state.checkpoint);
+    canonicalizeRunStatus(state.runStatus);
+    for (const task of state.tasks.values()) {
+      canonicalizeTaskStatus(task);
+    }
+    for (const agent of state.agents.values()) {
+      canonicalizeAgentStatus(agent);
+    }
+  }
+
   async persistState(run, state, dirty) {
     await this.registry.assertSafeRunLayout(run.runDir);
 
@@ -225,6 +257,7 @@ class StatusRuntime {
       : undefined;
     const preparedTasks = [];
     const preparedAgents = [];
+    const preparedReasoningObservations = [];
 
     for (const [taskId, task] of state.tasks.entries()) {
       if (dirty.tasks.has(taskId)) {
@@ -236,11 +269,23 @@ class StatusRuntime {
     }
     for (const [agentId, agent] of state.agents.entries()) {
       if (dirty.agents.has(agentId)) {
+        const canonicalAgent = canonicalizeAgentStatus(agent);
         preparedAgents.push({
           filePath: resolveContainedFile(run.agentsDir, `${agentId}.json`),
-          value: canonicalizeAgentStatus(agent)
+          value: canonicalAgent
         });
+        const observation = this.buildReasoningObservation(canonicalAgent, state.runStatus);
+        if (observation) {
+          preparedReasoningObservations.push({
+            filePath: resolveContainedFile(run.reasoningObservationsDir, `${agentId}.json`),
+            value: observation
+          });
+        }
       }
+    }
+
+    if (preparedReasoningObservations.length > 0) {
+      await this.registry.ensureReasoningObservationLayout(run.runDir);
     }
 
     if (preparedCheckpoint) {
@@ -255,6 +300,35 @@ class StatusRuntime {
     for (const agent of preparedAgents) {
       await this.writer.writeAgentStatus(agent.filePath, agent.value);
     }
+    for (const observation of preparedReasoningObservations) {
+      await this.writer.writeReasoningObservation(observation.filePath, observation.value);
+    }
+  }
+
+  buildReasoningObservation(agent, runStatus) {
+    if (!agent.reasoning || !OBSERVABLE_AGENT_OUTCOMES.has(agent.status)) {
+      return undefined;
+    }
+
+    const startedAt = Date.parse(agent.started_at || "");
+    const observedAt = agent.completed_at || agent.updated_at;
+    const completedAt = Date.parse(observedAt || "");
+    const wallTimeMs = Number.isFinite(startedAt) && Number.isFinite(completedAt) && completedAt >= startedAt
+      ? completedAt - startedAt
+      : undefined;
+
+    return canonicalizeReasoningObservation({
+      schema_version: "1.0",
+      observed_at: observedAt,
+      run_id: agent.run_id,
+      orchestrator: runStatus.orchestrator,
+      task_id: agent.task_id,
+      agent_id: agent.agent_id,
+      attempt: agent.attempt || 1,
+      outcome: agent.status,
+      wall_time_ms: wallTimeMs,
+      reasoning: agent.reasoning
+    });
   }
 
   createDirtyState() {

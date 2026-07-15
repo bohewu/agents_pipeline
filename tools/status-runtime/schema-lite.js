@@ -5,6 +5,9 @@ const {
   CLEANUP_STATUSES,
   ORCHESTRATORS,
   PROTOCOL_VERSION,
+  REASONING_DECISION_KEY_ORDER,
+  REASONING_OBSERVATION_DECISION_KEY_ORDER,
+  REASONING_OBSERVATION_KEY_ORDER,
   RESOURCE_CLASSES,
   RESOURCE_STATUSES,
   RUN_KEY_ORDER,
@@ -15,6 +18,19 @@ const {
   TASK_STATUSES,
   WAITING_ON
 } = require("./constants");
+const {
+  CAPABILITY_SOURCES,
+  EFFORTS,
+  ENFORCEMENT_STATUSES,
+  MODEL_TIERS,
+  POLICY_MODES,
+  REASONING_CLASSES,
+  REASONING_SIGNALS,
+  SAFE_POLICY_VERSION,
+  SAFE_REASONING_IDENTIFIER,
+  minimumReasoningClassForSignals
+} = require("../reasoning-vocabulary");
+const REASONING_POLICY = require("../../protocols/reasoning-policy.json");
 const {
   assert,
   ensureEnum,
@@ -82,6 +98,124 @@ function canonicalizeAgentRefs(agentRefs) {
       path: ensureString(entry.path, "agent_refs[].path")
     }))
     .sort((a, b) => a.agent_id.localeCompare(b.agent_id));
+}
+
+function canonicalizeReasoningSignals(signals, label = "reasoning_signals", allowEmpty = false) {
+  assert(Array.isArray(signals), `${label} must be an array`);
+  for (const signal of signals) {
+    ensureEnum(signal, REASONING_SIGNALS, `${label}[]`);
+  }
+  const result = uniqueStrings(signals) || [];
+  assert(allowEmpty || result.length > 0, `${label} must contain at least one signal`);
+  return result;
+}
+
+function canonicalizeReasoningDecisionCore(decision) {
+  assert(decision && typeof decision === "object" && !Array.isArray(decision), "reasoning must be an object");
+  const result = {
+    schema_version: ensureString(decision.schema_version, "reasoning.schema_version"),
+    policy_version: ensureString(decision.policy_version, "reasoning.policy_version"),
+    mode: ensureEnum(decision.mode, POLICY_MODES, "reasoning.mode"),
+    role: ensureString(decision.role, "reasoning.role"),
+    dispatch_context: decision.dispatch_context === null
+      ? null
+      : ensureString(decision.dispatch_context, "reasoning.dispatch_context"),
+    requested_class: decision.requested_class === null
+      ? null
+      : ensureEnum(decision.requested_class, REASONING_CLASSES, "reasoning.requested_class"),
+    effective_class: decision.effective_class === null
+      ? null
+      : ensureEnum(decision.effective_class, REASONING_CLASSES, "reasoning.effective_class"),
+    reasoning_signals: canonicalizeReasoningSignals(decision.reasoning_signals, "reasoning.reasoning_signals", true),
+    model_tier: ensureEnum(decision.model_tier, [...MODEL_TIERS, "unknown"], "reasoning.model_tier"),
+    minimum_model_tier: decision.minimum_model_tier === null
+      ? null
+      : ensureEnum(decision.minimum_model_tier, MODEL_TIERS, "reasoning.minimum_model_tier"),
+    requested_effort: decision.requested_effort === null
+      ? null
+      : ensureEnum(decision.requested_effort, EFFORTS, "reasoning.requested_effort"),
+    dispatch_effort: decision.dispatch_effort === null
+      ? null
+      : ensureEnum(decision.dispatch_effort, EFFORTS, "reasoning.dispatch_effort"),
+    effective_effort: decision.effective_effort === null
+      ? null
+      : ensureEnum(decision.effective_effort, EFFORTS, "reasoning.effective_effort"),
+    capability_source: ensureEnum(decision.capability_source, CAPABILITY_SOURCES, "reasoning.capability_source"),
+    enforcement_status: ensureEnum(decision.enforcement_status, ENFORCEMENT_STATUSES, "reasoning.enforcement_status")
+  };
+
+  assert(result.schema_version === "1.0", "reasoning.schema_version must be 1.0");
+  assert(SAFE_POLICY_VERSION.test(result.policy_version), "reasoning.policy_version must be a bounded identifier");
+  assert(SAFE_REASONING_IDENTIFIER.test(result.role), "reasoning.role must be a bounded lowercase identifier");
+  if (result.dispatch_context !== null) {
+    assert(
+      SAFE_REASONING_IDENTIFIER.test(result.dispatch_context),
+      "reasoning.dispatch_context must be a bounded lowercase identifier"
+    );
+  }
+  assert(typeof decision.requires_model_escalation === "boolean", "reasoning.requires_model_escalation must be a boolean");
+  assert(typeof decision.strict === "boolean", "reasoning.strict must be a boolean");
+  result.requires_model_escalation = decision.requires_model_escalation;
+  result.strict = decision.strict;
+  if (result.mode === "inherit") {
+    assert(result.effective_class === null, "reasoning.effective_class must be null in inherit mode");
+  } else {
+    assert(result.effective_class !== null, `reasoning.effective_class must be non-null in ${result.mode} mode`);
+  }
+  if (result.effective_class !== null) {
+    const signalFloor = minimumReasoningClassForSignals(
+      result.reasoning_signals,
+      REASONING_POLICY.signal_minimum_classes
+    );
+    assert(
+      REASONING_CLASSES.indexOf(result.effective_class) >= REASONING_CLASSES.indexOf(signalFloor),
+      `reasoning.effective_class ${result.effective_class} is below signal minimum ${signalFloor}`
+    );
+  }
+
+  return result;
+}
+
+function canonicalizeReasoningDecision(decision) {
+  const result = canonicalizeReasoningDecisionCore(decision);
+  assert(Array.isArray(decision.reasons), "reasoning.reasons must be an array");
+  result.reasons = uniqueStrings(decision.reasons) || [];
+  assert(result.reasons.length === decision.reasons.length, "reasoning.reasons must contain unique non-empty strings");
+  result.conflict = decision.conflict === null
+    ? null
+    : ensureString(decision.conflict, "reasoning.conflict");
+
+  return orderedObject(result, REASONING_DECISION_KEY_ORDER);
+}
+
+function canonicalizeReasoningObservationDecision(decision) {
+  const canonical = canonicalizeReasoningDecisionCore(decision);
+  return orderedObject(canonical, REASONING_OBSERVATION_DECISION_KEY_ORDER);
+}
+
+function canonicalizeReasoningObservation(observation) {
+  assert(observation && typeof observation === "object" && !Array.isArray(observation), "reasoning observation must be an object");
+  const result = {
+    schema_version: ensureString(observation.schema_version, "schema_version"),
+    observed_at: ensureString(observation.observed_at, "observed_at"),
+    run_id: ensureSafeStatusId(observation.run_id, "run_id"),
+    orchestrator: ensureEnum(observation.orchestrator, ORCHESTRATORS, "orchestrator"),
+    agent_id: ensureSafeStatusId(observation.agent_id, "agent_id"),
+    attempt: ensureInteger(observation.attempt, "attempt", 1),
+    outcome: ensureEnum(observation.outcome, ["done", "blocked", "failed", "stale"], "outcome"),
+    reasoning: canonicalizeReasoningObservationDecision(observation.reasoning)
+  };
+
+  assert(result.schema_version === "1.0", "schema_version must be 1.0");
+  assert(isIsoDateTime(result.observed_at), "observed_at must be an ISO date-time");
+  if (observation.task_id !== undefined) {
+    result.task_id = ensureSafeStatusId(observation.task_id, "task_id");
+  }
+  if (observation.wall_time_ms !== undefined) {
+    result.wall_time_ms = ensureInteger(observation.wall_time_ms, "wall_time_ms", 0);
+  }
+
+  return orderedObject(result, REASONING_OBSERVATION_KEY_ORDER);
 }
 
 function validateResourceDependencies(resourceClass, dependentFields) {
@@ -251,6 +385,26 @@ function canonicalizeTaskStatus(taskStatus) {
   assert(isIsoDateTime(result.updated_at), "updated_at must be an ISO date-time");
 
   if (taskStatus.trace_ids !== undefined) result.trace_ids = uniqueStrings(taskStatus.trace_ids);
+  if (taskStatus.reasoning_class !== undefined) {
+    result.reasoning_class = ensureEnum(taskStatus.reasoning_class, REASONING_CLASSES, "reasoning_class");
+  }
+  if (taskStatus.reasoning_signals !== undefined) {
+    result.reasoning_signals = canonicalizeReasoningSignals(taskStatus.reasoning_signals);
+  }
+  assert(
+    (result.reasoning_class === undefined) === (result.reasoning_signals === undefined),
+    "reasoning_class and reasoning_signals must be supplied together"
+  );
+  if (result.reasoning_class !== undefined) {
+    const signalFloor = minimumReasoningClassForSignals(
+      result.reasoning_signals,
+      REASONING_POLICY.signal_minimum_classes
+    );
+    assert(
+      REASONING_CLASSES.indexOf(result.reasoning_class) >= REASONING_CLASSES.indexOf(signalFloor),
+      `reasoning_class ${result.reasoning_class} is below signal minimum ${signalFloor}`
+    );
+  }
   if (taskStatus.batch_id !== undefined) result.batch_id = ensureString(taskStatus.batch_id, "batch_id");
   if (taskStatus.depends_on !== undefined) result.depends_on = uniqueStrings(taskStatus.depends_on);
   if (taskStatus.assigned_agent_id !== undefined) result.assigned_agent_id = ensureSafeStatusId(taskStatus.assigned_agent_id, "assigned_agent_id");
@@ -334,6 +488,7 @@ function canonicalizeAgentStatus(agentStatus) {
     result.resource_handles = sortObjectKeys(agentStatus.resource_handles);
   }
   if (agentStatus.cleanup_status !== undefined) result.cleanup_status = agentStatus.cleanup_status;
+  if (agentStatus.reasoning !== undefined) result.reasoning = canonicalizeReasoningDecision(agentStatus.reasoning);
   if (agentStatus.result_summary !== undefined) result.result_summary = ensureString(agentStatus.result_summary, "result_summary");
   if (agentStatus.evidence_refs !== undefined) result.evidence_refs = uniqueStrings(agentStatus.evidence_refs);
   if (agentStatus.error !== undefined) result.error = ensureString(agentStatus.error, "error");
@@ -356,6 +511,22 @@ function canonicalizeCheckpoint(checkpoint) {
     updated_at: ensureString(checkpoint.updated_at, "updated_at")
   };
 
+  const reasoningFlagNames = [
+    "reasoning_mode",
+    "reasoning_policy_version",
+    "reasoning_ceiling"
+  ];
+  const reasoningFlagCount = reasoningFlagNames.filter((name) => result.flags[name] !== undefined).length;
+  assert(
+    reasoningFlagCount === 0 || reasoningFlagCount === reasoningFlagNames.length,
+    "checkpoint reasoning_mode, reasoning_policy_version, and reasoning_ceiling must be supplied together"
+  );
+  if (reasoningFlagCount === reasoningFlagNames.length) {
+    ensureEnum(result.flags.reasoning_mode, POLICY_MODES, "flags.reasoning_mode");
+    const policyVersion = ensureString(result.flags.reasoning_policy_version, "flags.reasoning_policy_version");
+    assert(SAFE_POLICY_VERSION.test(policyVersion), "flags.reasoning_policy_version must be a bounded identifier");
+    ensureEnum(result.flags.reasoning_ceiling, EFFORTS, "flags.reasoning_ceiling");
+  }
   assert(isIsoDateTime(result.created_at), "created_at must be an ISO date-time");
   assert(isIsoDateTime(result.updated_at), "updated_at must be an ISO date-time");
   return orderedObject(result, CHECKPOINT_KEY_ORDER);
@@ -364,6 +535,8 @@ function canonicalizeCheckpoint(checkpoint) {
 module.exports = {
   canonicalizeAgentStatus,
   canonicalizeCheckpoint,
+  canonicalizeReasoningDecision,
+  canonicalizeReasoningObservation,
   canonicalizeRunStatus,
   canonicalizeTaskCounts,
   canonicalizeTaskStatus

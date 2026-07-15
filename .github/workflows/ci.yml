@@ -58,6 +58,9 @@ jobs:
           test -d protocols
           test -d skills
           test -d tools/status-runtime
+          test -f protocols/reasoning-policy.json
+          test -f tools/reasoning-policy.js
+          test -f tools/reasoning-vocabulary.js
           test -f modes.json
           test ! -e opencode
           test ! -L opencode
@@ -117,6 +120,8 @@ jobs:
               ("dev-spec.schema.json", "spec-to-pipeline/dev-spec.json"),
               ("plan-outline.schema.json", "spec-to-pipeline/plan-outline.json"),
               ("task-list.schema.json", "spec-to-pipeline/task-list.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.valid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.valid.json"),
           ]
           negative = [
               ("dev-spec.schema.json", "dev-spec.invalid.json"),
@@ -131,6 +136,7 @@ jobs:
           ]
           for schema, fixture in positive:
               subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)
+          subprocess.run(tool + ["--schema", "protocols/schemas/reasoning-policy.schema.json", "--input", "protocols/reasoning-policy.json"], check=True)
           for schema, fixture in negative:
               result = subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"])
               if result.returncode == 0:
@@ -185,7 +191,9 @@ jobs:
         shell: bash
         run: |
           node --check tools/status-event.js
-          node --test tests/status-runtime.test.js
+          node --check tools/reasoning-policy.js
+          node --check tools/reasoning-vocabulary.js
+          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate local-preview lifecycle

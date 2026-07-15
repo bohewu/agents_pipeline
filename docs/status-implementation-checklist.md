@@ -29,6 +29,7 @@ Use this checklist when wiring a runtime or generated orchestrator to the neutra
   - `<run_output_dir>/status/run-status.json`
   - `<run_output_dir>/status/tasks/<task_id>.json`
   - `<run_output_dir>/status/agents/<agent_id>.json`
+  - `<run_output_dir>/observations/reasoning/<agent_id>.json` when a terminal attempt carries a ReasoningDecision
 
 ## Event order
 
@@ -53,6 +54,9 @@ Use this checklist when wiring a runtime or generated orchestrator to the neutra
 - Emit schema-conforming JSON only.
 - Do not add undocumented top-level fields.
 - Use `agent`, not `agent_type`.
+- Preserve paired task `reasoning_class` / `reasoning_signals` and the complete per-attempt `reasoning` decision; reject partial or out-of-vocabulary values.
+- Reject empty task signals, a class below the policy signal floor, and invalid reasoning checkpoint mode/version/ceiling values before writing.
+- Verify terminal reasoning observations omit free-text agent/reason/conflict fields and exclude prompts, results, source, paths, commands, logs, evidence contents, and artifacts.
 - Keep `task_refs` and `agent_refs` as object arrays, never string arrays.
 - Let the writer own timestamps, refs, counts, active IDs, and deterministic field ordering.
 - Fail the run's status write instead of emitting partial or guessed shapes.

@@ -60,6 +60,40 @@
         "pattern": "^(story|sc|ac|tc)-[a-z0-9._-]+$"
       }
     },
+    "reasoning_class": {
+      "type": "string",
+      "enum": [
+        "routine",
+        "deliberative",
+        "deep",
+        "assurance"
+      ]
+    },
+    "reasoning_signals": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "fully_specified",
+          "local_scope",
+          "multi_step",
+          "cross_module",
+          "cross_system",
+          "ambiguous_root_cause",
+          "architecture_tradeoff",
+          "non_local_invariant",
+          "adversarial_input",
+          "numerical_sensitivity",
+          "security_boundary",
+          "data_integrity",
+          "formal_accept_reject",
+          "prior_reasoning_failure",
+          "explicit_user_override"
+        ]
+      }
+    },
     "batch_id": {
       "type": "string",
       "minLength": 1
@@ -163,6 +197,12 @@
     }
   },
   "dependentRequired": {
+    "reasoning_class": [
+      "reasoning_signals"
+    ],
+    "reasoning_signals": [
+      "reasoning_class"
+    ],
     "max_parallelism": [
       "resource_class"
     ],
@@ -174,6 +214,7 @@
     ]
   },
   "allOf": [
+    { "$ref": "reasoning-task-hints.schema.json" },
     {
       "if": {
         "properties": {

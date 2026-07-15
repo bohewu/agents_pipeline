@@ -22,10 +22,15 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Keep each task to one primary output and one clear Definition of Done.
 - Prefer `executor` for implementation or mixed implementation/verification work.
 - Prefer `doc-writer` for pure documentation/spec/checklist outputs.
-- Prefer `peon` only for clearly mechanical work.
+- Prefer `peon` only for clearly mechanical work whose highest applicable
+  `reasoning_class` is `routine`. Multi-step, cross-module, deep-signal, or
+  assurance work must use a role whose policy ceiling accepts that class, even
+  when the edits themselves are repetitive.
 - Prefer `generalist` only when the task is mixed-scope but non-coding.
 - Treat routine version-control actions (`git status`, `git add`, `git commit`, `git push`) as orchestrator helper work, not Flow tasks, unless version-control management is the user's primary requested outcome.
 - Set `risk` from concrete impact: `low` for localized/reversible work, `medium` for behavior or integration changes with bounded blast radius, and `high` for security, data, migration, destructive, or broad cross-surface risk.
+- Classify reasoning independently under `protocols/REASONING_POLICY.md`. Emit the highest applicable `reasoning_class` and every applicable bounded `reasoning_signals` value; ordinary Flow implementation tasks use `routine | deliberative | deep`, not `assurance`.
+- Validate the assigned role against that class before returning the task. Never lower `reasoning_class` to make a role fit; select `executor`, `generalist`, or another semantically compatible role instead.
 - Derive `verification` and `review_required` from risk and the Definition of Done:
   - low -> `verification = none | basic`, normally `review_required = false`
   - medium -> at least `verification = basic`; set `review_required = true` when behavior crosses an integration or user-critical boundary
@@ -58,6 +63,8 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
       "primary_output": "design | plan | spec | checklist | analysis | implementation",
       "assigned_agent": "executor | doc-writer | peon | generalist",
       "risk": "low | medium | high",
+      "reasoning_class": "routine | deliberative | deep",
+      "reasoning_signals": ["local_scope"],
       "verification": "none | basic | strong",
       "review_required": false,
       "repair_budget": 0,

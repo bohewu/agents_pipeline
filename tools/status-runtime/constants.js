@@ -111,6 +111,8 @@ const TASK_KEY_ORDER = [
   "created_at",
   "updated_at",
   "trace_ids",
+  "reasoning_class",
+  "reasoning_signals",
   "batch_id",
   "depends_on",
   "assigned_agent_id",
@@ -148,10 +150,50 @@ const AGENT_KEY_ORDER = [
   "teardown_required",
   "resource_handles",
   "cleanup_status",
+  "reasoning",
   "result_summary",
   "evidence_refs",
   "error"
 ];
+
+const REASONING_DECISION_KEY_ORDER = [
+  "schema_version",
+  "policy_version",
+  "mode",
+  "role",
+  "dispatch_context",
+  "requested_class",
+  "effective_class",
+  "reasoning_signals",
+  "model_tier",
+  "minimum_model_tier",
+  "requires_model_escalation",
+  "requested_effort",
+  "dispatch_effort",
+  "effective_effort",
+  "capability_source",
+  "enforcement_status",
+  "strict",
+  "reasons",
+  "conflict"
+];
+
+const REASONING_OBSERVATION_KEY_ORDER = [
+  "schema_version",
+  "observed_at",
+  "run_id",
+  "orchestrator",
+  "task_id",
+  "agent_id",
+  "attempt",
+  "outcome",
+  "wall_time_ms",
+  "reasoning"
+];
+
+const REASONING_OBSERVATION_DECISION_KEY_ORDER = REASONING_DECISION_KEY_ORDER.filter(
+  (key) => key !== "reasons" && key !== "conflict"
+);
 
 const CHECKPOINT_KEY_ORDER = [
   "protocol_version",
@@ -173,6 +215,9 @@ module.exports = {
   CLEANUP_STATUSES,
   ORCHESTRATORS,
   PROTOCOL_VERSION,
+  REASONING_DECISION_KEY_ORDER,
+  REASONING_OBSERVATION_DECISION_KEY_ORDER,
+  REASONING_OBSERVATION_KEY_ORDER,
   RESOURCE_CLASSES,
   RESOURCE_STATUSES,
   RUN_KEY_ORDER,

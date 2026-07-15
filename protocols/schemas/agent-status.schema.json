@@ -139,6 +139,9 @@
         "unknown"
       ]
     },
+    "reasoning": {
+      "$ref": "reasoning-decision.schema.json"
+    },
     "result_summary": {
       "type": "string",
       "minLength": 1

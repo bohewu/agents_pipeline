@@ -222,6 +222,8 @@ class StatusProjector {
         created_at: createdAt,
         updated_at: timestamp,
         trace_ids: input.trace_ids,
+        reasoning_class: input.reasoning_class,
+        reasoning_signals: input.reasoning_signals,
         batch_id: input.batch_id,
         depends_on: input.depends_on,
         assigned_agent_id: input.assigned_agent_id,
@@ -287,7 +289,8 @@ class StatusProjector {
       resource_status: payload.resource_status || defaultResourceStatus(payload.resource_class),
       teardown_required: payload.teardown_required,
       resource_handles: cloneJson(payload.resource_handles),
-      cleanup_status: payload.cleanup_status || defaultCleanupStatus(payload.resource_class)
+      cleanup_status: payload.cleanup_status || defaultCleanupStatus(payload.resource_class),
+      reasoning: cloneJson(payload.reasoning)
     };
     state.agents.set(agentId, { ...existing, ...agent });
     state.runStatus.layout = "expanded";

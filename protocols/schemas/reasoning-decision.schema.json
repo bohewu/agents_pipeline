@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReasoningDecision",
+  "description": "Deterministic per-spawn reasoning policy decision. This record contains bounded routing metadata only.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "policy_version",
+    "mode",
+    "role",
+    "dispatch_context",
+    "requested_class",
+    "effective_class",
+    "reasoning_signals",
+    "model_tier",
+    "minimum_model_tier",
+    "requires_model_escalation",
+    "requested_effort",
+    "dispatch_effort",
+    "effective_effort",
+    "capability_source",
+    "enforcement_status",
+    "strict",
+    "reasons",
+    "conflict"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+      "maxLength": 32
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["inherit", "shadow", "adaptive"]
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$",
+      "maxLength": 64
+    },
+    "dispatch_context": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z][a-z0-9-]{0,63}$",
+      "maxLength": 64
+    },
+    "requested_class": {
+      "enum": [null, "routine", "deliberative", "deep", "assurance"]
+    },
+    "effective_class": {
+      "enum": [null, "routine", "deliberative", "deep", "assurance"]
+    },
+    "reasoning_signals": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "fully_specified",
+          "local_scope",
+          "multi_step",
+          "cross_module",
+          "cross_system",
+          "ambiguous_root_cause",
+          "architecture_tradeoff",
+          "non_local_invariant",
+          "adversarial_input",
+          "numerical_sensitivity",
+          "security_boundary",
+          "data_integrity",
+          "formal_accept_reject",
+          "prior_reasoning_failure",
+          "explicit_user_override"
+        ]
+      }
+    },
+    "model_tier": {
+      "type": "string",
+      "enum": ["mini", "standard", "strong", "unknown"]
+    },
+    "minimum_model_tier": {
+      "enum": [null, "mini", "standard", "strong"]
+    },
+    "requires_model_escalation": {
+      "type": "boolean"
+    },
+    "requested_effort": {
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "dispatch_effort": {
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "effective_effort": {
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "capability_source": {
+      "type": "string",
+      "enum": ["policy", "runtime"]
+    },
+    "enforcement_status": {
+      "type": "string",
+      "enum": ["inherited", "shadow", "requested", "enforced", "degraded", "conflict"]
+    },
+    "strict": {
+      "type": "boolean"
+    },
+    "reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "conflict": {
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    { "$ref": "reasoning-task-hints.schema.json" },
+    {
+      "if": {
+        "properties": { "mode": { "const": "inherit" } },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": { "effective_class": { "const": null } }
+      },
+      "else": {
+        "properties": {
+          "effective_class": {
+            "enum": ["routine", "deliberative", "deep", "assurance"]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

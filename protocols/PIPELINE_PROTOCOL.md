@@ -138,15 +138,23 @@ Schema: `./protocols/schemas/test-report.schema.json`
 
 ### Risk-Derived Execution Rigor
 
-- Pipeline TaskList entries explicitly provide `risk` and `complexity`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides `resource_class`. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
-- FlowTaskList entries explicitly provide `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
-- Model, provider, and model reasoning selection are owned by the runtime and are not workflow rigor controls.
+- Pipeline TaskList entries explicitly provide `risk`, `complexity`, `reasoning_class`, and `reasoning_signals`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides resource and batch reasoning metadata. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
+- FlowTaskList entries explicitly provide `risk`, `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
+- Model and provider selection are profile/runtime-owned. Per-spawn reasoning effort is selected by `./protocols/REASONING_POLICY.md`; it is independent from workflow risk, verification, retry, and resource controls.
 - Pipeline low-risk/S tasks normally use basic verification and no repair pass; medium-risk/M and high-risk/L tasks use one bounded repair pass, with strong verification for high-risk/L work.
 - Flow low-risk tasks may use `verification = none` for bounded non-executable outputs, while localized implementation tasks normally receive two bounded in-task correction cycles.
 - Flow medium-risk tasks use at least basic verification and one or two bounded in-task correction cycles; Flow review becomes required when they cross an integration or user-critical boundary.
 - Flow high-risk tasks use strong verification, one or two bounded in-task correction cycles, and required review; Pipeline review remains global.
 - Resource class reflects actual process/browser/server lifecycle needs and must not be inferred from risk alone.
 - Retry-round precedence is deterministic: explicit `--max-retry` wins; `--full-auto` defaults to 5; otherwise derive 1/2/3 rounds from the highest TaskList risk (`low`/`medium`/`high`), using 2 provisionally before TaskList risk is available.
+
+### Adaptive Reasoning
+
+- Simple, Flow, Pipeline, and Adaptive accept `--reasoning=inherit|shadow|adaptive`; version 1 defaults to `adaptive` and retains `inherit` as the rollback mode.
+- Task producers emit semantic class/signals only. The shared `./tools/reasoning-policy.js` resolver applies role bounds, model-tier floors, workspace ceiling, runtime capability, and exact overrides.
+- No adaptive child dispatch resolves below `medium`; `mini` resolves no lower than `high`.
+- `--review=max` remains an exact reviewer-only override and never changes the profile-selected model.
+- Stage 1 does not override models. `minimum_model_tier` and `requires_model_escalation` are compatibility evidence for the later evidence-gated model-routing stage.
 
 **Stage 8: Compressor**
 Agent: `compressor`
@@ -341,10 +349,10 @@ Minimal payload skeleton guidance:
 - Resume flag precedence: hydrate persisted effective `checkpoint.flags` first, then apply only flags explicitly supplied by the current invocation. Parser defaults for omitted invocation flags MUST NOT overwrite persisted effective values.
 - `checkpoint.updated`: add a non-empty object `flags` delta when a derived flag must be persisted before the current stage can honestly be marked completed. The runtime merges the delta into `checkpoint.flags` and MUST NOT change `current_stage` or `completed_stages`.
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
-- Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode` plus `review_reasoning_effort`. An explicit `--review=max` persists `review_reasoning_effort = max` so resume and every re-review keep the same reviewer-only override.
-- `tasks.registered`: add `tasks` as canonical task summaries; include `task_list_path` when available.
+- Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode` plus `review_reasoning_effort`. Fresh Flow/Pipeline runs persist `reasoning_mode`, `reasoning_policy_version`, and `reasoning_ceiling`; resume must preserve an omitted mode, reject a policy-version mismatch, and use `inherit` for a legacy checkpoint unless the resume invocation explicitly selects a mode. An explicit `--review=max` persists `review_reasoning_effort = max` so resume and every re-review keep the same reviewer-only override.
+- `tasks.registered`: add `tasks` as canonical task summaries, including paired `reasoning_class` and `reasoning_signals` when present; include `task_list_path` when available.
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
-- `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task.
+- `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task. Instrumented Flow/Pipeline attempts include the complete ReasoningDecision as `reasoning` and update it when effective-effort trace evidence becomes available.
 - Emitter guidance for `agent.heartbeat`: use standalone heartbeats only for still-active work that genuinely needs liveness visibility. Prefer a coarse cadence (roughly no more than once per 15 seconds per active agent) unless semantic state, resource state, or cleanup state changed. If completion is imminent, skip the heartbeat and flush the final batch instead.
 - `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
 - When many semantic deltas land together for the same run, prefer one `event = "batch"` call with `shared_payload` over many single-event tool calls. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed.
@@ -359,6 +367,12 @@ These event payloads are semantic deltas, not full file rewrites.
 - Optional expanded files:
   - `<run_output_dir>/status/tasks/<task_id>.json`
   - `<run_output_dir>/status/agents/<agent_id>.json`
+- Optional content-free local observations:
+  - `<run_output_dir>/observations/reasoning/<agent_id>.json`
+
+Reasoning observations contain only run/attempt identity, outcome, timing, and
+the bounded decision summary. Complete decision diagnostics remain in
+AgentStatus; observations omit free-text `agent`, `reasons`, and `conflict`.
 
 `run-status.json` is always the top-level index for the run. When expanded files are used, `run-status.json` SHOULD keep a lightweight summary plus references to task and agent status files rather than duplicating every live detail.
 
@@ -433,6 +447,8 @@ Required fields:
 Optional fields:
 
 - `trace_ids[]`
+- `reasoning_class`
+- `reasoning_signals[]`
 - `batch_id`
 - `depends_on[]`
 - `assigned_agent_id`
@@ -494,6 +510,7 @@ Optional fields:
 - `teardown_required`
 - `resource_handles`
 - `cleanup_status`
+- `reasoning`
 - `result_summary`
 - `evidence_refs[]`
 - `error`
@@ -504,6 +521,7 @@ Relationship rules:
 - An `AgentStatus` SHOULD reference at most one active `task_id` at a time in MVP.
 - `task_id` remains optional so stage-scoped or run-scoped subagents (for example repo scouting, planning, or synthesis helpers) can still be tracked even when no canonical task record exists yet.
 - Multiple `AgentStatus` records for retries or re-dispatch are allowed over time, but only one should be marked active for a task at once.
+- A terminal AgentStatus with `reasoning` produces a local ReasoningObservation from a strict field allowlist. It never copies prompts, result summaries, source, paths, commands, logs, evidence contents, or artifacts and makes no model call.
 
 Agent status vocabulary:
 
@@ -625,9 +643,10 @@ These rules are intentionally simple and repo-bound.
 
 For this repo now:
 
-- define the status contract in documentation
+- enforce the status contract with schemas, examples, and the runtime-neutral writer
 - keep the design filesystem-based and local to `<output_dir>`
-- align terminology with checkpoint files, task ids, and dispatch metadata already defined here
+- validate fresh projections before filesystem mutation and reject unsafe conflicts
+- align checkpoint files, task ids, dispatch metadata, and reasoning observations
 
 For a future runtime repo:
 
@@ -637,7 +656,7 @@ For a future runtime repo:
 
 ### MVP to Hardened Roadmap
 
-Near-term hardening MAY later add schemas, examples, stricter conflict handling, and richer attempt history for status files. This document deliberately stops at the MVP contract so the repo can standardize terminology and responsibilities before adding higher-complexity runtime behavior.
+The current hardened baseline includes schemas, examples, atomic canonical writes, strict conflict handling, safe resume checks, resource cleanup state, and bounded reasoning observations. Future hardening MAY add richer append-only attempt history, archival, stronger cross-process locking, or external storage APIs without weakening the current filesystem contract.
 
 ## Confirm / Verbose Protocol
 

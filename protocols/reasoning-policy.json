@@ -1,0 +1,304 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1",
+  "default_mode": "adaptive",
+  "reasoning_classes": [
+    "routine",
+    "deliberative",
+    "deep",
+    "assurance"
+  ],
+  "signal_minimum_classes": {
+    "fully_specified": "routine",
+    "local_scope": "routine",
+    "multi_step": "deliberative",
+    "cross_module": "deliberative",
+    "cross_system": "deep",
+    "ambiguous_root_cause": "deep",
+    "architecture_tradeoff": "deep",
+    "non_local_invariant": "deep",
+    "adversarial_input": "deep",
+    "numerical_sensitivity": "deep",
+    "security_boundary": "deep",
+    "data_integrity": "deep",
+    "formal_accept_reject": "assurance",
+    "prior_reasoning_failure": "routine",
+    "explicit_user_override": "routine"
+  },
+  "effort_order": [
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ],
+  "model_tier_order": [
+    "mini",
+    "standard",
+    "strong"
+  ],
+  "global_floor": "medium",
+  "model_floors": {
+    "mini": "high",
+    "standard": "medium",
+    "strong": "medium",
+    "unknown": "high"
+  },
+  "highest_single_agent": "max",
+  "allow_ultra": false,
+  "class_requirements": {
+    "routine": {
+      "minimum_model_tier": "mini",
+      "effort_by_model_tier": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "medium",
+        "unknown": "high"
+      }
+    },
+    "deliberative": {
+      "minimum_model_tier": "mini",
+      "effort_by_model_tier": {
+        "mini": "xhigh",
+        "standard": "high",
+        "strong": "high",
+        "unknown": "xhigh"
+      }
+    },
+    "deep": {
+      "minimum_model_tier": "standard",
+      "effort_by_model_tier": {
+        "mini": "max",
+        "standard": "xhigh",
+        "strong": "xhigh",
+        "unknown": "max"
+      }
+    },
+    "assurance": {
+      "minimum_model_tier": "strong",
+      "effort_by_model_tier": {
+        "mini": "max",
+        "standard": "max",
+        "strong": "highest_single_agent",
+        "unknown": "max"
+      }
+    }
+  },
+  "default_role_policy": {
+    "mode": "adaptive",
+    "floor_class": "routine",
+    "target_class": "deliberative",
+    "ceiling_class": "deep",
+    "strict": false
+  },
+  "role_policies": {
+    "analysis-complexity": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "analysis-correctness": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "analysis-numerics": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "analysis-robustness": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "art-director": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "atomizer": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "committee-architect": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "committee-judge": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "committee-kiss": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "committee-product": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "committee-qa": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "committee-security": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "minimum_model_tier": "strong",
+      "strict": false
+    },
+    "compressor": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "doc-writer": {
+      "mode": "adaptive",
+      "floor_class": "routine",
+      "target_class": "deliberative",
+      "ceiling_class": "deep",
+      "strict": false
+    },
+    "executor": {
+      "mode": "adaptive",
+      "floor_class": "routine",
+      "target_class": "deliberative",
+      "ceiling_class": "deep",
+      "strict": false
+    },
+    "flow-splitter": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "generalist": {
+      "mode": "adaptive",
+      "floor_class": "routine",
+      "target_class": "deliberative",
+      "ceiling_class": "deep",
+      "strict": false
+    },
+    "handoff-writer": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "kanban-manager": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "market-researcher": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "peon": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "planner": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "repo-scout": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "reviewer": {
+      "mode": "adaptive",
+      "floor_class": "deliberative",
+      "target_class": "deep",
+      "ceiling_class": "assurance",
+      "strict": false
+    },
+    "router": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "session-guide-writer": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "specifier": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "summarizer": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "test-runner": {
+      "mode": "fixed",
+      "reasoning_class": "routine",
+      "strict": false
+    },
+    "ui-ux-designer": {
+      "mode": "adaptive",
+      "floor_class": "deliberative",
+      "target_class": "deep",
+      "ceiling_class": "deep",
+      "strict": false
+    },
+    "ux-copy-trust": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "ux-judge": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "ux-novice": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    },
+    "ux-task-flow": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
+    "ux-visual-hierarchy": {
+      "mode": "fixed",
+      "reasoning_class": "deliberative",
+      "strict": false
+    }
+  },
+  "dispatch_contexts": {
+    "ad-hoc-review": {
+      "mode": "adaptive",
+      "floor_class": "deliberative",
+      "target_class": "deep",
+      "ceiling_class": "assurance",
+      "strict": false
+    },
+    "formal-assurance": {
+      "mode": "fixed",
+      "reasoning_class": "assurance",
+      "minimum_model_tier": "strong",
+      "strict": true
+    },
+    "pipeline-review": {
+      "mode": "adaptive",
+      "floor_class": "deep",
+      "target_class": "deep",
+      "ceiling_class": "assurance",
+      "minimum_model_tier": "strong",
+      "strict": false
+    }
+  }
+}

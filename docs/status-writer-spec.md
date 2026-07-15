@@ -28,6 +28,7 @@ For every run, the writer owns:
 - `<output_root>/<run_id>/status/run-status.json`
 - `<output_root>/<run_id>/status/tasks/<task_id>.json`
 - `<output_root>/<run_id>/status/agents/<agent_id>.json`
+- `<output_root>/<run_id>/observations/reasoning/<agent_id>.json` for terminal attempts that include a ReasoningDecision
 
 The CLI resolves relative paths against `--base-dir` (the current directory by default). When a payload includes `working_project_dir`, relative `output_root` is resolved against that project directory instead. The writer always derives `checkpoint_path` as `<output_root>/<run_id>/checkpoint.json`; caller-supplied checkpoint paths are rejected. This keeps delegated cross-repository runs inside the target project.
 
@@ -84,15 +85,15 @@ Supported events are deliberately bounded:
 4. `stage.completed`
    - `run_id`, `stage`, `name`, `status`, and optional artifact/flag fields
 5. `tasks.registered`
-   - `run_id` plus canonical task entries
+   - `run_id` plus canonical task entries; paired `reasoning_class` and `reasoning_signals` are preserved when present
 6. `task.updated`
    - `run_id`, `task_id`, and canonical task patch fields
 7. `agent.started`
-   - `run_id`, non-empty `agent_id`, non-empty `agent`, and optional task/batch/attempt/resource fields
+   - `run_id`, non-empty `agent_id`, non-empty `agent`, and optional task/batch/attempt/resource/reasoning fields
 8. `agent.heartbeat`
    - `run_id`, `agent_id`, and optional status/resource fields
 9. `agent.finished`
-   - `run_id`, `agent_id`, terminal status, and optional result/error/evidence fields
+   - `run_id`, `agent_id`, terminal status, and optional result/error/evidence/reasoning fields; terminal reasoning observations use a bounded summary and omit free-text agent/reason/conflict fields
 10. `run.finished`
    - `run_id`, terminal `status`, and optional notes/error/waiting fields
 

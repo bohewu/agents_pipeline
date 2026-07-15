@@ -97,6 +97,7 @@ jobs:
           cp docs/claude-mapping.md "dist/${BUNDLE_DIR}/docs/"
           cp docs/codex-mapping.md "dist/${BUNDLE_DIR}/docs/"
           cp docs/copilot-mapping.md "dist/${BUNDLE_DIR}/docs/"
+          cp docs/adaptive-reasoning-and-model-routing-roadmap.md "dist/${BUNDLE_DIR}/docs/"
           cp docs/developer-install.md "dist/${BUNDLE_DIR}/docs/"
           cp docs/external-dependencies.md "dist/${BUNDLE_DIR}/docs/"
           cp docs/runtime-agent-model-profiles.md "dist/${BUNDLE_DIR}/docs/"
@@ -105,6 +106,7 @@ jobs:
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.sh
           chmod 755 "dist/${BUNDLE_DIR}/scripts/"*.py
           chmod 755 "dist/${BUNDLE_DIR}/tools/status-event.js"
+          chmod 755 "dist/${BUNDLE_DIR}/tools/reasoning-policy.js"
           chmod 755 "dist/${BUNDLE_DIR}/tools/agent-profile.py"
           (
             cd dist
@@ -119,6 +121,7 @@ jobs:
           BUNDLE_DIR="dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}"
           test -f "${BUNDLE_DIR}/agents/orchestrator-pipeline.md"
           test -f "${BUNDLE_DIR}/protocols/PIPELINE_PROTOCOL.md"
+          test -f "${BUNDLE_DIR}/protocols/reasoning-policy.json"
           test -f "${BUNDLE_DIR}/skills/ui-ux-workflow/SKILL.md"
           test -f "${BUNDLE_DIR}/skills/ui-ux-workflow/agents/openai.yaml"
           test -f "${BUNDLE_DIR}/skills/artgen-scaffold/SKILL.md"
@@ -139,6 +142,8 @@ jobs:
           test ! -e "${BUNDLE_DIR}/skills/run-goal"
           test ! -L "${BUNDLE_DIR}/skills/run-goal"
           test -f "${BUNDLE_DIR}/tools/status-event.js"
+          test -f "${BUNDLE_DIR}/tools/reasoning-policy.js"
+          test -f "${BUNDLE_DIR}/tools/reasoning-vocabulary.js"
           test -f "${BUNDLE_DIR}/tools/agent-profile.py"
           test -f "${BUNDLE_DIR}/tools/agent-profiles/balanced.json"
           test -f "${BUNDLE_DIR}/scripts/agent-profile.sh"
@@ -150,6 +155,7 @@ jobs:
           test -f "${BUNDLE_DIR}/scripts/path_safety.py"
           test -f "${BUNDLE_DIR}/runtimes/codex/model-sets/openai.json"
           test -f "${BUNDLE_DIR}/docs/status-writer-spec.md"
+          test -f "${BUNDLE_DIR}/docs/adaptive-reasoning-and-model-routing-roadmap.md"
           test -f "${BUNDLE_DIR}/runtimes/claude/model-sets/default.json"
           test -f "${BUNDLE_DIR}/runtimes/copilot/model-sets/default.json"
           test -f "${BUNDLE_DIR}/modes.json"
@@ -171,6 +177,7 @@ jobs:
           bash "${BUNDLE_DIR}/scripts/install-claude.sh" --target "${BUNDLE_DIR}/.tmp-install-claude" --dry-run --no-backup
           bash "${BUNDLE_DIR}/scripts/install-copilot.sh" --target "${BUNDLE_DIR}/.tmp-install-copilot" --dry-run --no-backup
           node "${BUNDLE_DIR}/tools/status-event.js" --help >/dev/null
+          node "${BUNDLE_DIR}/tools/reasoning-policy.js" --help >/dev/null
           python3 "${BUNDLE_DIR}/tools/agent-profile.py" list --runtime codex --json >/dev/null
           test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.tar.gz"
           test -f "dist/agents-pipeline-bundle-${{ steps.vars.outputs.tag }}.zip"

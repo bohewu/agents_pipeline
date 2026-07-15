@@ -6,6 +6,24 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-07-15
+
+### Added
+
+- Added the versioned adaptive child-reasoning policy, resolver CLI, schemas, and roadmap. Simple, Flow, Pipeline, and Adaptive now default to `--reasoning=adaptive`, classify work as routine, deliberative, deep, or assurance, and retain `inherit` as the rollback mode plus `shadow` for diagnostics.
+- Added model-tier-aware quality floors and role policies: managed dispatches never resolve below `medium`, mini-tier models resolve no lower than `high`, formal assurance requires the strongest configured tier and maximum single-agent effort, and fixed roles keep immutable class ceilings.
+- Added persisted reasoning decisions to checkpoints, dispatch/task status, AgentStatus, and bounded local observations without recording prompts, paths, logs, evidence contents, or free-text reasoning details.
+
+### Changed
+
+- Extended task-producing agents and schemas with bounded `reasoning_class` and `reasoning_signals`, including signal-floor validation, batch compatibility checks, and rerouting when a fixed role cannot accept the required class.
+- Updated Codex, Claude Code, and Copilot exporters, bootstraps, managed support synchronization, CI, and release bundles to ship and validate the reasoning policy and resolver.
+- Kept model selection owned by the effective workspace profile while the shared resolver owns per-spawn effort selection; model escalation remains a future, separately gated capability.
+
+### Fixed
+
+- Made workspace ceilings, exact overrides, strict assurance requests, unsupported effort vocabularies, and selector-unavailable dispatches fail closed or report explicit degradation instead of silently weakening or claiming an unenforced effort.
+
 ## [0.30.1] - 2026-07-14
 
 ### Changed

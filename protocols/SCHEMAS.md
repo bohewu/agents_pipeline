@@ -10,8 +10,12 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/ui-ux-bundle.schema.json` | UiUxBundle (optional conceptual artifact) | `ui-ux-workflow` / `ui-ux-designer` / doc-writer | Versioned conceptual UI/UX bundle; JSON is canonical when paired Markdown exists, with optional additive fields for communication-first redesign framing |
 | `./protocols/schemas/plan-outline.schema.json` | PlanOutline | planner | High-level plan |
 | `./protocols/schemas/repo-findings.schema.json` | RepoFindings | repo-scout | Discovery and risks |
-| `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with optional `trace_ids` |
-| `./protocols/schemas/dispatch-plan.schema.json` | DispatchPlan | router | Routing, batching, and required batch resource metadata (`resource_class`, `max_parallelism`, `teardown_required`) |
+| `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with optional `trace_ids` and paired reasoning class/signals |
+| `./protocols/schemas/dispatch-plan.schema.json` | DispatchPlan | router | Routing, batching, required resource metadata, and optional aggregated reasoning class/signals |
+| `./protocols/schemas/reasoning-policy.schema.json` | ReasoningPolicy | reasoning resolver | Versioned role/context bounds, model-tier floors, and deterministic projection matrix |
+| `./protocols/schemas/reasoning-decision.schema.json` | ReasoningDecision | reasoning resolver / orchestrators | Complete bounded per-spawn decision; no prompt or source content |
+| `./protocols/schemas/reasoning-task-hints.schema.json` | ReasoningTaskHints | TaskList / FlowTaskList / DispatchPlan / TaskStatus / ReasoningDecision / ReasoningObservation | Shared signal-to-minimum-class consistency rules for task and effective classes |
+| `./protocols/schemas/reasoning-observation.schema.json` | ReasoningObservation | runtime-neutral status writer | Local-only terminal attempt metadata with a free-text-free decision summary under `<run_output_dir>/observations/reasoning/` |
 | `./protocols/schemas/run-status.schema.json` | RunStatus | the runtime-neutral status writer / status writers | Required top-level status index at `<run_output_dir>/status/run-status.json` |
 | `./protocols/schemas/task-status.schema.json` | TaskStatus | the runtime-neutral status writer / orchestrators / executors | Optional expanded status record at `<run_output_dir>/status/tasks/<task_id>.json` |
 | `./protocols/schemas/agent-status.schema.json` | AgentStatus | the runtime-neutral status writer / executors | Optional expanded executor/resource record at `<run_output_dir>/status/agents/<agent_id>.json` |
@@ -32,6 +36,12 @@ All JSON outputs must conform to these schemas.
 - Negative contract fixture set: `./protocols/examples/status-layout.contract.invalid/`
 
 Repository validation and CI must validate the positive fixtures against the matching status schemas and must confirm the negative fixture files fail for the intended contract violations.
+
+## Reasoning contract fixtures
+
+- Policy: `./protocols/reasoning-policy.json`
+- Positive decision: `./protocols/examples/reasoning-decision.valid.json`
+- Positive local observation: `./protocols/examples/reasoning-observation.valid.json`
 
 ## UI/UX contract fixture
 

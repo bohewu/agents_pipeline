@@ -1,0 +1,443 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReasoningPolicy",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "policy_version",
+    "default_mode",
+    "reasoning_classes",
+    "signal_minimum_classes",
+    "effort_order",
+    "model_tier_order",
+    "global_floor",
+    "model_floors",
+    "highest_single_agent",
+    "allow_ultra",
+    "class_requirements",
+    "default_role_policy",
+    "role_policies",
+    "dispatch_contexts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "policy_version": {
+      "const": "1"
+    },
+    "default_mode": {
+      "const": "adaptive"
+    },
+    "reasoning_classes": {
+      "const": [
+        "routine",
+        "deliberative",
+        "deep",
+        "assurance"
+      ]
+    },
+    "signal_minimum_classes": {
+      "type": "object",
+      "required": [
+        "fully_specified",
+        "local_scope",
+        "multi_step",
+        "cross_module",
+        "cross_system",
+        "ambiguous_root_cause",
+        "architecture_tradeoff",
+        "non_local_invariant",
+        "adversarial_input",
+        "numerical_sensitivity",
+        "security_boundary",
+        "data_integrity",
+        "formal_accept_reject",
+        "prior_reasoning_failure",
+        "explicit_user_override"
+      ],
+      "properties": {
+        "fully_specified": { "$ref": "#/$defs/reasoningClass" },
+        "local_scope": { "$ref": "#/$defs/reasoningClass" },
+        "multi_step": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "cross_module": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "cross_system": { "$ref": "#/$defs/deepOrHigher" },
+        "ambiguous_root_cause": { "$ref": "#/$defs/deepOrHigher" },
+        "architecture_tradeoff": { "$ref": "#/$defs/deepOrHigher" },
+        "non_local_invariant": { "$ref": "#/$defs/deepOrHigher" },
+        "adversarial_input": { "$ref": "#/$defs/deepOrHigher" },
+        "numerical_sensitivity": { "$ref": "#/$defs/deepOrHigher" },
+        "security_boundary": { "$ref": "#/$defs/deepOrHigher" },
+        "data_integrity": { "$ref": "#/$defs/deepOrHigher" },
+        "formal_accept_reject": { "const": "assurance" },
+        "prior_reasoning_failure": { "$ref": "#/$defs/reasoningClass" },
+        "explicit_user_override": { "$ref": "#/$defs/reasoningClass" }
+      },
+      "additionalProperties": false
+    },
+    "effort_order": {
+      "const": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "model_tier_order": {
+      "const": [
+        "mini",
+        "standard",
+        "strong"
+      ]
+    },
+    "global_floor": {
+      "$ref": "#/$defs/effort"
+    },
+    "model_floors": {
+      "type": "object",
+      "required": [
+        "mini",
+        "standard",
+        "strong",
+        "unknown"
+      ],
+      "properties": {
+        "mini": {
+          "enum": ["high", "xhigh", "max"]
+        },
+        "standard": { "$ref": "#/$defs/effort" },
+        "strong": { "$ref": "#/$defs/effort" },
+        "unknown": {
+          "enum": ["high", "xhigh", "max"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "highest_single_agent": {
+      "const": "max"
+    },
+    "allow_ultra": {
+      "const": false
+    },
+    "class_requirements": {
+      "type": "object",
+      "required": [
+        "routine",
+        "deliberative",
+        "deep",
+        "assurance"
+      ],
+      "properties": {
+        "routine": {
+          "allOf": [
+            { "$ref": "#/$defs/classRequirement" },
+            {
+              "properties": {
+                "effort_by_model_tier": {
+                  "properties": {
+                    "mini": { "$ref": "#/$defs/atLeastHighProjection" },
+                    "standard": { "$ref": "#/$defs/projectionEffort" },
+                    "strong": { "$ref": "#/$defs/projectionEffort" },
+                    "unknown": { "$ref": "#/$defs/atLeastHighProjection" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "deliberative": {
+          "allOf": [
+            { "$ref": "#/$defs/classRequirement" },
+            {
+              "properties": {
+                "effort_by_model_tier": {
+                  "properties": {
+                    "mini": { "$ref": "#/$defs/atLeastXhighProjection" },
+                    "standard": { "$ref": "#/$defs/atLeastHighProjection" },
+                    "strong": { "$ref": "#/$defs/atLeastHighProjection" },
+                    "unknown": { "$ref": "#/$defs/atLeastXhighProjection" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "deep": {
+          "allOf": [
+            { "$ref": "#/$defs/classRequirement" },
+            {
+              "properties": {
+                "minimum_model_tier": {
+                  "enum": ["standard", "strong"]
+                },
+                "effort_by_model_tier": {
+                  "properties": {
+                    "mini": { "$ref": "#/$defs/atLeastMaxProjection" },
+                    "standard": { "$ref": "#/$defs/atLeastXhighProjection" },
+                    "strong": { "$ref": "#/$defs/atLeastXhighProjection" },
+                    "unknown": { "$ref": "#/$defs/atLeastMaxProjection" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "assurance": {
+          "allOf": [
+            { "$ref": "#/$defs/classRequirement" },
+            {
+              "properties": {
+                "minimum_model_tier": { "const": "strong" },
+                "effort_by_model_tier": {
+                  "properties": {
+                    "mini": { "$ref": "#/$defs/atLeastMaxProjection" },
+                    "standard": { "$ref": "#/$defs/atLeastMaxProjection" },
+                    "strong": { "$ref": "#/$defs/atLeastMaxProjection" },
+                    "unknown": { "$ref": "#/$defs/atLeastMaxProjection" }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "default_role_policy": {
+      "$ref": "#/$defs/rolePolicy"
+    },
+    "role_policies": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/rolePolicy"
+      }
+    },
+    "dispatch_contexts": {
+      "type": "object",
+      "required": ["formal-assurance"],
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "properties": {
+        "formal-assurance": {
+          "type": "object",
+          "required": [
+            "mode",
+            "reasoning_class",
+            "minimum_model_tier",
+            "strict"
+          ],
+          "properties": {
+            "mode": { "const": "fixed" },
+            "reasoning_class": { "const": "assurance" },
+            "minimum_model_tier": { "const": "strong" },
+            "strict": { "const": true }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/rolePolicy"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "reasoningClass": {
+      "type": "string",
+      "enum": [
+        "routine",
+        "deliberative",
+        "deep",
+        "assurance"
+      ]
+    },
+    "deliberativeOrHigher": {
+      "type": "string",
+      "enum": ["deliberative", "deep", "assurance"]
+    },
+    "deepOrHigher": {
+      "type": "string",
+      "enum": ["deep", "assurance"]
+    },
+    "effort": {
+      "type": "string",
+      "enum": [
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "projectionEffort": {
+      "type": "string",
+      "enum": [
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "highest_single_agent"
+      ]
+    },
+    "atLeastHighProjection": {
+      "type": "string",
+      "enum": ["high", "xhigh", "max", "highest_single_agent"]
+    },
+    "atLeastXhighProjection": {
+      "type": "string",
+      "enum": ["xhigh", "max", "highest_single_agent"]
+    },
+    "atLeastMaxProjection": {
+      "type": "string",
+      "enum": ["max", "highest_single_agent"]
+    },
+    "modelTier": {
+      "type": "string",
+      "enum": [
+        "mini",
+        "standard",
+        "strong"
+      ]
+    },
+    "policyMode": {
+      "type": "string",
+      "enum": [
+        "inherit",
+        "shadow",
+        "adaptive"
+      ]
+    },
+    "classRequirement": {
+      "type": "object",
+      "required": [
+        "minimum_model_tier",
+        "effort_by_model_tier"
+      ],
+      "properties": {
+        "minimum_model_tier": {
+          "$ref": "#/$defs/modelTier"
+        },
+        "effort_by_model_tier": {
+          "type": "object",
+          "required": [
+            "mini",
+            "standard",
+            "strong",
+            "unknown"
+          ],
+          "properties": {
+            "mini": { "$ref": "#/$defs/projectionEffort" },
+            "standard": { "$ref": "#/$defs/projectionEffort" },
+            "strong": { "$ref": "#/$defs/projectionEffort" },
+            "unknown": { "$ref": "#/$defs/projectionEffort" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "rolePolicy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "reasoning_class",
+            "strict"
+          ],
+          "properties": {
+            "mode": { "const": "fixed" },
+            "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "floor_class",
+            "target_class",
+            "ceiling_class",
+            "strict"
+          ],
+          "properties": {
+            "mode": { "const": "adaptive" },
+            "floor_class": { "$ref": "#/$defs/reasoningClass" },
+            "target_class": { "$ref": "#/$defs/reasoningClass" },
+            "ceiling_class": { "$ref": "#/$defs/reasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "floor_class": { "const": "deliberative" } },
+                "required": ["floor_class"]
+              },
+              "then": {
+                "properties": {
+                  "target_class": { "enum": ["deliberative", "deep", "assurance"] }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "floor_class": { "const": "deep" } },
+                "required": ["floor_class"]
+              },
+              "then": {
+                "properties": {
+                  "target_class": { "enum": ["deep", "assurance"] }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "floor_class": { "const": "assurance" } },
+                "required": ["floor_class"]
+              },
+              "then": {
+                "properties": { "target_class": { "const": "assurance" } }
+              }
+            },
+            {
+              "if": {
+                "properties": { "target_class": { "const": "deliberative" } },
+                "required": ["target_class"]
+              },
+              "then": {
+                "properties": {
+                  "ceiling_class": { "enum": ["deliberative", "deep", "assurance"] }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "target_class": { "const": "deep" } },
+                "required": ["target_class"]
+              },
+              "then": {
+                "properties": { "ceiling_class": { "enum": ["deep", "assurance"] } }
+              }
+            },
+            {
+              "if": {
+                "properties": { "target_class": { "const": "assurance" } },
+                "required": ["target_class"]
+              },
+              "then": {
+                "properties": { "ceiling_class": { "const": "assurance" } }
+              }
+            }
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

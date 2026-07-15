@@ -1,6 +1,6 @@
 # Runtime Agent Model Profiles
 
-Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers.
+Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers. The separate child-spawn reasoning resolver may read that proven logical tier, but profiles do not contain or emit effort settings.
 
 The runtime installation is global-first, but Codex model selection is workspace-only:
 
@@ -170,7 +170,7 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
-Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; the effective Codex session, explicit role configuration, or a bounded per-spawn workflow override such as `--review=max` owns that decision.
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently, defaulting supported engineering workflows to adaptive mode. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. Global inheritance, uniform raw-model profiles, and unprovable mappings use logical tier `unknown` rather than guessing from a model slug.
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|

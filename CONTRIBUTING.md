@@ -15,6 +15,7 @@ This repository is Codex-first and runtime-neutral at its source boundary.
 - `protocols/`: schemas, fixtures, and workflow contracts.
 - `skills/`: portable repo-managed skills.
 - `tools/status-event.js` and `tools/status-runtime/`: runtime-neutral status/checkpoint writer.
+- `tools/reasoning-policy.js` and `protocols/reasoning-policy.json`: versioned child-spawn effort resolver and policy.
 - `tools/agent-profiles/`: neutral logical model-tier profiles.
 - `runtimes/<runtime>/model-sets/`: runtime-specific tier mappings.
 - `scripts/export-*.py` and `scripts/install-*`: generated runtime projections and installers.
@@ -47,7 +48,7 @@ python3 scripts/validate-reviewer-retry-guidance.py
 python3 scripts/validate-status-emission-guidance.py
 python3 scripts/validate-skill-frontmatter.py
 python3 scripts/update-agent-model-sets.py --check
-node --test tests/status-runtime.test.js
+node --test tests/status-runtime.test.js tests/reasoning-policy.test.js
 node scripts/validate-status-runtime-smoke.cjs
 ```
 
@@ -71,7 +72,7 @@ python3 tools/validate-schema.py \
 ## Change rules
 
 - Keep mode targets, primary orchestrators, status-runtime allowlists, schema enums, and `AGENTS.md` synchronized. The orchestrator validator enforces this projection.
-- Keep risk/verification/review/retry semantics explicit; do not reintroduce a workflow-wide effort mode or map workflow rigor to model reasoning.
+- Keep risk/verification/review/retry semantics separate from semantic reasoning class. Per-spawn effort must come from the shared versioned resolver; do not map workflow rigor directly to effort or add a second projection table in workflow prose.
 - Preserve canonical checkpoint/status schemas and cleanup evidence requirements.
 - Tier 2 adapters may degrade unsupported capabilities clearly; do not add runtime-specific protocol forks just to claim parity.
 - Keep OpenCode history in `CHANGELOG.md` and the frozen README block; do not restore it as an active build target.

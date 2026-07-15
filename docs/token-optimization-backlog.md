@@ -9,7 +9,7 @@ Date: 2026-04-18
 - Minify repeated orchestrator runtime sections at export time.
 - Tighten `DevSpec` defaults for clearly small or mechanical runs.
 - Tighten `DevSpec` further with an explicit threshold gate so small isolated fixes stay on `ProblemSpec` unless they cross multiple behavior-heavy signals or the user explicitly asks for spec-style traceability.
-- Retire runtime-specific reasoning-floor tuning from the neutral workflow; current profiles route model tiers only and inherit runtime reasoning controls.
+- Keep model-tier routing in runtime profiles while the shared versioned resolver owns bounded child-spawn reasoning effort and immutable quality floors.
 - Reduce status-runtime cost by rewriting only touched entities.
 - Add `node tools/status-event.js --event batch` so same-run deltas can be applied in order and flushed once.
 - Clarify emitter-side heartbeat cadence so orchestrators/executors treat standalone heartbeats as low-frequency liveness signals instead of routine per-step updates.

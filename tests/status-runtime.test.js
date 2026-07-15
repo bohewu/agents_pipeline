@@ -11,10 +11,13 @@ const { ORCHESTRATORS } = require("../tools/status-runtime/constants");
 const {
   canonicalizeAgentStatus,
   canonicalizeCheckpoint,
+  canonicalizeReasoningDecision,
+  canonicalizeReasoningObservation,
   canonicalizeRunStatus,
   canonicalizeTaskStatus
 } = require("../tools/status-runtime/schema-lite");
 const { StatusWriter } = require("../tools/status-runtime/status-writer");
+const { resolveReasoning } = require("../tools/reasoning-policy");
 const {
   resolvePayloadPath,
   resolvePayloadPathAnchor
@@ -551,6 +554,243 @@ test("status schema-lite requires resource_class for dependent task and agent fi
     }),
     /resource_handles requires resource_class/
   );
+  assert.throws(
+    () => canonicalizeTaskStatus({
+      run_id: "run-reasoning-dependency",
+      task_id: "task-reasoning-dependency",
+      summary: "Invalid reasoning tuple",
+      status: "pending",
+      created_at: timestamp,
+      updated_at: timestamp,
+      reasoning_class: "deep"
+    }),
+    /reasoning_class and reasoning_signals must be supplied together/
+  );
+  assert.throws(
+    () => canonicalizeTaskStatus({
+      run_id: "run-reasoning-empty",
+      task_id: "task-reasoning-empty",
+      summary: "Empty reasoning signals",
+      status: "pending",
+      created_at: timestamp,
+      updated_at: timestamp,
+      reasoning_class: "routine",
+      reasoning_signals: []
+    }),
+    /reasoning_signals must contain at least one signal/
+  );
+  assert.throws(
+    () => canonicalizeTaskStatus({
+      run_id: "run-reasoning-floor",
+      task_id: "task-reasoning-floor",
+      summary: "Under-classified reasoning signals",
+      status: "pending",
+      created_at: timestamp,
+      updated_at: timestamp,
+      reasoning_class: "routine",
+      reasoning_signals: ["security_boundary"]
+    }),
+    /reasoning_class routine is below signal minimum deep/
+  );
+});
+
+test("reasoning decisions and observations reject effective class below signal floor", () => {
+  const underClassified = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    reasoning_class: "deep",
+    reasoning_signals: ["security_boundary"],
+    model_tier: "standard"
+  });
+  underClassified.effective_class = "routine";
+
+  assert.throws(
+    () => canonicalizeReasoningDecision(underClassified),
+    /reasoning\.effective_class routine is below signal minimum deep/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      protocol_version: "1.0",
+      run_id: "run-reasoning-floor",
+      agent_id: "executor-floor",
+      agent: "executor",
+      status: "starting",
+      created_at: "2026-07-14T10:00:00.000Z",
+      updated_at: "2026-07-14T10:00:00.000Z",
+      reasoning: underClassified
+    }),
+    /reasoning\.effective_class routine is below signal minimum deep/
+  );
+
+  const summary = { ...underClassified };
+  delete summary.reasons;
+  delete summary.conflict;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "1.0",
+      observed_at: "2026-07-14T10:00:01.000Z",
+      run_id: "run-reasoning-floor",
+      orchestrator: "orchestrator-flow",
+      agent_id: "executor-floor",
+      attempt: 1,
+      outcome: "done",
+      reasoning: summary
+    }),
+    /reasoning\.effective_class routine is below signal minimum deep/
+  );
+
+  const missingAdaptiveClass = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    reasoning_class: "deliberative",
+    model_tier: "standard"
+  });
+  missingAdaptiveClass.effective_class = null;
+  assert.throws(
+    () => canonicalizeReasoningDecision(missingAdaptiveClass),
+    /reasoning\.effective_class must be non-null in adaptive mode/
+  );
+
+  const inherited = resolveReasoning({
+    role: "executor",
+    mode: "inherit",
+    reasoning_class: "deep",
+    model_tier: "standard"
+  });
+  assert.equal(canonicalizeReasoningDecision(inherited).effective_class, null);
+});
+
+test("invalid task reasoning hints do not mutate canonical run files", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-invalid-reasoning-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const started = await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-invalid-reasoning",
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Reject invalid reasoning hints",
+    timestamp: "2026-07-14T10:20:00.000Z"
+  });
+  const runBefore = await fs.readFile(started.run_status_path, "utf8");
+  const checkpointBefore = await fs.readFile(started.checkpoint_path, "utf8");
+
+  for (const task of [
+    {
+      task_id: "task-empty-signals",
+      summary: "Empty signals",
+      reasoning_class: "routine",
+      reasoning_signals: []
+    },
+    {
+      task_id: "task-low-class",
+      summary: "Low class",
+      reasoning_class: "routine",
+      reasoning_signals: ["security_boundary"]
+    }
+  ]) {
+    await assert.rejects(runtime.applyEvent("tasks.registered", {
+      output_root: tempRoot,
+      run_id: "run-invalid-reasoning",
+      tasks: [task],
+      timestamp: "2026-07-14T10:20:01.000Z"
+    }), /reasoning_signals must contain|below signal minimum/);
+  }
+
+  assert.equal(await fs.readFile(started.run_status_path, "utf8"), runBefore);
+  assert.equal(await fs.readFile(started.checkpoint_path, "utf8"), checkpointBefore);
+  assert.deepEqual(
+    await fs.readdir(path.join(tempRoot, "run-invalid-reasoning", "status", "tasks")),
+    []
+  );
+});
+
+test("terminal agent attempts emit content-free local reasoning observations", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-reasoning-observation-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-reasoning-observation";
+  const reasoningInput = {
+    role: "executor",
+    mode: "adaptive",
+    reasoning_class: "deep",
+    reasoning_signals: ["cross_module", "non_local_invariant"],
+    model_tier: "standard"
+  };
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "PRIVATE PROMPT MUST NOT ENTER OBSERVATIONS",
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "1",
+      reasoning_ceiling: "max"
+    },
+    timestamp: "2026-07-14T10:30:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    output_root: tempRoot,
+    run_id: runId,
+    tasks: [{
+      task_id: "task-reasoning",
+      summary: "Exercise the reasoning observation contract",
+      reasoning_class: "deep",
+      reasoning_signals: ["cross_module", "non_local_invariant"]
+    }],
+    timestamp: "2026-07-14T10:30:00.100Z"
+  });
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot,
+    run_id: runId,
+    agent_id: "executor-reasoning",
+    agent: "PRIVATE AGENT /private/workspace/path",
+    task_id: "task-reasoning",
+    reasoning: resolveReasoning(reasoningInput),
+    timestamp: "2026-07-14T10:30:00.200Z"
+  });
+
+  const observationDir = path.join(tempRoot, runId, "observations", "reasoning");
+  assert.deepEqual(await fs.readdir(observationDir), []);
+
+  await runtime.applyEvent("agent.finished", {
+    output_root: tempRoot,
+    run_id: runId,
+    agent_id: "executor-reasoning",
+    status: "done",
+    result_summary: "PRIVATE RESULT MUST NOT ENTER OBSERVATIONS",
+    evidence_refs: ["/private/workspace/path/test.log"],
+    reasoning: resolveReasoning({
+      ...reasoningInput,
+      observed_effective_effort: "xhigh",
+      runtime_supported_efforts: ["medium", "high", "xhigh", "max"]
+    }),
+    timestamp: "2026-07-14T10:30:01.200Z"
+  });
+
+  const taskStatus = await readJson(path.join(tempRoot, runId, "status", "tasks", "task-reasoning.json"));
+  assert.equal(taskStatus.reasoning_class, "deep");
+  assert.deepEqual(taskStatus.reasoning_signals, ["cross_module", "non_local_invariant"]);
+
+  const observationPath = path.join(observationDir, "executor-reasoning.json");
+  const observation = await readJson(observationPath);
+  assert.equal(observation.outcome, "done");
+  assert.equal(observation.wall_time_ms, 1000);
+  assert.equal(observation.reasoning.enforcement_status, "enforced");
+  assert.equal(observation.reasoning.effective_effort, "xhigh");
+  assert.equal("agent" in observation, false);
+  assert.equal("reasons" in observation.reasoning, false);
+  assert.equal("conflict" in observation.reasoning, false);
+  const serialized = JSON.stringify(observation);
+  assert.doesNotMatch(serialized, /PRIVATE PROMPT/);
+  assert.doesNotMatch(serialized, /PRIVATE RESULT/);
+  assert.doesNotMatch(serialized, /private\/workspace/);
+  assert.doesNotMatch(serialized, /PRIVATE AGENT/);
 });
 
 test("terminal task and agent events require clean resource state", async (t) => {
@@ -946,6 +1186,93 @@ test("checkpoint.updated requires a non-empty flags delta", async () => {
   );
 });
 
+test("checkpoint reasoning policy flags are atomic", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-reasoning-flags-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const started = await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: "run-reasoning-flags",
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Reject partial reasoning flags",
+    flags: {},
+    timestamp: "2026-04-18T01:20:00.000Z"
+  });
+  const before = await fs.readFile(started.checkpoint_path, "utf8");
+
+  await assert.rejects(
+    runtime.applyEvent("checkpoint.updated", {
+      output_root: tempRoot,
+      run_id: "run-reasoning-flags",
+      flags: { reasoning_mode: "adaptive" },
+      timestamp: "2026-04-18T01:21:00.000Z"
+    }),
+    /reasoning_mode, reasoning_policy_version, and reasoning_ceiling must be supplied together/
+  );
+  for (const flags of [
+    {
+      reasoning_mode: "bogus",
+      reasoning_policy_version: "1",
+      reasoning_ceiling: "max"
+    },
+    {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "1",
+      reasoning_ceiling: "ultra"
+    }
+  ]) {
+    await assert.rejects(runtime.applyEvent("checkpoint.updated", {
+      output_root: tempRoot,
+      run_id: "run-reasoning-flags",
+      flags,
+      timestamp: "2026-04-18T01:21:30.000Z"
+    }), /flags\.reasoning_(?:mode|ceiling) must be one of/);
+  }
+  assert.equal(await fs.readFile(started.checkpoint_path, "utf8"), before);
+});
+
+test("run.started validates reasoning flags before creating a run layout", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-start-preflight-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-start-preflight";
+  const basePayload = {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Validate before filesystem mutation",
+    timestamp: "2026-07-14T11:00:00.000Z"
+  };
+
+  await assert.rejects(
+    runtime.applyEvent("run.started", {
+      ...basePayload,
+      flags: { reasoning_mode: "adaptive" }
+    }),
+    /reasoning_mode, reasoning_policy_version, and reasoning_ceiling must be supplied together/
+  );
+  await assert.rejects(
+    fs.lstat(path.join(tempRoot, runId)),
+    (error) => error && error.code === "ENOENT"
+  );
+
+  const started = await runtime.applyEvent("run.started", {
+    ...basePayload,
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "1",
+      reasoning_ceiling: "max"
+    }
+  });
+  assert.equal((await readJson(started.checkpoint_path)).pipeline_id, runId);
+});
+
 test("status runtime rejects agent.started without agent_id and agent before registry work", async () => {
   let registryTouched = false;
   const runtime = new StatusRuntime({
@@ -1283,6 +1610,61 @@ test("status runtime can apply a batch of events with one final flush", async (t
       ["agent", "executor.json"]
     ]
   );
+});
+
+test("fresh batches validate later projections before creating a run layout", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-batch-preflight-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-batch-preflight";
+  const buildEvents = (reasoningClass) => [
+    {
+      event: "run.started",
+      payload: {
+        output_root: tempRoot,
+        run_id: runId,
+        orchestrator: "orchestrator-flow",
+        user_prompt: "Validate a fresh batch before filesystem mutation",
+        flags: {
+          reasoning_mode: "adaptive",
+          reasoning_policy_version: "1",
+          reasoning_ceiling: "max"
+        },
+        timestamp: "2026-07-14T12:00:00.000Z"
+      }
+    },
+    {
+      event: "tasks.registered",
+      payload: {
+        output_root: tempRoot,
+        run_id: runId,
+        tasks: [{
+          task_id: "task-batch-preflight",
+          summary: "Exercise fresh batch projection validation",
+          reasoning_class: reasoningClass,
+          reasoning_signals: ["security_boundary"]
+        }],
+        timestamp: "2026-07-14T12:00:01.000Z"
+      }
+    }
+  ];
+
+  await assert.rejects(
+    runtime.applyEvents(buildEvents("routine")),
+    /reasoning_class routine is below signal minimum deep/
+  );
+  await assert.rejects(
+    fs.lstat(path.join(tempRoot, runId)),
+    (error) => error && error.code === "ENOENT"
+  );
+
+  const corrected = await runtime.applyEvents(buildEvents("deep"));
+  assert.equal(corrected.run_id, runId);
+  assert.equal(corrected.task_count, 1);
+  assert.equal((await readJson(corrected.checkpoint_path)).pipeline_id, runId);
 });
 
 test("status schema-lite accepts every supported orchestrator", () => {

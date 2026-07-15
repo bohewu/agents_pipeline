@@ -45,6 +45,7 @@ Accepted policy overrides:
 - `--force-scout`
 - `--commit=off|before|after`
 - `--review=off|on|max`
+- `--reasoning=inherit|shadow|adaptive`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -58,6 +59,12 @@ The effective `output_dir` defaults to `.pipeline-output/` when `--output-dir` i
 omitted. Track whether the value was explicit so prompt-only output does not need to
 repeat the default; the Simple handoff wrapper still passes the effective value as
 `output_root`.
+
+The effective `reasoning_mode` defaults to `adaptive`. It is route-independent and
+does not influence Simple/Flow/Pipeline selection. Invalid values warn once and fall
+back to `adaptive`; `inherit` is the explicit rollback mode and `shadow` is the
+diagnostic no-enforcement mode. Strict formal assurance conflicts in `inherit`
+or `shadow`, and exact effort overrides conflict in `shadow`.
 
 Reject unknown Adaptive-only values rather than guessing. An invalid preset falls back
 to `balanced` with one warning. On a fresh run, treat standalone `--full-auto` as the
@@ -95,6 +102,10 @@ each effective value came from the preset, an explicit flag, or the selected wor
 default during the current invocation so precedence never depends on flag ordering
 alone. Do not require field-level provenance to survive in a checkpoint.
 
+`reasoning_mode` is explicit run policy rather than preset-owned policy. Preserve it
+unchanged across route mapping and promotion. Flow and Pipeline persist it with the
+installed policy version and effective ceiling.
+
 Precedence is deterministic:
 
 1. Selected workflow hard safety constraints.
@@ -109,6 +120,7 @@ corresponding preset value. Resolve autonomy versus interaction by provenance:
 - Explicit `--review=on` sets `review_mode = on` and `review_reasoning_effort = inherit`.
 - Explicit `--review=max` sets `review_mode = on` and `review_reasoning_effort = max`.
 - Explicit `--review=off` sets `review_mode = off` and `review_reasoning_effort = inherit`.
+- Explicit `--reasoning=*` replaces the selected workflow default without changing route selection.
 - Explicit `--confirm` or `--verbose` clears preset-derived `autopilot_mode` and `full_auto_mode` before mapping.
 - Explicit `--autopilot` or `--full-auto` clears preset-derived `confirm_mode` and `verbose_mode`.
 - If autonomy and interaction controls are both explicit, autopilot/full-auto wins with one warning, matching the native workflow safety rule.
@@ -144,6 +156,10 @@ current explicit interaction clears baseline autonomy, current explicit autonomy
 baseline interaction, and both current explicit forms resolve to autonomy with one
 warning. A current explicit `--review=off|on|max` similarly replaces both the persisted
 `review_mode` and `review_reasoning_effort`; when omitted, both persisted fields remain.
+Current explicit `--reasoning=*` replaces persisted `reasoning_mode`; when omitted, the
+persisted mode remains. Require the persisted policy version to match the installed
+policy. A legacy checkpoint without reasoning fields uses `inherit` unless this resume
+invocation explicitly selects a mode, matching the selected workflow compatibility rule.
 This needs no persisted field-level provenance. A legacy checkpoint without
 `preset_mode` is treated as a locked `balanced` run while retaining its persisted
 expanded flags.
@@ -177,7 +193,7 @@ explicit policy wrapper around that core:
 2. Run `commit_mode = before` through one bounded `peon` helper when requested.
 3. For `scout_mode = force`, run one focused `repo-scout`; for `auto`, inspect only when target files are unclear.
 4. Execute the Simple workflow. Full-auto/autopilot suppresses pauses but never expands Simple's narrow recovery bound.
-5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. On failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. If `review_reasoning_effort = max`, apply it to both reviewer dispatches: on Codex surfaces with spawn selectors, use the registered `reviewer` role without a full-history fork and with `reasoning_effort = max`, without passing a model; on runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. The repair worker and all non-review roles retain normal settings. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
+5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. On failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. Resolve both reviewer attempts through `protocols/REASONING_POLICY.md` with `dispatch_context = ad-hoc-review`; when `review_reasoning_effort = max`, also pass exact reviewer-only `explicit_effort = max`, which resolves to `reasoning_effort = max`. Every wrapper/core child uses the normalized `reasoning_mode` and registered role selection without passing a model. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
 6. For handoff, dispatch `handoff-writer` with `mode = ad_hoc`, effective `output_root`, `orchestrator = orchestrator-simple`, the original `user_prompt`, `goal`, `scope_boundary`, `completed_items`, `pending_items`, `blocked_items`, `decisions`, `risks`, `artifact_paths`, `kanban_sync_required`, `kanban_updates`, `next_recommended_action`, `recommended_command`, and the in-memory Simple result/evidence. Generate `handoff_id` as the containment-safe basename `adaptive-simple-<UTC YYYYMMDDTHHMMSSZ>-<8 lowercase hex prompt digest>`; refuse an existing target instead of overwriting it. The writer must write under `<output_dir>/adaptive-simple-handoffs/<handoff_id>/` and must not discover or bind to an older persisted run. For `kanban_mode = auto`, run the kanban helper; for `manual`, report the manual sync action; for `off`, do nothing. Then run `commit_mode = after`; when review is enabled it must pass first, and the commit helper must safely separate run changes from pre-existing dirty changes.
 
 These helpers do not become Simple tasks. Reviewer scope expansion or evidence that the
@@ -192,7 +208,7 @@ applicable rather than forcing a higher route.
 
 Translate the normalized policy into Flow's native flags and remove `--preset` and
 `--route` before adoption. Flow supports the scout, commit, review (including `--review=max`), handoff, kanban,
-output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
+reasoning, output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
 Persist `preset_mode` beside the expanded effective flags in the Flow checkpoint.
 
 ### Pipeline
@@ -238,7 +254,7 @@ When `prompt_mode = off`:
 1. Read the selected installed TOML definition.
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
-4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, and final-report requirements. Let effective Codex configuration select role models and reasoning except for an explicit reviewer-only `--review=max` spawn override.
+4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select role models and resolve every child effort through `protocols/REASONING_POLICY.md`; never change the current/main agent or pass a model override.
 
 For `route_mode = auto`, materially underestimated work may promote once from Simple to
 Flow and once from Flow to Pipeline. Finish the current workflow honestly, retain

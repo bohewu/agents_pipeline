@@ -5,7 +5,7 @@ description: Adopt and execute the installed agents_pipeline full-pipeline workf
 
 # Run Pipeline
 
-Use the installed `orchestrator-pipeline` definition as the authoritative workflow. Keep model and inherited reasoning selection in the effective Codex runtime/profile configuration, except for the definition's explicit reviewer-only `--review=max` spawn override.
+Use the installed `orchestrator-pipeline` definition as the authoritative workflow. Keep model selection in the effective Codex runtime/profile configuration and use the installed reasoning policy resolver for child-spawn effort. Version 1 defaults to `--reasoning=adaptive`; `inherit` is the rollback mode and `--review=max` remains an exact reviewer-only override.
 
 ## Resolve the definition
 
@@ -22,7 +22,7 @@ After the preflight succeeds, workspace profiles change effective role/model rou
 1. Remove only the explicit `$run-pipeline` invocation token from the request. Preserve the remaining task text and pipeline flags as raw input.
 2. Adopt the pipeline definition in the current/main agent. Do not spawn `orchestrator-pipeline` merely to enter the mode.
 3. Obey the definition's hard constraints and delegation rules. If it routes scouting, implementation, testing, or review to helper roles, use those roles rather than bypassing them inline.
-4. Let the effective workspace/global Codex agent configuration select profile-specific role files, models, and inherited reasoning. When the authoritative definition parses `--review=max`, dispatch every `reviewer` attempt without a full-history fork and with `reasoning_effort = max`, without passing a model. Do not rewrite role files or apply that override to the main agent or any non-review role.
+4. Let the effective workspace/global Codex agent configuration select profile-specific role files and models. Resolve each child effort through `protocols/REASONING_POLICY.md` and select registered roles without full-history forks. When the definition parses `--review=max`, the exact reviewer-only override resolves to `reasoning_effort = max` without passing a model; it does not apply to any non-review role or the current/main agent. Do not rewrite role files.
 5. Keep status, checkpoint, resource teardown, evidence, retry, and resume behavior exactly as required by the installed definition.
 6. Return the definition's required user-facing synthesis, including changed paths, verification evidence, reviewer outcome, and explicit warnings or blockers.
 

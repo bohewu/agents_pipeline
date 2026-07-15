@@ -28,6 +28,13 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 - `parallel = true` does not override `max_parallelism`; it only means the batch is eligible for concurrent dispatch up to that cap.
 - Use `notes` to call out expected cleanup steps or RAM-risk when a batch is not `light`.
 
+# REASONING-AWARE BATCHING
+
+- Preserve each task's `reasoning_class` and `reasoning_signals` from TaskList.
+- Set each batch `reasoning_class` to the highest class among its tasks and `reasoning_signals` to the sorted union of their signals.
+- Do not assign a task to a fixed-role policy whose ceiling is below the task class.
+- Do not combine tasks when their role/class requirements would resolve to incompatible per-spawn settings. Never emit a raw model or effort.
+
 # EXECUTOR SELECTION HINTS
 
 - Prefer `market-researcher` for tasks that explicitly require external web research, competitor/comparable scans, pricing collection, or benchmark sourcing.
@@ -44,6 +51,8 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
       "batch_id": "",
       "task_ids": [],
       "assigned_executor": "",
+      "reasoning_class": "routine | deliberative | deep",
+      "reasoning_signals": ["local_scope"],
       "parallel": false,
       "resource_class": "light",
       "max_parallelism": 1,

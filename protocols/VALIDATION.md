@@ -36,6 +36,7 @@ These gates define minimal acceptance for each stage output.
 ## Task Gate
 
 - Each task must include `id`, `summary`, `primary_output`, and `definition_of_done`.
+- Current Pipeline task producers must include paired `reasoning_class` and non-empty bounded `reasoning_signals`; schema optionality exists only for compatibility with older artifacts.
 - `definition_of_done` must be non-empty.
 - `dependencies` must reference existing task ids or be empty.
 - If `DevSpec` is part of the run, each task must include non-empty `trace_ids` that point to valid `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
@@ -44,7 +45,7 @@ These gates define minimal acceptance for each stage output.
 
 - Flow task lists must validate against `./protocols/schemas/flow-task-list.schema.json`.
 - Flow task lists must contain 1-5 tasks only.
-- Every Flow task must include `assigned_agent`, `risk`, `verification`, `review_required`, `repair_budget`, `resource_class`, and `atomic = true`.
+- Every Flow task must include `assigned_agent`, `risk`, paired `reasoning_class` and non-empty bounded `reasoning_signals`, `verification`, `review_required`, `repair_budget`, `resource_class`, and `atomic = true`.
 - Flow `repair_budget` counts only additional modify-and-verify cycles after the first implementation/content attempt and is bounded to `0..2`; operational retries and Flow-level recovery are separate controls.
 - Medium-risk Flow tasks require `verification = basic | strong` and `repair_budget = 1 | 2`.
 - High-risk Flow tasks require `verification = strong`, `review_required = true`, and `repair_budget = 1 | 2`.
@@ -53,6 +54,17 @@ These gates define minimal acceptance for each stage output.
 
 - Executor outputs must include evidence paths or commands.
 - If tests are required, test-runner output must include evidence and command list.
+
+## Reasoning Gate
+
+- `./protocols/reasoning-policy.json` must validate and retain the immutable version 1 signal/model/class-projection floors, global `medium` floor, `mini` `high` floor, and `allow_ultra = false`.
+- Every class-defining signal must satisfy the policy's minimum class in task, Flow, dispatch, status, ReasoningDecision, ReasoningObservation, and resolver validation.
+- Every enforced child spawn must come from `./tools/reasoning-policy.js`; workflow prose must not duplicate the projection table.
+- `conflict` blocks a spawn. `requested` is not proof of enforcement; only observed trace agreement may produce `enforced`.
+- Strict and exact requests, including `--review=max`, become conflicts when observed effort differs; they never silently downgrade or override the selected model.
+- A workspace ceiling below the projected class effort conflicts; it never clips a deliberative, deep, or assurance request downward.
+- Terminal ReasoningObservation files validate against their schema, omit free-text `agent`, `reasons`, and `conflict`, and contain no prompt, result summary, source, path, command, log, evidence-content, or artifact-content fields.
+- Fresh `run.started` projections validate checkpoint and run-status data in memory before the status runtime creates the run directory, so a corrected retry can reuse a rejected run id.
 
 ## Resource Gate
 
@@ -78,6 +90,9 @@ Run the helper artifact contract checks locally or in automation with `python3 s
 
 Current repository coverage validates:
 
+- `./protocols/reasoning-policy.json`
+- `./protocols/examples/reasoning-decision.valid.json`
+- `./protocols/examples/reasoning-observation.valid.json`
 - `./protocols/examples/status-layout.run-only.valid/run-status.json`
 - `./protocols/examples/status-layout.expanded.valid/run-status.json`
 - all `./protocols/examples/status-layout.expanded.valid/tasks/*.json`

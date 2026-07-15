@@ -79,6 +79,21 @@
           "enum": ["inherit", "max"],
           "default": "inherit"
         },
+        "reasoning_mode": {
+          "type": "string",
+          "enum": ["inherit", "shadow", "adaptive"],
+          "default": "adaptive"
+        },
+        "reasoning_policy_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+          "maxLength": 32
+        },
+        "reasoning_ceiling": {
+          "type": "string",
+          "enum": ["medium", "high", "xhigh", "max"],
+          "default": "max"
+        },
         "operational_retry_limit": {
           "type": "integer",
           "minimum": 0,
@@ -122,6 +137,11 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      },
+      "dependencies": {
+        "reasoning_mode": ["reasoning_policy_version", "reasoning_ceiling"],
+        "reasoning_policy_version": ["reasoning_mode", "reasoning_ceiling"],
+        "reasoning_ceiling": ["reasoning_mode", "reasoning_policy_version"]
       },
       "additionalProperties": true
     },

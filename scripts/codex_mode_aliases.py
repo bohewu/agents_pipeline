@@ -49,7 +49,9 @@ CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "the spawned child trace. A full-history fork may inherit the parent agent "
     "type, model, and reasoning effort; use it only when that inheritance is "
     "intentional. If the selectors are unavailable, do not claim that workspace "
-    "profile routing succeeded."
+    "profile routing succeeded. When the adopted definition invokes the installed "
+    "reasoning policy protocol, use its shared resolver for child effort and never "
+    "infer effort from workflow risk or apply a child selector to the current/main agent."
 )
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."

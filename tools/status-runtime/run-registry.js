@@ -24,6 +24,7 @@ class RunRegistry {
     }
     await fs.mkdir(path.join(runDir, "status", "tasks"), { recursive: true });
     await fs.mkdir(path.join(runDir, "status", "agents"), { recursive: true });
+    await fs.mkdir(path.join(runDir, "observations", "reasoning"), { recursive: true });
     await this.assertSafeRunLayout(runDir);
 
     return this.describeRun(runDir, run_id);
@@ -138,6 +139,20 @@ class RunRegistry {
       statusDir,
       "status/agents"
     );
+    const observationsPath = path.join(resolvedRunDir, "observations");
+    const observationsStats = await fs.lstat(observationsPath).catch(() => undefined);
+    if (observationsStats) {
+      const observationsDir = await this.assertContainedDirectory(
+        observationsPath,
+        realRunDir,
+        "observations"
+      );
+      const reasoningPath = path.join(observationsPath, "reasoning");
+      const reasoningStats = await fs.lstat(reasoningPath).catch(() => undefined);
+      if (reasoningStats) {
+        await this.assertContainedDirectory(reasoningPath, observationsDir, "observations/reasoning");
+      }
+    }
     await this.assertCanonicalFile(path.join(resolvedRunDir, "checkpoint.json"));
     await this.assertCanonicalFile(
       path.join(resolvedRunDir, "status", "run-status.json")
@@ -166,6 +181,30 @@ class RunRegistry {
     );
   }
 
+  async ensureReasoningObservationLayout(runDir) {
+    await this.assertSafeRunLayout(runDir);
+    const resolvedRunDir = path.resolve(runDir);
+    const realRunDir = await fs.realpath(resolvedRunDir);
+    const observationsPath = path.join(resolvedRunDir, "observations");
+    const existingObservations = await fs.lstat(observationsPath).catch(() => undefined);
+    if (!existingObservations) {
+      await fs.mkdir(observationsPath);
+    }
+    const observationsDir = await this.assertContainedDirectory(
+      observationsPath,
+      realRunDir,
+      "observations"
+    );
+
+    const reasoningPath = path.join(observationsPath, "reasoning");
+    const existingReasoning = await fs.lstat(reasoningPath).catch(() => undefined);
+    if (!existingReasoning) {
+      await fs.mkdir(reasoningPath);
+    }
+    await this.assertContainedDirectory(reasoningPath, observationsDir, "observations/reasoning");
+    return reasoningPath;
+  }
+
   async loadEntityDir(dirPath, keyName) {
     const entries = await fs.readdir(dirPath, { withFileTypes: true }).catch(() => []);
     const map = new Map();
@@ -190,7 +229,8 @@ class RunRegistry {
       checkpointPath: path.join(runDir, "checkpoint.json"),
       runStatusPath: path.join(runDir, "status", "run-status.json"),
       tasksDir: path.join(runDir, "status", "tasks"),
-      agentsDir: path.join(runDir, "status", "agents")
+      agentsDir: path.join(runDir, "status", "agents"),
+      reasoningObservationsDir: path.join(runDir, "observations", "reasoning")
     };
   }
 }

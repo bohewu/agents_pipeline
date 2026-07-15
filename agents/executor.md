@@ -16,7 +16,7 @@ Execute EXACTLY ONE task. No scope creep.
 - A transient operational failure may be retried at most twice without consuming `repair_budget` only when no implementation/content change is made. Examples include a mistyped command, a not-yet-ready local service, or a clearly transient tool/network failure.
 - Do not classify deterministic test, lint, type, build, logic, configuration, permission, or dependency failures as transient merely to avoid the repair budget.
 - Stop local iteration and return `blocked` or `partial` when the same normalized failure signature appears twice, the latest attempt produces no meaningful progress, the repair budget is exhausted, or the required fix expands scope.
-- Model/provider/reasoning selection belongs to the runtime; do not reinterpret workflow rigor fields as model controls.
+- Model/provider selection remains profile/runtime-owned. Per-spawn reasoning effort comes from the caller's ReasoningDecision; do not reinterpret risk, verification, repair budget, or resource class as model or effort controls.
 
 # FRONTEND UI TASKS
 

@@ -34,7 +34,10 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
         required_files = (
             "AGENTS.md",
             "modes.json",
+            "protocols/reasoning-policy.json",
             "tools/agent-profile.py",
+            "tools/reasoning-policy.js",
+            "tools/reasoning-vocabulary.js",
             "tools/status-event.js",
             "scripts/agent_model_profiles.py",
             "scripts/codex-project-profile.py",

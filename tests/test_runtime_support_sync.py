@@ -34,12 +34,25 @@ class RuntimeSupportSyncTest(unittest.TestCase):
         (source / "VERSION").write_text("0.28.0\n", encoding="utf-8")
         (source / "agents" / "orchestrator-flow.md").write_text(
             "Parse `$ARGUMENTS`; read `protocols/PIPELINE_PROTOCOL.md`; "
-            "run `node tools/status-event.js --help`.\n",
+            "run `node tools/status-event.js --help` and "
+            "`node tools/reasoning-policy.js --help`.\n",
             encoding="utf-8",
         )
         (source / "protocols" / "PIPELINE_PROTOCOL.md").write_text(
             "See `./protocols/schemas/example.json`. "
             "Run `python3 scripts/validate-helper-contracts.py`.\n",
+            encoding="utf-8",
+        )
+        (source / "protocols" / "reasoning-policy.json").write_text(
+            '{"policy_version":"fixture"}\n',
+            encoding="utf-8",
+        )
+        (source / "tools" / "reasoning-policy.js").write_text(
+            'require("./reasoning-vocabulary");\n',
+            encoding="utf-8",
+        )
+        (source / "tools" / "reasoning-vocabulary.js").write_text(
+            'module.exports = {};\n',
             encoding="utf-8",
         )
         skill = source / "skills" / "example" / "SKILL.md"
@@ -69,6 +82,10 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             self.assertIn(
                 f'node "{target.as_posix()}/tools/status-event.js" --help', agent
             )
+            self.assertIn(
+                f'node "{target.as_posix()}/tools/reasoning-policy.js" --help',
+                agent,
+            )
             marker = json.loads(
                 (target / MODULE.MARKER_FILE).read_text(encoding="utf-8")
             )
@@ -77,6 +94,9 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             self.assertTrue((target / "runtimes").is_dir())
             self.assertTrue((target / "scripts").is_dir())
             self.assertTrue((target / "AGENTS.md").is_file())
+            self.assertTrue((target / "tools" / "reasoning-policy.js").is_file())
+            self.assertTrue((target / "tools" / "reasoning-vocabulary.js").is_file())
+            self.assertTrue((target / "protocols" / "reasoning-policy.json").is_file())
             self.assertEqual(
                 (target / "VERSION").read_text(encoding="utf-8"), "0.28.0\n"
             )

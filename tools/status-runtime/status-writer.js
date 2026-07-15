@@ -4,6 +4,7 @@ const path = require("path");
 const {
   canonicalizeAgentStatus,
   canonicalizeCheckpoint,
+  canonicalizeReasoningObservation,
   canonicalizeRunStatus,
   canonicalizeTaskStatus
 } = require("./schema-lite");
@@ -36,6 +37,10 @@ class StatusWriter {
 
   async writeCheckpoint(filePath, value) {
     return this.writeJsonAtomic(filePath, canonicalizeCheckpoint(value));
+  }
+
+  async writeReasoningObservation(filePath, value) {
+    return this.writeJsonAtomic(filePath, canonicalizeReasoningObservation(value));
   }
 
   async writeJsonAtomic(filePath, value) {

@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReasoningObservation",
+  "description": "Local-only, content-free observation emitted for a terminal child-agent attempt.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "observed_at",
+    "run_id",
+    "orchestrator",
+    "agent_id",
+    "attempt",
+    "outcome",
+    "reasoning"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "orchestrator": {
+      "type": "string",
+      "enum": [
+        "orchestrator-pipeline",
+        "orchestrator-flow",
+        "orchestrator-ci",
+        "orchestrator-analysis",
+        "orchestrator-modernize",
+        "orchestrator-spec",
+        "orchestrator-simple",
+        "orchestrator-committee",
+        "orchestrator-general",
+        "orchestrator-ux"
+      ]
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["done", "blocked", "failed", "stale"]
+    },
+    "wall_time_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reasoning": {
+      "$ref": "#/$defs/reasoningSummary"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "reasoningClass": {
+      "enum": [null, "routine", "deliberative", "deep", "assurance"]
+    },
+    "effort": {
+      "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "reasoningSummary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "policy_version",
+        "mode",
+        "role",
+        "dispatch_context",
+        "requested_class",
+        "effective_class",
+        "reasoning_signals",
+        "model_tier",
+        "minimum_model_tier",
+        "requires_model_escalation",
+        "requested_effort",
+        "dispatch_effort",
+        "effective_effort",
+        "capability_source",
+        "enforcement_status",
+        "strict"
+      ],
+      "properties": {
+        "schema_version": { "const": "1.0" },
+        "policy_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
+          "maxLength": 32
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["inherit", "shadow", "adaptive"]
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "maxLength": 64
+        },
+        "dispatch_context": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "maxLength": 64
+        },
+        "requested_class": { "$ref": "#/$defs/reasoningClass" },
+        "effective_class": { "$ref": "#/$defs/reasoningClass" },
+        "reasoning_signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "fully_specified",
+              "local_scope",
+              "multi_step",
+              "cross_module",
+              "cross_system",
+              "ambiguous_root_cause",
+              "architecture_tradeoff",
+              "non_local_invariant",
+              "adversarial_input",
+              "numerical_sensitivity",
+              "security_boundary",
+              "data_integrity",
+              "formal_accept_reject",
+              "prior_reasoning_failure",
+              "explicit_user_override"
+            ]
+          }
+        },
+        "model_tier": {
+          "type": "string",
+          "enum": ["mini", "standard", "strong", "unknown"]
+        },
+        "minimum_model_tier": {
+          "enum": [null, "mini", "standard", "strong"]
+        },
+        "requires_model_escalation": { "type": "boolean" },
+        "requested_effort": { "$ref": "#/$defs/effort" },
+        "dispatch_effort": { "$ref": "#/$defs/effort" },
+        "effective_effort": { "$ref": "#/$defs/effort" },
+        "capability_source": {
+          "type": "string",
+          "enum": ["policy", "runtime"]
+        },
+        "enforcement_status": {
+          "type": "string",
+          "enum": ["inherited", "shadow", "requested", "enforced", "degraded", "conflict"]
+        },
+        "strict": { "type": "boolean" }
+      },
+      "allOf": [
+        { "$ref": "reasoning-task-hints.schema.json" },
+        {
+          "if": {
+            "properties": { "mode": { "const": "inherit" } },
+            "required": ["mode"]
+          },
+          "then": {
+            "properties": { "effective_class": { "const": null } }
+          },
+          "else": {
+            "properties": {
+              "effective_class": {
+                "enum": ["routine", "deliberative", "deep", "assurance"]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

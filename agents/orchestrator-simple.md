@@ -33,6 +33,7 @@ Supported flags:
 
 - `--max-parallel=<n>` -> maximum concurrent subagent dispatches. Default: 3. Minimum: 1. Maximum: 8.
 - `--review=off|on|max` -> direct Simple review policy. `max` enables review and requests maximum reasoning for each reviewer dispatch.
+- `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy. Default: `adaptive`.
 - `--confirm` -> ask before dispatching the first batch.
 - `--verbose` -> provide brief batch-level progress; implies `--confirm`.
 
@@ -43,6 +44,11 @@ Parse `--review=on` as `review_mode = on` plus `review_reasoning_effort = inheri
 `--review=max` as `review_mode = on` plus `review_reasoning_effort = max`, and
 `--review=off` as `review_mode = off` plus `review_reasoning_effort = inherit`.
 If the value is invalid, warn once and fall back to the default.
+Here `review_reasoning_effort = inherit` means "no exact reviewer-only override";
+the run-level `reasoning_mode` still applies.
+
+If no reasoning flag is provided, set `reasoning_mode = adaptive`. If the value is
+invalid, warn once and fall back to `adaptive`.
 
 # ADAPTIVE POLICY WRAPPER
 
@@ -52,6 +58,7 @@ cross-cutting flags before this definition parses `raw_input`; do not reject tha
 upstream policy merely because Simple does not expose those flags directly.
 
 - Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
+- Adaptive preserves its normalized `reasoning_mode` for every wrapper and Simple-core child spawn.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
 - After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
@@ -59,6 +66,33 @@ upstream policy merely because Simple does not expose those flags directly.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
 - When an Adaptive wrapper remains, return the core result and evidence to that controller before it emits the final user-facing summary.
 - If reviewer feedback expands scope or proves the work is not one bounded delivery, report that evidence instead of imitating Flow. Adaptive decides whether an unpinned route promotes.
+
+# REASONING DISPATCH POLICY
+
+Follow `protocols/REASONING_POLICY.md` before every child spawn. Classify each
+Simple work item in memory with `reasoning_class` and bounded
+`reasoning_signals`; do not create a TaskList or status artifact. Call
+`node tools/reasoning-policy.js` with the registered role, effective
+`reasoning_mode`, proven logical model tier or `unknown`, selector capability,
+and the in-memory task classification. A conflict blocks that spawn. Apply a
+returned selector without passing a model.
+
+Before resolution, verify that the selected role policy ceiling accepts the
+work item's class. `peon` is fixed-routine and may receive only `routine` work;
+reroute higher classes to `executor`, `generalist`, `doc-writer`, or another
+semantically compatible role. Never lower `reasoning_class` or discard signals
+to make a role fit.
+
+In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
+selector while omitting `model`. If selector unavailability produces a
+non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
+selector and continue without claiming enforcement; strict/exact cases
+conflict and block. Non-strict, non-exact `shadow` and ordinary `inherit` omit
+the effort selector; strict/exact shadow decisions conflict and block. Use
+`dispatch_context = ad-hoc-review` for reviewer
+attempts; `--review=max` also passes `explicit_effort = max` and remains exact
+even when `reasoning_mode = inherit`. Verify the child trace when available and
+never claim `enforced` without effective-effort evidence.
 
 # DISPATCH POLICY
 
@@ -70,7 +104,7 @@ upstream policy merely because Simple does not expose those flags directly.
 6. Use `@repo-scout` for focused discovery when target files are unclear.
 7. Use `@executor` for bounded code changes.
 8. Use `@generalist` for mixed code/docs/analysis tasks.
-9. Use `@peon` for mechanical repetitive edits.
+9. Use `@peon` for mechanical repetitive edits only when their highest reasoning class is `routine`.
 10. Use `@doc-writer` for pure docs deliverables.
 11. Use `@test-runner` for tests, builds, linters, and smoke checks.
 12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc` and explicit review targets.
@@ -83,15 +117,10 @@ scoped requirements, and evidence. On failure, dispatch at most one narrow same-
 repair through the original worker or an existing executor, then run one re-review. A
 second failure stops; do not create a broader retry loop.
 
-When `review_reasoning_effort = max`, apply it to the initial review and re-review only:
-
-- On Codex surfaces that expose spawn selectors, dispatch the registered `reviewer`
-  role without a full-history fork and with `reasoning_effort = max`, without passing a model;
-  effective workspace/global role routing still selects it.
-- On runtimes without an enforceable per-spawn reasoning selector, warn once and run
-  the normal reviewer. Do not claim that maximum reasoning was applied.
-- The repair worker, test runner, and every non-review role retain their normal model
-  and reasoning settings.
+Resolve the initial review and re-review independently under the reasoning dispatch
+policy. `review_reasoning_effort = max` is supplied as the exact reviewer-only
+`explicit_effort = max`, which resolves to `reasoning_effort = max`; the repair worker, test runner, and every non-review role
+use their own normal policy decisions.
 
 # QUALITY RULES
 

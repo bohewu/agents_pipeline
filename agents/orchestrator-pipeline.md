@@ -104,7 +104,8 @@ Flag semantics:
 - `--max-retry=<int>` -> max_retry_rounds
 - `--compress` -> compress_mode = true
 - `--commit=off|before|after` -> commit_mode
-- `--review=on|max` -> mandatory review policy. `on` keeps inherited reviewer reasoning; `max` requests maximum reasoning for every reviewer dispatch. `--review=off` is invalid because Pipeline review is mandatory.
+- `--review=on|max` -> mandatory review policy. `on` uses the run-level reasoning policy with no exact reviewer-only override; `max` requests exact maximum reasoning for every reviewer dispatch. `--review=off` is invalid because Pipeline review is mandatory.
+- `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -135,6 +136,10 @@ Parse `--review=on` as `review_mode = on` plus `review_reasoning_effort = inheri
 Parse `--review=max` as `review_mode = on` plus `review_reasoning_effort = max`.
 Reject `--review=off` rather than weakening the mandatory review gate. For any other
 invalid value, warn once and fall back to the mandatory inherited-effort default.
+
+If no reasoning flag is provided, set `reasoning_mode = adaptive`,
+`reasoning_policy_version` to the installed policy version, and
+`reasoning_ceiling = max`.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -177,6 +182,11 @@ If an invalid `--commit` value is provided:
 
 - Warn the user.
 - Fall back to commit_mode = off.
+
+If an invalid `--reasoning` value is provided:
+
+- Warn the user.
+- Fall back to reasoning_mode = adaptive.
 
 If an upstream Adaptive controller supplies `preset_mode`, persist it unchanged beside
 the already-expanded effective flags. It is provenance metadata, not a Pipeline parser
@@ -233,6 +243,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
    - For a valid checkpoint, hydrate the persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
+   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
@@ -279,6 +290,36 @@ Use the expanded status layout (`tasks/<task_id>.json`, `agents/<agent_id>.json`
 Minimum required events: `run.started` (or `run.resumed`), `stage.completed` after every stage, `tasks.registered` after Stage 3, `task.updated` on task state changes, `agent.started`/`agent.heartbeat`/`agent.finished` for visible subagents, `run.finished` on terminal outcome.
 
 For `run.resumed`, send current-invocation flag overrides in `payload.flags`; the runtime merges that delta over persisted checkpoint flags rather than replacing the complete object.
+
+# REASONING DISPATCH PROTOCOL
+
+Follow `protocols/REASONING_POLICY.md` before every child spawn. Call
+`node tools/reasoning-policy.js` for stage-scoped agents, canonical task
+attempts, tests, reviewers, retry repairs, compression, and terminal helpers.
+The resolver, not workflow risk or complexity, owns class-to-effort projection.
+
+Stage-scoped roles without a canonical task use their role policy. Canonical
+task attempts pass `reasoning_class` and `reasoning_signals` from TaskList or
+DeltaTaskList. Stage 6 uses `dispatch_context = pipeline-review`; when
+`review_reasoning_effort = max`, also pass exact reviewer-only
+`explicit_effort = max`. Set `prior_reasoning_failure = true` only for a retry
+caused by concrete logic, diagnosis, invariant, or review failure.
+
+In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
+`reasoning_effort`, select the registered role without a full-history fork,
+and apply it without passing a model. If selector unavailability produces a
+non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
+selector and continue without claiming enforcement; strict/exact cases
+conflict and block. Non-strict, non-exact shadow and ordinary inherit omit the
+selector; strict/exact shadow decisions conflict and block.
+Conflicts block the spawn. A non-strict Stage 1 model escalation request may
+continue only at the returned effort with `degraded` status; Pipeline does not
+override models in Stage 1.
+
+Include the complete decision in each `agent.started` status payload as
+`reasoning`. When child trace evidence exposes effective effort, rerun the
+resolver with `observed_effective_effort` and persist the updated decision in
+the next lifecycle event. Do not claim enforcement without trace evidence.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -341,16 +382,18 @@ Optional Stage 0.5: if DevSpec policy matches, call @specifier again to produce 
 Stage 1: @planner -> `plan-outline.json` using ProblemSpec and optional DevSpec
 Stage 2: @repo-scout -> `repo-findings.json` (if scout_mode = force, or scout_mode = auto and codebase exists / user asks implementation; skip if scout_mode = skip)
 Stage 3: @atomizer -> `task-list.json` (atomic DAG) using PlanOutline, optional RepoFindings, and optional DevSpec; if DevSpec exists, tasks must carry explicit `trace_ids`; then emit `tasks.registered` for the canonical task set so the status writer can refresh `run-status.json` with `layout = expanded`, `task_list_path`, `task_counts`, and task refs
+  - Every task must also carry `reasoning_class` and bounded `reasoning_signals` selected independently from risk and complexity
   - Pure git helper actions such as `git status`, `git add`, `git commit`, or `git push` MUST NOT appear in `task-list.json` unless version-control work is the user's primary requested deliverable
-Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource metadata); then enrich task status files with routing fields such as `assigned_executor`, dependencies, `resource_class`, `max_parallelism`, and `teardown_required`. When multiple tasks change together, prefer one status CLI call with `--event batch` plus a shared run envelope instead of one process per task. Always refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids.
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + parallel lanes + resource and reasoning metadata); then enrich task status files with routing fields such as `assigned_executor`, dependencies, `reasoning_class`, `reasoning_signals`, `resource_class`, `max_parallelism`, and `teardown_required`. When multiple tasks change together, prefer one status CLI call with `--event batch` plus a shared run envelope instead of one process per task. Always refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids.
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor / @peon / @generalist / @doc-writer as specified
-- For `@executor` tasks, include an explicit bounded execution profile in the handoff. Derive rigor from task `risk` / `complexity`; never use workflow rigor to select model reasoning:
+- For `@executor` tasks, include an explicit bounded execution profile in the handoff. Derive verification and repair rigor from task `risk` / `complexity`, while the independent reasoning policy uses `reasoning_class` / `reasoning_signals`:
   - low risk + S complexity -> `verification = basic`, `repair_budget = 0`
   - medium risk or M complexity -> `verification = basic`, `repair_budget = 1`
   - high risk or L complexity -> `verification = strong`, `repair_budget = 1`
   - derive `resource_class` from the actual commands/tools and lifecycle needs (`light | process | server | browser`), not from risk alone
+  - include the resolved per-attempt ReasoningDecision; the executor must not reinterpret risk as effort
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
@@ -362,7 +405,7 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. If `review_reasoning_effort = max`, apply it to every Stage 6 reviewer dispatch, including post-repair and delta-round re-reviews: on Codex surfaces with spawn selectors, use the registered `reviewer` role without a full-history fork and with `reasoning_effort = max`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No executor, test runner, or other role receives this override.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`, which resolves to `reasoning_effort = max`. No executor, test runner, or other role receives this override.
 Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
@@ -483,7 +526,7 @@ If `decision_only = true`:
 
 # RISK / EXECUTION RIGOR RULES
 
-- Model, provider, and model reasoning selection are runtime-owned and MUST NOT be inferred from workflow rigor.
+- Model and provider selection remain profile/runtime-owned. Per-spawn reasoning effort is resolver-owned and MUST NOT be inferred from risk, complexity, verification, repair budget, or resource class.
 - Derive execution rigor from TaskList `risk` / `complexity`, then make `verification` and `repair_budget` explicit in executor handoffs and preserve routed `resource_class` from the DispatchPlan.
 - Route high-risk or complex tasks to `@executor` with stronger verification, required review attention, and bounded repair settings.
 - Route mechanical/documentation/formatting tasks to lower-cost executor profiles.

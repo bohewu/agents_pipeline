@@ -92,7 +92,8 @@ Supported flags (Flow-only, minimal):
 - `--skip-scout` -> scout_mode = skip
 - `--force-scout` -> scout_mode = force
 - `--commit=off|before|after` -> commit_mode
-- `--review=off|on|max` -> review policy. `on` sets `review_mode = on` and `review_reasoning_effort = inherit`; `max` sets `review_mode = on` and `review_reasoning_effort = max`; `off` sets `review_mode = off` and `review_reasoning_effort = inherit`.
+- `--review=off|on|max` -> review policy. `on` sets `review_mode = on` with no exact reviewer-only override; `max` sets `review_mode = on` and exact reviewer-only max; `off` disables review. Persist the compatibility field `review_reasoning_effort = inherit|max`; run-level `reasoning_mode` still applies when that field is `inherit`.
+- `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -118,6 +119,12 @@ If no review flag is provided:
 
 - review_mode = auto until the FlowTaskList is available.
 - review_reasoning_effort = inherit.
+
+If no reasoning flag is provided:
+
+- reasoning_mode = adaptive.
+- reasoning_policy_version = the installed `protocols/reasoning-policy.json` policy version.
+- reasoning_ceiling = max.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -147,7 +154,7 @@ Internal recovery controls are not user-facing flags:
 - `flow_recovery_limit = 1`
 - `flow_recovery_used = 0` for a fresh run
 
-Persist these values in checkpoint flags. On resume, hydrate them before execution;
+Persist these values and the effective reasoning fields in checkpoint flags. On resume, hydrate them before execution;
 never reset `flow_recovery_used` to zero.
 
 If an upstream Adaptive controller supplies `preset_mode`, persist it unchanged beside
@@ -175,6 +182,11 @@ If an invalid `--review` value is provided:
 - Fall back to review_mode = auto.
 - Fall back to review_reasoning_effort = inherit.
 
+If an invalid `--reasoning` value is provided:
+
+- Warn the user.
+- Fall back to reasoning_mode = adaptive.
+
 ## FLOW FLAGS (QUICK REFERENCE)
 
 - `--scout=auto|skip|force`
@@ -182,6 +194,7 @@ If an invalid `--review` value is provided:
 - `--force-scout`
 - `--commit=off|before|after`
 - `--review=off|on|max`
+- `--reasoning=inherit|shadow|adaptive`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -200,6 +213,7 @@ If an invalid `--review` value is provided:
    - If the checkpoint completed Stage 2 or later (`current_stage >= 2` or an equivalent completed-stage entry), require `<run_output_dir>/flow/task-list.json` to exist and validate it against the current `protocols/schemas/flow-task-list.schema.json` before skipping any completed stage.
    - A missing or incompatible persisted FlowTaskList—including a legacy task with `effort` but without required `risk` / `review_required`—makes the checkpoint incompatible. Do not translate the old task list and do not reuse its run id. Start a fresh run with a new `run_id`; for resume-only, reuse `checkpoint.user_prompt` when it is available, otherwise stop and require a new prompt.
    - For a valid compatible checkpoint, hydrate persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
+   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
@@ -222,6 +236,39 @@ If an upstream caller/runtime expects this Flow run to execute against `working_
 Use the expanded status layout once Stage 2 creates the task list. Emit: `run.started`/`run.resumed`, `checkpoint.updated` when mid-stage derived flags must be persisted, `stage.completed`, `tasks.registered`, `task.updated`, `agent.started`/`agent.heartbeat`/`agent.finished`, and `run.finished`. Batch consecutive task/agent deltas for the same run when no intermediate write is required, and keep standalone heartbeats coarse (roughly >=15 seconds) unless a semantic state change makes an earlier heartbeat useful.
 
 For `run.resumed`, send current-invocation flag overrides in `payload.flags`; the runtime merges that delta over persisted checkpoint flags rather than replacing the complete object.
+
+## REASONING DISPATCH PROTOCOL
+
+Follow `protocols/REASONING_POLICY.md` before every child spawn, including
+stage-scoped agents, task executors, reviewers, repair attempts, and terminal
+helpers. Use `node tools/reasoning-policy.js` as the only class-to-effort
+resolver. For stage-scoped work without a Flow task, let the registered role
+policy supply its fixed or target class.
+
+For task attempts, pass the task's `reasoning_class` and `reasoning_signals`.
+Before resolution, verify that the assigned role policy ceiling accepts the
+task class. `peon` is fixed-routine and may receive only `routine` tasks;
+reroute a higher-class task to `executor`, `generalist`, `doc-writer`, or
+another semantically compatible role. Never lower the class or remove signals
+to preserve an incompatible assignment.
+Use `dispatch_context = ad-hoc-review` for Stage 4.5 and pass
+`explicit_effort = max` when `review_reasoning_effort = max`. Set
+`prior_reasoning_failure = true` only for a re-dispatch caused by concrete
+logic, diagnosis, invariant, or review failure, never for operational failure.
+
+In `adaptive`, use a non-null `dispatch_effort` as the native per-spawn
+`reasoning_effort`, select the registered role without a full-history fork,
+and apply it without passing a model. If selector unavailability produces a
+non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
+selector and continue without claiming enforcement; strict/exact cases
+conflict and block. Non-strict, non-exact shadow and ordinary inherit omit the
+effort selector; strict/exact shadow decisions conflict and block.
+Before a spawn, include the complete decision in the `agent.started` status
+payload as `reasoning`; if child trace evidence reveals effective effort,
+rerun the resolver with `observed_effective_effort` and include the updated
+decision in the next agent lifecycle event. Conflicts block the spawn. A
+non-strict Stage 1 model escalation request may continue only with its returned
+effort and explicit `degraded` status; Flow never overrides the model.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -270,6 +317,8 @@ Stage 2 — Flow Task Split (@flow-splitter)
   - `assigned_agent`
   - `primary_output`
   - `risk`
+  - `reasoning_class`
+  - `reasoning_signals`
   - `verification`
   - `review_required`
   - `repair_budget`
@@ -300,6 +349,7 @@ Stage 3 — Dispatch & Execution
   - Task details
   - Expected output
   - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
+  - `reasoning_class`, `reasoning_signals`, and the resolved per-attempt ReasoningDecision
   - `operational_retry_limit`, the rule that the first implementation/content attempt is free, and the no-progress/failure-signature stop conditions
   - Artifact output contract (below)
 - For visible frontend UI implementation or polish tasks, include `skills/frontend-aesthetic-director/SKILL.md` in the handoff when relevant. If `ui-ux-workflow` output or wireframes are present, treat them as upstream source of truth rather than asking the executor to redesign the flow.
@@ -361,7 +411,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
-- If `review_reasoning_effort = max`, apply it to the initial reviewer and the single re-review. On Codex surfaces with spawn selectors, use the registered `reviewer` role without a full-history fork and with `reasoning_effort = max`, without passing a model. On runtimes without an enforceable selector, warn once, use the normal reviewer, and do not claim maximum reasoning was applied. No non-review role receives this override.
+- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`, which resolves to `reasoning_effort = max`. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

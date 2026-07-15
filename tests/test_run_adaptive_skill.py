@@ -52,6 +52,57 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("Next prompt: not emitted", text)
         self.assertIn("profile problems are warnings", text)
 
+    def test_reasoning_policy_is_route_independent_and_adaptive_by_default(self) -> None:
+        adaptive = SKILL.read_text(encoding="utf-8")
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        protocol = (REPO_ROOT / "protocols" / "REASONING_POLICY.md").read_text(
+            encoding="utf-8"
+        )
+        policy = json.loads(
+            (REPO_ROOT / "protocols" / "reasoning-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        checkpoint = json.loads(
+            (REPO_ROOT / "protocols" / "schemas" / "checkpoint.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        for text in (adaptive, simple, flow, pipeline):
+            self.assertIn("--reasoning=inherit|shadow|adaptive", text)
+            self.assertIn("adaptive", text)
+            self.assertIn("inherit", text)
+        self.assertIn("Choose the highest applicable class", protocol)
+        self.assertIn("selector_available", protocol)
+        self.assertIn("never emit a raw model name or raw effort", protocol)
+        self.assertEqual(policy["default_mode"], "adaptive")
+        reasoning_mode = checkpoint["properties"]["flags"]["properties"][
+            "reasoning_mode"
+        ]
+        self.assertEqual(reasoning_mode["default"], "adaptive")
+        reasoning_dependencies = checkpoint["properties"]["flags"]["dependencies"]
+        self.assertEqual(
+            set(reasoning_dependencies["reasoning_mode"]),
+            {"reasoning_policy_version", "reasoning_ceiling"},
+        )
+        self.assertTrue((REPO_ROOT / "tools" / "reasoning-policy.js").is_file())
+
+    def test_simple_and_flow_preserve_role_reasoning_compatibility(self) -> None:
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        splitter = SPLITTER.read_text(encoding="utf-8")
+
+        for text in (simple, flow):
+            self.assertIn("`peon` is fixed-routine", text)
+            self.assertIn("may receive only `routine`", text)
+            self.assertIn("semantically compatible role", text)
+        self.assertIn("highest applicable", splitter)
+        self.assertIn("`reasoning_class` is `routine`", splitter)
+        self.assertIn("Never lower `reasoning_class`", splitter)
+
     def test_resume_and_auto_promotion_are_bounded(self) -> None:
         text = SKILL.read_text(encoding="utf-8")
 

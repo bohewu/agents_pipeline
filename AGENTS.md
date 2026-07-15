@@ -1,10 +1,10 @@
 # Agent Catalog
 
 This catalog lists all agents and their roles.
-Codex is the Tier 1, first-class runtime; model and reasoning selection come from the effective Codex runtime configuration unless an explicit generated role profile overrides the model.
+Codex is the Tier 1, first-class runtime; model/provider selection comes from effective Codex configuration, while supported engineering workflows resolve child-spawn reasoning through `protocols/REASONING_POLICY.md`. Generated role profiles may override only the model/provider.
 Claude Code `.claude/agents/*.md` and VS Code Copilot `.agent.md` files are Tier 2 best-effort exports without a feature-parity guarantee. OpenCode support ended at the frozen OpenCode-first release, `v0.26.1`.
 Runtime-neutral source lives in `agents/`, `protocols/`, `skills/`, and `tools/`. Generated runtime outputs must not be hand-edited. Mode aliases and their orchestrator targets are defined in `modes.json`. `$run-adaptive` is intentionally a skill-only Simple/Flow/Pipeline router with route-independent execution presets, not an agent role or manifest-backed compatibility mode.
-For Codex custom-role dispatch, use the native registered-role selector without a full-history fork whenever the spawn selects a registered role or non-parent model/reasoning configuration; verify the spawned child trace because full-history inheritance is not valid evidence that a workspace profile was applied.
+For Codex custom-role dispatch, use the native registered-role selector without a full-history fork whenever the spawn selects a registered role or non-parent model/reasoning configuration; verify the spawned child trace because full-history inheritance is not valid evidence that a workspace profile or reasoning selector was applied. Adaptive, Simple, Flow, and Pipeline default child effort to the shared adaptive resolver and retain `--reasoning=inherit` as the rollback mode.
 For the conceptual UI/UX layer, use `ui-ux-designer`; see `protocols/UI_UX_WORKFLOW.md` plus the `ui-ux-bundle` schema/example bundle at `protocols/schemas/ui-ux-bundle.schema.json` and `protocols/examples/ui-ux-bundle.valid.json`. The same surface also covers communication-first redesign and critique work via `skills/ui-communication-designer/SKILL.md`. For frontend implementation or polish after a conceptual handoff, use `skills/frontend-aesthetic-director/SKILL.md`; it preserves the upstream wireframe/flow and focuses on visual direction, tokens, responsive behavior, accessibility, and rendered QA.
 
 | Agent | Role | Mode | Notes |
