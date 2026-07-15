@@ -1,84 +1,258 @@
 # Reasoning Policy Protocol
 
-This protocol controls reasoning effort for child-agent dispatches. It does not
-change the model or effort of the already-running current/main agent.
+Policy/schema version **2 / 2.0** defines deterministic reasoning selection for
+**child-agent dispatches only**. It never changes the model or reasoning effort
+of the already-running current/main agent.
 
-The authoritative projection table and role bounds are
-`protocols/reasoning-policy.json`. Workflows must use
-`tools/reasoning-policy.js`; they must not reproduce the class-to-effort table
-in prompt logic.
+The canonical machine-readable source is
+[`reasoning-policy.json`](reasoning-policy.json). Every orchestrator calls
+`tools/reasoning-policy.js` before every child spawn. Workflow documents may
+describe when to call the resolver, but must not reproduce its effort mapping.
 
-## Run Policy
+## Ownership and decision path
 
-Simple, Flow, Pipeline, and Adaptive accept one run-level flag:
+The decision path is:
+
+```text
+task_intent -> baseline reasoning class -> signals and role/context bounds
+            -> selected role-model capability -> child-spawn effort
+```
+
+Ownership is deliberately separated:
+
+- The effective workspace profile/runtime selects the actual registered role
+  and its model/tier.
+- The resolver reads the proven selected tier and selects only the dispatched
+  child's effort.
+- The resolver never routes a raw model, dynamically changes a role model,
+  upgrades or downgrades a model, or applies effort to the current/main agent.
+- `requires_model_escalation` is capability-conflict metadata. It never
+  authorizes dynamic model routing.
+
+Risk, verification, approvals, retries, resources, and reasoning demand stay
+separate controls.
+
+## Task intent and classification
+
+New task-producing workflows emit all of the following alongside the existing
+artifact fields:
+
+```json
+{
+  "task_intent": "execute",
+  "intent_baseline_class": "routine",
+  "classification_source": "task_intent",
+  "reasoning_class": "routine",
+  "reasoning_signals": ["fully_specified"]
+}
+```
+
+Current task producers must emit these fields, but they are backward-compatible
+optional extensions to TaskList, FlowTaskList, DispatchPlan, and TaskStatus.
+The checkpoint's reasoning-policy flags are extended separately. Neither
+change advances those artifacts' existing
+`protocol_version`; the status runtime remains `PROTOCOL_VERSION = 1.0`.
+Policy v2/schema 2.0 belongs to the separate ReasoningPolicy,
+ReasoningDecision, and ReasoningObservation contracts.
+
+`reasoning_class` remains a legacy-compatible artifact field. It is retained
+for TaskList, FlowTaskList, DispatchPlan, TaskStatus, and older handoffs; it
+does not replace `task_intent` for new production. When an intent is present,
+the resolver starts from that intent's baseline and only raises it. Signals,
+an explicit legacy class, role/context floors, and a qualifying reasoning
+failure may raise the result; none may lower it.
+
+| `task_intent` | Baseline | Use it for |
+|---|---|---|
+| `execute` | `routine` | Carrying out a known action |
+| `inspect` | `routine` | Looking up or checking known facts/state |
+| `diagnose` | `deliberative` | Explaining a bounded observed problem |
+| `design` | `deliberative` | Choosing or shaping a bounded approach |
+| `review` | `deliberative` | Ordinary quality review |
+| `certify` | `assurance` | A formal accept/reject process |
+
+`routine` means **almost no substantive decision is required**. It is not a
+synonym for a small workload: a large mechanical transformation can be routine,
+while a small ambiguous change can be deliberative or deep.
+
+`assurance` is a formal accept/reject process semantic, not simply “more
+thinking than deep.” Use `certify` or the `formal-assurance` context only when
+the requested work is an explicit formal gate. Ordinary review remains
+`review`, even when `--review=max` is used.
+
+### Signals
+
+Signals are bounded evidence that can only raise the intent baseline. The
+policy owns the authoritative floors; this table explains their meaning.
+
+| Minimum class | Signals |
+|---|---|
+| `routine` | `fully_specified`, `local_scope` |
+| `deliberative` | `multi_step`, `multi_file`, `bounded_tradeoff`, `ordinary_diagnosis`, `implementation_choice`, `partial_ambiguity` |
+| `deep` | `cross_module`, `cross_system`, `ambiguous_root_cause`, `architectural_tradeoff`, `architecture_tradeoff`, `non_local_invariant`, `adversarial_input`, `numerical_sensitivity`, `security_boundary`, `data_integrity`, `concurrency_or_ordering`, `migration_compatibility` |
+| `assurance` | `formal_accept_reject` |
+
+Policy floors for every signal except `formal_accept_reject` are capped at
+`deep`. A strengthened policy may ask an ordinary signal to receive more
+analysis, but it cannot manufacture formal accept/reject semantics.
+
+For backward compatibility, an intent-less legacy artifact keeps the v1
+`cross_module -> deliberative` floor. Adding a supported non-null
+`task_intent` activates the v2 floor and makes `cross_module` at least `deep`.
+This exception exists only to preserve already-produced v0.31.1 payloads; all
+current producers must emit intent metadata and must not use omission to avoid
+the v2 floor.
+
+The resolver also applies the role and dispatch-context policy in
+`reasoning-policy.json`. Fixed and adaptive role rules remain authoritative
+there; do not copy role-specific effort rules into workflow prose. A task that
+exceeds a fixed role's ceiling must be rerouted, never relabeled downward.
+
+### Role policy groups
+
+Fixed roles are semantic capability bounds, not default suggestions:
+
+- Fixed `routine`: `compressor`, `handoff-writer`, `kanban-manager`, `peon`,
+  `repo-scout`, `session-guide-writer`, `summarizer`, `test-runner`.
+- Fixed `deliberative`: `art-director`, `atomizer`, `committee-kiss`,
+  `committee-product`, `flow-splitter`, `market-researcher`, `planner`,
+  `router`, `specifier`, `ux-copy-trust`, `ux-novice`,
+  `ux-visual-hierarchy`.
+- Fixed `deep`: every `analysis-*` role, `committee-architect`,
+  `committee-judge`, `committee-qa`, `committee-security`, `ux-judge`, and
+  `ux-task-flow`. `committee-security` additionally requires `strong`.
+
+`doc-writer`, `executor`, and `generalist` are adaptive
+`routine/deliberative/deep`; their target is only the legacy fallback, never a
+floor when intent or adequate signals exist. `ui-ux-designer` is adaptive
+`deliberative/deep/deep`. `reviewer` is adaptive
+`deliberative/deep/assurance`. Unlisted roles use the default adaptive
+`routine/deliberative/deep` policy for in-memory decisions and observations.
+Persisted AgentStatus reasoning is intentionally limited to the managed role
+catalog because its schema binds `agent` to a canonical role-policy snapshot;
+register a role before persisting it there. Policy-v2 default, role, and
+dispatch-context objects are immutable managed snapshots, and extra role or
+context policy keys are invalid. The same exact-key rule applies to the policy
+root, compatibility, model-floor, class-requirement, and effort-projection
+objects. A fixed role or adaptive ceiling conflict
+requires reassignment to a compatible configured role; the resolver never
+clips the class.
+
+### Legacy artifacts
+
+Existing explicit `reasoning_class` input remains valid. The resolver records
+`classification_source = legacy_explicit_class` when no intent is present but
+an explicit class is. When neither intent nor class is present, it uses the
+role target and records `classification_source = legacy_role_target`.
+Legacy records use `task_intent = null` and `intent_baseline_class = null`.
+An explicit-class record must retain that non-null class as `requested_class`;
+a role-target record must keep `requested_class = null` and cannot resolve
+below the canonical role target. These provenance rules apply to conflict
+records as well as successful dispatches.
+Their signal validation retains the v1 `cross_module` floor described above;
+all other bounded signals retain their declared minimums.
+TaskStatus records that declare either legacy classification source must carry
+`reasoning_class` and `reasoning_signals` together; provenance cannot exist
+without the classification it describes.
+
+## Capability and effort projection
+
+The selected logical tier must be proven from the profile/runtime. Use
+`unknown` for global inheritance, uniform raw-model profiles, ineligible
+workspace layers, or any other unprovable tier; never infer it from a model
+slug.
+
+The central projection is:
+
+| Effective class | Minimum tier | `mini` | `standard` | `strong` | `unknown` |
+|---|---:|---:|---:|---:|---:|
+| `routine` | `mini` | `high` | `medium` | `medium` | `high` |
+| `deliberative` | `mini` | `xhigh` | `high` | `high` | `xhigh` |
+| `deep` | `standard` | conflict by default | `xhigh` | `xhigh` | conflict by default |
+| `assurance` | `strong` | conflict | conflict | `max`, strict | conflict |
+
+No managed child dispatch resolves below `medium`; `mini` and `unknown` start
+at `high` for routine work. A role or context may require a stronger minimum
+tier, but the resolver never changes the selected role model to satisfy it.
+
+### Deep compatibility exception
+
+Policy v2 deliberately changes deep behavior: `mini` and `unknown` deep work
+now conflict by default. An explicit `allow_degraded_deep = true` compatibility
+request may apply only to deep work outside `inherit` mode. It requests `max`,
+records `degraded = true`, and uses
+`degradation_reason = model_tier_below_deep_requirement`. It never authorizes
+assurance, never changes the model, and must not be inferred by a workflow.
+For an adaptive dispatch this exception is exact: an unavailable selector,
+unsupported `max`, or observed effective effort below `max` is a conflict,
+not a second degradation.
+
+## Review and assurance contexts
+
+| Context | Effective intent/class behavior | Capability and enforcement |
+|---|---|---|
+| `ad-hoc-review` | Raises an ordinary `review` to `deep` | Non-strict |
+| `pipeline-review` | Raises an ordinary `review` to `deep` | Strong tier minimum; non-strict |
+| `formal-assurance` | Fixed `assurance` formal gate | Strong tier required; strict |
+
+These three values are the complete policy-v2 dispatch-context vocabulary.
+Custom labels are invalid because they would have no canonical floor, tier, or
+strictness contract. Legacy schema-v1 records retain their bounded context
+string compatibility.
+
+`--review=max` is an exact **effort-only** reviewer override. For ordinary
+ad-hoc or Pipeline review it remains deep; it does not certify the work, change
+the selected model/tier, or apply to non-review roles or the current/main
+agent. A formal gate must be requested through `certify`,
+`formal_accept_reject`, or `formal-assurance`, not through `--review=max`.
+At the resolver-contract level every supported `explicit_effort` value is an
+upward, exact floor: class/model floors may raise it, but runtime fallback or
+observed effort that differs from the resulting exact request conflicts in
+either direction. `--review=max` remains the only workflow-facing review flag.
+
+## Resolver modes
+
+Simple, Flow, Pipeline, and Adaptive use:
 
 ```text
 --reasoning=inherit|shadow|adaptive
 ```
 
-Version 1 defaults to `adaptive`:
+Policy v2 defaults to `adaptive`.
 
-- `inherit`: do not apply adaptive effort. An explicit `--review=max` remains
-  an exact reviewer-only override for backward compatibility. Strict policy
-  such as formal assurance conflicts because inherit cannot enforce it.
-- `shadow`: resolve and record the decision but omit the spawn effort selector.
-  Strict policy and exact effort overrides conflict instead of proceeding
-  without enforcement.
-- `adaptive`: resolve the decision and pass a non-null `dispatch_effort` to the
-  child spawn. When the selector is unavailable, a non-strict, non-exact
-  decision instead returns `degraded` with `dispatch_effort = null`; omit the
-  selector and continue without claiming enforcement. Strict or exact requests
-  conflict and block.
-
-Invalid values warn once and fall back to `adaptive`. Flow and Pipeline persist
-`reasoning_mode`, `reasoning_policy_version`, and `reasoning_ceiling` in
-checkpoint flags. Version 1 uses `reasoning_ceiling = max`; a future workspace
-reasoning policy may lower that ceiling but may never lower the version 1
-signal, global, model-tier, class-projection, or formal-assurance floors. A
-ceiling below the projected requirement is fail-closed: it produces a conflict
-and never clips the requested effort downward.
-
-## Task Classification
-
-Task-producing agents emit `reasoning_class` plus every applicable bounded
-`reasoning_signals` value. They never emit a raw model name or raw effort.
-Risk, verification, approval, resource class, and reasoning demand remain
-separate controls.
-
-Choose the highest applicable class:
-
-| Class | Signals and decision rule |
+| Mode | Resolution and selector behavior |
 |---|---|
-| `routine` | Fully specified and local work with only `fully_specified` and/or `local_scope` |
-| `deliberative` | `multi_step` or `cross_module`, with no deep signal |
-| `deep` | Any of `cross_system`, `ambiguous_root_cause`, `architecture_tradeoff`, `non_local_invariant`, `adversarial_input`, `numerical_sensitivity`, `security_boundary`, or `data_integrity` |
-| `assurance` | A formal accept/reject gate identified by `formal_accept_reject`; ordinary implementation tasks do not use this class |
+| `inherit` | Preserves intent/classification metadata, but never requests or applies a selector. Exact effort overrides and strict requirements conflict. |
+| `shadow` | Fully computes and records the requested effort, but never applies a selector. Strict assurance conflicts. An ordinary `--review=max` can be computed and recorded as shadowed, not enforced. |
+| `adaptive` | Applies a non-null `dispatch_effort` through the native child-spawn selector. A non-strict, non-exact selector-unavailable case is degraded with no selector; strict assurance and exact overrides conflict. |
 
-The authoritative signal floors are `signal_minimum_classes` in
-`protocols/reasoning-policy.json`. Task, Flow, DispatchPlan, and TaskStatus
-schemas reject a class below that floor. The resolver independently reapplies
-the same floor so legacy or external input cannot under-allocate effort.
+All modes validate intent, signals, role ceilings, and model capability.
+`shadow` and `adaptive` also compute the effort and validate the workspace
+ceiling. `inherit` deliberately does not project effort or apply a selector,
+so exact and strict requirements conflict there. A `conflict` blocks the
+spawn. `requested` is not proof of enforcement; only matching child-trace
+evidence may become `enforced`.
 
-When evidence supports two adjacent classes, choose the higher class. Do not
-raise effort merely because a task is destructive or high risk; use approval,
-verification, and review gates for that risk. Conversely, reversible work may
-still be `deep` when its reasoning signals require it.
+## Failure-aware recovery
 
-`prior_reasoning_failure` is attempt metadata, not an initial task label. Set it
-only after a concrete logic, diagnosis, invariant, or review failure. Tool,
-permission, dependency, timeout, and other operational failures do not qualify.
+Only `prior_failure_type = reasoning_failure` can alter reasoning selection:
 
-For a multi-task batch, copy the highest task class and the sorted union of its
-signals into the DispatchPlan batch. Do not combine tasks when the assigned
-role cannot accept that class or when their resolved spawn settings are
-incompatible. The per-attempt AgentStatus decision remains authoritative.
-The same compatibility rule applies before Simple and Flow dispatch: fixed
-`routine` roles such as `peon` cannot receive deliberative, deep, or assurance
-work. A dispatch context may raise the requested class but never widens a
-fixed role's ceiling. Reroute to a semantically compatible role; never weaken
-the class.
+- `routine` becomes `deliberative`.
+- `deliberative` becomes `deep`.
+- `deep` remains deep, sets `recovery_boost = true`, and requests `max`; it
+  never becomes assurance.
 
-## Resolver Input
+`recovery_boost` describes only a final `deep` decision. If a later explicit
+class requirement produces `assurance`, the provisional boost is cleared;
+assurance obtains `max` from its own strict class contract.
+
+Operational failure types (`timeout`, `permission_denied`, `network_error`,
+`dependency_unavailable`, `browser_startup_failure`, `cli_format_error`, and
+`tool_failure`) do not raise the class or effort. Workflows record the actual
+failure type and keep operational retry, repair, and reasoning recovery
+budgets separate.
+
+## Dispatch and evidence rules
 
 Before every child spawn, call:
 
@@ -86,83 +260,68 @@ Before every child spawn, call:
 node tools/reasoning-policy.js --input-json '<json>' --compact
 ```
 
-The input contains only fields known at dispatch time:
+Provide the registered role, mode, intent/classification metadata, signals,
+proven selected tier or `unknown`, selector capability, runtime-supported
+efforts when known, workspace ceiling, applicable context, and retry failure
+metadata. Only pass `explicit_effort = max` for `--review=max` reviewer
+dispatches.
 
-```json
-{
-  "role": "executor",
-  "mode": "adaptive",
-  "reasoning_class": "deep",
-  "reasoning_signals": ["cross_module", "non_local_invariant"],
-  "model_tier": "standard",
-  "workspace_ceiling": "max",
-  "selector_available": true,
-  "runtime_supported_efforts": ["medium", "high", "xhigh", "max"],
-  "prior_reasoning_failure": false
-}
-```
+Version-2 decisions retain the legacy aliases and add bounded
+`task_intent`, `intent_baseline_class`, `classification_source`, `role_policy`,
+`reasoning_class`, `selected_model_tier`, `selector_available`, `degraded`,
+`degradation_reason`, `conflict_reason`, `recovery_boost`, and
+`explicit_override` fields. They also retain `dispatch_context`,
+`minimum_model_tier`, requested/dispatch/effective effort, `strict`, and the
+legacy `model_tier`, `effective_class`, and `conflict` fields.
+For schema version 2, `conflict` is only the fixed state token `"conflict"`;
+the single human-readable explanation lives in `conflict_reason`. Non-conflict
+records set both fields to null. Schema-v1 conflict text remains unchanged.
 
-Use `dispatch_context = ad-hoc-review | pipeline-review | formal-assurance`
-when applicable. For `--review=max`, also set `explicit_effort = max`.
+Assurance is successful only with selected tier `strong`, requested and
+observed effective effort `max`, and `strict = true`. A pre-dispatch decision
+may be `requested` while runtime evidence is pending, but it must not be
+reported as an accepted/certified result until matching effective-effort
+evidence is recorded; any known mismatch conflicts.
 
-Resolve `model_tier` from the healthy, eligible workspace profile's role map
-when available. Use `unknown` for global inheritance, uniform raw-model
-profiles, ineligible workspace layers, or any case where a logical tier cannot
-be proven. Never infer a tier from a model slug. Omit
-`runtime_supported_efforts` when the runtime does not publish that capability.
-Set `selector_available` truthfully from the current spawn surface.
+Decision and observation validation also enforces mode/state coherence:
+`inherit` never carries a selector request, `shadow` never carries a dispatch
+effort, `requested` has no effective-effort evidence yet, and `enforced`
+requires matching requested/dispatch/effective effort. Every non-conflict
+record derives its minimum tier and requested-effort floor from the effective
+class and selected tier; neither value is trusted merely because the payload
+declares it. Conflict records cannot claim dispatch or degradation, and
+degraded deep compatibility is limited to its exact documented
+class/tier/effort/reason combination.
 
-## Dispatch Rules
+The same validation binds classification and dispatch identity. A declared
+`requested_class` or explicit class override is a floor and cannot be rewritten
+downward. Managed `role_policy` snapshots must exactly match the declared role,
+known review contexts retain their documented class/tier/strict constraints,
+and AgentStatus accepts only managed roles and requires `agent` to match the
+embedded reasoning role. In
+adaptive mode, `selector_available = false` is reciprocal evidence: a
+non-conflict record must remain non-strict `degraded` with
+`selector_unavailable`; every adaptive state, including conflict, must carry
+no dispatch effort and no effective-effort claim.
 
-1. Exit code `2` is invalid policy/input and blocks the spawn.
-2. Exit code `3`, or `enforcement_status = conflict`, blocks the spawn. Report
-   the conflict instead of silently weakening the request.
-3. In `adaptive`, pass a non-null `dispatch_effort` as the native per-spawn
-   `reasoning_effort`. If a non-strict, non-exact decision is `degraded` because
-   the selector is unavailable, `dispatch_effort` is null: omit the selector,
-   continue with the registered role, and do not claim enforcement. Any strict
-   or exact selector-unavailable decision is a blocking conflict. Always omit
-   `model`, so the effective profile still owns model selection.
-4. In non-strict, non-exact `shadow`, omit `reasoning_effort` even though the
-   decision contains a requested effort. Strict policy or an exact effort
-   override conflicts and blocks instead of running in shadow.
-5. In `inherit`, omit `reasoning_effort` unless the resolver returns the exact
-   explicit `--review=max` override.
-6. Stage 1 never performs a model override. A non-strict
-   `requires_model_escalation = true` may continue at the returned effort but
-   remains `degraded`; a strict conflict stops. Upward model-tier escalation is
-   a later, separately gated capability.
-7. Verify the spawned child trace. When effective effort is observable, rerun
-   the resolver with `observed_effective_effort` and persist the updated
-   decision. Without trace evidence, keep `requested`; never relabel it
-   `enforced`. A mismatch is `conflict` for strict policy or an exact explicit
-   effort such as `--review=max`; non-strict adaptive requests may report
-   `degraded`.
+Observed effort proves what ran, not that an unmet policy requirement
+disappeared. A runtime-supported fallback remains `degraded` even when the
+observed effort matches that fallback, and degraded deep compatibility remains
+`degraded` even when its observed effort is `max`. Neither may be relabeled
+`enforced` or described as a complete high-assurance result.
 
-Flow and Pipeline include the complete resolver decision in `agent.started`
-and later agent lifecycle payloads as `reasoning`. The status writer stores it
-in AgentStatus and emits a terminal, local-only observation under:
+In adaptive mode, apply a non-null `dispatch_effort` through the native
+per-spawn effort selector while omitting `model`. Include the complete
+ReasoningDecision in Flow/Pipeline agent lifecycle status. If child trace
+evidence reports an effective effort, resolve again with that observation;
+never label a request as enforced without it. Simple follows the same contract
+in memory and writes no status artifact.
+
+Terminal Flow/Pipeline attempts may write a content-free local observation at:
 
 ```text
 <run_output_dir>/observations/reasoning/<agent_id>.json
 ```
 
-Observation creation is deterministic and makes no model call. AgentStatus
-keeps the complete decision, while the observation stores a bounded summary
-that omits `agent`, `reasons`, and `conflict` free text. The record uses a field
-allowlist and excludes prompts, result summaries, source, paths, commands,
-logs, evidence contents, and artifact contents.
-
-Simple has no run/status artifacts, so it applies the same resolver and spawn
-rules in memory without writing observations.
-
-## Quality Floors
-
-- No managed adaptive child dispatch resolves below `medium`.
-- `mini` resolves no lower than `high`.
-- `ultra` is not part of the scalar effort order.
-- Override policy files may strengthen but never lower the version 1 signal,
-  model, class-projection, or formal-assurance minimums.
-- An exact explicit effort never silently downgrades.
-- Formal assurance requires the policy's strong-tier and highest-single-agent
-  constraints or stops with a conflict.
+Observations retain bounded decision metadata but omit prompts, source, paths,
+commands, results, evidence contents, free-text reasons, and conflict text.

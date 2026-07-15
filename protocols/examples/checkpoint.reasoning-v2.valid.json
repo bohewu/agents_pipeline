@@ -1,0 +1,16 @@
+{
+  "protocol_version": "1.0",
+  "pipeline_id": "reasoning-v2-checkpoint-01",
+  "orchestrator": "orchestrator-pipeline",
+  "user_prompt": "Validate the bounded task-intent reasoning fixture.",
+  "flags": {
+    "reasoning_mode": "adaptive",
+    "reasoning_policy_version": "2",
+    "reasoning_ceiling": "max"
+  },
+  "current_stage": -1,
+  "completed_stages": [],
+  "stage_artifacts": {},
+  "created_at": "2026-07-15T00:00:00Z",
+  "updated_at": "2026-07-15T00:00:00Z"
+}

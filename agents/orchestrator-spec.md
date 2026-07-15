@@ -90,6 +90,17 @@ After each stage completes successfully, emit the canonical stage completion/che
 
 Emit semantic events through `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` (`layout = run-only`). Follow the contract in `protocols/PIPELINE_PROTOCOL.md`.
 
+# REASONING DISPATCH CONTRACT
+
+Before every child spawn, invoke `node tools/reasoning-policy.js` under
+`protocols/REASONING_POLICY.md`. Classify spec, plan, rendering, and summary
+work with the actual `task_intent`; preserve intent-baseline/source metadata,
+legacy-compatible `reasoning_class`, and bounded signals when a task artifact
+exists. The effective profile/runtime selects the actual role model/tier; the
+resolver validates capability and selects child effort only. Never pass a raw
+model, dynamically route a model, or apply a child selector to the current/main
+agent. A resolver conflict blocks that spawn.
+
 # CANONICAL SPEC ARTIFACT PATHS
 
 Write these fixed filenames under `<run_output_dir>/spec/`:

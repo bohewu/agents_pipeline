@@ -1,0 +1,50 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run-selector-conflict-forgery",
+  "agent_id": "reviewer-01",
+  "agent": "reviewer",
+  "status": "blocked",
+  "created_at": "2026-07-15T11:00:00.000Z",
+  "updated_at": "2026-07-15T11:00:01.000Z",
+  "reasoning": {
+    "schema_version": "2.0",
+    "policy_version": "2",
+    "mode": "adaptive",
+    "role": "reviewer",
+    "task_intent": "certify",
+    "intent_baseline_class": "assurance",
+    "classification_source": "task_intent",
+    "role_policy": {
+      "mode": "adaptive",
+      "floor_class": "deliberative",
+      "target_class": "deep",
+      "ceiling_class": "assurance",
+      "strict": false
+    },
+    "dispatch_context": "formal-assurance",
+    "requested_class": null,
+    "reasoning_class": "assurance",
+    "effective_class": "assurance",
+    "reasoning_signals": [],
+    "model_tier": "strong",
+    "selected_model_tier": "strong",
+    "minimum_model_tier": "strong",
+    "requires_model_escalation": false,
+    "requested_effort": "max",
+    "dispatch_effort": null,
+    "effective_effort": "max",
+    "selector_available": false,
+    "capability_source": "runtime",
+    "enforcement_status": "conflict",
+    "strict": true,
+    "degraded": false,
+    "degradation_reason": null,
+    "recovery_boost": false,
+    "explicit_override": null,
+    "reasons": [
+      "forged-effective-effort-without-selector"
+    ],
+    "conflict": "conflict",
+    "conflict_reason": "Required effort max cannot be enforced without a per-spawn reasoning selector"
+  }
+}

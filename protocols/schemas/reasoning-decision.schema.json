@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReasoningDecision",
-  "description": "Deterministic per-spawn reasoning policy decision. This record contains bounded routing metadata only.",
+  "description": "Deterministic per-spawn reasoning policy decision. Version 2 adds bounded task-intent and runtime-selection metadata while retaining the version 1 record shape.",
   "type": "object",
   "required": [
     "schema_version",
@@ -26,7 +26,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": ["1.0", "2.0"]
     },
     "policy_version": {
       "type": "string",
@@ -42,12 +42,40 @@
       "pattern": "^[a-z][a-z0-9-]{0,63}$",
       "maxLength": 64
     },
+    "task_intent": {
+      "enum": [
+        null,
+        "execute",
+        "inspect",
+        "diagnose",
+        "design",
+        "review",
+        "certify"
+      ]
+    },
+    "intent_baseline_class": {
+      "enum": [null, "routine", "deliberative", "deep", "assurance"]
+    },
+    "classification_source": {
+      "type": "string",
+      "enum": [
+        "task_intent",
+        "legacy_explicit_class",
+        "legacy_role_target"
+      ]
+    },
+    "role_policy": {
+      "$ref": "#/$defs/rolePolicy"
+    },
     "dispatch_context": {
       "type": ["string", "null"],
       "pattern": "^[a-z][a-z0-9-]{0,63}$",
       "maxLength": 64
     },
     "requested_class": {
+      "enum": [null, "routine", "deliberative", "deep", "assurance"]
+    },
+    "reasoning_class": {
       "enum": [null, "routine", "deliberative", "deep", "assurance"]
     },
     "effective_class": {
@@ -62,15 +90,23 @@
           "fully_specified",
           "local_scope",
           "multi_step",
+          "multi_file",
+          "bounded_tradeoff",
+          "ordinary_diagnosis",
+          "implementation_choice",
+          "partial_ambiguity",
           "cross_module",
           "cross_system",
           "ambiguous_root_cause",
+          "architectural_tradeoff",
           "architecture_tradeoff",
           "non_local_invariant",
           "adversarial_input",
           "numerical_sensitivity",
           "security_boundary",
           "data_integrity",
+          "concurrency_or_ordering",
+          "migration_compatibility",
           "formal_accept_reject",
           "prior_reasoning_failure",
           "explicit_user_override"
@@ -78,6 +114,10 @@
       }
     },
     "model_tier": {
+      "type": "string",
+      "enum": ["mini", "standard", "strong", "unknown"]
+    },
+    "selected_model_tier": {
       "type": "string",
       "enum": ["mini", "standard", "strong", "unknown"]
     },
@@ -96,6 +136,9 @@
     "effective_effort": {
       "enum": [null, "medium", "high", "xhigh", "max"]
     },
+    "selector_available": {
+      "type": ["boolean", "null"]
+    },
     "capability_source": {
       "type": "string",
       "enum": ["policy", "runtime"]
@@ -106,6 +149,18 @@
     },
     "strict": {
       "type": "boolean"
+    },
+    "degraded": {
+      "type": "boolean"
+    },
+    "degradation_reason": {
+      "$ref": "#/$defs/degradationReason"
+    },
+    "recovery_boost": {
+      "type": "boolean"
+    },
+    "explicit_override": {
+      "$ref": "#/$defs/explicitOverride"
     },
     "reasons": {
       "type": "array",
@@ -118,26 +173,1593 @@
     "conflict": {
       "type": ["string", "null"],
       "minLength": 1
+    },
+    "conflict_reason": {
+      "type": ["string", "null"],
+      "minLength": 1
     }
   },
   "allOf": [
     { "$ref": "reasoning-task-hints.schema.json" },
     {
       "if": {
-        "properties": { "mode": { "const": "inherit" } },
-        "required": ["mode"]
+        "allOf": [
+          {
+            "required": ["schema_version"],
+            "properties": { "schema_version": { "const": "1.0" } }
+          },
+          {
+            "required": ["mode"],
+            "properties": { "mode": { "const": "inherit" } }
+          }
+        ]
       },
       "then": {
         "properties": { "effective_class": { "const": null } }
-      },
-      "else": {
-        "properties": {
-          "effective_class": {
-            "enum": ["routine", "deliberative", "deep", "assurance"]
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": ["schema_version"],
+            "properties": { "schema_version": { "const": "1.0" } }
+          },
+          {
+            "required": ["mode"],
+            "properties": { "mode": { "enum": ["shadow", "adaptive"] } }
           }
+        ]
+      },
+      "then": {
+        "properties": {
+          "effective_class": { "enum": ["routine", "deliberative", "deep", "assurance"] }
         }
+      }
+    },
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "2.0" } }
+      },
+      "then": {
+        "allOf": [
+          {
+            "required": [
+              "task_intent",
+              "intent_baseline_class",
+              "classification_source",
+              "role_policy",
+              "reasoning_class",
+              "selected_model_tier",
+              "selector_available",
+              "degraded",
+              "degradation_reason",
+              "recovery_boost",
+              "explicit_override",
+              "conflict_reason"
+            ],
+            "properties": {
+              "policy_version": { "const": "2" }
+            }
+          },
+          { "$ref": "#/$defs/matchingClassAliases" },
+          { "$ref": "#/$defs/matchingModelTierAliases" },
+          { "$ref": "#/$defs/v2SemanticState" },
+          { "$ref": "#/$defs/v2DecisionState" }
+        ]
       }
     }
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "reasoningClass": {
+      "type": "string",
+      "enum": ["routine", "deliberative", "deep", "assurance"]
+    },
+    "modelTier": {
+      "type": "string",
+      "enum": ["mini", "standard", "strong"]
+    },
+    "rolePolicy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["mode", "reasoning_class", "strict"],
+          "properties": {
+            "mode": { "const": "fixed" },
+            "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "allOf": [
+            { "$ref": "#/$defs/requiredTierAtLeastMinimum" }
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "floor_class",
+            "target_class",
+            "ceiling_class",
+            "strict"
+          ],
+          "properties": {
+            "mode": { "const": "adaptive" },
+            "floor_class": { "$ref": "#/$defs/reasoningClass" },
+            "target_class": { "$ref": "#/$defs/reasoningClass" },
+            "ceiling_class": { "$ref": "#/$defs/reasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "allOf": [
+            { "$ref": "#/$defs/orderedAdaptiveClasses" },
+            { "$ref": "#/$defs/requiredTierAtLeastMinimum" }
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "canonicalFixedRoutineRolePolicy": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "routine",
+        "strict": false
+      }
+    },
+    "canonicalFixedDeliberativeRolePolicy": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deliberative",
+        "strict": false
+      }
+    },
+    "canonicalFixedDeepRolePolicy": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deep",
+        "strict": false
+      }
+    },
+    "canonicalCommitteeSecurityRolePolicy": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deep",
+        "minimum_model_tier": "strong",
+        "strict": false
+      }
+    },
+    "canonicalImplementationRolePolicy": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "routine",
+        "target_class": "deliberative",
+        "ceiling_class": "deep",
+        "strict": false
+      }
+    },
+    "canonicalUiUxDesignerRolePolicy": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deliberative",
+        "target_class": "deep",
+        "ceiling_class": "deep",
+        "strict": false
+      }
+    },
+    "canonicalReviewerRolePolicy": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deliberative",
+        "target_class": "deep",
+        "ceiling_class": "assurance",
+        "strict": false
+      }
+    },
+    "fixedRoutineRoleName": {
+      "enum": [
+        "compressor",
+        "handoff-writer",
+        "kanban-manager",
+        "peon",
+        "repo-scout",
+        "session-guide-writer",
+        "summarizer",
+        "test-runner"
+      ]
+    },
+    "fixedDeliberativeRoleName": {
+      "enum": [
+        "art-director",
+        "atomizer",
+        "committee-kiss",
+        "committee-product",
+        "flow-splitter",
+        "market-researcher",
+        "planner",
+        "router",
+        "specifier",
+        "ux-copy-trust",
+        "ux-novice",
+        "ux-visual-hierarchy"
+      ]
+    },
+    "fixedDeepRoleName": {
+      "enum": [
+        "analysis-complexity",
+        "analysis-correctness",
+        "analysis-numerics",
+        "analysis-robustness",
+        "committee-architect",
+        "committee-judge",
+        "committee-qa",
+        "ux-judge",
+        "ux-task-flow"
+      ]
+    },
+    "implementationRoleName": {
+      "enum": ["doc-writer", "executor", "generalist"]
+    },
+    "managedRoleName": {
+      "enum": [
+        "analysis-complexity",
+        "analysis-correctness",
+        "analysis-numerics",
+        "analysis-robustness",
+        "art-director",
+        "atomizer",
+        "committee-architect",
+        "committee-judge",
+        "committee-kiss",
+        "committee-product",
+        "committee-qa",
+        "committee-security",
+        "compressor",
+        "doc-writer",
+        "executor",
+        "flow-splitter",
+        "generalist",
+        "handoff-writer",
+        "kanban-manager",
+        "market-researcher",
+        "peon",
+        "planner",
+        "repo-scout",
+        "reviewer",
+        "router",
+        "session-guide-writer",
+        "specifier",
+        "summarizer",
+        "test-runner",
+        "ui-ux-designer",
+        "ux-copy-trust",
+        "ux-judge",
+        "ux-novice",
+        "ux-task-flow",
+        "ux-visual-hierarchy"
+      ]
+    },
+    "managedRoleState": {
+      "allOf": [
+        {
+          "if": { "properties": { "role": { "$ref": "#/$defs/fixedRoutineRoleName" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalFixedRoutineRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "$ref": "#/$defs/fixedDeliberativeRoleName" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalFixedDeliberativeRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "$ref": "#/$defs/fixedDeepRoleName" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalFixedDeepRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "committee-security" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalCommitteeSecurityRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "$ref": "#/$defs/implementationRoleName" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalImplementationRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "ui-ux-designer" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalUiUxDesignerRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "reviewer" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalReviewerRolePolicy" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": { "not": { "$ref": "#/$defs/managedRoleName" } }
+            }
+          },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalImplementationRolePolicy" } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "$ref": "#/$defs/fixedRoutineRoleName" } } }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "const": "routine" } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "$ref": "#/$defs/fixedDeliberativeRoleName" } } }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "const": "deliberative" } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "$ref": "#/$defs/fixedDeepRoleName" } } }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "const": "deep" } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "const": "committee-security" } } }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasoning_class": { "const": "deep" },
+              "minimum_model_tier": { "const": "strong" },
+              "model_tier": { "const": "strong" },
+              "selected_model_tier": { "const": "strong" },
+              "requires_model_escalation": { "const": false }
+        }
+      }
+    },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              {
+                "properties": {
+                  "role": {
+                    "anyOf": [
+                      { "$ref": "#/$defs/implementationRoleName" },
+                      { "not": { "$ref": "#/$defs/managedRoleName" } }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "enum": ["routine", "deliberative", "deep"] } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "const": "ui-ux-designer" } } }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "enum": ["deliberative", "deep"] } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "const": "reviewer" } } }
+            ]
+          },
+          "then": { "properties": { "reasoning_class": { "enum": ["deliberative", "deep", "assurance"] } } }
+        }
+      ]
+    },
+    "requestedAndOverrideClassFloors": {
+      "allOf": [
+        {
+          "if": { "properties": { "requested_class": { "const": "deliberative" } } },
+          "then": { "properties": { "reasoning_class": { "enum": ["deliberative", "deep", "assurance"] } } }
+        },
+        {
+          "if": { "properties": { "requested_class": { "const": "deep" } } },
+          "then": { "properties": { "reasoning_class": { "enum": ["deep", "assurance"] } } }
+        },
+        {
+          "if": { "properties": { "requested_class": { "const": "assurance" } } },
+          "then": { "properties": { "reasoning_class": { "const": "assurance" } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["reasoning_class"],
+                "properties": { "reasoning_class": { "const": "deliberative" } }
+              }
+            }
+          },
+          "then": { "properties": { "reasoning_class": { "enum": ["deliberative", "deep", "assurance"] } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["reasoning_class"],
+                "properties": { "reasoning_class": { "const": "deep" } }
+              }
+            }
+          },
+          "then": { "properties": { "reasoning_class": { "enum": ["deep", "assurance"] } } }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["reasoning_class"],
+                "properties": { "reasoning_class": { "const": "assurance" } }
+              }
+            }
+          },
+          "then": { "properties": { "reasoning_class": { "const": "assurance" } } }
+        }
+      ]
+    },
+    "assuranceAuthorizationState": {
+      "if": { "properties": { "reasoning_class": { "const": "assurance" } } },
+      "then": {
+        "anyOf": [
+          {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "certify" } }
+          },
+          {
+            "required": ["dispatch_context"],
+            "properties": { "dispatch_context": { "const": "formal-assurance" } }
+          },
+          {
+            "required": ["requested_class"],
+            "properties": { "requested_class": { "const": "assurance" } }
+          },
+          {
+            "required": ["explicit_override"],
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["reasoning_class"],
+                "properties": { "reasoning_class": { "const": "assurance" } }
+              }
+            }
+          },
+          {
+            "required": ["reasoning_signals"],
+            "properties": {
+              "reasoning_signals": { "contains": { "const": "formal_accept_reject" } }
+            }
+          }
+        ]
+      }
+    },
+    "managedDispatchContextState": {
+      "allOf": [
+        {
+          "if": { "properties": { "dispatch_context": { "const": "ad-hoc-review" } } },
+          "then": {
+            "properties": { "reasoning_class": { "enum": ["deep", "assurance"] } },
+            "allOf": [
+              {
+                "if": { "properties": { "reasoning_class": { "const": "deep" } } },
+                "then": { "properties": { "strict": { "const": false } } }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "dispatch_context": { "const": "pipeline-review" } } },
+          "then": {
+            "properties": { "reasoning_class": { "enum": ["deep", "assurance"] } },
+            "allOf": [
+              {
+                "if": { "properties": { "reasoning_class": { "const": "deep" } } },
+                "then": { "properties": { "strict": { "const": false } } }
+              },
+              {
+                "if": {
+                  "not": { "properties": { "enforcement_status": { "const": "conflict" } } }
+                },
+                "then": {
+                  "properties": {
+                    "model_tier": { "const": "strong" },
+                    "selected_model_tier": { "const": "strong" },
+                    "minimum_model_tier": { "const": "strong" },
+                    "requires_model_escalation": { "const": false }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "dispatch_context": { "const": "formal-assurance" } } },
+          "then": {
+            "properties": {
+              "reasoning_class": { "const": "assurance" },
+              "strict": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "selectorAvailabilityState": {
+      "if": {
+        "properties": {
+          "mode": { "const": "adaptive" },
+          "selector_available": { "const": false }
+        }
+      },
+      "then": {
+        "properties": {
+          "dispatch_effort": { "const": null },
+          "effective_effort": { "const": null }
+        },
+        "allOf": [
+          {
+            "if": { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+            "then": {
+              "properties": {
+                "enforcement_status": { "const": "degraded" },
+                "strict": { "const": false },
+                "degraded": { "const": true },
+                "degradation_reason": { "const": "selector_unavailable" }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "recoveryBoostState": {
+      "if": { "properties": { "recovery_boost": { "const": true } } },
+      "then": {
+        "properties": {
+          "reasoning_class": { "const": "deep" },
+          "requested_effort": { "enum": [null, "max"] }
+        }
+      }
+    },
+    "classificationProvenanceState": {
+      "allOf": [
+        {
+          "if": { "properties": { "classification_source": { "const": "legacy_explicit_class" } } },
+          "then": {
+            "properties": { "requested_class": { "$ref": "#/$defs/reasoningClass" } }
+          }
+        },
+        {
+          "if": { "properties": { "classification_source": { "const": "legacy_role_target" } } },
+          "then": {
+            "properties": { "requested_class": { "const": null } }
+          }
+        }
+      ]
+    },
+    "legacyRoleTargetState": {
+      "allOf": [
+        {
+          "if": {
+            "allOf": [
+              { "properties": { "classification_source": { "const": "legacy_role_target" } } },
+              {
+                "properties": {
+                  "role": {
+                    "anyOf": [
+                      { "$ref": "#/$defs/fixedDeliberativeRoleName" },
+                      { "$ref": "#/$defs/implementationRoleName" },
+                      { "not": { "$ref": "#/$defs/managedRoleName" } }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasoning_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "properties": { "classification_source": { "const": "legacy_role_target" } } },
+              {
+                "properties": {
+                  "role": {
+                    "anyOf": [
+                      { "$ref": "#/$defs/fixedDeepRoleName" },
+                      { "const": "committee-security" },
+                      { "const": "ui-ux-designer" },
+                      { "const": "reviewer" }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasoning_class": { "enum": ["deep", "assurance"] }
+            }
+          }
+        }
+      ]
+    },
+    "explicitEffortState": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"],
+                "properties": { "effort": { "const": "medium" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "requested_effort": { "enum": [null, "medium", "high", "xhigh", "max"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"],
+                "properties": { "effort": { "const": "high" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "requested_effort": { "enum": [null, "high", "xhigh", "max"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"],
+                "properties": { "effort": { "const": "xhigh" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "requested_effort": { "enum": [null, "xhigh", "max"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"],
+                "properties": { "effort": { "const": "max" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "requested_effort": { "enum": [null, "max"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"]
+              },
+              "mode": { "const": "inherit" }
+            }
+          },
+          "then": { "properties": { "enforcement_status": { "const": "conflict" } } }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "explicit_override": {
+                    "type": "object",
+                    "required": ["effort"]
+                  },
+                  "mode": { "const": "adaptive" }
+                }
+              },
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } }
+            ]
+          },
+          "then": {
+            "properties": {
+              "selector_available": { "enum": [null, true] },
+              "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "degradation_reason": { "enum": [null, "model_tier_below_deep_requirement"] }
+            },
+            "allOf": [
+              { "$ref": "#/$defs/matchingRequestedDispatchEffort" },
+              {
+                "oneOf": [
+                  { "properties": { "effective_effort": { "const": null } } },
+                  { "$ref": "#/$defs/matchingDispatchEffectiveEffort" }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "orderedAdaptiveClasses": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "target_class": { "const": "assurance" } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "ceiling_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "enum": ["deep", "assurance"] } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "const": "assurance" } }
+          }
+        }
+      ]
+    },
+    "requiredTierAtLeastMinimum": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "standard" }
+            }
+          },
+          "then": {
+            "properties": {
+              "required_model_tier": { "enum": ["standard", "strong"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "strong" }
+            }
+          },
+          "then": {
+            "properties": { "required_model_tier": { "const": "strong" } }
+          }
+        }
+      ]
+    },
+    "degradationReason": {
+      "enum": [
+        null,
+        "model_tier_below_deep_requirement",
+        "runtime_effort_unavailable",
+        "selector_unavailable",
+        "effective_effort_mismatch"
+      ]
+    },
+    "degradationReasonValue": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_-]{0,127}$"
+    },
+    "explicitOverride": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
+            "effort": {
+              "type": "string",
+              "enum": ["medium", "high", "xhigh", "max"]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "matchingClassAliases": {
+      "oneOf": [
+        {
+          "properties": {
+            "reasoning_class": { "const": "routine" },
+            "effective_class": { "const": "routine" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "deliberative" },
+            "effective_class": { "const": "deliberative" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "deep" },
+            "effective_class": { "const": "deep" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "assurance" },
+            "effective_class": { "const": "assurance" }
+          }
+        }
+      ]
+    },
+    "matchingModelTierAliases": {
+      "oneOf": [
+        {
+          "properties": {
+            "model_tier": { "const": "mini" },
+            "selected_model_tier": { "const": "mini" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "standard" },
+            "selected_model_tier": { "const": "standard" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "strong" },
+            "selected_model_tier": { "const": "strong" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "unknown" },
+            "selected_model_tier": { "const": "unknown" }
+          }
+        }
+      ]
+    },
+    "nonNullEffort": {
+      "type": "string",
+      "enum": ["medium", "high", "xhigh", "max"]
+    },
+    "effortAtLeastHigh": {
+      "type": "string",
+      "enum": ["high", "xhigh", "max"]
+    },
+    "effortAtLeastXhigh": {
+      "type": "string",
+      "enum": ["xhigh", "max"]
+    },
+    "matchingRequestedDispatchEffort": {
+      "oneOf": [
+        {
+          "properties": {
+            "requested_effort": { "const": "medium" },
+            "dispatch_effort": { "const": "medium" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "high" },
+            "dispatch_effort": { "const": "high" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "xhigh" },
+            "dispatch_effort": { "const": "xhigh" }
+          }
+        },
+        {
+          "properties": {
+            "requested_effort": { "const": "max" },
+            "dispatch_effort": { "const": "max" }
+          }
+        }
+      ]
+    },
+    "matchingDispatchEffectiveEffort": {
+      "oneOf": [
+        {
+          "properties": {
+            "dispatch_effort": { "const": "medium" },
+            "effective_effort": { "const": "medium" }
+          }
+        },
+        {
+          "properties": {
+            "dispatch_effort": { "const": "high" },
+            "effective_effort": { "const": "high" }
+          }
+        },
+        {
+          "properties": {
+            "dispatch_effort": { "const": "xhigh" },
+            "effective_effort": { "const": "xhigh" }
+          }
+        },
+        {
+          "properties": {
+            "dispatch_effort": { "const": "max" },
+            "effective_effort": { "const": "max" }
+          }
+        }
+      ]
+    },
+    "v2SemanticState": {
+      "allOf": [
+        {
+          "properties": {
+            "dispatch_context": {
+              "enum": [null, "ad-hoc-review", "pipeline-review", "formal-assurance"]
+            }
+          }
+        },
+        { "$ref": "#/$defs/managedRoleState" },
+        { "$ref": "#/$defs/requestedAndOverrideClassFloors" },
+        { "$ref": "#/$defs/assuranceAuthorizationState" },
+        { "$ref": "#/$defs/managedDispatchContextState" },
+        { "$ref": "#/$defs/selectorAvailabilityState" },
+        { "$ref": "#/$defs/recoveryBoostState" },
+        { "$ref": "#/$defs/classificationProvenanceState" },
+        { "$ref": "#/$defs/legacyRoleTargetState" },
+        { "$ref": "#/$defs/explicitEffortState" },
+        {
+          "if": {
+            "properties": { "mode": { "const": "inherit" } }
+          },
+          "then": {
+            "properties": {
+              "requested_effort": { "const": null },
+              "dispatch_effort": { "const": null },
+              "enforcement_status": { "enum": ["inherited", "conflict"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "shadow" } }
+          },
+          "then": {
+            "properties": {
+              "dispatch_effort": { "const": null },
+              "enforcement_status": { "enum": ["shadow", "conflict"] }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "enforcement_status": { "const": "shadow" }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "requested_effort": { "$ref": "#/$defs/nonNullEffort" }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "mode": { "const": "adaptive" } }
+          },
+          "then": {
+            "properties": {
+              "enforcement_status": {
+                "enum": ["requested", "enforced", "degraded", "conflict"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "enforcement_status": { "const": "requested" } }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "requested_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "effective_effort": { "const": null },
+              "degraded": { "const": false },
+              "degradation_reason": { "const": null }
+            },
+            "allOf": [
+              { "$ref": "#/$defs/matchingRequestedDispatchEffort" }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "enforcement_status": { "const": "enforced" } }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "requested_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "effective_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "degraded": { "const": false },
+              "degradation_reason": { "const": null }
+            },
+            "allOf": [
+              { "$ref": "#/$defs/matchingRequestedDispatchEffort" },
+              { "$ref": "#/$defs/matchingDispatchEffectiveEffort" }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": { "enforcement_status": { "const": "degraded" } }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "requested_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "strict": { "const": false },
+              "degraded": { "const": true },
+              "degradation_reason": { "$ref": "#/$defs/degradationReasonValue" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "enforcement_status": { "const": "conflict" } }
+          },
+          "then": {
+            "properties": {
+              "dispatch_effort": { "const": null },
+              "degraded": { "const": false },
+              "degradation_reason": { "const": null }
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "enforcement_status": { "const": "conflict" }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "minimum_model_tier": { "$ref": "#/$defs/modelTier" }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "deep" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "minimum_model_tier": { "enum": ["standard", "strong"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "routine" },
+                  "selected_model_tier": { "enum": ["mini", "unknown"] },
+                  "requested_effort": { "$ref": "#/$defs/nonNullEffort" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "requested_effort": { "$ref": "#/$defs/effortAtLeastHigh" }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "deliberative" },
+                  "selected_model_tier": { "enum": ["mini", "unknown"] },
+                  "requested_effort": { "$ref": "#/$defs/nonNullEffort" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "requested_effort": { "$ref": "#/$defs/effortAtLeastXhigh" }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "deliberative" },
+                  "selected_model_tier": { "enum": ["standard", "strong"] },
+                  "requested_effort": { "$ref": "#/$defs/nonNullEffort" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "requested_effort": { "$ref": "#/$defs/effortAtLeastHigh" }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "deep" },
+                  "requested_effort": { "$ref": "#/$defs/nonNullEffort" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "requested_effort": { "$ref": "#/$defs/effortAtLeastXhigh" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "reasoning_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "strict": { "const": true } },
+            "allOf": [
+              {
+                "if": {
+                  "not": {
+                    "properties": {
+                      "enforcement_status": { "const": "conflict" }
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "mode": { "const": "adaptive" },
+                    "model_tier": { "const": "strong" },
+                    "selected_model_tier": { "const": "strong" },
+                    "minimum_model_tier": { "const": "strong" },
+                    "requires_model_escalation": { "const": false },
+                    "requested_effort": { "const": "max" },
+                    "dispatch_effort": { "const": "max" },
+                    "effective_effort": { "enum": [null, "max"] },
+                    "enforcement_status": { "enum": ["requested", "enforced"] },
+                    "degraded": { "const": false },
+                    "degradation_reason": { "const": null }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "requires_model_escalation": { "const": true }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasoning_class": { "const": "deep" },
+              "effective_class": { "const": "deep" },
+              "minimum_model_tier": { "const": "standard" },
+              "model_tier": { "enum": ["mini", "unknown"] },
+              "selected_model_tier": { "enum": ["mini", "unknown"] },
+              "requested_effort": { "const": "max" },
+              "degraded": { "const": true },
+              "degradation_reason": { "const": "model_tier_below_deep_requirement" },
+              "mode": { "enum": ["shadow", "adaptive"] }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "mode": { "const": "adaptive" } }
+                },
+                "then": {
+                  "properties": {
+                    "dispatch_effort": { "const": "max" },
+                    "effective_effort": { "enum": [null, "max"] },
+                    "enforcement_status": { "const": "degraded" }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "enforcement_status": { "const": "shadow" }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "reasoning_class": { "const": "deep" },
+                  "selected_model_tier": { "enum": ["mini", "unknown"] }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "requires_model_escalation": { "const": true }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "requires_model_escalation": { "const": false },
+                  "minimum_model_tier": { "const": "standard" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "model_tier": { "enum": ["standard", "strong"] },
+              "selected_model_tier": { "enum": ["standard", "strong"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "not": {
+                  "properties": {
+                    "enforcement_status": { "const": "conflict" }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "requires_model_escalation": { "const": false },
+                  "minimum_model_tier": { "const": "strong" }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "model_tier": { "const": "strong" },
+              "selected_model_tier": { "const": "strong" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "degraded": { "const": true } }
+          },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "mode": { "const": "adaptive" },
+                  "enforcement_status": { "const": "degraded" }
+                }
+              },
+              {
+                "properties": {
+                  "mode": { "const": "shadow" },
+                  "enforcement_status": { "const": "shadow" },
+                  "degradation_reason": { "const": "model_tier_below_deep_requirement" }
+                }
+              }
+            ]
+          },
+          "else": {
+            "not": {
+              "properties": {
+                "enforcement_status": { "const": "degraded" }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "explicit_override": {
+                "type": "object",
+                "required": ["effort"],
+                "properties": { "effort": { "const": "max" } }
+              }
+            }
+          },
+          "then": {
+            "properties": { "requested_effort": { "enum": [null, "max"] } },
+            "allOf": [
+              {
+                "if": {
+                  "allOf": [
+                    { "properties": { "mode": { "const": "adaptive" } } },
+                    {
+                      "not": {
+                        "properties": {
+                          "enforcement_status": { "const": "conflict" }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "requested_effort": { "const": "max" },
+                    "dispatch_effort": { "const": "max" },
+                    "effective_effort": { "enum": [null, "max"] }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "degradation_reason": { "const": "selector_unavailable" }
+            }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "enforcement_status": { "const": "degraded" },
+              "selector_available": { "const": false },
+              "dispatch_effort": { "const": null },
+              "degraded": { "const": true }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "degradation_reason": { "const": "effective_effort_mismatch" }
+            }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "enforcement_status": { "const": "degraded" },
+              "degraded": { "const": true },
+              "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "effective_effort": { "$ref": "#/$defs/nonNullEffort" }
+            },
+            "not": { "$ref": "#/$defs/matchingDispatchEffectiveEffort" }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "degradation_reason": { "const": "runtime_effort_unavailable" }
+            }
+          },
+          "then": {
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "enforcement_status": { "const": "degraded" },
+              "degraded": { "const": true },
+              "requested_effort": { "$ref": "#/$defs/nonNullEffort" },
+              "dispatch_effort": { "$ref": "#/$defs/nonNullEffort" }
+            },
+            "not": { "$ref": "#/$defs/matchingRequestedDispatchEffort" },
+            "allOf": [
+              {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "effective_effort": { "const": null }
+                    }
+                  },
+                  {
+                    "$ref": "#/$defs/matchingDispatchEffectiveEffort"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "degradation_reason": { "const": "model_tier_below_deep_requirement" }
+            }
+          },
+          "then": {
+            "properties": {
+              "requires_model_escalation": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "v2DecisionState": {
+      "allOf": [
+        {
+          "if": {
+            "properties": { "degraded": { "const": true } }
+          },
+          "then": {
+            "properties": {
+              "degradation_reason": { "$ref": "#/$defs/degradationReasonValue" }
+            }
+          },
+          "else": {
+            "properties": {
+              "degradation_reason": { "const": null }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "enforcement_status": { "const": "conflict" } }
+          },
+          "then": {
+            "properties": {
+              "conflict": { "const": "conflict" },
+              "conflict_reason": { "type": "string", "minLength": 1 },
+              "degraded": { "const": false },
+              "degradation_reason": { "const": null }
+            }
+          },
+          "else": {
+            "properties": {
+              "conflict": { "const": null },
+              "conflict_reason": { "const": null }
+            }
+          }
+        }
+      ]
+    }
+  }
 }

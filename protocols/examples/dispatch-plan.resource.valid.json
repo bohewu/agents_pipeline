@@ -7,6 +7,13 @@
         "t1"
       ],
       "assigned_executor": "executor",
+      "task_intent": "execute",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "deliberative",
+      "reasoning_signals": [
+        "multi_file"
+      ],
       "parallel": false,
       "resource_class": "server",
       "max_parallelism": 1,
@@ -23,6 +30,13 @@
         "t2"
       ],
       "assigned_executor": "executor",
+      "task_intent": "inspect",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "routine",
+      "reasoning_signals": [
+        "fully_specified"
+      ],
       "parallel": false,
       "resource_class": "browser",
       "max_parallelism": 1,
@@ -38,7 +52,14 @@
       "task_ids": [
         "t3"
       ],
-      "assigned_executor": "peon",
+      "assigned_executor": "executor",
+      "task_intent": "execute",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "deliberative",
+      "reasoning_signals": [
+        "multi_step"
+      ],
       "parallel": false,
       "resource_class": "process",
       "max_parallelism": 1,
@@ -55,6 +76,13 @@
         "t5"
       ],
       "assigned_executor": "doc-writer",
+      "task_intent": "inspect",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "routine",
+      "reasoning_signals": [
+        "fully_specified"
+      ],
       "parallel": true,
       "resource_class": "light",
       "max_parallelism": 2,

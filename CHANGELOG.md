@@ -6,6 +6,28 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-07-15
+
+### Added
+
+- Added policy-v2 `task_intent` classification, deterministic intent/signal/role/context resolution, selected-tier capability checks, failure-aware recovery, structured decisions/observations, schemas, fixtures, status projection, and shared workflow guidance.
+- Added backward-compatible intent metadata to TaskList, FlowTaskList, DispatchPlan, and TaskStatus plus a checkpoint compatibility flag without changing their existing protocol versions.
+
+### Changed
+
+- Changed deep `mini` and `unknown` dispatches from an implicit max fallback to a capability conflict by default. The explicit `allow_degraded_deep` compatibility path can request only exact degraded deep `max` with `model_tier_below_deep_requirement`, never assurance; missing or mismatched max enforcement conflicts.
+- Raised `cross_module` to a hard `deep` signal for intent-bearing policy-v2 records and added the bounded deliberative/deep signal vocabulary required by task-intent classification. Intent-less legacy payloads retain the v1 `cross_module -> deliberative` floor so persisted v0.31.1 artifacts do not change meaning.
+- Tightened v2 policy, decision, observation, and status validation so managed role/context contracts, runtime enforcement evidence, assurance, and degraded-deep state cannot be weakened or forged in schema-valid artifacts.
+- Bound requested and explicit classes as upward-only floors, managed role-policy snapshots and review contexts to their identifiers, AgentStatus to its embedded reasoning role, and unavailable-selector evidence to an exact non-dispatched degraded state.
+- Made selector-unavailable conflicts content-free with respect to effective effort, applied exact upward-floor validation to every explicit effort value, and bound legacy classification sources to their requested class or canonical role target even on conflicts.
+- Rejected every runtime or observed fallback away from a resulting exact effort request, cleared provisional recovery boosts unless the final class remains `deep`, and required legacy TaskStatus provenance to carry its class/signals pair.
+- Closed policy-v2 customization gaps by making default, managed-role, and dispatch-context objects canonical snapshots with no extra keys; unlisted roles retain in-memory default resolution, while persisted AgentStatus reasoning is managed-role-only.
+- Restored schema-v1 non-inherit `effective_class` parity, capped every non-formal signal floor at `deep`, rejected unknown keys throughout runtime policy validation, and limited policy-v2 dispatch records to the three canonical contexts.
+- Canonicalized policy-v2 conflict metadata as a fixed `conflict` state token plus one free-text `conflict_reason`, removing a cross-field equality rule that JSON Schema could not enforce while preserving schema-v1 conflict text.
+- Kept runtime-effort fallbacks and model-tier-below-deep compatibility marked `degraded` after matching trace evidence; matching the fallback proves what ran but does not satisfy or erase the original class/tier requirement.
+- Made `inherit` classification-only: it never applies a child effort selector, so exact overrides such as `--review=max` and strict assurance now conflict instead of being enforced from inherit mode. `shadow` still computes requested effort without applying it.
+- Clarified that workspace profiles select the actual child role model/tier, while the resolver selects child effort only and never routes or downgrades a model or changes current/main-agent effort.
+
 ## [0.31.1] - 2026-07-15
 
 ### Fixed

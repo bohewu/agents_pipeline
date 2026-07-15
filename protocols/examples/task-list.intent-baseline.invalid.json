@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t-certify",
+      "summary": "Invalid certify baseline fixture",
+      "description": "The task intent metadata intentionally understates certify work.",
+      "primary_output": "analysis",
+      "owner_hint": "executor",
+      "risk": "high",
+      "task_intent": "certify",
+      "intent_baseline_class": "deep",
+      "classification_source": "task_intent",
+      "reasoning_class": "deep",
+      "reasoning_signals": [
+        "fully_specified"
+      ],
+      "complexity": "M",
+      "definition_of_done": [
+        "This fixture must fail because certify has an assurance baseline."
+      ],
+      "dependencies": []
+    }
+  ]
+}

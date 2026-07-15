@@ -16,7 +16,8 @@ Execute EXACTLY ONE task. No scope creep.
 - A transient operational failure may be retried at most twice without consuming `repair_budget` only when no implementation/content change is made. Examples include a mistyped command, a not-yet-ready local service, or a clearly transient tool/network failure.
 - Do not classify deterministic test, lint, type, build, logic, configuration, permission, or dependency failures as transient merely to avoid the repair budget.
 - Stop local iteration and return `blocked` or `partial` when the same normalized failure signature appears twice, the latest attempt produces no meaningful progress, the repair budget is exhausted, or the required fix expands scope.
-- Model/provider selection remains profile/runtime-owned. Per-spawn reasoning effort comes from the caller's ReasoningDecision; do not reinterpret risk, verification, repair budget, or resource class as model or effort controls.
+- The handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, and ReasoningDecision are authoritative for this attempt. Do not reclassify the work, choose a raw/dynamic model, or reinterpret risk, verification, repair budget, or resource class as model/effort controls. The profile/runtime selected the actual role model/tier; the caller's resolver selected child effort only.
+- When an attempt fails, state in `notes` whether the cause is a concrete reasoning failure or an operational failure type. Do not self-escalate: the orchestrator may set `prior_failure_type = reasoning_failure` only for a logic, diagnosis, invariant, or review failure; operational failures do not raise effort.
 
 # FRONTEND UI TASKS
 

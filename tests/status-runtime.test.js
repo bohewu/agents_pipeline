@@ -17,7 +17,11 @@ const {
   canonicalizeTaskStatus
 } = require("../tools/status-runtime/schema-lite");
 const { StatusWriter } = require("../tools/status-runtime/status-writer");
-const { resolveReasoning } = require("../tools/reasoning-policy");
+const {
+  loadPolicy,
+  resolveReasoning,
+  validatePolicy
+} = require("../tools/reasoning-policy");
 const {
   resolvePayloadPath,
   resolvePayloadPathAnchor
@@ -592,6 +596,35 @@ test("status schema-lite requires resource_class for dependent task and agent fi
     }),
     /reasoning_class routine is below signal minimum deep/
   );
+
+  const legacyCrossModule = canonicalizeTaskStatus({
+    run_id: "run-legacy-cross-module",
+    task_id: "task-legacy-cross-module",
+    summary: "Legacy cross-module analysis",
+    status: "pending",
+    created_at: timestamp,
+    updated_at: timestamp,
+    reasoning_class: "deliberative",
+    reasoning_signals: ["cross_module"]
+  });
+  assert.equal(legacyCrossModule.reasoning_class, "deliberative");
+
+  assert.throws(
+    () => canonicalizeTaskStatus({
+      run_id: "run-v2-cross-module",
+      task_id: "task-v2-cross-module",
+      summary: "Intent-bearing cross-module analysis",
+      status: "pending",
+      created_at: timestamp,
+      updated_at: timestamp,
+      task_intent: "inspect",
+      intent_baseline_class: "routine",
+      classification_source: "task_intent",
+      reasoning_class: "deliberative",
+      reasoning_signals: ["cross_module"]
+    }),
+    /reasoning_class deliberative is below signal minimum deep/
+  );
 });
 
 test("reasoning decisions and observations reject effective class below signal floor", () => {
@@ -603,6 +636,7 @@ test("reasoning decisions and observations reject effective class below signal f
     model_tier: "standard"
   });
   underClassified.effective_class = "routine";
+  underClassified.reasoning_class = "routine";
 
   assert.throws(
     () => canonicalizeReasoningDecision(underClassified),
@@ -625,6 +659,7 @@ test("reasoning decisions and observations reject effective class below signal f
   const summary = { ...underClassified };
   delete summary.reasons;
   delete summary.conflict;
+  delete summary.conflict_reason;
   assert.throws(
     () => canonicalizeReasoningObservation({
       schema_version: "1.0",
@@ -657,7 +692,876 @@ test("reasoning decisions and observations reject effective class below signal f
     reasoning_class: "deep",
     model_tier: "standard"
   });
-  assert.equal(canonicalizeReasoningDecision(inherited).effective_class, null);
+  const inheritedDecision = canonicalizeReasoningDecision(inherited);
+  assert.equal(inheritedDecision.effective_class, "deep");
+  assert.equal(inheritedDecision.requested_effort, null);
+  assert.equal(inheritedDecision.dispatch_effort, null);
+  assert.equal(inheritedDecision.enforcement_status, "inherited");
+
+  const legacyCrossModule = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    reasoning_class: "deliberative",
+    reasoning_signals: ["cross_module"],
+    model_tier: "standard"
+  });
+  legacyCrossModule.schema_version = "1.0";
+  legacyCrossModule.policy_version = "1";
+  assert.equal(canonicalizeReasoningDecision(legacyCrossModule).effective_class, "deliberative");
+});
+
+test("status reasoning validation matches version 2 intent and role-policy invariants", () => {
+  const valid = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    model_tier: "standard"
+  });
+
+  assert.throws(
+    () => canonicalizeReasoningDecision({ ...valid, classification_source: "legacy_role_target" }),
+    /legacy reasoning classification cannot include task intent metadata/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...valid,
+      role_policy: {
+        ...valid.role_policy,
+        floor_class: "deep",
+        target_class: "deliberative"
+      }
+    }),
+    /floor_class must not exceed target_class/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...valid,
+      enforcement_status: "conflict",
+      dispatch_effort: null,
+      conflict: null,
+      conflict_reason: null
+    }),
+    /conflict status requires the canonical conflict token/
+  );
+});
+
+test("version 2 status records cannot forge enforcement or assurance", () => {
+  const enforced = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "standard",
+    observed_effective_effort: "xhigh"
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({ ...enforced, effective_effort: null }),
+    /enforced reasoning requires effective effort evidence/
+  );
+
+  const assurance = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "certify",
+    dispatch_context: "formal-assurance",
+    model_tier: "strong",
+    observed_effective_effort: "max"
+  });
+  const forged = {
+    ...assurance,
+    model_tier: "mini",
+    selected_model_tier: "mini",
+    requested_effort: "high",
+    dispatch_effort: "high",
+    effective_effort: "high",
+    strict: false
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(forged),
+    /assurance reasoning must be strict/
+  );
+
+  const summary = { ...forged };
+  delete summary.reasons;
+  delete summary.conflict;
+  delete summary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T10:30:01.000Z",
+      run_id: "run-forged-assurance",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "reviewer-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: summary
+    }),
+    /assurance reasoning must be strict/
+  );
+});
+
+test("version 2 artifacts reject forged capability, effort, and degradation tuples", () => {
+  const deepStandard = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "standard",
+    observed_effective_effort: "xhigh"
+  });
+
+  const deepMiniMinimumForgery = {
+    ...deepStandard,
+    model_tier: "mini",
+    selected_model_tier: "mini",
+    minimum_model_tier: "mini",
+    requested_effort: "max",
+    dispatch_effort: "max",
+    effective_effort: "max"
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(deepMiniMinimumForgery),
+    /minimum_model_tier is below required standard/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-forged-tier",
+      agent_id: "executor-01",
+      agent: "executor",
+      status: "done",
+      created_at: "2026-07-15T10:30:00.000Z",
+      updated_at: "2026-07-15T10:30:01.000Z",
+      reasoning: deepMiniMinimumForgery
+    }),
+    /minimum_model_tier is below required standard/
+  );
+
+  const subTableEffort = {
+    ...deepStandard,
+    requested_effort: "medium",
+    dispatch_effort: "medium",
+    effective_effort: "medium",
+    explicit_override: null
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(subTableEffort),
+    /requested_effort is below required xhigh/
+  );
+  const observationSummary = { ...subTableEffort };
+  delete observationSummary.reasons;
+  delete observationSummary.conflict;
+  delete observationSummary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T10:30:01.000Z",
+      run_id: "run-forged-effort",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "executor-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: observationSummary
+    }),
+    /requested_effort is below required xhigh/
+  );
+
+  const missingDegradationMetadata = {
+    ...deepStandard,
+    enforcement_status: "degraded",
+    effective_effort: null,
+    degraded: false,
+    degradation_reason: null
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(missingDegradationMetadata),
+    /degraded reasoning status requires degraded metadata/
+  );
+
+  const compatible = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "mini",
+    allow_degraded_deep: true
+  });
+  assert.equal(compatible.enforcement_status, "degraded");
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...compatible,
+      enforcement_status: "requested"
+    }),
+    /requested reasoning cannot be degraded/
+  );
+});
+
+test("version 2 records bind selector, class requests, role identity, and dispatch context", () => {
+  const routine = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "medium"
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...routine,
+      selector_available: false
+    }),
+    /unavailable selector cannot dispatch effort/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...routine,
+      requested_class: "assurance"
+    }),
+    /must not be below requested_class/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...routine,
+      explicit_override: { reasoning_class: "deep" }
+    }),
+    /must not be below explicit_override\.reasoning_class/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...routine,
+      role: "peon"
+    }),
+    /role_policy must match the canonical policy/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...routine,
+      dispatch_context: "ad-hoc-review"
+    }),
+    /below dispatch context floor/
+  );
+
+  const deepStandard = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "xhigh"
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...deepStandard,
+      dispatch_context: "pipeline-review"
+    }),
+    /minimum_model_tier is below required strong/
+  );
+
+  const deepStrong = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "review",
+    dispatch_context: "ad-hoc-review",
+    model_tier: "strong",
+    selector_available: true,
+    observed_effective_effort: "xhigh"
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...deepStrong,
+      dispatch_context: "formal-assurance",
+      minimum_model_tier: "strong"
+    }),
+    /must match fixed dispatch context/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...deepStrong,
+      dispatch_context: null,
+      reasoning_class: "assurance",
+      effective_class: "assurance",
+      strict: true,
+      requested_effort: "max",
+      dispatch_effort: "max",
+      effective_effort: "max"
+    }),
+    /requires explicit formal assurance semantics/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...deepStrong,
+      recovery_boost: true
+    }),
+    /deep recovery boost must request max effort/
+  );
+
+  const peon = resolveReasoning({
+    role: "peon",
+    mode: "adaptive",
+    task_intent: "execute",
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "medium"
+  });
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-role-mismatch",
+      agent_id: "executor-01",
+      agent: "executor",
+      status: "done",
+      created_at: "2026-07-15T10:30:00.000Z",
+      updated_at: "2026-07-15T10:30:01.000Z",
+      reasoning: peon
+    }),
+    /agent must match reasoning\.role/
+  );
+
+  const unavailableSummary = {
+    ...routine,
+    selector_available: false
+  };
+  delete unavailableSummary.reasons;
+  delete unavailableSummary.conflict;
+  delete unavailableSummary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T10:30:01.000Z",
+      run_id: "run-selector-forgery",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "executor-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: unavailableSummary
+    }),
+    /unavailable selector cannot dispatch effort/
+  );
+});
+
+test("conflict records preserve selector, explicit effort, provenance, context, and recovery semantics", () => {
+  const selectorConflict = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "certify",
+    dispatch_context: "formal-assurance",
+    model_tier: "strong",
+    selector_available: false,
+    observed_effective_effort: "max"
+  });
+  assert.equal(selectorConflict.enforcement_status, "conflict");
+  assert.equal(selectorConflict.dispatch_effort, null);
+  assert.equal(selectorConflict.effective_effort, null);
+  assert.equal(selectorConflict.conflict, "conflict");
+  assert.match(selectorConflict.conflict_reason, /cannot be enforced/);
+  assert.deepEqual(canonicalizeReasoningDecision(selectorConflict), selectorConflict);
+
+  const duplicateConflictText = {
+    ...selectorConflict,
+    conflict: selectorConflict.conflict_reason
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(duplicateConflictText),
+    /canonical conflict token/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-conflict-representation-forgery",
+      agent_id: "reviewer-01",
+      agent: "reviewer",
+      status: "blocked",
+      created_at: "2026-07-15T10:59:00.000Z",
+      updated_at: "2026-07-15T10:59:01.000Z",
+      reasoning: duplicateConflictText
+    }),
+    /canonical conflict token/
+  );
+
+  const selectorConflictForgery = {
+    ...selectorConflict,
+    effective_effort: "max"
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(selectorConflictForgery),
+    /unavailable selector cannot report effective effort/
+  );
+  const selectorConflictSummary = { ...selectorConflictForgery };
+  delete selectorConflictSummary.reasons;
+  delete selectorConflictSummary.conflict;
+  delete selectorConflictSummary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T11:00:01.000Z",
+      run_id: "run-selector-conflict-forgery",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "reviewer-01",
+      attempt: 1,
+      outcome: "blocked",
+      reasoning: selectorConflictSummary
+    }),
+    /unavailable selector cannot report effective effort/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-selector-conflict-forgery",
+      agent_id: "reviewer-01",
+      agent: "reviewer",
+      status: "blocked",
+      created_at: "2026-07-15T11:00:00.000Z",
+      updated_at: "2026-07-15T11:00:01.000Z",
+      reasoning: selectorConflictForgery
+    }),
+    /unavailable selector cannot report effective effort/
+  );
+
+  const routine = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "medium"
+  });
+  const explicitEffortForgery = {
+    ...routine,
+    explicit_override: { effort: "xhigh" }
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(explicitEffortForgery),
+    /requested_effort must not be below explicit_override\.effort/
+  );
+  const explicitSummary = { ...explicitEffortForgery };
+  delete explicitSummary.reasons;
+  delete explicitSummary.conflict;
+  delete explicitSummary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T11:10:01.000Z",
+      run_id: "run-explicit-effort-forgery",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "executor-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: explicitSummary
+    }),
+    /requested_effort must not be below explicit_override\.effort/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-explicit-effort-forgery",
+      agent_id: "executor-01",
+      agent: "executor",
+      status: "done",
+      created_at: "2026-07-15T11:10:00.000Z",
+      updated_at: "2026-07-15T11:10:01.000Z",
+      reasoning: explicitEffortForgery
+    }),
+    /requested_effort must not be below explicit_override\.effort/
+  );
+
+  const legacyExplicit = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    reasoning_class: "routine",
+    model_tier: "standard"
+  });
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...legacyExplicit,
+      requested_class: null
+    }),
+    /legacy_explicit_class classification requires requested_class/
+  );
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...legacyExplicit,
+      classification_source: "legacy_role_target"
+    }),
+    /legacy_role_target classification cannot include requested_class/
+  );
+
+  const legacyTarget = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    model_tier: "standard",
+    observed_effective_effort: "high"
+  });
+  assert.equal(legacyTarget.classification_source, "legacy_role_target");
+  const legacyTargetForgery = {
+    ...legacyTarget,
+    reasoning_class: "routine",
+    effective_class: "routine",
+    requested_effort: "medium",
+    dispatch_effort: "medium",
+    effective_effort: "medium"
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(legacyTargetForgery),
+    /below legacy role target deliberative/
+  );
+  const legacyTargetSummary = { ...legacyTargetForgery };
+  delete legacyTargetSummary.reasons;
+  delete legacyTargetSummary.conflict;
+  delete legacyTargetSummary.conflict_reason;
+  assert.throws(
+    () => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T11:20:01.000Z",
+      run_id: "run-legacy-target-forgery",
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "executor-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: legacyTargetSummary
+    }),
+    /below legacy role target deliberative/
+  );
+  assert.throws(
+    () => canonicalizeAgentStatus({
+      run_id: "run-legacy-target-forgery",
+      agent_id: "executor-01",
+      agent: "executor",
+      status: "done",
+      created_at: "2026-07-15T11:20:00.000Z",
+      updated_at: "2026-07-15T11:20:01.000Z",
+      reasoning: legacyTargetForgery
+    }),
+    /below legacy role target deliberative/
+  );
+
+  const formalConflict = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    dispatch_context: "formal-assurance",
+    model_tier: "strong",
+    selector_available: true,
+    observed_effective_effort: "high"
+  });
+  assert.equal(formalConflict.enforcement_status, "conflict");
+  assert.deepEqual(canonicalizeReasoningDecision(formalConflict), formalConflict);
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...formalConflict,
+      reasoning_class: "deep",
+      effective_class: "deep",
+      strict: false
+    }),
+    /must match fixed dispatch context/
+  );
+
+  const recoveryConflict = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_system"],
+    model_tier: "strong",
+    prior_failure_type: "reasoning_failure",
+    workspace_ceiling: "xhigh"
+  });
+  assert.equal(recoveryConflict.enforcement_status, "conflict");
+  assert.equal(recoveryConflict.recovery_boost, true);
+  assert.equal(recoveryConflict.requested_effort, "max");
+  assert.deepEqual(canonicalizeReasoningDecision(recoveryConflict), recoveryConflict);
+  assert.throws(
+    () => canonicalizeReasoningDecision({
+      ...recoveryConflict,
+      requested_effort: "xhigh"
+    }),
+    /deep recovery boost must request max effort/
+  );
+});
+
+test("exact effort and final recovery semantics survive every persisted reasoning artifact", () => {
+  const createdAt = "2026-07-15T11:30:00.000Z";
+  const updatedAt = "2026-07-15T11:30:01.000Z";
+
+  for (const [explicitEffort, runtimeSupportedEfforts] of Object.entries({
+    medium: ["high"],
+    high: ["medium"],
+    xhigh: ["max"],
+    max: ["xhigh"]
+  })) {
+    const decision = resolveReasoning({
+      role: "executor",
+      mode: "adaptive",
+      task_intent: "execute",
+      model_tier: "standard",
+      selector_available: true,
+      explicit_effort: explicitEffort,
+      runtime_supported_efforts: runtimeSupportedEfforts
+    });
+    assert.equal(decision.enforcement_status, "conflict", explicitEffort);
+    assert.equal(decision.requested_effort, explicitEffort, explicitEffort);
+    assert.equal(decision.dispatch_effort, null, explicitEffort);
+    assert.deepEqual(canonicalizeReasoningDecision(decision), decision, explicitEffort);
+    assert.doesNotThrow(() => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: updatedAt,
+      run_id: `run-exact-${explicitEffort}`,
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "executor-01",
+      attempt: 1,
+      outcome: "blocked",
+      reasoning: decision
+    }), explicitEffort);
+    assert.doesNotThrow(() => canonicalizeAgentStatus({
+      run_id: `run-exact-${explicitEffort}`,
+      agent_id: "executor-01",
+      agent: "executor",
+      status: "blocked",
+      created_at: createdAt,
+      updated_at: updatedAt,
+      reasoning: decision
+    }), explicitEffort);
+  }
+
+  const assurance = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_system"],
+    model_tier: "strong",
+    selector_available: true,
+    prior_failure_type: "reasoning_failure",
+    explicit_reasoning_class: "assurance",
+    observed_effective_effort: "max"
+  });
+  assert.equal(assurance.reasoning_class, "assurance");
+  assert.equal(assurance.recovery_boost, false);
+  assert.deepEqual(canonicalizeReasoningDecision(assurance), assurance);
+  assert.doesNotThrow(() => canonicalizeReasoningObservation({
+    schema_version: "2.0",
+    observed_at: updatedAt,
+    run_id: "run-assurance-no-recovery",
+    orchestrator: "orchestrator-pipeline",
+    agent_id: "reviewer-01",
+    attempt: 1,
+    outcome: "done",
+    reasoning: assurance
+  }));
+  assert.doesNotThrow(() => canonicalizeAgentStatus({
+    run_id: "run-assurance-no-recovery",
+    agent_id: "reviewer-01",
+    agent: "reviewer",
+    status: "done",
+    created_at: createdAt,
+    updated_at: updatedAt,
+    reasoning: assurance
+  }));
+});
+
+test("AgentStatus reasoning is managed-role only while resolver defaults remain available", () => {
+  const decision = resolveReasoning({
+    role: "custom-worker",
+    mode: "adaptive",
+    task_intent: "execute",
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "medium"
+  });
+  assert.deepEqual(decision.role_policy, {
+    mode: "adaptive",
+    floor_class: "routine",
+    target_class: "deliberative",
+    ceiling_class: "deep",
+    strict: false
+  });
+  assert.deepEqual(canonicalizeReasoningDecision(decision), decision);
+  assert.doesNotThrow(() => canonicalizeReasoningObservation({
+    schema_version: "2.0",
+    observed_at: "2026-07-15T11:40:01.000Z",
+    run_id: "run-custom-worker",
+    orchestrator: "orchestrator-pipeline",
+    agent_id: "custom-worker-01",
+    attempt: 1,
+    outcome: "done",
+    reasoning: decision
+  }));
+  assert.throws(() => canonicalizeAgentStatus({
+    run_id: "run-custom-worker",
+    agent_id: "custom-worker-01",
+    agent: "custom-worker",
+    status: "done",
+    created_at: "2026-07-15T11:40:00.000Z",
+    updated_at: "2026-07-15T11:40:01.000Z",
+    reasoning: decision
+  }), /managed policy role/);
+});
+
+test("TaskStatus legacy provenance requires the class and signals pair", () => {
+  const base = {
+    run_id: "run-legacy-task",
+    task_id: "task-legacy",
+    summary: "Validate legacy task provenance",
+    status: "pending",
+    created_at: "2026-07-15T11:50:00.000Z",
+    updated_at: "2026-07-15T11:50:01.000Z",
+    task_intent: null,
+    intent_baseline_class: null,
+    classification_source: "legacy_explicit_class"
+  };
+  assert.throws(
+    () => canonicalizeTaskStatus(base),
+    /legacy classification_source requires reasoning_class and reasoning_signals/
+  );
+  assert.doesNotThrow(() => canonicalizeTaskStatus({
+    ...base,
+    reasoning_class: "deliberative",
+    reasoning_signals: ["multi_file"]
+  }));
+});
+
+test("legacy non-inherit decisions require a non-null effective class in every artifact", () => {
+  const legacyDecision = {
+    schema_version: "1.0",
+    policy_version: "1",
+    mode: "adaptive",
+    role: "executor",
+    dispatch_context: null,
+    requested_class: "deep",
+    effective_class: null,
+    reasoning_signals: ["cross_module", "non_local_invariant"],
+    model_tier: "standard",
+    minimum_model_tier: "standard",
+    requires_model_escalation: false,
+    requested_effort: "xhigh",
+    dispatch_effort: "xhigh",
+    effective_effort: "xhigh",
+    capability_source: "runtime",
+    enforcement_status: "enforced",
+    strict: false,
+    reasons: ["role:executor", "role_mode:adaptive"],
+    conflict: null
+  };
+  assert.throws(
+    () => canonicalizeReasoningDecision(legacyDecision),
+    /effective_class must be non-null in adaptive mode/
+  );
+  const observationReasoning = { ...legacyDecision };
+  delete observationReasoning.reasons;
+  delete observationReasoning.conflict;
+  assert.throws(() => canonicalizeReasoningObservation({
+    schema_version: "1.0",
+    observed_at: "2026-07-15T12:00:01.000Z",
+    run_id: "run-legacy-null-class",
+    orchestrator: "orchestrator-pipeline",
+    agent_id: "executor-01",
+    attempt: 1,
+    outcome: "done",
+    reasoning: observationReasoning
+  }), /effective_class must be non-null in adaptive mode/);
+  assert.throws(() => canonicalizeAgentStatus({
+    run_id: "run-legacy-null-class",
+    agent_id: "executor-01",
+    agent: "executor",
+    status: "done",
+    created_at: "2026-07-15T12:00:00.000Z",
+    updated_at: "2026-07-15T12:00:01.000Z",
+    reasoning: legacyDecision
+  }), /effective_class must be non-null in adaptive mode/);
+});
+
+test("version 2 artifacts reject dispatch contexts the resolver cannot emit", () => {
+  const decision = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "standard",
+    selector_available: true,
+    observed_effective_effort: "xhigh"
+  });
+  const forged = { ...decision, dispatch_context: "custom-review" };
+  assert.throws(
+    () => canonicalizeReasoningDecision(forged),
+    /dispatch_context must be a managed version 2 context/
+  );
+  assert.throws(() => canonicalizeReasoningObservation({
+    schema_version: "2.0",
+    observed_at: "2026-07-15T12:10:01.000Z",
+    run_id: "run-custom-context",
+    orchestrator: "orchestrator-pipeline",
+    agent_id: "executor-01",
+    attempt: 1,
+    outcome: "done",
+    reasoning: forged
+  }), /dispatch_context must be a managed version 2 context/);
+  assert.throws(() => canonicalizeAgentStatus({
+    run_id: "run-custom-context",
+    agent_id: "executor-01",
+    agent: "executor",
+    status: "done",
+    created_at: "2026-07-15T12:10:00.000Z",
+    updated_at: "2026-07-15T12:10:01.000Z",
+    reasoning: forged
+  }), /dispatch_context must be a managed version 2 context/);
+});
+
+test("schema version 1 artifacts retain bounded custom dispatch contexts", () => {
+  const decision = JSON.parse(JSON.stringify(require(
+    "../protocols/examples/reasoning-decision.legacy.valid.json"
+  )));
+  decision.dispatch_context = "legacy-review";
+  assert.deepEqual(canonicalizeReasoningDecision(decision), decision);
+
+  const observation = JSON.parse(JSON.stringify(require(
+    "../protocols/examples/reasoning-observation.legacy.valid.json"
+  )));
+  observation.reasoning.dispatch_context = "legacy-review";
+  assert.doesNotThrow(() => canonicalizeReasoningObservation(observation));
+  assert.doesNotThrow(() => canonicalizeAgentStatus({
+    run_id: "run-legacy-custom-context",
+    agent_id: "executor-01",
+    agent: "executor",
+    status: "done",
+    created_at: "2026-07-15T12:15:00.000Z",
+    updated_at: "2026-07-15T12:15:01.000Z",
+    reasoning: decision
+  }));
+});
+
+test("every accepted strengthened signal policy emits canonical reasoning artifacts", () => {
+  const basePolicy = loadPolicy();
+  let index = 0;
+  for (const signal of Object.keys(basePolicy.signal_minimum_classes)) {
+    const policy = JSON.parse(JSON.stringify(basePolicy));
+    const formal = signal === "formal_accept_reject";
+    policy.signal_minimum_classes[signal] = formal ? "assurance" : "deep";
+    validatePolicy(policy);
+    const decision = resolveReasoning({
+      role: "reviewer",
+      mode: "adaptive",
+      task_intent: "execute",
+      reasoning_signals: [signal],
+      model_tier: "strong",
+      selector_available: true,
+      observed_effective_effort: formal ? "max" : "xhigh"
+    }, policy);
+    assert.equal(decision.reasoning_class, formal ? "assurance" : "deep", signal);
+    assert.equal(decision.conflict, null, signal);
+    assert.deepEqual(canonicalizeReasoningDecision(decision), decision, signal);
+    assert.doesNotThrow(() => canonicalizeReasoningObservation({
+      schema_version: "2.0",
+      observed_at: "2026-07-15T12:20:01.000Z",
+      run_id: `run-strengthened-signal-${index}`,
+      orchestrator: "orchestrator-pipeline",
+      agent_id: "reviewer-01",
+      attempt: 1,
+      outcome: "done",
+      reasoning: decision
+    }), signal);
+    assert.doesNotThrow(() => canonicalizeAgentStatus({
+      run_id: `run-strengthened-signal-${index}`,
+      agent_id: "reviewer-01",
+      agent: "reviewer",
+      status: "done",
+      created_at: "2026-07-15T12:20:00.000Z",
+      updated_at: "2026-07-15T12:20:01.000Z",
+      reasoning: decision
+    }), signal);
+    index += 1;
+  }
 });
 
 test("invalid task reasoning hints do not mutate canonical run files", async (t) => {
@@ -689,6 +1593,22 @@ test("invalid task reasoning hints do not mutate canonical run files", async (t)
       summary: "Low class",
       reasoning_class: "routine",
       reasoning_signals: ["security_boundary"]
+    },
+    {
+      task_id: "task-bad-intent-baseline",
+      summary: "Mismatched intent metadata",
+      task_intent: "design",
+      intent_baseline_class: "routine",
+      classification_source: "task_intent",
+      reasoning_class: "deliberative",
+      reasoning_signals: ["multi_step"]
+    },
+    {
+      task_id: "task-orphan-intent-baseline",
+      summary: "Intent baseline without intent",
+      intent_baseline_class: "deliberative",
+      reasoning_class: "deliberative",
+      reasoning_signals: ["multi_step"]
     }
   ]) {
     await assert.rejects(runtime.applyEvent("tasks.registered", {
@@ -696,7 +1616,7 @@ test("invalid task reasoning hints do not mutate canonical run files", async (t)
       run_id: "run-invalid-reasoning",
       tasks: [task],
       timestamp: "2026-07-14T10:20:01.000Z"
-    }), /reasoning_signals must contain|below signal minimum/);
+    }), /reasoning_signals must contain|below signal minimum|intent_baseline_class must match|non-null intent_baseline_class requires/);
   }
 
   assert.equal(await fs.readFile(started.run_status_path, "utf8"), runBefore);
@@ -718,7 +1638,7 @@ test("terminal agent attempts emit content-free local reasoning observations", a
   const reasoningInput = {
     role: "executor",
     mode: "adaptive",
-    reasoning_class: "deep",
+    task_intent: "design",
     reasoning_signals: ["cross_module", "non_local_invariant"],
     model_tier: "standard"
   };
@@ -729,7 +1649,7 @@ test("terminal agent attempts emit content-free local reasoning observations", a
     user_prompt: "PRIVATE PROMPT MUST NOT ENTER OBSERVATIONS",
     flags: {
       reasoning_mode: "adaptive",
-      reasoning_policy_version: "1",
+      reasoning_policy_version: "2",
       reasoning_ceiling: "max"
     },
     timestamp: "2026-07-14T10:30:00.000Z"
@@ -740,6 +1660,9 @@ test("terminal agent attempts emit content-free local reasoning observations", a
     tasks: [{
       task_id: "task-reasoning",
       summary: "Exercise the reasoning observation contract",
+      task_intent: "design",
+      intent_baseline_class: "deliberative",
+      classification_source: "task_intent",
       reasoning_class: "deep",
       reasoning_signals: ["cross_module", "non_local_invariant"]
     }],
@@ -749,7 +1672,7 @@ test("terminal agent attempts emit content-free local reasoning observations", a
     output_root: tempRoot,
     run_id: runId,
     agent_id: "executor-reasoning",
-    agent: "PRIVATE AGENT /private/workspace/path",
+    agent: "executor",
     task_id: "task-reasoning",
     reasoning: resolveReasoning(reasoningInput),
     timestamp: "2026-07-14T10:30:00.200Z"
@@ -774,14 +1697,21 @@ test("terminal agent attempts emit content-free local reasoning observations", a
   });
 
   const taskStatus = await readJson(path.join(tempRoot, runId, "status", "tasks", "task-reasoning.json"));
+  assert.equal(taskStatus.task_intent, "design");
+  assert.equal(taskStatus.intent_baseline_class, "deliberative");
+  assert.equal(taskStatus.classification_source, "task_intent");
   assert.equal(taskStatus.reasoning_class, "deep");
   assert.deepEqual(taskStatus.reasoning_signals, ["cross_module", "non_local_invariant"]);
 
   const observationPath = path.join(observationDir, "executor-reasoning.json");
   const observation = await readJson(observationPath);
+  assert.equal(observation.schema_version, "2.0");
   assert.equal(observation.outcome, "done");
   assert.equal(observation.wall_time_ms, 1000);
   assert.equal(observation.reasoning.enforcement_status, "enforced");
+  assert.equal(observation.reasoning.task_intent, "design");
+  assert.equal(observation.reasoning.reasoning_class, "deep");
+  assert.equal(observation.reasoning.selected_model_tier, "standard");
   assert.equal(observation.reasoning.effective_effort, "xhigh");
   assert.equal("agent" in observation, false);
   assert.equal("reasons" in observation.reasoning, false);
@@ -1211,6 +2141,29 @@ test("checkpoint reasoning policy flags are atomic", async (t) => {
       timestamp: "2026-04-18T01:21:00.000Z"
     }),
     /reasoning_mode, reasoning_policy_version, and reasoning_ceiling must be supplied together/
+  );
+  await assert.rejects(
+    runtime.applyEvent("checkpoint.updated", {
+      output_root: tempRoot,
+      run_id: "run-reasoning-flags",
+      flags: { allow_degraded_deep: true },
+      timestamp: "2026-04-18T01:21:10.000Z"
+    }),
+    /allow_degraded_deep requires the complete reasoning policy flag set/
+  );
+  await assert.rejects(
+    runtime.applyEvent("checkpoint.updated", {
+      output_root: tempRoot,
+      run_id: "run-reasoning-flags",
+      flags: {
+        reasoning_mode: "adaptive",
+        reasoning_policy_version: "2",
+        reasoning_ceiling: "max",
+        allow_degraded_deep: "yes"
+      },
+      timestamp: "2026-04-18T01:21:20.000Z"
+    }),
+    /allow_degraded_deep must be a boolean/
   );
   for (const flags of [
     {

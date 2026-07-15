@@ -109,6 +109,7 @@ jobs:
 
           tool = [sys.executable, "tools/validate-schema.py", "--require-jsonschema"]
           positive = [
+              ("checkpoint.schema.json", "checkpoint.reasoning-v2.valid.json"),
               ("dev-spec.schema.json", "dev-spec.valid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.valid.json"),
               ("flow-task-list.schema.json", "flow-task-list.valid.json"),
@@ -121,9 +122,16 @@ jobs:
               ("plan-outline.schema.json", "spec-to-pipeline/plan-outline.json"),
               ("task-list.schema.json", "spec-to-pipeline/task-list.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.assurance-conflict.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.degraded-deep.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.legacy.valid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.null-intent.valid.json"),
               ("reasoning-observation.schema.json", "reasoning-observation.valid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.legacy.valid.json"),
+              ("reasoning-policy.schema.json", "reasoning-policy.legacy.valid.json"),
           ]
           negative = [
+              ("checkpoint.schema.json", "checkpoint.allow-degraded-deep-incomplete.invalid.json"),
               ("dev-spec.schema.json", "dev-spec.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.browser-unsafe.invalid.json"),
@@ -132,6 +140,30 @@ jobs:
               ("flow-task-list.schema.json", "flow-task-list.high-risk-weak-controls.invalid.json"),
               ("flow-task-list.schema.json", "flow-task-list.excessive-repair.invalid.json"),
               ("modernize-exec-handoff.schema.json", "modernize-exec-handoff.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.alias.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.deep-mini-minimum-forged.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.degraded-deep-relabeled.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.enforced-without-effective.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.selector-unavailable-enforced.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.requested-assurance-downgraded.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.selector-conflict-effective.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.explicit-xhigh-downgraded.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.legacy-explicit-missing-request.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.legacy-target-underclass.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.formal-context-relabeled-conflict.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.recovery-conflict-under-effort.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.legacy-adaptive-null-class.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.custom-context.invalid.json"),
+              ("reasoning-decision.schema.json", "reasoning-decision.conflict-reason-mismatch.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.assurance-forged.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.content.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.deep-standard-under-effort.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.pipeline-context-forged.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.selector-conflict-effective.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.legacy-adaptive-null-class.invalid.json"),
+              ("reasoning-observation.schema.json", "reasoning-observation.custom-context.invalid.json"),
+              ("task-list.schema.json", "task-list.intent-baseline.invalid.json"),
+              ("task-list.schema.json", "task-list.intent-unsupported.invalid.json"),
               ("task-list.schema.json", "task-list.trace.invalid.json"),
           ]
           for schema, fixture in positive:
@@ -159,6 +191,14 @@ jobs:
               ("run-status.schema.json", "status-layout.contract.invalid/run-status.json"),
               ("task-status.schema.json", "status-layout.contract.invalid/tasks/task-browser-cleanup-invalid.json"),
               ("agent-status.schema.json", "status-layout.contract.invalid/agents/agent-browser-cleanup-invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-degraded-forged.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-role-mismatch.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-selector-conflict-effective.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-unlisted-role.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-legacy-adaptive-null-class.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-custom-context.invalid.json"),
+              ("agent-status.schema.json", "agent-status.reasoning-conflict-reason-mismatch.invalid.json"),
+              ("task-status.schema.json", "task-status.legacy-provenance-incomplete.invalid.json"),
           ]
           for schema, fixture in status_positive:
               subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)

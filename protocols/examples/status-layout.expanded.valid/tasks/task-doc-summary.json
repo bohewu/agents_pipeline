@@ -10,6 +10,13 @@
     "story-status-model",
     "ac-examples-cover-layouts"
   ],
+  "task_intent": "review",
+  "intent_baseline_class": "deliberative",
+  "classification_source": "task_intent",
+  "reasoning_class": "deliberative",
+  "reasoning_signals": [
+    "fully_specified"
+  ],
   "batch_id": "b-docs",
   "assigned_agent_id": "agent-doc-01",
   "assigned_executor": "doc-writer",

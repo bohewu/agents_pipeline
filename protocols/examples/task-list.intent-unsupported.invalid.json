@@ -1,0 +1,25 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t-unsupported-intent",
+      "summary": "Invalid unsupported task-intent fixture",
+      "description": "The task intent intentionally uses a value outside the v2 canonical vocabulary.",
+      "primary_output": "analysis",
+      "owner_hint": "executor",
+      "risk": "medium",
+      "task_intent": "research",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "routine",
+      "reasoning_signals": [
+        "fully_specified"
+      ],
+      "complexity": "S",
+      "definition_of_done": [
+        "This fixture must fail because research is not a canonical task intent."
+      ],
+      "dependencies": []
+    }
+  ]
+}

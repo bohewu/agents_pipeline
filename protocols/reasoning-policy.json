@@ -1,7 +1,23 @@
 {
-  "schema_version": "1.0",
-  "policy_version": "1",
+  "schema_version": "2.0",
+  "policy_version": "2",
   "default_mode": "adaptive",
+  "task_intents": [
+    "execute",
+    "inspect",
+    "diagnose",
+    "design",
+    "review",
+    "certify"
+  ],
+  "intent_baseline_classes": {
+    "execute": "routine",
+    "inspect": "routine",
+    "diagnose": "deliberative",
+    "design": "deliberative",
+    "review": "deliberative",
+    "certify": "assurance"
+  },
   "reasoning_classes": [
     "routine",
     "deliberative",
@@ -12,15 +28,23 @@
     "fully_specified": "routine",
     "local_scope": "routine",
     "multi_step": "deliberative",
-    "cross_module": "deliberative",
+    "multi_file": "deliberative",
+    "bounded_tradeoff": "deliberative",
+    "ordinary_diagnosis": "deliberative",
+    "implementation_choice": "deliberative",
+    "partial_ambiguity": "deliberative",
+    "cross_module": "deep",
     "cross_system": "deep",
     "ambiguous_root_cause": "deep",
+    "architectural_tradeoff": "deep",
     "architecture_tradeoff": "deep",
     "non_local_invariant": "deep",
     "adversarial_input": "deep",
     "numerical_sensitivity": "deep",
     "security_boundary": "deep",
     "data_integrity": "deep",
+    "concurrency_or_ordering": "deep",
+    "migration_compatibility": "deep",
     "formal_accept_reject": "assurance",
     "prior_reasoning_failure": "routine",
     "explicit_user_override": "routine"
@@ -45,6 +69,9 @@
   },
   "highest_single_agent": "max",
   "allow_ultra": false,
+  "compatibility": {
+    "allow_degraded_deep": false
+  },
   "class_requirements": {
     "routine": {
       "minimum_model_tier": "mini",
@@ -281,7 +308,7 @@
   "dispatch_contexts": {
     "ad-hoc-review": {
       "mode": "adaptive",
-      "floor_class": "deliberative",
+      "floor_class": "deep",
       "target_class": "deep",
       "ceiling_class": "assurance",
       "strict": false
@@ -289,7 +316,7 @@
     "formal-assurance": {
       "mode": "fixed",
       "reasoning_class": "assurance",
-      "minimum_model_tier": "strong",
+      "required_model_tier": "strong",
       "strict": true
     },
     "pipeline-review": {

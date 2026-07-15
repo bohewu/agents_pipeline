@@ -36,7 +36,7 @@ These gates define minimal acceptance for each stage output.
 ## Task Gate
 
 - Each task must include `id`, `summary`, `primary_output`, and `definition_of_done`.
-- Current Pipeline task producers must include paired `reasoning_class` and non-empty bounded `reasoning_signals`; schema optionality exists only for compatibility with older artifacts.
+- Current Pipeline task producers must emit `task_intent`, the matching `intent_baseline_class`, `classification_source = task_intent`, legacy-compatible paired `reasoning_class`, and non-empty bounded `reasoning_signals` as backward-compatible optional extensions. They must not advance a TaskList `protocol_version` because of policy v2.
 - `definition_of_done` must be non-empty.
 - `dependencies` must reference existing task ids or be empty.
 - If `DevSpec` is part of the run, each task must include non-empty `trace_ids` that point to valid `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
@@ -45,7 +45,7 @@ These gates define minimal acceptance for each stage output.
 
 - Flow task lists must validate against `./protocols/schemas/flow-task-list.schema.json`.
 - Flow task lists must contain 1-5 tasks only.
-- Every Flow task must include `assigned_agent`, `risk`, paired `reasoning_class` and non-empty bounded `reasoning_signals`, `verification`, `review_required`, `repair_budget`, `resource_class`, and `atomic = true`.
+- Every Flow task must include `assigned_agent`, `risk`, `task_intent`, matching intent-baseline/source metadata, paired legacy-compatible `reasoning_class` and non-empty bounded `reasoning_signals`, `verification`, `review_required`, `repair_budget`, `resource_class`, and `atomic = true`.
 - Flow `repair_budget` counts only additional modify-and-verify cycles after the first implementation/content attempt and is bounded to `0..2`; operational retries and Flow-level recovery are separate controls.
 - Medium-risk Flow tasks require `verification = basic | strong` and `repair_budget = 1 | 2`.
 - High-risk Flow tasks require `verification = strong`, `review_required = true`, and `repair_budget = 1 | 2`.
@@ -57,10 +57,22 @@ These gates define minimal acceptance for each stage output.
 
 ## Reasoning Gate
 
-- `./protocols/reasoning-policy.json` must validate and retain the immutable version 1 signal/model/class-projection floors, global `medium` floor, `mini` `high` floor, and `allow_ultra = false`.
-- Every class-defining signal must satisfy the policy's minimum class in task, Flow, dispatch, status, ReasoningDecision, ReasoningObservation, and resolver validation.
+- `./protocols/reasoning-policy.json` must validate as policy/schema version `2` / `2.0`, retain its immutable v2 intent baselines and signal/model/class-projection floors, global `medium` floor, `mini` `high` floor, and `allow_ultra = false`.
+- Policy-v2 root and nested objects must use their exact supported key sets. Only `formal_accept_reject` may have an `assurance` signal floor; every other signal floor is capped at `deep`.
+- Only ReasoningPolicy, ReasoningDecision, and ReasoningObservation advance to policy/schema `2` / `2.0`. TaskList, FlowTaskList, DispatchPlan, TaskStatus, and checkpoint artifacts retain their existing protocol versions; the status runtime remains `PROTOCOL_VERSION = 1.0`.
+- New task/Flow/dispatch/status artifacts must carry `task_intent`, matching baseline/source metadata, legacy `reasoning_class`, and bounded signals. Existing explicit-class and role-target fallback artifacts remain valid and must record the appropriate legacy source; intent-less legacy `cross_module` retains the v1 `deliberative` floor, while intent-bearing v2 records require `deep`.
+- Every intent baseline and class-defining signal must satisfy the policy's minimum class in task, Flow, dispatch, status, ReasoningDecision, ReasoningObservation, and resolver validation.
 - Every enforced child spawn must come from `./tools/reasoning-policy.js`; workflow prose must not duplicate the projection table.
-- `conflict` blocks a spawn. `requested` is not proof of enforcement; only observed trace agreement may produce `enforced`.
+- Workspace profiles select the actual role model/tier. The resolver selects child effort only: it never routes a raw/dynamic model, downgrades a model, or changes current/main-agent effort.
+- Deep work on `mini` or `unknown` conflicts by default. An explicit `allow_degraded_deep` compatibility input may produce only degraded deep `max` with `model_tier_below_deep_requirement`; it never permits assurance.
+- `ad-hoc-review` is non-strict deep, `pipeline-review` is non-strict deep with a strong-tier minimum, and `formal-assurance` is fixed strict assurance on strong. `--review=max` remains an ordinary deep review effort override, not certification.
+- `inherit` keeps classification metadata without a selector and conflicts for exact/strict requirements; `shadow` computes without applying and conflicts for strict assurance; `adaptive` applies the child selector.
+- Only `reasoning_failure` raises routine to deliberative or deliberative to deep. Deep receives a max recovery boost without becoming assurance; operational failures never escalate reasoning.
+- `conflict` blocks a spawn. In policy v2 it is the fixed `"conflict"` token and `conflict_reason` is the single explanatory string. `requested` is not proof of enforcement; only observed trace agreement may produce `enforced`.
+- Decision, observation, and status validation must derive minimum tier and requested-effort floors from the class/tier table, reject impossible mode/state/evidence combinations and forged assurance, require exact requested/dispatch/effective equality for `enforced`, and reject degraded-deep claims outside the exact compatibility contract.
+- Decision, observation, and status validation must treat requested/override classes as upward-only floors, bind managed role-policy and the three canonical v2 dispatch contexts to their identifiers, require managed-only AgentStatus `agent`/reasoning-role identity, and reject selector-unavailable records that claim dispatch or effective effort.
+- Schema-v1 shadow/adaptive Decision, Observation, and AgentStatus reasoning must retain a non-null `effective_class`; only schema-v1 inherit records use null.
+- Every explicit effort value is an exact upward floor. Legacy explicit-class records require a non-null requested class; legacy role-target records require a null requested class and may not resolve below the canonical role target. Conflict records retain selector, context, provenance, and recovery semantics.
 - Strict and exact requests, including `--review=max`, become conflicts when observed effort differs; they never silently downgrade or override the selected model.
 - A workspace ceiling below the projected class effort conflicts; it never clips a deliberative, deep, or assurance request downward.
 - Terminal ReasoningObservation files validate against their schema, omit free-text `agent`, `reasons`, and `conflict`, and contain no prompt, result summary, source, path, command, log, evidence-content, or artifact-content fields.

@@ -291,6 +291,50 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["reasoning"]
+      },
+      "then": {
+        "oneOf": [
+          { "properties": { "agent": { "const": "analysis-complexity" }, "reasoning": { "properties": { "role": { "const": "analysis-complexity" } } } } },
+          { "properties": { "agent": { "const": "analysis-correctness" }, "reasoning": { "properties": { "role": { "const": "analysis-correctness" } } } } },
+          { "properties": { "agent": { "const": "analysis-numerics" }, "reasoning": { "properties": { "role": { "const": "analysis-numerics" } } } } },
+          { "properties": { "agent": { "const": "analysis-robustness" }, "reasoning": { "properties": { "role": { "const": "analysis-robustness" } } } } },
+          { "properties": { "agent": { "const": "art-director" }, "reasoning": { "properties": { "role": { "const": "art-director" } } } } },
+          { "properties": { "agent": { "const": "atomizer" }, "reasoning": { "properties": { "role": { "const": "atomizer" } } } } },
+          { "properties": { "agent": { "const": "committee-architect" }, "reasoning": { "properties": { "role": { "const": "committee-architect" } } } } },
+          { "properties": { "agent": { "const": "committee-judge" }, "reasoning": { "properties": { "role": { "const": "committee-judge" } } } } },
+          { "properties": { "agent": { "const": "committee-kiss" }, "reasoning": { "properties": { "role": { "const": "committee-kiss" } } } } },
+          { "properties": { "agent": { "const": "committee-product" }, "reasoning": { "properties": { "role": { "const": "committee-product" } } } } },
+          { "properties": { "agent": { "const": "committee-qa" }, "reasoning": { "properties": { "role": { "const": "committee-qa" } } } } },
+          { "properties": { "agent": { "const": "committee-security" }, "reasoning": { "properties": { "role": { "const": "committee-security" } } } } },
+          { "properties": { "agent": { "const": "compressor" }, "reasoning": { "properties": { "role": { "const": "compressor" } } } } },
+          { "properties": { "agent": { "const": "doc-writer" }, "reasoning": { "properties": { "role": { "const": "doc-writer" } } } } },
+          { "properties": { "agent": { "const": "executor" }, "reasoning": { "properties": { "role": { "const": "executor" } } } } },
+          { "properties": { "agent": { "const": "flow-splitter" }, "reasoning": { "properties": { "role": { "const": "flow-splitter" } } } } },
+          { "properties": { "agent": { "const": "generalist" }, "reasoning": { "properties": { "role": { "const": "generalist" } } } } },
+          { "properties": { "agent": { "const": "handoff-writer" }, "reasoning": { "properties": { "role": { "const": "handoff-writer" } } } } },
+          { "properties": { "agent": { "const": "kanban-manager" }, "reasoning": { "properties": { "role": { "const": "kanban-manager" } } } } },
+          { "properties": { "agent": { "const": "market-researcher" }, "reasoning": { "properties": { "role": { "const": "market-researcher" } } } } },
+          { "properties": { "agent": { "const": "peon" }, "reasoning": { "properties": { "role": { "const": "peon" } } } } },
+          { "properties": { "agent": { "const": "planner" }, "reasoning": { "properties": { "role": { "const": "planner" } } } } },
+          { "properties": { "agent": { "const": "repo-scout" }, "reasoning": { "properties": { "role": { "const": "repo-scout" } } } } },
+          { "properties": { "agent": { "const": "reviewer" }, "reasoning": { "properties": { "role": { "const": "reviewer" } } } } },
+          { "properties": { "agent": { "const": "router" }, "reasoning": { "properties": { "role": { "const": "router" } } } } },
+          { "properties": { "agent": { "const": "session-guide-writer" }, "reasoning": { "properties": { "role": { "const": "session-guide-writer" } } } } },
+          { "properties": { "agent": { "const": "specifier" }, "reasoning": { "properties": { "role": { "const": "specifier" } } } } },
+          { "properties": { "agent": { "const": "summarizer" }, "reasoning": { "properties": { "role": { "const": "summarizer" } } } } },
+          { "properties": { "agent": { "const": "test-runner" }, "reasoning": { "properties": { "role": { "const": "test-runner" } } } } },
+          { "properties": { "agent": { "const": "ui-ux-designer" }, "reasoning": { "properties": { "role": { "const": "ui-ux-designer" } } } } },
+          { "properties": { "agent": { "const": "ux-copy-trust" }, "reasoning": { "properties": { "role": { "const": "ux-copy-trust" } } } } },
+          { "properties": { "agent": { "const": "ux-judge" }, "reasoning": { "properties": { "role": { "const": "ux-judge" } } } } },
+          { "properties": { "agent": { "const": "ux-novice" }, "reasoning": { "properties": { "role": { "const": "ux-novice" } } } } },
+          { "properties": { "agent": { "const": "ux-task-flow" }, "reasoning": { "properties": { "role": { "const": "ux-task-flow" } } } } },
+          { "properties": { "agent": { "const": "ux-visual-hierarchy" }, "reasoning": { "properties": { "role": { "const": "ux-visual-hierarchy" } } } } }
+        ]
+      }
     }
   ],
   "additionalProperties": false

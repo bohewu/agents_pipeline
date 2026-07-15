@@ -85,7 +85,7 @@ Supported events are deliberately bounded:
 4. `stage.completed`
    - `run_id`, `stage`, `name`, `status`, and optional artifact/flag fields
 5. `tasks.registered`
-   - `run_id` plus canonical task entries; paired `reasoning_class` and `reasoning_signals` are preserved when present
+   - `run_id` plus canonical task entries; policy-v2 `task_intent`, intent-baseline/source metadata, and legacy-compatible paired `reasoning_class` / `reasoning_signals` are preserved when present
 6. `task.updated`
    - `run_id`, `task_id`, and canonical task patch fields
 7. `agent.started`
@@ -98,6 +98,47 @@ Supported events are deliberately bounded:
    - `run_id`, terminal `status`, and optional notes/error/waiting fields
 
 Every event other than `run.started` must target an initialized run. A rejected pre-start update does not create a run directory, so the same `run_id` can still be started normally.
+
+## Policy-v2 reasoning metadata
+
+The status writer preserves and validates resolver output; it does not classify
+tasks, pick a model, or select an effort itself. The status runtime continues
+to use `PROTOCOL_VERSION = 1.0`; task intent fields are backward-compatible
+optional extensions, not a status protocol bump. Current task-producing
+workflow events carry:
+
+- `task_intent`
+- `intent_baseline_class`
+- `classification_source = task_intent`
+- legacy-compatible `reasoning_class` and `reasoning_signals`
+
+The complete per-attempt ReasoningDecision attached to an agent event records
+the chosen intent/source, role policy, selected model tier, requested and
+observed effort, enforcement status, and bounded degradation/conflict metadata.
+The effective workspace profile/runtime owns the actual role model/tier; the
+resolver owns only child effort. No status payload may request raw or dynamic
+model routing or current/main-agent effort.
+
+ReasoningPolicy, ReasoningDecision, and ReasoningObservation are the separate
+policy/schema-2.0 contracts. TaskStatus records retain the status runtime's
+protocol version when carrying intent data, as do checkpoints carrying the
+policy-v2 reasoning flags.
+
+Legacy class-only inputs remain valid when they record
+`legacy_explicit_class`; absent intent and class may record
+`legacy_role_target`. Either legacy provenance value requires its
+`reasoning_class` and `reasoning_signals` pair. A terminal observation is a strict content-free summary,
+not a replacement for the complete AgentStatus decision. Intent-less legacy
+records retain the v1 `cross_module -> deliberative` floor; a non-null task
+intent activates the v2 `cross_module -> deep` floor.
+
+AgentStatus reasoning is restricted to the managed role catalog and requires
+`agent` to equal the embedded reasoning role. The resolver's default adaptive
+policy remains available for unlisted in-memory decisions and content-free
+observations, but those roles must be registered before AgentStatus persistence.
+Policy-v2 reasoning accepts only the three managed dispatch contexts. Legacy
+schema-v1 shadow/adaptive reasoning retains its non-null `effective_class`
+invariant; null remains specific to legacy inherit mode.
 
 Callers may omit `timestamp`; the core supplies an ISO 8601 timestamp.
 Provided timestamps must be RFC 3339 date-time strings. `run_id`, `task_id`, and `agent_id` are safe 1–128 character basenames containing only letters, digits, dots, underscores, and hyphens; they cannot start or end with punctuation.
@@ -170,6 +211,11 @@ The writer emits schema-conforming JSON only:
 - integer stage indices
 - documented top-level fields only
 - deterministic field ordering and one trailing newline
+
+For reasoning-bearing records, task intent/baseline/source and the legacy
+class/signal fields must agree with the policy-v2 schemas. A status write must
+not silently downgrade a class, erase a signal, or turn an unresolved request
+into enforced effort.
 
 Invalid semantic transitions fail loudly. The writer does not persist guessed partial records.
 

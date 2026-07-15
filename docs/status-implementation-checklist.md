@@ -54,8 +54,10 @@ Use this checklist when wiring a runtime or generated orchestrator to the neutra
 - Emit schema-conforming JSON only.
 - Do not add undocumented top-level fields.
 - Use `agent`, not `agent_type`.
-- Preserve paired task `reasoning_class` / `reasoning_signals` and the complete per-attempt `reasoning` decision; reject partial or out-of-vocabulary values.
-- Reject empty task signals, a class below the policy signal floor, and invalid reasoning checkpoint mode/version/ceiling values before writing.
+- Preserve policy-v2 task `task_intent`, `intent_baseline_class`, `classification_source`, legacy paired `reasoning_class` / `reasoning_signals`, and the complete per-attempt `reasoning` decision; reject partial or out-of-vocabulary values.
+- Treat TaskStatus intent metadata and checkpoint reasoning-policy flags as backward-compatible extensions: do not advance either artifact's `protocol_version`. The status runtime remains `PROTOCOL_VERSION = 1.0`; only ReasoningPolicy, ReasoningDecision, and ReasoningObservation use policy/schema 2 / 2.0.
+- Reject mismatched intent baseline/source metadata, empty task signals, a class below an intent or signal floor, and invalid reasoning checkpoint mode/version/ceiling values before writing.
+- Treat the workspace profile/runtime as the owner of the actual role model/tier. The stored ReasoningDecision may record selected-tier capability, but no status event may route a raw/dynamic model or set current/main-agent effort.
 - Verify terminal reasoning observations omit free-text agent/reason/conflict fields and exclude prompts, results, source, paths, commands, logs, evidence contents, and artifacts.
 - Keep `task_refs` and `agent_refs` as object arrays, never string arrays.
 - Let the writer own timestamps, refs, counts, active IDs, and deterministic field ordering.

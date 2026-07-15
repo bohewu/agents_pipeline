@@ -94,6 +94,10 @@
           "enum": ["medium", "high", "xhigh", "max"],
           "default": "max"
         },
+        "allow_degraded_deep": {
+          "type": "boolean",
+          "default": false
+        },
         "operational_retry_limit": {
           "type": "integer",
           "minimum": 0,
@@ -141,7 +145,12 @@
       "dependencies": {
         "reasoning_mode": ["reasoning_policy_version", "reasoning_ceiling"],
         "reasoning_policy_version": ["reasoning_mode", "reasoning_ceiling"],
-        "reasoning_ceiling": ["reasoning_mode", "reasoning_policy_version"]
+        "reasoning_ceiling": ["reasoning_mode", "reasoning_policy_version"],
+        "allow_degraded_deep": [
+          "reasoning_mode",
+          "reasoning_policy_version",
+          "reasoning_ceiling"
+        ]
       },
       "additionalProperties": true
     },

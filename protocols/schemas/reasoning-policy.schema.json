@@ -1,6 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReasoningPolicy",
+  "description": "Versioned reasoning policy. Version 2 introduces canonical task intents, intent baselines, expanded signals, and an explicit degraded-deep compatibility default while accepting the version 1 policy shape.",
   "type": "object",
   "required": [
     "schema_version",
@@ -21,13 +22,26 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": ["1.0", "2.0"]
     },
     "policy_version": {
-      "const": "1"
+      "enum": ["1", "2"]
     },
     "default_mode": {
       "const": "adaptive"
+    },
+    "task_intents": {
+      "const": [
+        "execute",
+        "inspect",
+        "diagnose",
+        "design",
+        "review",
+        "certify"
+      ]
+    },
+    "intent_baseline_classes": {
+      "$ref": "#/$defs/intentBaselineClasses"
     },
     "reasoning_classes": {
       "const": [
@@ -60,15 +74,23 @@
         "fully_specified": { "$ref": "#/$defs/reasoningClass" },
         "local_scope": { "$ref": "#/$defs/reasoningClass" },
         "multi_step": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "multi_file": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "bounded_tradeoff": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "ordinary_diagnosis": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "implementation_choice": { "$ref": "#/$defs/deliberativeOrHigher" },
+        "partial_ambiguity": { "$ref": "#/$defs/deliberativeOrHigher" },
         "cross_module": { "$ref": "#/$defs/deliberativeOrHigher" },
         "cross_system": { "$ref": "#/$defs/deepOrHigher" },
         "ambiguous_root_cause": { "$ref": "#/$defs/deepOrHigher" },
+        "architectural_tradeoff": { "$ref": "#/$defs/deepOrHigher" },
         "architecture_tradeoff": { "$ref": "#/$defs/deepOrHigher" },
         "non_local_invariant": { "$ref": "#/$defs/deepOrHigher" },
         "adversarial_input": { "$ref": "#/$defs/deepOrHigher" },
         "numerical_sensitivity": { "$ref": "#/$defs/deepOrHigher" },
         "security_boundary": { "$ref": "#/$defs/deepOrHigher" },
         "data_integrity": { "$ref": "#/$defs/deepOrHigher" },
+        "concurrency_or_ordering": { "$ref": "#/$defs/deepOrHigher" },
+        "migration_compatibility": { "$ref": "#/$defs/deepOrHigher" },
         "formal_accept_reject": { "const": "assurance" },
         "prior_reasoning_failure": { "$ref": "#/$defs/reasoningClass" },
         "explicit_user_override": { "$ref": "#/$defs/reasoningClass" }
@@ -118,6 +140,17 @@
     },
     "allow_ultra": {
       "const": false
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["allow_degraded_deep"],
+      "properties": {
+        "allow_degraded_deep": {
+          "const": false,
+          "default": false
+        }
+      },
+      "additionalProperties": false
     },
     "class_requirements": {
       "type": "object",
@@ -223,20 +256,7 @@
       },
       "properties": {
         "formal-assurance": {
-          "type": "object",
-          "required": [
-            "mode",
-            "reasoning_class",
-            "minimum_model_tier",
-            "strict"
-          ],
-          "properties": {
-            "mode": { "const": "fixed" },
-            "reasoning_class": { "const": "assurance" },
-            "minimum_model_tier": { "const": "strong" },
-            "strict": { "const": true }
-          },
-          "additionalProperties": false
+          "$ref": "#/$defs/rolePolicy"
         }
       },
       "additionalProperties": {
@@ -244,6 +264,52 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "1.0" } }
+      },
+      "then": {
+        "properties": {
+          "policy_version": { "const": "1" },
+          "dispatch_contexts": {
+            "properties": {
+              "formal-assurance": { "$ref": "#/$defs/v1FormalAssurance" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "2.0" } }
+      },
+      "then": {
+        "required": [
+          "task_intents",
+          "intent_baseline_classes",
+          "compatibility"
+        ],
+        "properties": {
+          "policy_version": { "const": "2" },
+          "signal_minimum_classes": {
+            "$ref": "#/$defs/v2SignalMinimumClasses"
+          },
+          "default_role_policy": {
+            "$ref": "#/$defs/v2DefaultRolePolicy"
+          },
+          "role_policies": {
+            "$ref": "#/$defs/v2RolePolicies"
+          },
+          "dispatch_contexts": {
+            "$ref": "#/$defs/v2DispatchContexts"
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false,
   "$defs": {
     "reasoningClass": {
@@ -262,6 +328,14 @@
     "deepOrHigher": {
       "type": "string",
       "enum": ["deep", "assurance"]
+    },
+    "routineThroughDeep": {
+      "type": "string",
+      "enum": ["routine", "deliberative", "deep"]
+    },
+    "deliberativeThroughDeep": {
+      "type": "string",
+      "enum": ["deliberative", "deep"]
     },
     "effort": {
       "type": "string",
@@ -302,14 +376,6 @@
         "strong"
       ]
     },
-    "policyMode": {
-      "type": "string",
-      "enum": [
-        "inherit",
-        "shadow",
-        "adaptive"
-      ]
-    },
     "classRequirement": {
       "type": "object",
       "required": [
@@ -339,6 +405,80 @@
       },
       "additionalProperties": false
     },
+    "intentBaselineClasses": {
+      "type": "object",
+      "required": [
+        "execute",
+        "inspect",
+        "diagnose",
+        "design",
+        "review",
+        "certify"
+      ],
+      "properties": {
+        "execute": { "const": "routine" },
+        "inspect": { "const": "routine" },
+        "diagnose": { "const": "deliberative" },
+        "design": { "const": "deliberative" },
+        "review": { "const": "deliberative" },
+        "certify": { "const": "assurance" }
+      },
+      "additionalProperties": false
+    },
+    "v2SignalMinimumClasses": {
+      "type": "object",
+      "required": [
+        "fully_specified",
+        "local_scope",
+        "multi_step",
+        "multi_file",
+        "bounded_tradeoff",
+        "ordinary_diagnosis",
+        "implementation_choice",
+        "partial_ambiguity",
+        "cross_module",
+        "cross_system",
+        "ambiguous_root_cause",
+        "architectural_tradeoff",
+        "architecture_tradeoff",
+        "non_local_invariant",
+        "adversarial_input",
+        "numerical_sensitivity",
+        "security_boundary",
+        "data_integrity",
+        "concurrency_or_ordering",
+        "migration_compatibility",
+        "formal_accept_reject",
+        "prior_reasoning_failure",
+        "explicit_user_override"
+      ],
+      "properties": {
+        "fully_specified": { "$ref": "#/$defs/routineThroughDeep" },
+        "local_scope": { "$ref": "#/$defs/routineThroughDeep" },
+        "multi_step": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "multi_file": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "bounded_tradeoff": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "ordinary_diagnosis": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "implementation_choice": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "partial_ambiguity": { "$ref": "#/$defs/deliberativeThroughDeep" },
+        "cross_module": { "const": "deep" },
+        "cross_system": { "const": "deep" },
+        "ambiguous_root_cause": { "const": "deep" },
+        "architectural_tradeoff": { "const": "deep" },
+        "architecture_tradeoff": { "const": "deep" },
+        "non_local_invariant": { "const": "deep" },
+        "adversarial_input": { "const": "deep" },
+        "numerical_sensitivity": { "const": "deep" },
+        "security_boundary": { "const": "deep" },
+        "data_integrity": { "const": "deep" },
+        "concurrency_or_ordering": { "const": "deep" },
+        "migration_compatibility": { "const": "deep" },
+        "formal_accept_reject": { "const": "assurance" },
+        "prior_reasoning_failure": { "$ref": "#/$defs/routineThroughDeep" },
+        "explicit_user_override": { "$ref": "#/$defs/routineThroughDeep" }
+      },
+      "additionalProperties": false
+    },
     "rolePolicy": {
       "oneOf": [
         {
@@ -352,8 +492,12 @@
             "mode": { "const": "fixed" },
             "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
             "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
             "strict": { "type": "boolean" }
           },
+          "allOf": [
+            { "$ref": "#/$defs/requiredTierAtLeastMinimum" }
+          ],
           "additionalProperties": false
         },
         {
@@ -371,73 +515,316 @@
             "target_class": { "$ref": "#/$defs/reasoningClass" },
             "ceiling_class": { "$ref": "#/$defs/reasoningClass" },
             "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
             "strict": { "type": "boolean" }
           },
           "allOf": [
-            {
-              "if": {
-                "properties": { "floor_class": { "const": "deliberative" } },
-                "required": ["floor_class"]
-              },
-              "then": {
-                "properties": {
-                  "target_class": { "enum": ["deliberative", "deep", "assurance"] }
-                }
-              }
-            },
-            {
-              "if": {
-                "properties": { "floor_class": { "const": "deep" } },
-                "required": ["floor_class"]
-              },
-              "then": {
-                "properties": {
-                  "target_class": { "enum": ["deep", "assurance"] }
-                }
-              }
-            },
-            {
-              "if": {
-                "properties": { "floor_class": { "const": "assurance" } },
-                "required": ["floor_class"]
-              },
-              "then": {
-                "properties": { "target_class": { "const": "assurance" } }
-              }
-            },
-            {
-              "if": {
-                "properties": { "target_class": { "const": "deliberative" } },
-                "required": ["target_class"]
-              },
-              "then": {
-                "properties": {
-                  "ceiling_class": { "enum": ["deliberative", "deep", "assurance"] }
-                }
-              }
-            },
-            {
-              "if": {
-                "properties": { "target_class": { "const": "deep" } },
-                "required": ["target_class"]
-              },
-              "then": {
-                "properties": { "ceiling_class": { "enum": ["deep", "assurance"] } }
-              }
-            },
-            {
-              "if": {
-                "properties": { "target_class": { "const": "assurance" } },
-                "required": ["target_class"]
-              },
-              "then": {
-                "properties": { "ceiling_class": { "const": "assurance" } }
-              }
-            }
+            { "$ref": "#/$defs/orderedAdaptiveClasses" },
+            { "$ref": "#/$defs/requiredTierAtLeastMinimum" }
           ],
           "additionalProperties": false
         }
       ]
+    },
+    "v2FixedRoutineRole": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "routine",
+        "strict": false
+      }
+    },
+    "v2FixedDeliberativeRole": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deliberative",
+        "strict": false
+      }
+    },
+    "v2FixedDeepRole": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deep",
+        "strict": false
+      }
+    },
+    "v2CommitteeSecurityRole": {
+      "const": {
+        "mode": "fixed",
+        "reasoning_class": "deep",
+        "minimum_model_tier": "strong",
+        "strict": false
+      }
+    },
+    "v2ImplementationAdaptiveRole": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "routine",
+        "target_class": "deliberative",
+        "ceiling_class": "deep",
+        "strict": false
+      }
+    },
+    "v2DefaultRolePolicy": {
+      "$ref": "#/$defs/v2ImplementationAdaptiveRole"
+    },
+    "v2UiUxDesignerRole": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deliberative",
+        "target_class": "deep",
+        "ceiling_class": "deep",
+        "strict": false
+      }
+    },
+    "v2ReviewerRole": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deliberative",
+        "target_class": "deep",
+        "ceiling_class": "assurance",
+        "strict": false
+      }
+    },
+    "v2RolePolicies": {
+      "type": "object",
+      "required": [
+        "analysis-complexity",
+        "analysis-correctness",
+        "analysis-numerics",
+        "analysis-robustness",
+        "art-director",
+        "atomizer",
+        "committee-architect",
+        "committee-judge",
+        "committee-kiss",
+        "committee-product",
+        "committee-qa",
+        "committee-security",
+        "compressor",
+        "doc-writer",
+        "executor",
+        "flow-splitter",
+        "generalist",
+        "handoff-writer",
+        "kanban-manager",
+        "market-researcher",
+        "peon",
+        "planner",
+        "repo-scout",
+        "reviewer",
+        "router",
+        "session-guide-writer",
+        "specifier",
+        "summarizer",
+        "test-runner",
+        "ui-ux-designer",
+        "ux-copy-trust",
+        "ux-judge",
+        "ux-novice",
+        "ux-task-flow",
+        "ux-visual-hierarchy"
+      ],
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "properties": {
+        "analysis-complexity": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "analysis-correctness": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "analysis-numerics": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "analysis-robustness": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "art-director": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "atomizer": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "committee-architect": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "committee-judge": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "committee-kiss": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "committee-product": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "committee-qa": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "committee-security": { "$ref": "#/$defs/v2CommitteeSecurityRole" },
+        "compressor": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "doc-writer": { "$ref": "#/$defs/v2ImplementationAdaptiveRole" },
+        "executor": { "$ref": "#/$defs/v2ImplementationAdaptiveRole" },
+        "flow-splitter": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "generalist": { "$ref": "#/$defs/v2ImplementationAdaptiveRole" },
+        "handoff-writer": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "kanban-manager": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "market-researcher": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "peon": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "planner": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "repo-scout": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "reviewer": { "$ref": "#/$defs/v2ReviewerRole" },
+        "router": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "session-guide-writer": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "specifier": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "summarizer": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "test-runner": { "$ref": "#/$defs/v2FixedRoutineRole" },
+        "ui-ux-designer": { "$ref": "#/$defs/v2UiUxDesignerRole" },
+        "ux-copy-trust": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "ux-judge": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "ux-novice": { "$ref": "#/$defs/v2FixedDeliberativeRole" },
+        "ux-task-flow": { "$ref": "#/$defs/v2FixedDeepRole" },
+        "ux-visual-hierarchy": { "$ref": "#/$defs/v2FixedDeliberativeRole" }
+      },
+      "additionalProperties": false
+    },
+    "v2AdHocReview": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deep",
+        "target_class": "deep",
+        "ceiling_class": "assurance",
+        "strict": false
+      }
+    },
+    "v2PipelineReview": {
+      "const": {
+        "mode": "adaptive",
+        "floor_class": "deep",
+        "target_class": "deep",
+        "ceiling_class": "assurance",
+        "minimum_model_tier": "strong",
+        "strict": false
+      }
+    },
+    "v2DispatchContexts": {
+      "type": "object",
+      "required": [
+        "ad-hoc-review",
+        "pipeline-review",
+        "formal-assurance"
+      ],
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "properties": {
+        "ad-hoc-review": { "$ref": "#/$defs/v2AdHocReview" },
+        "pipeline-review": { "$ref": "#/$defs/v2PipelineReview" },
+        "formal-assurance": { "$ref": "#/$defs/v2FormalAssurance" }
+      },
+      "additionalProperties": false
+    },
+    "orderedAdaptiveClasses": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "target_class": { "const": "assurance" } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "ceiling_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "enum": ["deep", "assurance"] } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "const": "assurance" } }
+          }
+        }
+      ]
+    },
+    "requiredTierAtLeastMinimum": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "standard" }
+            }
+          },
+          "then": {
+            "properties": {
+              "required_model_tier": { "enum": ["standard", "strong"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "strong" }
+            }
+          },
+          "then": {
+            "properties": { "required_model_tier": { "const": "strong" } }
+          }
+        }
+      ]
+    },
+    "v1FormalAssurance": {
+      "type": "object",
+      "required": [
+        "mode",
+        "reasoning_class",
+        "minimum_model_tier",
+        "strict"
+      ],
+      "properties": {
+        "mode": { "const": "fixed" },
+        "reasoning_class": { "const": "assurance" },
+        "minimum_model_tier": { "const": "strong" },
+        "strict": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "v2FormalAssurance": {
+      "type": "object",
+      "required": [
+        "mode",
+        "reasoning_class",
+        "required_model_tier",
+        "strict"
+      ],
+      "properties": {
+        "mode": { "const": "fixed" },
+        "reasoning_class": { "const": "assurance" },
+        "required_model_tier": { "const": "strong" },
+        "strict": { "const": true }
+      },
+      "additionalProperties": false
     }
   }
 }

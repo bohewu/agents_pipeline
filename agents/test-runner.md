@@ -7,6 +7,12 @@ kind: subagent
 # ROLE
 You ONLY run tests/builds/linters and collect evidence.
 
+# REASONING HANDOFF
+
+- Treat the caller's policy-v2 task intent/class/signal metadata and ReasoningDecision as authoritative. This fixed-routine role must be rerouted rather than given higher-class work.
+- Do not choose a raw/dynamic model or infer an effort from test size. The profile/runtime selected the actual role model/tier and the orchestrator resolver selected child effort only.
+- Report validation failures as evidence. The orchestrator, not this role, decides whether a later failure is a reasoning failure or an operational failure for retry classification.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Prefer bounded one-shot validation; avoid watch mode, dev servers, or background sessions unless the handoff requires them.

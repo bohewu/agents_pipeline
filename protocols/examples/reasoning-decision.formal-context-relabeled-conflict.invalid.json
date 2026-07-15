@@ -1,0 +1,41 @@
+{
+  "schema_version": "2.0",
+  "policy_version": "2",
+  "mode": "adaptive",
+  "role": "reviewer",
+  "task_intent": null,
+  "intent_baseline_class": null,
+  "classification_source": "legacy_role_target",
+  "role_policy": {
+    "mode": "adaptive",
+    "floor_class": "deliberative",
+    "target_class": "deep",
+    "ceiling_class": "assurance",
+    "strict": false
+  },
+  "dispatch_context": "formal-assurance",
+  "requested_class": null,
+  "reasoning_class": "deep",
+  "effective_class": "deep",
+  "reasoning_signals": [],
+  "model_tier": "strong",
+  "selected_model_tier": "strong",
+  "minimum_model_tier": null,
+  "requires_model_escalation": false,
+  "requested_effort": "max",
+  "dispatch_effort": null,
+  "effective_effort": "high",
+  "selector_available": true,
+  "capability_source": "runtime",
+  "enforcement_status": "conflict",
+  "strict": false,
+  "degraded": false,
+  "degradation_reason": null,
+  "recovery_boost": false,
+  "explicit_override": null,
+  "reasons": [
+    "forged-formal-context"
+  ],
+  "conflict": "conflict",
+  "conflict_reason": "Formal assurance was relabeled as deep"
+}

@@ -138,9 +138,9 @@ Schema: `./protocols/schemas/test-report.schema.json`
 
 ### Risk-Derived Execution Rigor
 
-- Pipeline TaskList entries explicitly provide `risk`, `complexity`, `reasoning_class`, and `reasoning_signals`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides resource and batch reasoning metadata. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
-- FlowTaskList entries explicitly provide `risk`, `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
-- Model and provider selection are profile/runtime-owned. Per-spawn reasoning effort is selected by `./protocols/REASONING_POLICY.md`; it is independent from workflow risk, verification, retry, and resource controls.
+- Pipeline TaskList entries explicitly provide `risk`, `complexity`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, and `reasoning_signals`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides resource and batch reasoning metadata. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
+- FlowTaskList entries explicitly provide `risk`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
+- Model and provider selection are profile/runtime-owned. The profile selects the actual role model/tier; `./protocols/REASONING_POLICY.md` validates that selected capability and selects only per-spawn child effort. It never routes a raw/dynamic model or changes current/main-agent effort, and remains independent from workflow risk, verification, retry, and resource controls.
 - Pipeline low-risk/S tasks normally use basic verification and no repair pass; medium-risk/M and high-risk/L tasks use one bounded repair pass, with strong verification for high-risk/L work.
 - Flow low-risk tasks may use `verification = none` for bounded non-executable outputs, while localized implementation tasks normally receive two bounded in-task correction cycles.
 - Flow medium-risk tasks use at least basic verification and one or two bounded in-task correction cycles; Flow review becomes required when they cross an integration or user-critical boundary.
@@ -150,11 +150,12 @@ Schema: `./protocols/schemas/test-report.schema.json`
 
 ### Adaptive Reasoning
 
-- Simple, Flow, Pipeline, and Adaptive accept `--reasoning=inherit|shadow|adaptive`; version 1 defaults to `adaptive` and retains `inherit` as the rollback mode.
-- Task producers emit semantic class/signals only. The shared `./tools/reasoning-policy.js` resolver applies role bounds, model-tier floors, workspace ceiling, runtime capability, and exact overrides.
-- No adaptive child dispatch resolves below `medium`; `mini` resolves no lower than `high`.
-- `--review=max` remains an exact reviewer-only override and never changes the profile-selected model.
-- Stage 1 does not override models. `minimum_model_tier` and `requires_model_escalation` are compatibility evidence for the later evidence-gated model-routing stage.
+- Policy/schema v2 resolves `task_intent -> reasoning class -> selected model capability -> child effort`. New task producers emit intent, baseline/source metadata, legacy `reasoning_class`, and signals; legacy class-only artifacts remain valid.
+- Those task/status fields are backward-compatible optional extensions, not a workflow protocol bump. TaskList, FlowTaskList, DispatchPlan, TaskStatus, and checkpoint records retain their existing `protocol_version`; the status runtime remains `PROTOCOL_VERSION = 1.0`.
+- Simple, Flow, Pipeline, and Adaptive accept `--reasoning=inherit|shadow|adaptive`; policy v2 defaults to `adaptive`. `inherit` preserves classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes without applying; strict assurance conflicts. `adaptive` applies the returned child selector.
+- The shared `./tools/reasoning-policy.js` resolver applies signal floors, role/context bounds, selected-tier capability, workspace ceiling, runtime capability, and exact overrides. It is the only class-to-effort resolver.
+- `--review=max` is an exact reviewer-only effort override. It keeps ordinary ad-hoc/Pipeline review deep, does not certify the work, and never changes the profile-selected reviewer model.
+- Deep `mini`/`unknown` work conflicts by default. Only an explicit `allow_degraded_deep` compatibility input can request degraded deep `max`; it never permits assurance or model routing.
 
 **Stage 8: Compressor**
 Agent: `compressor`
@@ -350,7 +351,7 @@ Minimal payload skeleton guidance:
 - `checkpoint.updated`: add a non-empty object `flags` delta when a derived flag must be persisted before the current stage can honestly be marked completed. The runtime merges the delta into `checkpoint.flags` and MUST NOT change `current_stage` or `completed_stages`.
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
 - Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode` plus `review_reasoning_effort`. Fresh Flow/Pipeline runs persist `reasoning_mode`, `reasoning_policy_version`, and `reasoning_ceiling`; resume must preserve an omitted mode, reject a policy-version mismatch, and use `inherit` for a legacy checkpoint unless the resume invocation explicitly selects a mode. An explicit `--review=max` persists `review_reasoning_effort = max` so resume and every re-review keep the same reviewer-only override.
-- `tasks.registered`: add `tasks` as canonical task summaries, including paired `reasoning_class` and `reasoning_signals` when present; include `task_list_path` when available.
+- `tasks.registered`: add canonical task summaries, including `task_intent`, `intent_baseline_class`, `classification_source`, legacy `reasoning_class`, and `reasoning_signals` when present; include `task_list_path` when available.
 - `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task. Instrumented Flow/Pipeline attempts include the complete ReasoningDecision as `reasoning` and update it when effective-effort trace evidence becomes available.
 - Emitter guidance for `agent.heartbeat`: use standalone heartbeats only for still-active work that genuinely needs liveness visibility. Prefer a coarse cadence (roughly no more than once per 15 seconds per active agent) unless semantic state, resource state, or cleanup state changed. If completion is imminent, skip the heartbeat and flush the final batch instead.
@@ -447,6 +448,11 @@ Required fields:
 Optional fields:
 
 - `trace_ids[]`
+- `task_intent`
+- `intent_baseline_class`
+- `classification_source`
+- `prior_failure_type`
+- `allow_degraded_deep`
 - `reasoning_class`
 - `reasoning_signals[]`
 - `batch_id`

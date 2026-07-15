@@ -1,0 +1,12 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run-legacy-task",
+  "task_id": "task-legacy",
+  "summary": "Reject incomplete legacy task provenance.",
+  "status": "pending",
+  "created_at": "2026-07-15T11:50:00.000Z",
+  "updated_at": "2026-07-15T11:50:01.000Z",
+  "task_intent": null,
+  "intent_baseline_class": null,
+  "classification_source": "legacy_explicit_class"
+}

@@ -29,7 +29,9 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Prefer `generalist` only when the task is mixed-scope but non-coding.
 - Treat routine version-control actions (`git status`, `git add`, `git commit`, `git push`) as orchestrator helper work, not Flow tasks, unless version-control management is the user's primary requested outcome.
 - Set `risk` from concrete impact: `low` for localized/reversible work, `medium` for behavior or integration changes with bounded blast radius, and `high` for security, data, migration, destructive, or broad cross-surface risk.
-- Classify reasoning independently under `protocols/REASONING_POLICY.md`. Emit the highest applicable `reasoning_class` and every applicable bounded `reasoning_signals` value; ordinary Flow implementation tasks use `routine | deliberative | deep`, not `assurance`.
+- Classify reasoning independently under `protocols/REASONING_POLICY.md`. Emit policy-v2 `task_intent`, its matching `intent_baseline_class`, and `classification_source = task_intent`, then retain the highest applicable legacy-compatible `reasoning_class` and every applicable bounded `reasoning_signals` value. Intent baselines and signals only raise classification; ordinary Flow implementation tasks use `routine | deliberative | deep`, not `assurance`.
+- These are additive, backward-compatible FlowTaskList fields. Do not change a FlowTaskList `protocol_version` because of policy v2.
+- Set `allow_degraded_deep = false` unless an incoming compatibility contract explicitly authorizes degraded deep work. Do not infer it, and never use it for assurance. Formal certification belongs to a reviewer `formal-assurance` dispatch, not a Flow execution task.
 - Validate the assigned role against that class before returning the task. Never lower `reasoning_class` to make a role fit; select `executor`, `generalist`, or another semantically compatible role instead.
 - Derive `verification` and `review_required` from risk and the Definition of Done:
   - low -> `verification = none | basic`, normally `review_required = false`
@@ -63,6 +65,10 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
       "primary_output": "design | plan | spec | checklist | analysis | implementation",
       "assigned_agent": "executor | doc-writer | peon | generalist",
       "risk": "low | medium | high",
+      "task_intent": "execute | inspect | diagnose | design | review",
+      "intent_baseline_class": "routine | deliberative",
+      "classification_source": "task_intent",
+      "allow_degraded_deep": false,
       "reasoning_class": "routine | deliberative | deep",
       "reasoning_signals": ["local_scope"],
       "verification": "none | basic | strong",

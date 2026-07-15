@@ -70,12 +70,14 @@ upstream policy merely because Simple does not expose those flags directly.
 # REASONING DISPATCH POLICY
 
 Follow `protocols/REASONING_POLICY.md` before every child spawn. Classify each
-Simple work item in memory with `reasoning_class` and bounded
-`reasoning_signals`; do not create a TaskList or status artifact. Call
-`node tools/reasoning-policy.js` with the registered role, effective
-`reasoning_mode`, proven logical model tier or `unknown`, selector capability,
-and the in-memory task classification. A conflict blocks that spawn. Apply a
-returned selector without passing a model.
+Simple work item in memory with policy-v2 `task_intent`, matching
+`intent_baseline_class`, `classification_source = task_intent`,
+legacy-compatible `reasoning_class`, and bounded `reasoning_signals`; do not
+create a TaskList or status artifact. Call `node tools/reasoning-policy.js`
+with the registered role, effective `reasoning_mode`, proven selected logical
+model tier or `unknown`, selector capability, and that in-memory classification.
+A conflict blocks that spawn. The profile/runtime selects the actual role
+model; the resolver selects only child effort and no dispatch passes a model.
 
 Before resolution, verify that the selected role policy ceiling accepts the
 work item's class. `peon` is fixed-routine and may receive only `routine` work;
@@ -86,12 +88,13 @@ to make a role fit.
 In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 selector while omitting `model`. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
-selector and continue without claiming enforcement; strict/exact cases
-conflict and block. Non-strict, non-exact `shadow` and ordinary `inherit` omit
-the effort selector; strict/exact shadow decisions conflict and block. Use
-`dispatch_context = ad-hoc-review` for reviewer
-attempts; `--review=max` also passes `explicit_effort = max` and remains exact
-even when `reasoning_mode = inherit`. Verify the child trace when available and
+selector and continue without claiming enforcement; strict/exact cases conflict
+and block. `inherit` preserves classification metadata but omits the selector,
+so exact overrides and strict assurance conflict. `shadow` computes requested
+effort but omits the selector; strict assurance conflicts. Use
+`dispatch_context = ad-hoc-review` for reviewer attempts; `--review=max` passes
+`explicit_effort = max` only for that reviewer, stays deep, does not certify the
+review, and does not change the model. Verify the child trace when available and
 never claim `enforced` without effective-effort evidence.
 
 # DISPATCH POLICY
@@ -119,8 +122,9 @@ second failure stops; do not create a broader retry loop.
 
 Resolve the initial review and re-review independently under the reasoning dispatch
 policy. `review_reasoning_effort = max` is supplied as the exact reviewer-only
-`explicit_effort = max`, which resolves to `reasoning_effort = max`; the repair worker, test runner, and every non-review role
-use their own normal policy decisions.
+`explicit_effort = max`; adaptive mode applies that selector, shadow records it
+without applying it, and inherit conflicts. The repair worker, test runner, and
+every non-review role use their own normal policy decisions.
 
 # QUALITY RULES
 

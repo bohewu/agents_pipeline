@@ -63,8 +63,10 @@ repeat the default; the Simple handoff wrapper still passes the effective value 
 The effective `reasoning_mode` defaults to `adaptive`. It is route-independent and
 does not influence Simple/Flow/Pipeline selection. Invalid values warn once and fall
 back to `adaptive`; `inherit` is the explicit rollback mode and `shadow` is the
-diagnostic no-enforcement mode. Strict formal assurance conflicts in `inherit`
-or `shadow`, and exact effort overrides conflict in `shadow`.
+diagnostic no-enforcement mode. `inherit` preserves classification metadata but
+never applies a selector, so exact overrides and strict assurance conflict.
+`shadow` computes requested effort without applying it; strict assurance
+conflicts, while an ordinary shadowed review-max request remains unenforced.
 
 Reject unknown Adaptive-only values rather than guessing. An invalid preset falls back
 to `balanced` with one warning. On a fresh run, treat standalone `--full-auto` as the
@@ -193,7 +195,7 @@ explicit policy wrapper around that core:
 2. Run `commit_mode = before` through one bounded `peon` helper when requested.
 3. For `scout_mode = force`, run one focused `repo-scout`; for `auto`, inspect only when target files are unclear.
 4. Execute the Simple workflow. Full-auto/autopilot suppresses pauses but never expands Simple's narrow recovery bound.
-5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. On failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. Resolve both reviewer attempts through `protocols/REASONING_POLICY.md` with `dispatch_context = ad-hoc-review`; when `review_reasoning_effort = max`, also pass exact reviewer-only `explicit_effort = max`, which resolves to `reasoning_effort = max`. Every wrapper/core child uses the normalized `reasoning_mode` and registered role selection without passing a model. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
+5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. On failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. Resolve both reviewer attempts through `protocols/REASONING_POLICY.md` with `dispatch_context = ad-hoc-review`; when `review_reasoning_effort = max`, also pass exact reviewer-only `explicit_effort = max`. Adaptive applies it, shadow records it without applying it, and inherit conflicts; it stays deep ordinary review and does not certify the work. Every wrapper/core child uses the normalized `reasoning_mode` and registered role selection without passing a model. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
 6. For handoff, dispatch `handoff-writer` with `mode = ad_hoc`, effective `output_root`, `orchestrator = orchestrator-simple`, the original `user_prompt`, `goal`, `scope_boundary`, `completed_items`, `pending_items`, `blocked_items`, `decisions`, `risks`, `artifact_paths`, `kanban_sync_required`, `kanban_updates`, `next_recommended_action`, `recommended_command`, and the in-memory Simple result/evidence. Generate `handoff_id` as the containment-safe basename `adaptive-simple-<UTC YYYYMMDDTHHMMSSZ>-<8 lowercase hex prompt digest>`; refuse an existing target instead of overwriting it. The writer must write under `<output_dir>/adaptive-simple-handoffs/<handoff_id>/` and must not discover or bind to an older persisted run. For `kanban_mode = auto`, run the kanban helper; for `manual`, report the manual sync action; for `off`, do nothing. Then run `commit_mode = after`; when review is enabled it must pass first, and the commit helper must safely separate run changes from pre-existing dirty changes.
 
 These helpers do not become Simple tasks. Reviewer scope expansion or evidence that the
@@ -254,7 +256,7 @@ When `prompt_mode = off`:
 1. Read the selected installed TOML definition.
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
-4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select role models and resolve every child effort through `protocols/REASONING_POLICY.md`; never change the current/main agent or pass a model override.
+4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent, pass a model override, or dynamically route/upgrade/downgrade a model.
 
 For `route_mode = auto`, materially underestimated work may promote once from Simple to
 Flow and once from Flow to Pipeline. Finish the current workflow honestly, retain

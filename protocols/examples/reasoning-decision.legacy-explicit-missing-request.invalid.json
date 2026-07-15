@@ -1,0 +1,43 @@
+{
+  "schema_version": "2.0",
+  "policy_version": "2",
+  "mode": "adaptive",
+  "role": "executor",
+  "task_intent": null,
+  "intent_baseline_class": null,
+  "classification_source": "legacy_explicit_class",
+  "role_policy": {
+    "mode": "adaptive",
+    "floor_class": "routine",
+    "target_class": "deliberative",
+    "ceiling_class": "deep",
+    "strict": false
+  },
+  "dispatch_context": null,
+  "requested_class": null,
+  "reasoning_class": "deep",
+  "effective_class": "deep",
+  "reasoning_signals": [
+    "cross_system"
+  ],
+  "model_tier": "standard",
+  "selected_model_tier": "standard",
+  "minimum_model_tier": "standard",
+  "requires_model_escalation": false,
+  "requested_effort": "xhigh",
+  "dispatch_effort": "xhigh",
+  "effective_effort": null,
+  "selector_available": null,
+  "capability_source": "policy",
+  "enforcement_status": "requested",
+  "strict": false,
+  "degraded": false,
+  "degradation_reason": null,
+  "recovery_boost": false,
+  "explicit_override": null,
+  "reasons": [
+    "forged-legacy-explicit-provenance"
+  ],
+  "conflict": null,
+  "conflict_reason": null
+}

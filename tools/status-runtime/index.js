@@ -318,7 +318,7 @@ class StatusRuntime {
       : undefined;
 
     return canonicalizeReasoningObservation({
-      schema_version: "1.0",
+      schema_version: agent.reasoning.schema_version === "2.0" ? "2.0" : "1.0",
       observed_at: observedAt,
       run_id: agent.run_id,
       orchestrator: runStatus.orchestrator,

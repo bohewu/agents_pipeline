@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReasoningObservation",
-  "description": "Local-only, content-free observation emitted for a terminal child-agent attempt.",
+  "description": "Local-only, content-free observation emitted for a terminal child-agent attempt. The strict allowlist intentionally excludes prompts, results, paths, commands, reasons, and conflict text.",
   "type": "object",
   "required": [
     "schema_version",
@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "1.0"
+      "enum": ["1.0", "2.0"]
     },
     "observed_at": {
       "type": "string",
@@ -67,13 +67,595 @@
       "$ref": "#/$defs/reasoningSummary"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "1.0" } }
+      },
+      "then": {
+        "properties": {
+          "reasoning": {
+            "properties": { "schema_version": { "const": "1.0" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "2.0" } }
+      },
+      "then": {
+        "properties": {
+          "reasoning": {
+            "properties": { "schema_version": { "const": "2.0" } }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false,
   "$defs": {
     "reasoningClass": {
       "enum": [null, "routine", "deliberative", "deep", "assurance"]
     },
+    "nonNullReasoningClass": {
+      "type": "string",
+      "enum": ["routine", "deliberative", "deep", "assurance"]
+    },
+    "modelTier": {
+      "type": "string",
+      "enum": ["mini", "standard", "strong"]
+    },
     "effort": {
       "enum": [null, "medium", "high", "xhigh", "max"]
+    },
+    "rolePolicy": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["mode", "reasoning_class", "strict"],
+          "properties": {
+            "mode": { "const": "fixed" },
+            "reasoning_class": { "$ref": "#/$defs/nonNullReasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "mode",
+            "floor_class",
+            "target_class",
+            "ceiling_class",
+            "strict"
+          ],
+          "properties": {
+            "mode": { "const": "adaptive" },
+            "floor_class": { "$ref": "#/$defs/nonNullReasoningClass" },
+            "target_class": { "$ref": "#/$defs/nonNullReasoningClass" },
+            "ceiling_class": { "$ref": "#/$defs/nonNullReasoningClass" },
+            "minimum_model_tier": { "$ref": "#/$defs/modelTier" },
+            "required_model_tier": { "$ref": "#/$defs/modelTier" },
+            "strict": { "type": "boolean" }
+          },
+          "allOf": [
+            { "$ref": "#/$defs/orderedAdaptiveClasses" },
+            { "$ref": "#/$defs/requiredTierAtLeastMinimum" }
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "orderedAdaptiveClasses": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": {
+              "target_class": { "enum": ["deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["floor_class"],
+            "properties": { "floor_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "target_class": { "const": "assurance" } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deliberative" } }
+          },
+          "then": {
+            "properties": {
+              "ceiling_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "deep" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "enum": ["deep", "assurance"] } }
+          }
+        },
+        {
+          "if": {
+            "required": ["target_class"],
+            "properties": { "target_class": { "const": "assurance" } }
+          },
+          "then": {
+            "properties": { "ceiling_class": { "const": "assurance" } }
+          }
+        }
+      ]
+    },
+    "requiredTierAtLeastMinimum": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "standard" }
+            }
+          },
+          "then": {
+            "properties": {
+              "required_model_tier": { "enum": ["standard", "strong"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["minimum_model_tier", "required_model_tier"],
+            "properties": {
+              "minimum_model_tier": { "const": "strong" }
+            }
+          },
+          "then": {
+            "properties": { "required_model_tier": { "const": "strong" } }
+          }
+        }
+      ]
+    },
+    "explicitOverride": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "reasoning_class": { "$ref": "#/$defs/nonNullReasoningClass" },
+            "effort": {
+              "type": "string",
+              "enum": ["medium", "high", "xhigh", "max"]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "degradationReason": {
+      "enum": [
+        null,
+        "model_tier_below_deep_requirement",
+        "runtime_effort_unavailable",
+        "selector_unavailable",
+        "effective_effort_mismatch"
+      ]
+    },
+    "degradationReasonValue": {
+      "type": "string",
+      "enum": [
+        "model_tier_below_deep_requirement",
+        "runtime_effort_unavailable",
+        "selector_unavailable",
+        "effective_effort_mismatch"
+      ]
+    },
+    "taskHintDeliberativeOrHigher": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": {
+              "enum": ["deliberative", "deep", "assurance"]
+            }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "deliberative", "deep", "assurance"]
+            }
+          }
+        }
+      ]
+    },
+    "taskHintDeepOrHigher": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": {
+              "enum": ["deep", "assurance"]
+            }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "deep", "assurance"]
+            }
+          }
+        }
+      ]
+    },
+    "taskHintAssurance": {
+      "anyOf": [
+        {
+          "required": ["reasoning_class"],
+          "properties": {
+            "reasoning_class": { "const": "assurance" }
+          }
+        },
+        {
+          "required": ["effective_class"],
+          "properties": {
+            "effective_class": {
+              "enum": [null, "assurance"]
+            }
+          }
+        }
+      ]
+    },
+    "observationTaskHintRules": {
+      "allOf": [
+        {
+          "if": {
+            "required": ["reasoning_signals"],
+            "properties": {
+              "reasoning_signals": {
+                "contains": {
+                  "enum": [
+                    "multi_step",
+                    "multi_file",
+                    "bounded_tradeoff",
+                    "ordinary_diagnosis",
+                    "implementation_choice",
+                    "partial_ambiguity",
+                    "cross_module"
+                  ]
+                }
+              }
+            }
+          },
+          "then": { "$ref": "#/$defs/taskHintDeliberativeOrHigher" }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["task_intent"],
+                "properties": {
+                  "task_intent": {
+                    "enum": ["execute", "inspect", "diagnose", "design", "review", "certify"]
+                  }
+                }
+              },
+              {
+                "required": ["reasoning_signals"],
+                "properties": {
+                  "reasoning_signals": {
+                    "contains": { "const": "cross_module" }
+                  }
+                }
+              }
+            ]
+          },
+          "then": { "$ref": "#/$defs/taskHintDeepOrHigher" }
+        },
+        {
+          "if": {
+            "required": ["reasoning_signals"],
+            "properties": {
+              "reasoning_signals": {
+                "contains": {
+                  "enum": [
+                    "cross_system",
+                    "ambiguous_root_cause",
+                    "architectural_tradeoff",
+                    "architecture_tradeoff",
+                    "non_local_invariant",
+                    "adversarial_input",
+                    "numerical_sensitivity",
+                    "security_boundary",
+                    "data_integrity",
+                    "concurrency_or_ordering",
+                    "migration_compatibility"
+                  ]
+                }
+              }
+            }
+          },
+          "then": { "$ref": "#/$defs/taskHintDeepOrHigher" }
+        },
+        {
+          "if": {
+            "required": ["reasoning_signals"],
+            "properties": {
+              "reasoning_signals": {
+                "contains": { "const": "formal_accept_reject" }
+              }
+            }
+          },
+          "then": { "$ref": "#/$defs/taskHintAssurance" }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "execute" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "routine" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "inspect" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "routine" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "diagnose" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "deliberative" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "design" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "deliberative" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "review" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "deliberative" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["task_intent"],
+            "properties": { "task_intent": { "const": "certify" } }
+          },
+          "then": {
+            "required": ["intent_baseline_class", "classification_source"],
+            "properties": {
+              "intent_baseline_class": { "const": "assurance" },
+              "classification_source": { "const": "task_intent" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["classification_source"],
+            "properties": { "classification_source": { "const": "task_intent" } }
+          },
+          "then": {
+            "required": ["task_intent", "intent_baseline_class"],
+            "properties": {
+              "task_intent": {
+                "enum": ["execute", "inspect", "diagnose", "design", "review", "certify"]
+              },
+              "intent_baseline_class": {
+                "enum": ["routine", "deliberative", "deep", "assurance"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["classification_source"],
+            "properties": {
+              "classification_source": {
+                "enum": ["legacy_explicit_class", "legacy_role_target"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "task_intent": { "const": null },
+              "intent_baseline_class": { "const": null }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["intent_baseline_class"],
+            "properties": {
+              "intent_baseline_class": {
+                "enum": ["routine", "deliberative", "deep", "assurance"]
+              }
+            }
+          },
+          "then": {
+            "required": ["task_intent", "classification_source"],
+            "properties": {
+              "classification_source": { "const": "task_intent" },
+              "task_intent": {
+                "enum": ["execute", "inspect", "diagnose", "design", "review", "certify"]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["intent_baseline_class"],
+                "properties": { "intent_baseline_class": { "const": "deliberative" } }
+              },
+              {
+                "anyOf": [
+                  { "required": ["reasoning_class"] },
+                  { "required": ["effective_class"] }
+                ]
+              }
+            ]
+          },
+          "then": { "$ref": "#/$defs/taskHintDeliberativeOrHigher" }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["intent_baseline_class"],
+                "properties": { "intent_baseline_class": { "const": "deep" } }
+              },
+              {
+                "anyOf": [
+                  { "required": ["reasoning_class"] },
+                  { "required": ["effective_class"] }
+                ]
+              }
+            ]
+          },
+          "then": { "$ref": "#/$defs/taskHintDeepOrHigher" }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["intent_baseline_class"],
+                "properties": { "intent_baseline_class": { "const": "assurance" } }
+              },
+              {
+                "anyOf": [
+                  { "required": ["reasoning_class"] },
+                  { "required": ["effective_class"] }
+                ]
+              }
+            ]
+          },
+          "then": { "$ref": "#/$defs/taskHintAssurance" }
+        }
+      ]
+    },
+    "matchingClassAliases": {
+      "oneOf": [
+        {
+          "properties": {
+            "reasoning_class": { "const": "routine" },
+            "effective_class": { "const": "routine" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "deliberative" },
+            "effective_class": { "const": "deliberative" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "deep" },
+            "effective_class": { "const": "deep" }
+          }
+        },
+        {
+          "properties": {
+            "reasoning_class": { "const": "assurance" },
+            "effective_class": { "const": "assurance" }
+          }
+        }
+      ]
+    },
+    "matchingModelTierAliases": {
+      "oneOf": [
+        {
+          "properties": {
+            "model_tier": { "const": "mini" },
+            "selected_model_tier": { "const": "mini" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "standard" },
+            "selected_model_tier": { "const": "standard" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "strong" },
+            "selected_model_tier": { "const": "strong" }
+          }
+        },
+        {
+          "properties": {
+            "model_tier": { "const": "unknown" },
+            "selected_model_tier": { "const": "unknown" }
+          }
+        }
+      ]
     },
     "reasoningSummary": {
       "type": "object",
@@ -97,7 +679,7 @@
         "strict"
       ],
       "properties": {
-        "schema_version": { "const": "1.0" },
+        "schema_version": { "enum": ["1.0", "2.0"] },
         "policy_version": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
@@ -112,12 +694,34 @@
           "pattern": "^[a-z][a-z0-9-]{0,63}$",
           "maxLength": 64
         },
+        "task_intent": {
+          "enum": [
+            null,
+            "execute",
+            "inspect",
+            "diagnose",
+            "design",
+            "review",
+            "certify"
+          ]
+        },
+        "intent_baseline_class": { "$ref": "#/$defs/reasoningClass" },
+        "classification_source": {
+          "type": "string",
+          "enum": [
+            "task_intent",
+            "legacy_explicit_class",
+            "legacy_role_target"
+          ]
+        },
+        "role_policy": { "$ref": "#/$defs/rolePolicy" },
         "dispatch_context": {
           "type": ["string", "null"],
           "pattern": "^[a-z][a-z0-9-]{0,63}$",
           "maxLength": 64
         },
         "requested_class": { "$ref": "#/$defs/reasoningClass" },
+        "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
         "effective_class": { "$ref": "#/$defs/reasoningClass" },
         "reasoning_signals": {
           "type": "array",
@@ -128,15 +732,23 @@
               "fully_specified",
               "local_scope",
               "multi_step",
+              "multi_file",
+              "bounded_tradeoff",
+              "ordinary_diagnosis",
+              "implementation_choice",
+              "partial_ambiguity",
               "cross_module",
               "cross_system",
               "ambiguous_root_cause",
+              "architectural_tradeoff",
               "architecture_tradeoff",
               "non_local_invariant",
               "adversarial_input",
               "numerical_sensitivity",
               "security_boundary",
               "data_integrity",
+              "concurrency_or_ordering",
+              "migration_compatibility",
               "formal_accept_reject",
               "prior_reasoning_failure",
               "explicit_user_override"
@@ -147,6 +759,10 @@
           "type": "string",
           "enum": ["mini", "standard", "strong", "unknown"]
         },
+        "selected_model_tier": {
+          "type": "string",
+          "enum": ["mini", "standard", "strong", "unknown"]
+        },
         "minimum_model_tier": {
           "enum": [null, "mini", "standard", "strong"]
         },
@@ -154,6 +770,7 @@
         "requested_effort": { "$ref": "#/$defs/effort" },
         "dispatch_effort": { "$ref": "#/$defs/effort" },
         "effective_effort": { "$ref": "#/$defs/effort" },
+        "selector_available": { "type": ["boolean", "null"] },
         "capability_source": {
           "type": "string",
           "enum": ["policy", "runtime"]
@@ -162,24 +779,103 @@
           "type": "string",
           "enum": ["inherited", "shadow", "requested", "enforced", "degraded", "conflict"]
         },
-        "strict": { "type": "boolean" }
+        "strict": { "type": "boolean" },
+        "degraded": { "type": "boolean" },
+        "degradation_reason": { "$ref": "#/$defs/degradationReason" },
+        "recovery_boost": { "type": "boolean" },
+        "explicit_override": { "$ref": "#/$defs/explicitOverride" }
       },
       "allOf": [
-        { "$ref": "reasoning-task-hints.schema.json" },
+        { "$ref": "#/$defs/observationTaskHintRules" },
         {
           "if": {
-            "properties": { "mode": { "const": "inherit" } },
-            "required": ["mode"]
+            "allOf": [
+              {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "1.0" } }
+              },
+              {
+                "required": ["mode"],
+                "properties": { "mode": { "const": "inherit" } }
+              }
+            ]
           },
           "then": {
             "properties": { "effective_class": { "const": null } }
-          },
-          "else": {
-            "properties": {
-              "effective_class": {
-                "enum": ["routine", "deliberative", "deep", "assurance"]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "required": ["schema_version"],
+                "properties": { "schema_version": { "const": "1.0" } }
+              },
+              {
+                "required": ["mode"],
+                "properties": { "mode": { "enum": ["shadow", "adaptive"] } }
               }
+            ]
+          },
+          "then": {
+            "properties": {
+              "effective_class": { "enum": ["routine", "deliberative", "deep", "assurance"] }
             }
+          }
+        },
+        {
+          "if": {
+            "required": ["schema_version"],
+            "properties": { "schema_version": { "const": "2.0" } }
+          },
+          "then": {
+            "allOf": [
+              {
+                "required": [
+                  "task_intent",
+                  "intent_baseline_class",
+                  "classification_source",
+                  "role_policy",
+                  "reasoning_class",
+                  "selected_model_tier",
+                  "selector_available",
+                  "degraded",
+                  "degradation_reason",
+                  "recovery_boost",
+                  "explicit_override"
+                ],
+                "properties": {
+                  "policy_version": { "const": "2" }
+                }
+              },
+              { "$ref": "#/$defs/matchingClassAliases" },
+              { "$ref": "#/$defs/matchingModelTierAliases" },
+              { "$ref": "reasoning-decision.schema.json#/$defs/v2SemanticState" },
+              {
+                "if": {
+                  "properties": { "degraded": { "const": true } }
+                },
+                "then": {
+                  "properties": {
+                    "degradation_reason": { "$ref": "#/$defs/degradationReasonValue" }
+                  }
+                },
+                "else": {
+                  "properties": { "degradation_reason": { "const": null } }
+                }
+              },
+              {
+                "if": {
+                  "properties": { "enforcement_status": { "const": "conflict" } }
+                },
+                "then": {
+                  "properties": {
+                    "degraded": { "const": false },
+                    "degradation_reason": { "const": null }
+                  }
+                }
+              }
+            ]
           }
         }
       ],

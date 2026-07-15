@@ -70,6 +70,45 @@
               "high"
             ]
           },
+          "task_intent": {
+            "enum": [
+              null,
+              "execute",
+              "inspect",
+              "diagnose",
+              "design",
+              "review",
+              "certify"
+            ]
+          },
+          "intent_baseline_class": {
+            "enum": [null, "routine", "deliberative", "deep", "assurance"]
+          },
+          "classification_source": {
+            "type": "string",
+            "enum": [
+              "task_intent",
+              "legacy_explicit_class",
+              "legacy_role_target"
+            ]
+          },
+          "prior_failure_type": {
+            "type": "string",
+            "enum": [
+              "reasoning_failure",
+              "timeout",
+              "permission_denied",
+              "network_error",
+              "dependency_unavailable",
+              "browser_startup_failure",
+              "cli_format_error",
+              "tool_failure"
+            ]
+          },
+          "allow_degraded_deep": {
+            "type": "boolean",
+            "default": false
+          },
           "reasoning_class": {
             "type": "string",
             "enum": [
@@ -86,21 +125,29 @@
             "items": {
               "type": "string",
               "enum": [
-                "fully_specified",
-                "local_scope",
-                "multi_step",
-                "cross_module",
-                "cross_system",
-                "ambiguous_root_cause",
-                "architecture_tradeoff",
-                "non_local_invariant",
-                "adversarial_input",
-                "numerical_sensitivity",
-                "security_boundary",
-                "data_integrity",
-                "formal_accept_reject",
-                "prior_reasoning_failure",
-                "explicit_user_override"
+              "fully_specified",
+              "local_scope",
+              "multi_step",
+              "multi_file",
+              "bounded_tradeoff",
+              "ordinary_diagnosis",
+              "implementation_choice",
+              "partial_ambiguity",
+              "cross_module",
+              "cross_system",
+              "ambiguous_root_cause",
+              "architectural_tradeoff",
+              "architecture_tradeoff",
+              "non_local_invariant",
+              "adversarial_input",
+              "numerical_sensitivity",
+              "security_boundary",
+              "data_integrity",
+              "concurrency_or_ordering",
+              "migration_compatibility",
+              "formal_accept_reject",
+              "prior_reasoning_failure",
+              "explicit_user_override"
               ]
             }
           },

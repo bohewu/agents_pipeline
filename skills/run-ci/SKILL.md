@@ -12,4 +12,4 @@ Use the installed `orchestrator-ci` definition as the authoritative workflow.
 3. If the global definition is absent, stop and ask for the global agents_pipeline Codex install. Do not reconstruct the workflow from memory.
 4. Remove only the `$run-ci` token and preserve the remaining request and flags as raw input.
 5. Adopt the definition in the current/main agent; do not spawn the same orchestrator merely to enter the mode.
-6. Obey its docs-first, generation-gate, validation, safety, and final-report constraints. Let effective Codex configuration select role models and reasoning.
+6. Obey its docs-first, generation-gate, validation, safety, and final-report constraints. Let effective Codex configuration select actual role models/tiers, and require the installed policy-v2 resolver before every child spawn to select child effort only. Never route a raw/dynamic model or change current/main-agent effort.

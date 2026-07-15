@@ -1,0 +1,49 @@
+{
+  "schema_version": "2.0",
+  "observed_at": "2026-07-15T10:30:01.000Z",
+  "run_id": "pipeline-20260715-103000",
+  "orchestrator": "orchestrator-pipeline",
+  "task_id": "task-implementation",
+  "agent_id": "executor-01",
+  "attempt": 1,
+  "outcome": "done",
+  "wall_time_ms": 1000,
+  "reasoning": {
+    "schema_version": "2.0",
+    "policy_version": "2",
+    "mode": "adaptive",
+    "role": "executor",
+    "task_intent": "design",
+    "intent_baseline_class": "deliberative",
+    "classification_source": "task_intent",
+    "role_policy": {
+      "mode": "adaptive",
+      "floor_class": "routine",
+      "target_class": "deliberative",
+      "ceiling_class": "deep",
+      "strict": false
+    },
+    "dispatch_context": null,
+    "requested_class": "deep",
+    "reasoning_class": "deep",
+    "effective_class": "deep",
+    "reasoning_signals": [
+      "cross_module"
+    ],
+    "model_tier": "standard",
+    "selected_model_tier": "standard",
+    "minimum_model_tier": "standard",
+    "requires_model_escalation": false,
+    "requested_effort": "medium",
+    "dispatch_effort": "medium",
+    "effective_effort": "medium",
+    "selector_available": true,
+    "capability_source": "runtime",
+    "enforcement_status": "enforced",
+    "strict": false,
+    "degraded": false,
+    "degradation_reason": null,
+    "recovery_boost": false,
+    "explicit_override": null
+  }
+}

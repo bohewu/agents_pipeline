@@ -1,22 +1,113 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReasoningTaskHints",
-  "description": "Cross-artifact consistency rules for bounded reasoning signals and task or effective class.",
+  "description": "Cross-artifact consistency rules for bounded reasoning signals, task-intent metadata, and task or effective class. Intent fields remain optional for legacy artifacts.",
   "type": "object",
   "allOf": [
+    {
+      "if": { "required": ["task_intent"] },
+      "then": {
+        "properties": {
+          "task_intent": {
+            "enum": [
+              null,
+              "execute",
+              "inspect",
+              "diagnose",
+              "design",
+              "review",
+              "certify"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "required": ["intent_baseline_class"] },
+      "then": {
+        "properties": {
+          "intent_baseline_class": {
+            "enum": [null, "routine", "deliberative", "deep", "assurance"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "required": ["classification_source"] },
+      "then": {
+        "properties": {
+          "classification_source": {
+            "enum": [
+              "task_intent",
+              "legacy_explicit_class",
+              "legacy_role_target"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "required": ["prior_failure_type"] },
+      "then": {
+        "properties": {
+          "prior_failure_type": { "$ref": "#/$defs/priorFailureType" }
+        }
+      }
+    },
+    {
+      "if": { "required": ["allow_degraded_deep"] },
+      "then": {
+        "properties": {
+          "allow_degraded_deep": { "type": "boolean" }
+        }
+      }
+    },
     {
       "if": {
         "required": ["reasoning_signals"],
         "properties": {
           "reasoning_signals": {
             "contains": {
-              "enum": ["multi_step", "cross_module"]
+              "enum": [
+                "multi_step",
+                "multi_file",
+                "bounded_tradeoff",
+                "ordinary_diagnosis",
+                "implementation_choice",
+                "partial_ambiguity",
+                "cross_module"
+              ]
             }
           }
         }
       },
       "then": {
         "$ref": "#/$defs/deliberativeOrHigher"
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": ["task_intent"],
+            "properties": {
+              "task_intent": {
+                "enum": ["execute", "inspect", "diagnose", "design", "review", "certify"]
+              }
+            }
+          },
+          {
+            "required": ["reasoning_signals"],
+            "properties": {
+              "reasoning_signals": {
+                "contains": { "const": "cross_module" }
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/deepOrHigher"
       }
     },
     {
@@ -28,12 +119,15 @@
               "enum": [
                 "cross_system",
                 "ambiguous_root_cause",
+                "architectural_tradeoff",
                 "architecture_tradeoff",
                 "non_local_invariant",
                 "adversarial_input",
                 "numerical_sensitivity",
                 "security_boundary",
-                "data_integrity"
+                "data_integrity",
+                "concurrency_or_ordering",
+                "migration_compatibility"
               ]
             }
           }
@@ -57,9 +151,230 @@
       "then": {
         "$ref": "#/$defs/assurance"
       }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "execute" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/executeIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "inspect" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/inspectIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "diagnose" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/diagnoseIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "design" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/designIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "review" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/reviewIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["task_intent"],
+        "properties": {
+          "task_intent": { "const": "certify" }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/certifyIntentMetadata"
+      }
+    },
+    {
+      "if": {
+        "required": ["classification_source"],
+        "properties": {
+          "classification_source": { "const": "task_intent" }
+        }
+      },
+      "then": {
+        "required": ["task_intent", "intent_baseline_class"],
+        "properties": {
+          "task_intent": { "$ref": "#/$defs/taskIntent" },
+          "intent_baseline_class": { "$ref": "#/$defs/reasoningClass" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["classification_source"],
+        "properties": {
+          "classification_source": {
+            "enum": ["legacy_explicit_class", "legacy_role_target"]
+          }
+        }
+      },
+      "then": {
+        "required": ["reasoning_class"],
+        "properties": {
+          "reasoning_class": { "$ref": "#/$defs/reasoningClass" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["classification_source"],
+        "properties": {
+          "classification_source": {
+            "enum": ["legacy_explicit_class", "legacy_role_target"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "task_intent": { "const": null },
+          "intent_baseline_class": { "const": null }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["intent_baseline_class"],
+        "properties": {
+          "intent_baseline_class": {
+            "enum": ["routine", "deliberative", "deep", "assurance"]
+          }
+        }
+      },
+      "then": {
+        "required": ["task_intent", "classification_source"],
+        "properties": {
+          "classification_source": { "const": "task_intent" },
+          "task_intent": { "$ref": "#/$defs/taskIntent" }
+        }
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": ["intent_baseline_class"],
+            "properties": {
+              "intent_baseline_class": { "const": "deliberative" }
+            }
+          },
+          {
+            "anyOf": [
+              { "required": ["reasoning_class"] },
+              { "required": ["effective_class"] }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/deliberativeOrHigher"
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": ["intent_baseline_class"],
+            "properties": {
+              "intent_baseline_class": { "const": "deep" }
+            }
+          },
+          {
+            "anyOf": [
+              { "required": ["reasoning_class"] },
+              { "required": ["effective_class"] }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/deepOrHigher"
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {
+            "required": ["intent_baseline_class"],
+            "properties": {
+              "intent_baseline_class": { "const": "assurance" }
+            }
+          },
+          {
+            "anyOf": [
+              { "required": ["reasoning_class"] },
+              { "required": ["effective_class"] }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/assurance"
+      }
     }
   ],
   "$defs": {
+    "taskIntent": {
+      "type": "string",
+      "enum": [
+        "execute",
+        "inspect",
+        "diagnose",
+        "design",
+        "review",
+        "certify"
+      ]
+    },
+    "reasoningClass": {
+      "type": "string",
+      "enum": ["routine", "deliberative", "deep", "assurance"]
+    },
+    "priorFailureType": {
+      "type": "string",
+      "enum": [
+        "reasoning_failure",
+        "timeout",
+        "permission_denied",
+        "network_error",
+        "dependency_unavailable",
+        "browser_startup_failure",
+        "cli_format_error",
+        "tool_failure"
+      ]
+    },
     "deliberativeOrHigher": {
       "anyOf": [
         {
@@ -117,6 +432,48 @@
           }
         }
       ]
+    },
+    "executeIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "routine" },
+        "classification_source": { "const": "task_intent" }
+      }
+    },
+    "inspectIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "routine" },
+        "classification_source": { "const": "task_intent" }
+      }
+    },
+    "diagnoseIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "deliberative" },
+        "classification_source": { "const": "task_intent" }
+      }
+    },
+    "designIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "deliberative" },
+        "classification_source": { "const": "task_intent" }
+      }
+    },
+    "reviewIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "deliberative" },
+        "classification_source": { "const": "task_intent" }
+      }
+    },
+    "certifyIntentMetadata": {
+      "required": ["intent_baseline_class", "classification_source"],
+      "properties": {
+        "intent_baseline_class": { "const": "assurance" },
+        "classification_source": { "const": "task_intent" }
+      }
     }
   }
 }

@@ -75,9 +75,11 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             self.assertIn("--reasoning=inherit|shadow|adaptive", text)
             self.assertIn("adaptive", text)
             self.assertIn("inherit", text)
-        self.assertIn("Choose the highest applicable class", protocol)
-        self.assertIn("selector_available", protocol)
-        self.assertIn("never emit a raw model name or raw effort", protocol)
+        self.assertIn("task_intent", protocol)
+        self.assertIn("almost no substantive decision", protocol)
+        self.assertIn("formal accept/reject process semantic", protocol)
+        self.assertIn("selector capability", protocol)
+        self.assertIn("never routes a raw model", protocol)
         self.assertEqual(policy["default_mode"], "adaptive")
         reasoning_mode = checkpoint["properties"]["flags"]["properties"][
             "reasoning_mode"
@@ -89,6 +91,16 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             {"reasoning_policy_version", "reasoning_ceiling"},
         )
         self.assertTrue((REPO_ROOT / "tools" / "reasoning-policy.js").is_file())
+
+    def test_every_orchestrator_uses_shared_task_intent_resolution(self) -> None:
+        orchestrators = sorted((REPO_ROOT / "agents").glob("orchestrator-*.md"))
+        self.assertGreater(len(orchestrators), 0)
+        for orchestrator in orchestrators:
+            text = orchestrator.read_text(encoding="utf-8")
+            with self.subTest(orchestrator=orchestrator.name):
+                self.assertIn("task_intent", text)
+                self.assertIn("reasoning-policy.js", text)
+                self.assertIn("selected", text)
 
     def test_simple_and_flow_preserve_role_reasoning_compatibility(self) -> None:
         simple = SIMPLE.read_text(encoding="utf-8")
@@ -247,7 +259,10 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         for text in (adaptive, simple, flow, pipeline):
             self.assertIn("reasoning_effort = max", text)
             self.assertNotIn(removed_spawn_key, text)
-            self.assertIn("without passing a model", text)
+            self.assertRegex(
+                text,
+                r"without passing a model|while omitting `model`|no dispatch passes a model",
+            )
         self.assertIn("No non-review role receives this override", flow)
         self.assertIn("No executor, test runner, or other role receives this override", pipeline)
         self.assertIn("review_reasoning_effort = max", adaptive)
@@ -269,9 +284,13 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             ).read_text(encoding="utf-8")
             with self.subTest(direct_skill=skill_name):
                 self.assertIn("--review=max", direct_skill)
-                self.assertIn("reasoning_effort = max", direct_skill)
+                self.assertRegex(direct_skill, r"exact .*reviewer-only effort")
+                self.assertIn("inherit conflicts", direct_skill)
                 self.assertNotIn(removed_spawn_key, direct_skill)
-                self.assertIn("without passing a model", direct_skill)
+                self.assertRegex(
+                    direct_skill,
+                    r"without passing a model|passing a model override|model routing",
+                )
                 self.assertIn("non-review role", direct_skill)
 
 

@@ -17,6 +17,13 @@ Review explicit targets. Enforce pipeline quality gates when TaskList/DeltaTaskL
 
 # REVIEW MODE SELECTION
 
+## REASONING CONTEXT
+
+- The orchestrator resolves every reviewer spawn through `protocols/REASONING_POLICY.md`; this role does not choose its own model or effort.
+- Ordinary ad hoc review uses `ad-hoc-review` (deep, non-strict); Pipeline review uses `pipeline-review` (deep, strong-tier minimum, non-strict).
+- `--review=max` is an exact effort override for ordinary deep review only. It does not certify the work or change the profile-selected reviewer model.
+- Formal accept/reject work must be explicitly dispatched as `certify` / `formal-assurance`, which is fixed strict assurance on a strong tier. Never relabel an ordinary review as assurance.
+
 - Pipeline review mode: if `mode = pipeline` or TaskList/DeltaTaskList is present, validate executor outputs against its DoD and traceability contracts.
 - Pipeline marker guard: if the handoff includes pipeline markers such as `ProblemSpec`, `DevSpec`, `DispatchPlan`, executor outputs, `review-report.json`, `retry_round`, `orchestrator-pipeline`, or `pipeline` stage labels but no TaskList/DeltaTaskList, return a `fail` with a single issue and a single required followup: "[artifact][P1] Pipeline review requested but TaskList/DeltaTaskList is missing; cannot verify DoD." and "[artifact] Provide the TaskList/DeltaTaskList that defines the reviewed work and its DoD." Do NOT fall back to ad hoc mode.
 - Ad hoc review mode: if `mode = ad_hoc`, or if TaskList/DeltaTaskList is absent, no pipeline markers are present, and the handoff includes explicit review targets, review only those targets and do not fail solely because pipeline artifacts are missing.

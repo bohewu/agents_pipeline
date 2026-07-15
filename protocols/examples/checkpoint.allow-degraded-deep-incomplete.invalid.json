@@ -1,0 +1,14 @@
+{
+  "protocol_version": "1.0",
+  "pipeline_id": "reasoning-v2-checkpoint-incomplete-01",
+  "orchestrator": "orchestrator-pipeline",
+  "user_prompt": "Reject an incomplete degraded-deep checkpoint flag set.",
+  "flags": {
+    "allow_degraded_deep": true
+  },
+  "current_stage": -1,
+  "completed_stages": [],
+  "stage_artifacts": {},
+  "created_at": "2026-07-15T00:00:00Z",
+  "updated_at": "2026-07-15T00:00:00Z"
+}

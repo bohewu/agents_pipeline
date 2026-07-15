@@ -111,6 +111,11 @@ const TASK_KEY_ORDER = [
   "created_at",
   "updated_at",
   "trace_ids",
+  "task_intent",
+  "intent_baseline_class",
+  "classification_source",
+  "prior_failure_type",
+  "allow_degraded_deep",
   "reasoning_class",
   "reasoning_signals",
   "batch_id",
@@ -161,21 +166,33 @@ const REASONING_DECISION_KEY_ORDER = [
   "policy_version",
   "mode",
   "role",
+  "task_intent",
+  "intent_baseline_class",
+  "classification_source",
+  "role_policy",
   "dispatch_context",
   "requested_class",
+  "reasoning_class",
   "effective_class",
   "reasoning_signals",
   "model_tier",
+  "selected_model_tier",
   "minimum_model_tier",
   "requires_model_escalation",
   "requested_effort",
   "dispatch_effort",
   "effective_effort",
+  "selector_available",
   "capability_source",
   "enforcement_status",
   "strict",
+  "degraded",
+  "degradation_reason",
+  "recovery_boost",
+  "explicit_override",
   "reasons",
-  "conflict"
+  "conflict",
+  "conflict_reason"
 ];
 
 const REASONING_OBSERVATION_KEY_ORDER = [
@@ -192,7 +209,7 @@ const REASONING_OBSERVATION_KEY_ORDER = [
 ];
 
 const REASONING_OBSERVATION_DECISION_KEY_ORDER = REASONING_DECISION_KEY_ORDER.filter(
-  (key) => key !== "reasons" && key !== "conflict"
+  (key) => key !== "reasons" && key !== "conflict" && key !== "conflict_reason"
 );
 
 const CHECKPOINT_KEY_ORDER = [

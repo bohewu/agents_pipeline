@@ -161,6 +161,18 @@ Emit semantic events through `node tools/status-event.js --event <event> --paylo
 
 Keep `orchestrator-modernize` status/checkpoint writes anchored to the source-project run root. Do NOT pass `target_project_dir` as `working_project_dir` for modernization-planning status events. After the current/main agent transitions into the Pipeline workflow, it MUST preserve `working_project_dir` in every status-event payload so the status writer can write target-local status/checkpoint files.
 
+## REASONING DISPATCH CONTRACT
+
+Before every modernization-planning child spawn, invoke
+`node tools/reasoning-policy.js` under `protocols/REASONING_POLICY.md`. Use the
+actual `task_intent` plus matching intent-baseline/source metadata,
+legacy-compatible class, and bounded signals for task-bearing work. The
+effective profile/runtime selects the actual role model/tier; the resolver
+validates capability and selects child effort only. Never pass a raw model,
+dynamically route a model, or apply a child selector to the current/main agent.
+During an execution transition, adopt Pipeline's same resolver contract rather
+than creating a modernization-specific effort map.
+
 ## CONFIRM / VERBOSE PROTOCOL
 
 - `autopilot_mode`: suppress interactive pauses; prefer safe defaults; stop only on hard blockers. `full_auto_mode` adds deeper planning and strongest bounded Pipeline execution.

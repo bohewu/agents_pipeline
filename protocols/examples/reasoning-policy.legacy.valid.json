@@ -1,0 +1,102 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1",
+  "default_mode": "adaptive",
+  "reasoning_classes": [
+    "routine",
+    "deliberative",
+    "deep",
+    "assurance"
+  ],
+  "signal_minimum_classes": {
+    "fully_specified": "routine",
+    "local_scope": "routine",
+    "multi_step": "deliberative",
+    "cross_module": "deliberative",
+    "cross_system": "deep",
+    "ambiguous_root_cause": "deep",
+    "architecture_tradeoff": "deep",
+    "non_local_invariant": "deep",
+    "adversarial_input": "deep",
+    "numerical_sensitivity": "deep",
+    "security_boundary": "deep",
+    "data_integrity": "deep",
+    "formal_accept_reject": "assurance",
+    "prior_reasoning_failure": "routine",
+    "explicit_user_override": "routine"
+  },
+  "effort_order": [
+    "medium",
+    "high",
+    "xhigh",
+    "max"
+  ],
+  "model_tier_order": [
+    "mini",
+    "standard",
+    "strong"
+  ],
+  "global_floor": "medium",
+  "model_floors": {
+    "mini": "high",
+    "standard": "medium",
+    "strong": "medium",
+    "unknown": "high"
+  },
+  "highest_single_agent": "max",
+  "allow_ultra": false,
+  "class_requirements": {
+    "routine": {
+      "minimum_model_tier": "mini",
+      "effort_by_model_tier": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "medium",
+        "unknown": "high"
+      }
+    },
+    "deliberative": {
+      "minimum_model_tier": "mini",
+      "effort_by_model_tier": {
+        "mini": "xhigh",
+        "standard": "high",
+        "strong": "high",
+        "unknown": "xhigh"
+      }
+    },
+    "deep": {
+      "minimum_model_tier": "standard",
+      "effort_by_model_tier": {
+        "mini": "max",
+        "standard": "xhigh",
+        "strong": "xhigh",
+        "unknown": "max"
+      }
+    },
+    "assurance": {
+      "minimum_model_tier": "strong",
+      "effort_by_model_tier": {
+        "mini": "max",
+        "standard": "max",
+        "strong": "highest_single_agent",
+        "unknown": "max"
+      }
+    }
+  },
+  "default_role_policy": {
+    "mode": "adaptive",
+    "floor_class": "routine",
+    "target_class": "deliberative",
+    "ceiling_class": "deep",
+    "strict": false
+  },
+  "role_policies": {},
+  "dispatch_contexts": {
+    "formal-assurance": {
+      "mode": "fixed",
+      "reasoning_class": "assurance",
+      "minimum_model_tier": "strong",
+      "strict": true
+    }
+  }
+}

@@ -30,10 +30,11 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 
 # REASONING-AWARE BATCHING
 
-- Preserve each task's `reasoning_class` and `reasoning_signals` from TaskList.
-- Set each batch `reasoning_class` to the highest class among its tasks and `reasoning_signals` to the sorted union of their signals.
+- Preserve each task's `task_intent`, `intent_baseline_class`, `classification_source`, legacy `reasoning_class`, and `reasoning_signals` from TaskList.
+- Do not combine different task intents in a batch. Set each batch's intent/baseline/source from its task intent, `reasoning_class` to the highest class among its tasks, and `reasoning_signals` to the sorted union of their signals.
+- Intent metadata is an additive, backward-compatible DispatchPlan extension. Do not change a DispatchPlan `protocol_version` because of policy v2.
 - Do not assign a task to a fixed-role policy whose ceiling is below the task class.
-- Do not combine tasks when their role/class requirements would resolve to incompatible per-spawn settings. Never emit a raw model or effort.
+- Do not combine tasks when their role/class requirements would resolve to incompatible per-spawn settings. Preserve `allow_degraded_deep = true` only when an input task explicitly carries that deep-only compatibility request; never infer it. Never emit a raw model or effort.
 
 # EXECUTOR SELECTION HINTS
 
@@ -51,7 +52,11 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
       "batch_id": "",
       "task_ids": [],
       "assigned_executor": "",
-      "reasoning_class": "routine | deliberative | deep",
+      "task_intent": "execute | inspect | diagnose | design | review | certify",
+      "intent_baseline_class": "routine | deliberative | assurance",
+      "classification_source": "task_intent",
+      "allow_degraded_deep": false,
+      "reasoning_class": "routine | deliberative | deep | assurance",
       "reasoning_signals": ["local_scope"],
       "parallel": false,
       "resource_class": "light",

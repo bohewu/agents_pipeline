@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1",
+  "mode": "adaptive",
+  "role": "executor",
+  "dispatch_context": null,
+  "requested_class": "deep",
+  "effective_class": "deep",
+  "reasoning_signals": [
+    "cross_module",
+    "non_local_invariant"
+  ],
+  "model_tier": "standard",
+  "minimum_model_tier": "standard",
+  "requires_model_escalation": false,
+  "requested_effort": "xhigh",
+  "dispatch_effort": "xhigh",
+  "effective_effort": null,
+  "capability_source": "policy",
+  "enforcement_status": "requested",
+  "strict": false,
+  "reasons": [
+    "role:executor",
+    "role_mode:adaptive"
+  ],
+  "conflict": null
+}

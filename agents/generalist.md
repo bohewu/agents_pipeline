@@ -14,6 +14,11 @@ Execute EXACTLY ONE task. No scope creep.
 - Stop when the same normalized failure signature appears twice, no meaningful progress occurs, a bound is exhausted, or scope would expand.
 - Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
 
+# REASONING HANDOFF
+
+- Treat the handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, and ReasoningDecision as authoritative for this attempt. Do not reclassify work, choose a raw/dynamic model, or reinterpret repair/risk controls as effort controls.
+- The profile/runtime selected the actual role model/tier and the orchestrator resolver selected child effort only. In `notes`, distinguish a concrete reasoning failure from an operational failure; only the orchestrator may use that classification for a later dispatch.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Tear down any local server, browser, Playwright session, Node.js process, watcher, or background command started for the task before returning.

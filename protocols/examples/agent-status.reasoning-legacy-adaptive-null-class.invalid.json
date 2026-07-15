@@ -1,0 +1,36 @@
+{
+  "protocol_version": "1.0",
+  "run_id": "run-legacy-null-class",
+  "agent_id": "executor-01",
+  "agent": "executor",
+  "status": "done",
+  "created_at": "2026-07-15T12:00:00.000Z",
+  "updated_at": "2026-07-15T12:00:01.000Z",
+  "reasoning": {
+    "schema_version": "1.0",
+    "policy_version": "1",
+    "mode": "adaptive",
+    "role": "executor",
+    "dispatch_context": null,
+    "requested_class": "deep",
+    "effective_class": null,
+    "reasoning_signals": [
+      "cross_module",
+      "non_local_invariant"
+    ],
+    "model_tier": "standard",
+    "minimum_model_tier": "standard",
+    "requires_model_escalation": false,
+    "requested_effort": "xhigh",
+    "dispatch_effort": "xhigh",
+    "effective_effort": "xhigh",
+    "capability_source": "runtime",
+    "enforcement_status": "enforced",
+    "strict": false,
+    "reasons": [
+      "role:executor",
+      "role_mode:adaptive"
+    ],
+    "conflict": null
+  }
+}

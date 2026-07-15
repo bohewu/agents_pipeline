@@ -71,13 +71,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.31.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.31.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -85,13 +85,13 @@ tag="v0.31.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.31.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.31.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -99,16 +99,16 @@ tag="v0.31.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.31.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.31.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.31.1` must release as `v0.31.1`.
+Release invariant: `VERSION=0.32.0` must release as `v0.32.0`.
 
 <!-- END current-release -->
 
@@ -214,7 +214,7 @@ Codex exports and normal global installs do not write or replace `agents.max_thr
 
 The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. All managed discovery-skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
 
-Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. For Codex, these mappings are emitted only into workspace-local roles; the global roles always omit model settings and inherit the parent session. Claude Code and Copilot retain global profile output. Profiles do not set reasoning effort; the separate versioned child-spawn policy uses the selected logical tier as one resolver input. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
+Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. For Codex, these mappings are emitted only into workspace-local roles; the global roles always omit model settings and inherit the parent session. Claude Code and Copilot retain global profile output. A profile/runtime selects the actual role model and proven tier; the versioned child-spawn resolver uses that tier only to validate capability and select effort. It never routes a raw or dynamic model, downgrades a model, or changes the current/main agent. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
 
 ## Modes
 
@@ -249,7 +249,10 @@ The managed AGENTS note retains `use <mode>` and the documented Chinese leading 
 
 ## Workflow controls
 
-Workflow rigor remains risk-derived. Child-spawn reasoning is classified separately and projected by the versioned reasoning policy; model/provider selection remains profile/runtime-owned.
+Workflow rigor remains risk-derived. Policy v2 classifies each child as `task_intent -> reasoning class -> selected model capability -> effort`; model/provider selection remains profile/runtime-owned.
+TaskList, FlowTaskList, DispatchPlan, and TaskStatus intent fields plus checkpoint reasoning-policy flags are backward-compatible extensions, not a protocol-version bump; the status runtime remains `PROTOCOL_VERSION = 1.0`. Policy/schema 2 / 2.0 applies to ReasoningPolicy, ReasoningDecision, and ReasoningObservation. Intent-less legacy records keep the v1 `cross_module -> deliberative` floor; current intent-bearing records use the v2 `cross_module -> deep` floor.
+Policy-v2 role/context objects are canonical managed snapshots. The resolver may use the default adaptive policy for an unlisted role in memory, but AgentStatus reasoning accepts only registered managed roles and binds `agent` to `reasoning.role`. Legacy TaskStatus provenance requires the class/signals pair it describes.
+Only `formal_accept_reject` may carry an assurance signal floor, and policy-v2 dispatch contexts are limited to `ad-hoc-review`, `pipeline-review`, and `formal-assurance`; ordinary signals and custom context labels cannot create certification semantics.
 
 Common controls include:
 
@@ -257,8 +260,8 @@ Common controls include:
 - `--preset=balanced|autonomous|careful|delivery|interactive`: Adaptive run policy; presets do not select the route.
 - `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
 - `--resume`: resume from a compatible checkpoint.
-- `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Version 1 defaults to `adaptive`; `inherit` is the rollback mode and `shadow` computes without applying a selector. Strict formal-assurance work conflicts in `inherit` or `shadow`, and exact effort overrides conflict in `shadow`. If an adaptive selector is unavailable, ordinary non-strict/non-exact work continues as `degraded` without a selector; strict/exact work conflicts. No adaptive child resolves below `medium`, and `mini` starts at `high`.
-- `--review=off|on|max`: reviewer policy for Adaptive and the supported engineering workflows. `on` uses the run reasoning policy, while `max` is an exact reviewer-only override for every bounded review and re-review. Simple uses a bounded ad-hoc gate, Flow uses its optional gate, and Pipeline is mandatory and rejects `off`. The workspace profile still selects the reviewer model; `max` does not affect executors, test runners, or the main orchestrator. If the runtime cannot enforce the exact `max` selector, the resolver conflicts and blocks that review; ordinary non-strict `on` requests may report degradation.
+- `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Policy v2 defaults to `adaptive`. `inherit` retains classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes requested effort without applying it; strict assurance conflicts, while an ordinary shadowed review-max request remains unenforced. `adaptive` applies the selector. A non-strict, non-exact unavailable selector may be `degraded`; strict/exact requests conflict. See the central policy for capability rows and the deliberate deep compatibility exception.
+- `--review=off|on|max`: reviewer policy for Adaptive and the supported engineering workflows. `on` uses the run reasoning policy, while `max` is an exact reviewer-only effort override for every bounded review and re-review. Any runtime or observed fallback away from the resulting exact request conflicts. It keeps ordinary review deep; it does not certify the work, change the profile-selected reviewer model, or affect executors, test runners, or the main orchestrator. Simple uses a bounded ad-hoc gate, Flow uses its optional gate, and Pipeline is mandatory and rejects `off`.
 - `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
 - `--confirm` / `--verbose`: add stage/task pauses.
 - `--autopilot` / `--full-auto`: non-interactive bounded execution with hard-blocker safeguards.
@@ -352,7 +355,7 @@ python3 tools/validate-schema.py \
 - [Contributing](CONTRIBUTING.md)
 - [Codex mapping](docs/codex-mapping.md)
 - [Reasoning policy protocol](protocols/REASONING_POLICY.md)
-- [Adaptive reasoning and model routing roadmap](docs/adaptive-reasoning-and-model-routing-roadmap.md)
+- [Adaptive reasoning and model-capability roadmap](docs/adaptive-reasoning-and-model-routing-roadmap.md)
 - [Claude Code mapping](docs/claude-mapping.md)
 - [Copilot mapping](docs/copilot-mapping.md)
 - [Developer install](docs/developer-install.md)

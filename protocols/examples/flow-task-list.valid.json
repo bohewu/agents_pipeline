@@ -8,6 +8,13 @@
       "primary_output": "implementation",
       "assigned_agent": "executor",
       "risk": "medium",
+      "task_intent": "execute",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "deliberative",
+      "reasoning_signals": [
+        "implementation_choice"
+      ],
       "verification": "basic",
       "review_required": false,
       "repair_budget": 2,
@@ -25,6 +32,13 @@
       "primary_output": "analysis",
       "assigned_agent": "doc-writer",
       "risk": "low",
+      "task_intent": "inspect",
+      "intent_baseline_class": "routine",
+      "classification_source": "task_intent",
+      "reasoning_class": "routine",
+      "reasoning_signals": [
+        "fully_specified"
+      ],
       "verification": "none",
       "review_required": false,
       "repair_budget": 0,

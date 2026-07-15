@@ -242,10 +242,15 @@ For `run.resumed`, send current-invocation flag overrides in `payload.flags`; th
 Follow `protocols/REASONING_POLICY.md` before every child spawn, including
 stage-scoped agents, task executors, reviewers, repair attempts, and terminal
 helpers. Use `node tools/reasoning-policy.js` as the only class-to-effort
-resolver. For stage-scoped work without a Flow task, let the registered role
-policy supply its fixed or target class.
+resolver. For stage-scoped work without a Flow task, provide the actual
+`task_intent`; only a legacy handoff with neither intent nor class may use the
+registered role target fallback.
 
-For task attempts, pass the task's `reasoning_class` and `reasoning_signals`.
+For task attempts, pass `task_intent`, `intent_baseline_class`,
+`classification_source`, legacy-compatible `reasoning_class`, and
+`reasoning_signals` from the task. The effective profile/runtime selects the
+actual role model/tier; the resolver validates that capability and selects only
+child effort. Never pass a raw model or attempt dynamic model routing.
 Before resolution, verify that the assigned role policy ceiling accepts the
 task class. `peon` is fixed-routine and may receive only `routine` tasks;
 reroute a higher-class task to `executor`, `generalist`, `doc-writer`, or
@@ -253,22 +258,30 @@ another semantically compatible role. Never lower the class or remove signals
 to preserve an incompatible assignment.
 Use `dispatch_context = ad-hoc-review` for Stage 4.5 and pass
 `explicit_effort = max` when `review_reasoning_effort = max`. Set
-`prior_reasoning_failure = true` only for a re-dispatch caused by concrete
-logic, diagnosis, invariant, or review failure, never for operational failure.
+`prior_failure_type = reasoning_failure` only for a re-dispatch caused by a
+concrete logic, diagnosis, invariant, or review failure; record an operational
+failure type instead for timeout, permission, network, dependency, browser,
+CLI, or tool failures. A reasoning failure raises routine to deliberative or
+deliberative to deep; deep gets a max recovery boost and never becomes
+assurance.
 
 In `adaptive`, use a non-null `dispatch_effort` as the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
 and apply it without passing a model. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
 selector and continue without claiming enforcement; strict/exact cases
-conflict and block. Non-strict, non-exact shadow and ordinary inherit omit the
-effort selector; strict/exact shadow decisions conflict and block.
+conflict and block. `inherit` preserves classification metadata but never
+applies a selector, so exact overrides and strict assurance conflict. `shadow`
+fully computes requested effort but omits the selector; strict assurance
+conflicts. An ordinary review-max request remains deep and does not certify or
+change the selected model.
 Before a spawn, include the complete decision in the `agent.started` status
 payload as `reasoning`; if child trace evidence reveals effective effort,
 rerun the resolver with `observed_effective_effort` and include the updated
-decision in the next agent lifecycle event. Conflicts block the spawn. A
-non-strict Stage 1 model escalation request may continue only with its returned
-effort and explicit `degraded` status; Flow never overrides the model.
+decision in the next agent lifecycle event. Conflicts block the spawn. Deep
+`mini`/`unknown` work conflicts by default; only an explicitly supplied
+`allow_degraded_deep` compatibility input may continue as degraded deep `max`.
+It never permits assurance or changes the model.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -317,8 +330,10 @@ Stage 2 — Flow Task Split (@flow-splitter)
   - `assigned_agent`
   - `primary_output`
   - `risk`
+  - `task_intent`, `intent_baseline_class`, and `classification_source`
   - `reasoning_class`
   - `reasoning_signals`
+  - `allow_degraded_deep` when explicitly supplied
   - `verification`
   - `review_required`
   - `repair_budget`
@@ -349,7 +364,7 @@ Stage 3 — Dispatch & Execution
   - Task details
   - Expected output
   - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
-  - `reasoning_class`, `reasoning_signals`, and the resolved per-attempt ReasoningDecision
+  - `task_intent`, intent-baseline/source metadata, legacy `reasoning_class`, `reasoning_signals`, and the resolved per-attempt ReasoningDecision
   - `operational_retry_limit`, the rule that the first implementation/content attempt is free, and the no-progress/failure-signature stop conditions
   - Artifact output contract (below)
 - For visible frontend UI implementation or polish tasks, include `skills/frontend-aesthetic-director/SKILL.md` in the handoff when relevant. If `ui-ux-workflow` output or wireframes are present, treat them as upstream source of truth rather than asking the executor to redesign the flow.
@@ -411,7 +426,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
-- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`, which resolves to `reasoning_effort = max`. No non-review role receives this override.
+- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive applies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

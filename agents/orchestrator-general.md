@@ -96,6 +96,18 @@ After each stage completes successfully, emit the canonical stage completion/che
 
 Emit semantic events through `node tools/status-event.js --event <event> --payload-json '<json>'` for `<run_output_dir>/status/run-status.json` (`layout = run-only`). Follow the contract in `protocols/PIPELINE_PROTOCOL.md`.
 
+# REASONING DISPATCH CONTRACT
+
+Before every child spawn, invoke `node tools/reasoning-policy.js` under
+`protocols/REASONING_POLICY.md`. New work uses `task_intent`, matching
+intent-baseline/source metadata, legacy-compatible `reasoning_class`, and
+bounded signals; stage-scoped calls use the intent that describes their actual
+work. The effective profile/runtime selects the actual role model/tier; the
+resolver validates capability and selects child effort only. Never pass a raw
+model, dynamically route a model, or apply a child selector to the current/main
+agent. A resolver conflict blocks that spawn; do not lower a class or discard
+signals to fit a role.
+
 # CONFIRM / VERBOSE PROTOCOL
 
 - `confirm_mode`: pause after each stage with `Proceed? [yes / feedback / abort]`. Update status to `waiting_for_user`. On abort: checkpoint and stop. Suppressed by `full_auto_mode`.

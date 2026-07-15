@@ -1,0 +1,41 @@
+{
+  "schema_version": "2.0",
+  "policy_version": "2",
+  "mode": "adaptive",
+  "role": "executor",
+  "task_intent": null,
+  "intent_baseline_class": null,
+  "classification_source": "legacy_role_target",
+  "role_policy": {
+    "mode": "adaptive",
+    "floor_class": "routine",
+    "target_class": "deliberative",
+    "ceiling_class": "deep",
+    "strict": false
+  },
+  "dispatch_context": null,
+  "requested_class": null,
+  "reasoning_class": "routine",
+  "effective_class": "routine",
+  "reasoning_signals": [],
+  "model_tier": "standard",
+  "selected_model_tier": "standard",
+  "minimum_model_tier": "mini",
+  "requires_model_escalation": false,
+  "requested_effort": "medium",
+  "dispatch_effort": "medium",
+  "effective_effort": "medium",
+  "selector_available": true,
+  "capability_source": "runtime",
+  "enforcement_status": "enforced",
+  "strict": false,
+  "degraded": false,
+  "degradation_reason": null,
+  "recovery_boost": false,
+  "explicit_override": null,
+  "reasons": [
+    "forged-legacy-target-downgrade"
+  ],
+  "conflict": null,
+  "conflict_reason": null
+}
