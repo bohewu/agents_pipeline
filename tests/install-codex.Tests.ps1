@@ -384,6 +384,9 @@ Describe "bootstrap-install-codex.ps1 release happy path" {
         $requiredFiles = @(
             "AGENTS.md",
             "modes.json",
+            "protocols/reasoning-policy.json",
+            "tools/reasoning-policy.js",
+            "tools/reasoning-vocabulary.js",
             "tools/status-event.js",
             "tools/agent-profile.py",
             "scripts/agent_model_profiles.py",
