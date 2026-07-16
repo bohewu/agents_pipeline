@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover - exercised only on Python 3.10.
 from codex_skill_catalog import (
     MANAGED_SKILL_NAMES,
     SKILL_MARKER_VERSION,
+    SKILL_SYNC_STATE_PENDING,
     SKILL_SYNC_STATE_READY,
     skill_collection_issues,
 )
@@ -413,7 +414,9 @@ def _asset_digest(
     return digest.hexdigest()
 
 
-def validate_global_install(global_target: Path) -> list[str]:
+def validate_global_install(
+    global_target: Path, *, allow_pending_skill_sync: bool = False
+) -> list[str]:
     manifest_path = global_target / GLOBAL_MANIFEST_FILENAME
     data = _load_json(manifest_path, "Global Codex installer manifest")
     if data.get("tool") != GLOBAL_MANIFEST_TOOL:
@@ -439,6 +442,9 @@ def validate_global_install(global_target: Path) -> list[str]:
         raw_skill_names = data.get("managed_skill_names")
         raw_marker_version = data.get("managed_skill_marker_version")
         raw_sync_state = data.get("managed_skill_sync_state")
+        allowed_sync_states = (SKILL_SYNC_STATE_READY,)
+        if allow_pending_skill_sync:
+            allowed_sync_states += (SKILL_SYNC_STATE_PENDING,)
         if raw_skill_root is None:
             if (
                 raw_skill_names != []
@@ -453,7 +459,7 @@ def validate_global_install(global_target: Path) -> list[str]:
             or not Path(raw_skill_root).is_absolute()
             or raw_skill_names != sorted(MANAGED_SKILL_NAMES)
             or raw_marker_version != SKILL_MARKER_VERSION
-            or raw_sync_state != SKILL_SYNC_STATE_READY
+            or raw_sync_state not in allowed_sync_states
         ):
             raise ProjectProfileError(
                 "Global Codex skill metadata is missing or invalid; rerun the global bootstrap."
@@ -1474,7 +1480,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not args.uniform_model and bool(args.profile) != bool(args.model_set):
                 raise ProjectProfileError("--profile and --model-set must be supplied together.")
         if args.action == "cache":
-            names = validate_global_install(global_target)
+            names = validate_global_install(
+                global_target, allow_pending_skill_sync=True
+            )
             cache_dir, _names, source_version = generate_cache(
                 asset_root=asset_root,
                 global_target=global_target,

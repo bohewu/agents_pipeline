@@ -55,7 +55,7 @@ class CodexShellInstallerTargetValidationTest(unittest.TestCase):
             target.write_text("not a directory", encoding="utf-8")
             self.assert_target_error(str(target), "Target path is not a directory:")
 
-    def test_dry_run_preserves_and_rejects_unowned_support_tree(self) -> None:
+    def test_dry_run_accepts_an_unmarked_support_tree_without_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             target = Path(temp_dir) / "codex home"
             support = target / "agents-pipeline"
@@ -63,7 +63,8 @@ class CodexShellInstallerTargetValidationTest(unittest.TestCase):
             sentinel = support / "user-owned.txt"
             sentinel.write_text("preserve me", encoding="utf-8")
 
-            self.assert_target_error(str(target), "unowned support directory")
+            result = self.run_installer(str(target))
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve me")
 
     def test_dry_run_rejects_symlinked_config_before_support_sync(self) -> None:

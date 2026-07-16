@@ -72,13 +72,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -86,13 +86,13 @@ tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -100,16 +100,16 @@ tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.32.0` must release as `v0.32.0`.
+Release invariant: `VERSION=0.32.1` must release as `v0.32.1`.
 
 <!-- END current-release -->
 
@@ -123,9 +123,9 @@ The normal global layout is:
 | Claude Code | `~/.claude/agents/` and `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-For the default `~/.codex` target, the Codex global installer publishes all 16 managed skills under `~/.agents/skills/`: eleven workflow skills and five capability skills. A custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each installed skill has a versioned ownership marker and content digest; updates are rollback-capable and use an atomic rename for each skill directory. Existing unowned, corrupt-marker, linked, or junction-backed same-named directories cause a safe refusal. If a marker-owned skill's content was edited, reinstall preserves that copy in the sibling backup area before restoring the managed version.
+For the default `~/.codex` target, the official Codex user-skill root remains `~/.agents/skills`; the global installer publishes all 16 managed skills there: eleven workflow skills and five capability skills. A custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each installed skill has a versioned ownership marker and content digest, but every existing real directory at a managed name—including `run-*`—is treated as opaque stale state, transactionally backed up, and replaced without requiring a marker or migration flag. Links, junctions/reparse points, and non-directory targets remain rejected. Modified managed copies are likewise preserved in the sibling backup area before restoration.
 
-When upgrading a machine that already has an older unmarked copy of one of the five known capability skills, rerun the global installer once with `--migrate-legacy-skills` on Bash or `-MigrateLegacySkills` on PowerShell. The installer validates and moves each legacy directory into a timestamp-like hidden backup beside (not inside) the discovery root before installing the managed copy. This avoids duplicate skill discovery. The flag never takes over an unowned `run-*` skill or an unrelated skill name.
+`--migrate-legacy-skills` on Bash and `-MigrateLegacySkills` on PowerShell remain accepted compatibility options, but are no longer required. An existing real `~/.codex/agents-pipeline` support root is also transactionally replaced when its marker is absent or unreadable. Installation validates that its resulting files are immediately readable, including the Windows ACL reset and validation path.
 
 ### Globally installed skills
 

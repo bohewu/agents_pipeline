@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -47,6 +48,66 @@ def resolve_target(raw_target: str) -> Path:
     return absolute.parent.resolve() / absolute.name
 
 
+def _reset_windows_acl_inheritance(target_root: Path) -> None:
+    """Restore inherited ACLs on a completed staging tree before its move."""
+
+    if sys.platform != "win32":
+        return
+    try:
+        result = subprocess.run(
+            ["icacls", os.fspath(target_root), "/reset", "/T", "/C"],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    except OSError as exc:
+        raise ValueError(
+            f"Unable to reset Windows ACL inheritance for support staging tree: {target_root}"
+        ) from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise ValueError(
+            "Unable to reset Windows ACL inheritance for support staging tree: "
+            f"{target_root} (icacls exited {result.returncode}"
+            + (f": {detail}" if detail else "")
+            + ")"
+        )
+
+
+def _verify_installed_support_tree(target_root: Path) -> None:
+    """Ensure a newly moved support tree is immediately usable before success."""
+
+    try:
+        if is_linklike(target_root) or not target_root.is_dir():
+            raise ValueError(
+                f"Installed support target must be a real directory: {target_root}"
+            )
+        list(target_root.iterdir())
+        validate_source(target_root)
+        contents: dict[str, str] = {}
+        for name in (*SUPPORT_FILES, MARKER_FILE):
+            path = target_root / name
+            if is_linklike(path) or not path.is_file():
+                raise ValueError(
+                    f"Installed support target is missing a regular file: {path}"
+                )
+            contents[name] = path.read_text(encoding="utf-8")
+        marker = json.loads(contents[MARKER_FILE])
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(
+            f"Installed support target is not readable: {target_root}"
+        ) from exc
+    expected_marker = {
+        "installed_root": target_root.resolve().as_posix(),
+        "tool": MARKER_TOOL,
+        "version": MARKER_VERSION,
+    }
+    if marker != expected_marker:
+        raise ValueError(
+            f"Installed support target failed ownership verification: {target_root}"
+        )
+
+
 def validate_source(source_root: Path) -> None:
     missing = [name for name in SUPPORT_DIRS if not (source_root / name).is_dir()]
     missing.extend(name for name in SUPPORT_FILES if not (source_root / name).is_file())
@@ -57,19 +118,23 @@ def validate_source(source_root: Path) -> None:
 
 
 def validate_existing_target(target_root: Path) -> None:
+    if is_linklike(target_root):
+        raise ValueError(f"Support target must be a real directory: {target_root}")
     if not target_root.exists():
         return
-    if is_linklike(target_root) or not target_root.is_dir():
+    if not target_root.is_dir():
         raise ValueError(f"Support target must be a real directory: {target_root}")
     marker_path = target_root / MARKER_FILE
-    if is_linklike(marker_path) or (marker_path.exists() and not marker_path.is_file()):
+    if is_linklike(marker_path):
         raise ValueError(f"Support ownership marker must be a regular non-link file: {marker_path}")
     try:
+        if not marker_path.is_file():
+            return
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
-        raise ValueError(
-            f"Refusing to replace unowned support directory without a valid marker: {target_root}"
-        ) from exc
+    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeError) as exc:
+        # Do not inspect an unowned or inaccessible tree. It is moved as opaque
+        # stale state into the transactional backup below.
+        return
     marker_version = marker.get("version") if isinstance(marker, dict) else None
     expected_keys = (
         {"tool", "version", "installed_root"}
@@ -83,14 +148,14 @@ def validate_existing_target(target_root: Path) -> None:
         or type(marker.get("version")) is not int
         or marker.get("version") not in SUPPORTED_MARKER_VERSIONS
     ):
-        raise ValueError(f"Unexpected support ownership marker: {marker_path}")
+        return
     if marker_version == MARKER_VERSION:
         installed_root = marker.get("installed_root")
         if (
             not isinstance(installed_root, str)
-            or Path(installed_root).expanduser().resolve() != target_root.resolve()
+            or installed_root != target_root.resolve().as_posix()
         ):
-            raise ValueError(f"Support ownership marker root mismatch: {marker_path}")
+            return
 
 
 def source_installed_root(source_root: Path) -> Path | None:
@@ -217,9 +282,12 @@ def sync_support_tree(source_root: Path, target_root: Path, *, dry_run: bool) ->
         tempfile.mkdtemp(prefix=f".{target_root.name}.staging-", dir=target_root.parent)
     )
     backup_root: Path | None = None
+    moved_old = False
+    moved_new = False
     try:
         populate_staging(source_root, staging_root, target_root)
-        if target_root.exists():
+        _reset_windows_acl_inheritance(staging_root)
+        if target_root.exists() or target_root.is_symlink():
             backup_root = Path(
                 tempfile.mkdtemp(
                     prefix=f".{target_root.name}.backup-", dir=target_root.parent
@@ -227,24 +295,52 @@ def sync_support_tree(source_root: Path, target_root: Path, *, dry_run: bool) ->
             )
             backup_root.rmdir()
             os.replace(target_root, backup_root)
+            moved_old = True
         os.replace(staging_root, target_root)
-        if backup_root is not None:
-            shutil.rmtree(backup_root)
-            backup_root = None
+        moved_new = True
+        _verify_installed_support_tree(target_root)
     except Exception as install_error:
-        if backup_root is not None and backup_root.exists() and not target_root.exists():
-            try:
+        rollback_root: Path | None = None
+        try:
+            if moved_new and (target_root.exists() or target_root.is_symlink()):
+                rollback_root = Path(
+                    tempfile.mkdtemp(
+                        prefix=f".{target_root.name}.failed-", dir=target_root.parent
+                    )
+                )
+                os.replace(target_root, rollback_root / target_root.name)
+            if moved_old and backup_root is not None and backup_root.exists():
                 os.replace(backup_root, target_root)
                 backup_root = None
-            except Exception as rollback_error:
+            if rollback_root is not None:
+                shutil.rmtree(rollback_root)
+        except Exception as rollback_error:
+            if backup_root is not None and backup_root.exists():
                 raise RuntimeError(
-                    "Support tree installation and rollback both failed; "
-                    f"the previous tree is preserved at {backup_root}"
+                    "Support tree installation and rollback both failed for "
+                    f"{target_root}; the previous tree is preserved at {backup_root}"
                 ) from rollback_error
-        raise
+            preserved = rollback_root or target_root
+            raise RuntimeError(
+                "Support tree installation and rollback both failed for "
+                f"{target_root}; recovery data is preserved at {preserved}"
+            ) from rollback_error
+        raise ValueError(
+            f"Support tree installation failed for {target_root}: {install_error}"
+        ) from install_error
     finally:
         if staging_root.exists():
             shutil.rmtree(staging_root)
+
+    if backup_root is not None:
+        try:
+            shutil.rmtree(backup_root)
+        except OSError as cleanup_error:
+            print(
+                "Support tree installed successfully, but cleanup of the previous "
+                f"backup failed; it remains at {backup_root}: {cleanup_error}",
+                file=sys.stderr,
+            )
 
 
 def main() -> int:

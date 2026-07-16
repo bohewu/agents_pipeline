@@ -71,7 +71,7 @@ The Codex installer:
 - rewrites role references to that installed support tree
 - removes stale files previously owned by the installer without removing unrelated user files
 - manages the mode-alias block in the active global `AGENTS.md` or `AGENTS.override.md`
-- for the default global target (`~/.codex`), publishes all 16 managed skills under `~/.agents/skills/` (eleven workflow plus five capability skills); a custom Codex home publishes skills only when `--user-skills-root` / `-UserSkillsRoot` is supplied; `$run-adaptive` is skill-only, keeps its presets route-independent, and does not add a generated role
+- for the default global target (`~/.codex`), publishes all 16 managed skills to the official Codex user-skills root, `~/.agents/skills/` (eleven workflow plus five capability skills); a custom Codex home publishes skills only when `--user-skills-root` / `-UserSkillsRoot` is supplied; `$run-adaptive` is skill-only, keeps its presets route-independent, and does not add a generated role
 - backs up affected Codex configuration by default
 
 The marker-owned synchronized support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Status-capable roles therefore call the installed copy of:
@@ -82,13 +82,11 @@ The marker-owned synchronized support tree contains `AGENTS.md`, `agents/`, `mod
 
 Because the tree also carries the runtime catalogs and wrappers, its installed `scripts/agent-profile.sh` or `scripts/agent-profile.ps1` supports `set`, `status`, `clear`, and `list` without the original source clone. `install` remains a deprecated compatibility alias for `set`.
 
-The support tree is installer-owned through `.agents-pipeline-support.json` and is swapped through a staging directory. If the target already contains an unmarked `agents-pipeline/` directory, the installer preserves it and stops instead of deleting user files.
+The support tree is installer-owned through `.agents-pipeline-support.json` and is swapped through a staging directory. An existing real, unmarked or unreadable `<target>/agents-pipeline/` support target is transactionally replaced. Its sibling backup is deleted after commit; only a cleanup failure leaves it in place, and the installer reports its path. Links, junctions/reparse points, and non-directories are refused.
 
 The support-tree update is rollback-capable and uses atomic renames for each move; each installer-managed file replacement is also atomic. The two-move tree update and full multi-file install are not single filesystem transactions; if the process is interrupted between replacements, rerun the same command to converge the managed files to one version.
 
-Each managed user-skill directory carries `.agents-pipeline-skill.json` with its installed root, skill identity, marker version, and content digest. The global installer performs rollback-capable updates and uses an atomic rename for each skill directory. It refuses an unowned, corrupt-marker, linked, or junction-backed same-named skill directory. If marker identity is valid but managed content was edited, reinstall preserves that copy in the sibling backup area before restoring the canonical version. Use `--user-skills-root` / `-UserSkillsRoot` only to redirect this user-level target for an intentional custom or test global install. Direct workspace materialization never installs user skills, and `run-goal` is never installed.
-
-For a one-time upgrade from older unmarked copies of the five known capability skills, pass `--migrate-legacy-skills` or `-MigrateLegacySkills`. The synchronizer validates each known skill, moves it into a persistent hidden sibling backup outside the discovery root, and then installs the managed copy. It never uses this flag to take over an unowned workflow skill or an unrelated skill.
+The official Codex user-skills root is `~/.agents/skills/`. Each managed user-skill directory carries `.agents-pipeline-skill.json` with its installed root, skill identity, marker version, and content digest. The global installer performs rollback-capable updates and uses an atomic rename for each skill directory. For its 16 managed names, every existing real `run-*` or capability directory, including unmarked or corrupt-marker directories, is treated as opaque stale state, automatically replaced, and preserved in the sibling backup area. Links, junctions/reparse points, and non-directories are refused. The legacy `--migrate-legacy-skills` / `-MigrateLegacySkills` options remain accepted for compatibility only; no special action is required. Use `--user-skills-root` / `-UserSkillsRoot` only to redirect this user-level target for an intentional custom or test global install. Direct workspace materialization never installs user skills, and `run-goal` is never installed.
 
 Common options:
 
@@ -102,14 +100,11 @@ bash scripts/install-codex.sh --target /path/to/.codex
 # Custom user-skill root for an isolated global-install test
 bash scripts/install-codex.sh --target /path/to/.codex --user-skills-root /path/to/.agents/skills
 
-# One-time takeover of validated legacy capability-skill copies, with backup
-bash scripts/install-codex.sh --migrate-legacy-skills
-
 # Skip backups
 bash scripts/install-codex.sh --no-backup
 ```
 
-PowerShell equivalents use `-DryRun`, `-Target`, `-WorkspaceRoot`, `-UserSkillsRoot`, `-MigrateLegacySkills`, and `-NoBackup`.
+PowerShell equivalents use `-DryRun`, `-Target`, `-WorkspaceRoot`, `-UserSkillsRoot`, and `-NoBackup`.
 
 These global Codex install examples always generate model-free roles. Passing profile or model options to a global Codex target is rejected; use workspace `set` for normal per-project resource routing.
 

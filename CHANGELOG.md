@@ -6,8 +6,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-07-16
+
 ### Fixed
 
+- Made Codex installation automatically replace real stale managed skill directories and unmarked or unreadable support roots transactionally, while preserving skill backups and rejecting links, reparse points, and non-directories.
 - Applied observed workspace-ceiling and strict/exact mismatch validation before inherit, shadow, and selector-unavailable early returns, preventing runtime evidence from being silently discarded.
 - Redacted raw child role/model values from Codex trace output and rejected trace roots or candidates reached through symlinked ancestors, Windows junctions, or other redirected paths.
 - Required child/parent inheritance comparison whenever both effective efforts are known.

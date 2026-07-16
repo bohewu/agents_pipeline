@@ -141,7 +141,7 @@ class CodexSkillSyncTest(unittest.TestCase):
 
             self.assertFalse(target.exists())
 
-    def test_sync_refuses_unowned_and_linked_targets(self) -> None:
+    def test_sync_replaces_markerless_target_with_backup_and_refuses_linked_root(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             source = self.make_source(root)
@@ -150,15 +150,26 @@ class CodexSkillSyncTest(unittest.TestCase):
             unowned.mkdir(parents=True)
             (unowned / "SKILL.md").write_text("user content\n", encoding="utf-8")
 
-            with self.assertRaisesRegex(MODULE.SkillSyncError, "unowned skill"):
-                MODULE.sync_managed_skills(
-                    source, target, root / "support", dry_run=False
-                )
+            MODULE.sync_managed_skills(source, target, root / "support", dry_run=False)
+
+            self.assertTrue((unowned / MODULE.MARKER_FILE).is_file())
             self.assertEqual(
-                (unowned / "SKILL.md").read_text(encoding="utf-8"), "user content\n"
+                (unowned / "SKILL.md").read_text(encoding="utf-8"),
+                (source / "run-pipeline" / "SKILL.md").read_text(encoding="utf-8"),
+            )
+            backups = list(
+                (target.parent / ".user-skills.agents-pipeline-backups").glob(
+                    "agents-pipeline-skills-*"
+                )
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(
+                (backups[0] / "run-pipeline" / "SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                "user content\n",
             )
 
-            unowned.rename(target / "saved")
             real = root / "real-skills"
             real.mkdir()
             linked_root = root / "linked-skills"
@@ -170,6 +181,47 @@ class CodexSkillSyncTest(unittest.TestCase):
                 MODULE.sync_managed_skills(
                     source, linked_root, root / "support", dry_run=False
                 )
+
+            linked_target_root = root / "linked-managed-target"
+            linked_target_root.mkdir()
+            external_target = root / "external-skill"
+            external_target.mkdir()
+            try:
+                (linked_target_root / "run-pipeline").symlink_to(
+                    external_target,
+                    target_is_directory=True,
+                )
+            except (OSError, NotImplementedError):
+                self.skipTest("symbolic links are unavailable")
+            with self.assertRaisesRegex(MODULE.SkillSyncError, "real directory"):
+                MODULE.sync_managed_skills(
+                    source, linked_target_root, root / "support", dry_run=False
+                )
+
+    def test_marker_read_error_is_opaque_stale_state(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            target = root / "user-skills" / "run-pipeline"
+            target.mkdir(parents=True)
+            marker_path = target / MODULE.MARKER_FILE
+            marker_path.write_text("{}\n", encoding="utf-8")
+            original_read_text = Path.read_text
+
+            def deny_marker_read(path: Path, *args, **kwargs):
+                if path == marker_path:
+                    raise PermissionError("marker access denied")
+                return original_read_text(path, *args, **kwargs)
+
+            with mock.patch.object(
+                Path, "read_text", autospec=True, side_effect=deny_marker_read
+            ), mock.patch.object(MODULE, "_validate_regular_tree") as validate_tree:
+                state = MODULE.validate_existing_target(
+                    target,
+                    "run-pipeline",
+                )
+
+            self.assertEqual(state, "stale")
+            validate_tree.assert_not_called()
 
     def test_sync_refuses_linked_source_content(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -268,6 +320,95 @@ class CodexSkillSyncTest(unittest.TestCase):
                 with self.subTest(skill=name):
                     self.assertEqual((target / name / "SKILL.md").read_bytes(), expected)
 
+    def test_rollback_cleanup_failure_reports_failed_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "support"
+            real_rmtree = MODULE.shutil.rmtree
+
+            def fail_failed_tree_cleanup(path, *args, **kwargs):
+                candidate = Path(path)
+                if candidate.name.startswith(".agents-pipeline-skills.failed-"):
+                    raise OSError("simulated failed-tree cleanup failure")
+                return real_rmtree(path, *args, **kwargs)
+
+            with mock.patch.object(
+                MODULE,
+                "_verify_installed_skill",
+                side_effect=MODULE.SkillSyncError("simulated verification failure"),
+            ), mock.patch.object(
+                MODULE.shutil,
+                "rmtree",
+                side_effect=fail_failed_tree_cleanup,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError, "recovery data is preserved at"
+                ) as raised:
+                    MODULE.sync_managed_skills(
+                        source, target, support, dry_run=False
+                    )
+
+            reported_root = Path(str(raised.exception).rsplit(" at ", 1)[1])
+            stranded_name = MODULE.MANAGED_SKILL_NAMES[0]
+            self.assertTrue(reported_root.is_dir())
+            self.assertTrue(
+                (reported_root / stranded_name / "SKILL.md").is_file()
+            )
+
+    def test_committed_backup_cleanup_failure_preserves_backup_and_succeeds(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "support"
+            skill_name = "run-adaptive"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+            previous_text = (target / skill_name / "SKILL.md").read_text(
+                encoding="utf-8"
+            )
+            updated_text = (
+                f"---\nname: {skill_name}\ndescription: Updated.\n---\n\nUpdated.\n"
+            )
+            (source / skill_name / "SKILL.md").write_text(
+                updated_text, encoding="utf-8"
+            )
+            failed_backups: list[Path] = []
+            real_rmtree = MODULE.shutil.rmtree
+
+            def fail_previous_backup_cleanup(path, *args, **kwargs):
+                candidate = Path(path)
+                if candidate.name.startswith(".agents-pipeline-skills.backup-"):
+                    failed_backups.append(candidate)
+                    raise OSError("simulated backup cleanup failure")
+                return real_rmtree(path, *args, **kwargs)
+
+            with mock.patch.object(
+                MODULE.shutil,
+                "rmtree",
+                side_effect=fail_previous_backup_cleanup,
+            ), mock.patch("builtins.print") as reported:
+                result = MODULE.sync_managed_skills(
+                    source, target, support, dry_run=False
+                )
+
+            self.assertIsNone(result)
+            self.assertEqual(len(failed_backups), 1)
+            backup_root = failed_backups[0]
+            self.assertTrue(backup_root.is_dir())
+            self.assertEqual(
+                (backup_root / skill_name / "SKILL.md").read_text(encoding="utf-8"),
+                previous_text,
+            )
+            self.assertEqual(
+                (target / skill_name / "SKILL.md").read_text(encoding="utf-8"),
+                updated_text,
+            )
+            reported.assert_called_once_with(
+                f"Previous-version skill backup preserved at: {backup_root}"
+            )
+
     def test_sync_rewrites_repo_support_references(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
@@ -292,7 +433,7 @@ class CodexSkillSyncTest(unittest.TestCase):
             )
             self.assertNotIn("../../protocols/", installed)
 
-    def test_legacy_capability_migration_requires_flag_and_preserves_backup(self) -> None:
+    def test_markerless_capability_skill_is_replaced_without_migration_flag(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             source = self.make_source(root)
@@ -305,16 +446,7 @@ class CodexSkillSyncTest(unittest.TestCase):
             )
             (legacy / "SKILL.md").write_text(legacy_text, encoding="utf-8")
 
-            with self.assertRaisesRegex(MODULE.SkillSyncError, "migrate-legacy-skills"):
-                MODULE.sync_managed_skills(source, target, support, dry_run=False)
-
-            MODULE.sync_managed_skills(
-                source,
-                target,
-                support,
-                dry_run=False,
-                migrate_legacy_skills=True,
-            )
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
 
             backups = list(
                 (target.parent / ".user-skills.agents-pipeline-backups").glob(
@@ -329,6 +461,55 @@ class CodexSkillSyncTest(unittest.TestCase):
                 legacy_text,
             )
             self.assertTrue((legacy / MODULE.MARKER_FILE).is_file())
+
+    def test_windows_acl_reset_is_applied_to_completed_staging_root(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(MODULE.sys, "platform", "win32"), mock.patch.object(
+                MODULE.subprocess, "run", return_value=completed
+            ) as icacls:
+                MODULE.sync_managed_skills(
+                    source, target, root / "support", dry_run=False
+                )
+
+            icacls.assert_called_once()
+            command = icacls.call_args.args[0]
+            staging_root = Path(command[1])
+            self.assertEqual(command[0], "icacls")
+            self.assertEqual(command[2:], ["/reset", "/T", "/C"])
+            self.assertEqual(staging_root.parent, target)
+            self.assertTrue(
+                staging_root.name.startswith(".agents-pipeline-skills.staging-")
+            )
+
+    def test_windows_acl_failure_leaves_existing_skills_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            source = self.make_source(root)
+            target = root / "user-skills"
+            support = root / "support"
+            MODULE.sync_managed_skills(source, target, support, dry_run=False)
+            original = (target / "run-adaptive" / "SKILL.md").read_bytes()
+            failed_acl = mock.Mock(
+                returncode=1,
+                stdout="",
+                stderr="Access is denied.",
+            )
+
+            with mock.patch.object(MODULE.sys, "platform", "win32"), mock.patch.object(
+                MODULE.subprocess, "run", return_value=failed_acl
+            ):
+                with self.assertRaises(MODULE.SkillSyncError) as raised:
+                    MODULE.sync_managed_skills(source, target, support, dry_run=False)
+
+            self.assertIn(".agents-pipeline-skills.staging-", str(raised.exception))
+            self.assertEqual(
+                (target / "run-adaptive" / "SKILL.md").read_bytes(), original
+            )
 
     def test_modified_owned_skill_is_preserved_and_repaired(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:

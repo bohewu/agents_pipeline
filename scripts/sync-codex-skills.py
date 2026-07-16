@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -17,7 +18,6 @@ if SCRIPT_DIR.as_posix() not in sys.path:
     sys.path.insert(0, SCRIPT_DIR.as_posix())
 
 from codex_skill_catalog import (
-    CAPABILITY_SKILL_NAMES,
     MANAGED_SKILL_NAMES,
     SKILL_MARKER_FILENAME,
     SKILL_MARKER_TOOL,
@@ -25,6 +25,7 @@ from codex_skill_catalog import (
     SUPPORTED_SKILL_MARKER_VERSIONS,
     expected_skill_marker,
     is_linklike,
+    skill_collection_issues,
 )
 
 
@@ -133,71 +134,116 @@ def _legacy_marker(target: Path, skill_name: str) -> dict[str, object]:
     }
 
 
+def _reset_windows_acl_inheritance(target: Path) -> None:
+    """Restore inherited ACLs on a completed staging tree before its move."""
+
+    if sys.platform != "win32":
+        return
+    try:
+        result = subprocess.run(
+            ["icacls", os.fspath(target), "/reset", "/T", "/C"],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+    except OSError as exc:
+        raise SkillSyncError(
+            f"Unable to reset Windows ACL inheritance for managed staging tree: {target}"
+        ) from exc
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise SkillSyncError(
+            "Unable to reset Windows ACL inheritance for managed staging tree: "
+            f"{target} (icacls exited {result.returncode}"
+            + (f": {detail}" if detail else "")
+            + ")"
+        )
+
+
+def _verify_installed_skill(target: Path, skill_name: str) -> None:
+    """Ensure a newly moved skill is immediately usable before committing it."""
+
+    try:
+        list(target.iterdir())
+    except OSError as exc:
+        raise SkillSyncError(
+            f"Installed managed skill target is not readable: {target}"
+        ) from exc
+    issues = skill_collection_issues(target.parent, (skill_name,))
+    if issues:
+        raise SkillSyncError(
+            f"Installed managed skill target failed verification: {target} ({', '.join(issues)})"
+        )
+
+
+def _recovery_root_with_data(*roots: Path | None) -> Path | None:
+    """Return the first surviving recovery root that still contains data."""
+
+    for root in roots:
+        if root is None:
+            continue
+        try:
+            if root.is_dir() and next(root.iterdir(), None) is not None:
+                return root
+        except OSError:
+            continue
+    return None
+
+
 def validate_existing_target(
     target: Path,
     skill_name: str,
-    *,
-    migrate_legacy_skills: bool,
 ) -> str | None:
     """Return a preservation reason when replacement needs a saved backup."""
 
-    if not target.exists() and not target.is_symlink():
+    if is_linklike(target):
+        raise SkillSyncError(f"Managed skill target must be a real directory: {target}")
+    if not target.exists():
         return None
-    if is_linklike(target) or not target.is_dir():
+    if not target.is_dir():
         raise SkillSyncError(f"Managed skill target must be a real directory: {target}")
     marker_path = target / MARKER_FILE
-    if is_linklike(marker_path) or not marker_path.is_file():
-        if migrate_legacy_skills and skill_name in CAPABILITY_SKILL_NAMES:
-            _validate_regular_tree(target, f"Legacy skill target '{skill_name}'")
-            skill_md = target / "SKILL.md"
-            if not skill_md.is_file() or is_linklike(skill_md):
-                raise SkillSyncError(
-                    f"Legacy skill is missing a regular SKILL.md: {skill_md}"
-                )
-            if _frontmatter_name(skill_md) != skill_name:
-                raise SkillSyncError(
-                    f"Legacy skill name does not match its directory: {target}"
-                )
-            return "legacy"
-        migration_hint = (
-            " Rerun with --migrate-legacy-skills to back up and replace this "
-            "known capability skill."
-            if skill_name in CAPABILITY_SKILL_NAMES
-            else ""
-        )
+    if is_linklike(marker_path):
         raise SkillSyncError(
-            "Refusing to replace unowned skill directory without a regular "
-            f"ownership marker: {target}.{migration_hint}"
+            f"Skill ownership marker must be a regular non-link file: {marker_path}"
         )
     try:
+        if not marker_path.is_file():
+            return "stale"
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError, UnicodeError) as exc:
-        raise SkillSyncError(f"Invalid skill ownership marker: {marker_path}") from exc
+        # Do not inspect an unowned or inaccessible tree. It is moved as opaque
+        # stale state into the transactional preservation backup below.
+        return "stale"
     if not isinstance(marker, dict) or marker.get("version") not in SUPPORTED_SKILL_MARKER_VERSIONS:
-        raise SkillSyncError(f"Unexpected skill ownership marker: {marker_path}")
-    _validate_regular_tree(target, f"Managed skill target '{skill_name}'")
+        return "stale"
     if marker.get("version") == 1:
         if marker != _legacy_marker(target, skill_name):
-            raise SkillSyncError(f"Unexpected skill ownership marker: {marker_path}")
+            return "stale"
         # V1 markers predate content digests, so even an apparently official
         # copy may contain user edits. Preserve it before the first V2 refresh.
+        _validate_regular_tree(target, f"Managed skill target '{skill_name}'")
         return "v1"
 
-    expected = expected_skill_marker(target, skill_name)
     expected_identity = {
-        key: value for key, value in expected.items() if key != "content_sha256"
+        "installed_root": target.resolve(strict=False).as_posix(),
+        "skill_name": skill_name,
+        "tool": MARKER_TOOL,
+        "version": MARKER_VERSION,
     }
     marker_identity = {
         key: value for key, value in marker.items() if key != "content_sha256"
     }
     digest = marker.get("content_sha256")
     if (
-        set(marker) != set(expected)
+        set(marker) != {"content_sha256", *expected_identity}
         or marker_identity != expected_identity
         or not isinstance(digest, str)
         or re.fullmatch(r"[0-9a-f]{64}", digest) is None
     ):
-        raise SkillSyncError(f"Unexpected skill ownership marker: {marker_path}")
+        return "stale"
+    _validate_regular_tree(target, f"Managed skill target '{skill_name}'")
+    expected = expected_skill_marker(target, skill_name)
     return None if marker == expected else "modified"
 
 
@@ -259,7 +305,6 @@ def sync_managed_skills(
     support_root: Path,
     *,
     dry_run: bool,
-    migrate_legacy_skills: bool = False,
 ) -> None:
     source_skills_root = _absolute_lexical(source_skills_root)
     user_skills_root = _absolute_lexical(user_skills_root)
@@ -276,16 +321,9 @@ def sync_managed_skills(
     targets = {name: user_skills_root / name for name in MANAGED_SKILL_NAMES}
     target_states: dict[str, str] = {}
     for name, target in targets.items():
-        state = validate_existing_target(
-            target,
-            name,
-            migrate_legacy_skills=migrate_legacy_skills,
-        )
+        state = validate_existing_target(target, name)
         if state is not None:
             target_states[name] = state
-    legacy_names = {
-        name for name, state in target_states.items() if state == "legacy"
-    }
     preserved_names = set(target_states)
 
     if dry_run:
@@ -294,10 +332,13 @@ def sync_managed_skills(
             + ", ".join(MANAGED_SKILL_NAMES)
             + f" to {user_skills_root}"
         )
-        if legacy_names:
+        stale_names = {
+            name for name, state in target_states.items() if state == "stale"
+        }
+        if stale_names:
             print(
-                "Dry run: would back up and migrate legacy capability skills "
-                + ", ".join(sorted(legacy_names))
+                "Dry run: would back up and replace stale managed skills "
+                + ", ".join(sorted(stale_names))
             )
         modified_names = {
             name for name, state in target_states.items() if state == "modified"
@@ -342,6 +383,7 @@ def sync_managed_skills(
             _rewrite_support_references(staged, support_root)
             _write_marker(staged, targets[name], name)
 
+        _reset_windows_acl_inheritance(staging_root)
         backup_root = Path(
             tempfile.mkdtemp(prefix=".agents-pipeline-skills.backup-", dir=user_skills_root)
         )
@@ -375,6 +417,7 @@ def sync_managed_skills(
                 moved_old.append(name)
             os.replace(staging_root / name, target)
             moved_new.append(name)
+            _verify_installed_skill(target, name)
         committed = True
     except Exception as install_error:
         rollback_root: Path | None = None
@@ -411,10 +454,19 @@ def sync_managed_skills(
                 except OSError:
                     pass
         except Exception as rollback_error:
-            preserved = legacy_backup_root or backup_root or rollback_root or staging_root
+            preserved = _recovery_root_with_data(
+                rollback_root,
+                legacy_backup_root,
+                backup_root,
+            )
+            recovery_detail = (
+                f"recovery data is preserved at {preserved}"
+                if preserved is not None
+                else "no surviving recovery directory with data could be confirmed"
+            )
             raise RuntimeError(
                 "Managed skill installation and rollback both failed; "
-                f"recovery data is preserved at {preserved}"
+                + recovery_detail
             ) from rollback_error
         raise SkillSyncError(
             f"Managed skill installation failed: {install_error}"
@@ -426,11 +478,8 @@ def sync_managed_skills(
     if committed and backup_root is not None:
         try:
             shutil.rmtree(backup_root)
-        except OSError as exc:
-            raise SkillSyncError(
-                "Managed skills were installed, but the previous-version backup "
-                f"could not be removed: {backup_root}"
-            ) from exc
+        except OSError:
+            print(f"Previous-version skill backup preserved at: {backup_root}")
     if committed and legacy_backup_root is not None:
         print(f"Replaced skill backup preserved at: {legacy_backup_root}")
 
@@ -450,7 +499,6 @@ def main() -> int:
             Path(args.user_skills_root),
             Path(args.support_root),
             dry_run=args.dry_run,
-            migrate_legacy_skills=args.migrate_legacy_skills,
         )
     except (OSError, RuntimeError, SkillSyncError) as exc:
         print(str(exc), file=sys.stderr)

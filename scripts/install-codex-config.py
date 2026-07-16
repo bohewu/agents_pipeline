@@ -1134,6 +1134,8 @@ def sync_support_tree(
             "Neutral support tree synchronization failed"
             + (f": {detail}" if detail else "")
         )
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
 
 
 def seed_builtin_project_profile_caches(asset_root: Path, global_target: Path) -> None:
@@ -1409,10 +1411,10 @@ def main() -> int:
             )
             return 2
         try:
-            finalize_managed_skill_sync(target_dir / MANIFEST_FILENAME)
             seed_builtin_project_profile_caches(
                 support_tree_target, target_dir.expanduser().resolve()
             )
+            finalize_managed_skill_sync(target_dir / MANIFEST_FILENAME)
         except (RuntimeError, ValueError, OSError) as exc:
             print(str(exc), file=sys.stderr)
             return 2

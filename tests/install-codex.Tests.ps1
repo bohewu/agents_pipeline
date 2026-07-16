@@ -261,6 +261,39 @@ Describe "install-codex.ps1 managed mode skills" {
         $output | Should -Match 'compatibility aliases'
     }
 
+    It "repairs Windows ACLs after replacing markerless managed roots" -Skip:($env:OS -ne "Windows_NT") {
+        $targetPath = Join-Path $TestDrive "windows-codex-home"
+        $userSkillsRoot = Join-Path $TestDrive "windows-user-skills"
+        $supportTarget = Join-Path $targetPath "agents-pipeline"
+        $skillTarget = Join-Path $userSkillsRoot "run-adaptive"
+        New-Item -ItemType Directory -Path $supportTarget -Force | Out-Null
+        New-Item -ItemType Directory -Path $skillTarget -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $supportTarget "stale.txt") -Value "stale support"
+        Set-Content -LiteralPath (Join-Path $skillTarget "stale.txt") -Value "stale skill"
+
+        & $scriptPath -Target $targetPath -UserSkillsRoot $userSkillsRoot -NoBackup | Out-Null
+        $LASTEXITCODE | Should -Be 0
+
+        foreach ($managedTarget in @($supportTarget, $skillTarget)) {
+            @(Get-ChildItem -LiteralPath $managedTarget -Force -ErrorAction Stop).Count |
+                Should -BeGreaterThan 0
+            (Get-Acl -LiteralPath $managedTarget -ErrorAction Stop).AreAccessRulesProtected |
+                Should -BeFalse
+        }
+        (Get-Content -LiteralPath (Join-Path $supportTarget ".agents-pipeline-support.json") -Raw -ErrorAction Stop) |
+            Should -Match '"tool"'
+        (Get-Content -LiteralPath (Join-Path $skillTarget ".agents-pipeline-skill.json") -Raw -ErrorAction Stop) |
+            Should -Match '"tool"'
+        Test-Path -LiteralPath (Join-Path $supportTarget "stale.txt") | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $skillTarget "stale.txt") | Should -BeFalse
+
+        $backupRoot = Join-Path (Split-Path -Parent $userSkillsRoot) ".windows-user-skills.agents-pipeline-backups"
+        $backups = @(Get-ChildItem -LiteralPath $backupRoot -Directory -Filter "agents-pipeline-skills-*")
+        $backups.Count | Should -Be 1
+        Get-Content -LiteralPath (Join-Path $backups[0].FullName "run-adaptive/stale.txt") -Raw |
+            Should -Match "stale skill"
+    }
+
     It "refuses user-skill installation during direct workspace materialization" {
         $workspaceRoot = Join-Path $TestDrive "workspace"
         $targetPath = Join-Path $workspaceRoot ".codex"

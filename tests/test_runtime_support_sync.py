@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
@@ -67,6 +68,20 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             encoding="utf-8",
         )
         return source
+
+    def assert_valid_installed_target(self, target: Path) -> None:
+        MODULE._verify_installed_support_tree(target)
+        self.assertEqual(
+            (target / "AGENTS.md").read_text(encoding="utf-8"), "# Agent catalog\n"
+        )
+        self.assertEqual(
+            json.loads((target / MODULE.MARKER_FILE).read_text(encoding="utf-8")),
+            {
+                "installed_root": target.resolve().as_posix(),
+                "tool": MODULE.MARKER_TOOL,
+                "version": MODULE.MARKER_VERSION,
+            },
+        )
 
     def test_sync_rewrites_refs_and_commands_for_target_with_spaces(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
@@ -173,14 +188,19 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             marker = json.loads(marker_path.read_text(encoding="utf-8"))
             self.assertEqual(marker["version"], MODULE.MARKER_VERSION)
 
-    def test_sync_refuses_unowned_or_symlinked_targets(self) -> None:
+    def test_sync_replaces_unowned_target_and_refuses_symlinked_targets(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
             source = self.make_source(root)
             unowned = root / "unowned"
             unowned.mkdir()
-            with self.assertRaisesRegex(ValueError, "unowned support directory"):
-                MODULE.sync_support_tree(source, unowned, dry_run=False)
+            stale_file = unowned / "stale.txt"
+            stale_file.write_text("stale support\n", encoding="utf-8")
+
+            MODULE.sync_support_tree(source, unowned, dry_run=False)
+
+            self.assertFalse(stale_file.exists())
+            self.assertTrue((unowned / MODULE.MARKER_FILE).is_file())
 
             real_target = root / "real-target"
             real_target.mkdir()
@@ -191,6 +211,8 @@ class RuntimeSupportSyncTest(unittest.TestCase):
                 self.skipTest("symbolic links are unavailable")
             with self.assertRaisesRegex(ValueError, "symbolic link"):
                 MODULE.resolve_target(symlink_target.as_posix())
+            with self.assertRaisesRegex(ValueError, "real directory"):
+                MODULE.sync_support_tree(source, symlink_target, dry_run=False)
 
             owned = root / "owned"
             MODULE.sync_support_tree(source, owned, dry_run=False)
@@ -209,6 +231,157 @@ class RuntimeSupportSyncTest(unittest.TestCase):
                 self.skipTest("symbolic links are unavailable")
             with self.assertRaisesRegex(ValueError, "regular non-link file"):
                 MODULE.sync_support_tree(source, owned, dry_run=False)
+
+    def test_marker_read_error_is_replaced_without_inspecting_stale_support(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            target.mkdir()
+            marker_path = target / MODULE.MARKER_FILE
+            marker_path.write_text("{}\n", encoding="utf-8")
+            original_read_text = Path.read_text
+            marker_denied = False
+
+            def deny_stale_marker_once(path: Path, *args, **kwargs):
+                nonlocal marker_denied
+                if path == marker_path and not marker_denied:
+                    marker_denied = True
+                    raise PermissionError("marker access denied")
+                return original_read_text(path, *args, **kwargs)
+
+            with mock.patch.object(
+                Path, "read_text", autospec=True, side_effect=deny_stale_marker_once
+            ):
+                MODULE.sync_support_tree(source, target, dry_run=False)
+
+            self.assertTrue(marker_denied)
+            self.assertTrue((target / MODULE.MARKER_FILE).is_file())
+            self.assertTrue((target / "AGENTS.md").is_file())
+
+    def test_windows_acl_reset_is_applied_to_the_completed_staging_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch.object(MODULE.sys, "platform", "win32"), mock.patch.object(
+                MODULE.subprocess, "run", return_value=completed
+            ) as icacls:
+                MODULE.sync_support_tree(source, target, dry_run=False)
+
+            icacls.assert_called_once()
+            command = icacls.call_args.args[0]
+            staging_root = Path(command[1])
+            self.assertEqual(command[0], "icacls")
+            self.assertEqual(command[2:], ["/reset", "/T", "/C"])
+            self.assertEqual(staging_root.parent, target.parent)
+            self.assertTrue(staging_root.name.startswith(".agents-pipeline.staging-"))
+            self.assertTrue(list(target.iterdir()))
+            self.assertTrue((target / MODULE.MARKER_FILE).read_text(encoding="utf-8"))
+
+    def test_windows_acl_failure_leaves_existing_support_target_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            MODULE.sync_support_tree(source, target, dry_run=False)
+            original_marker = (target / MODULE.MARKER_FILE).read_bytes()
+            failed_acl = mock.Mock(
+                returncode=1,
+                stdout="",
+                stderr="Access is denied.",
+            )
+
+            with mock.patch.object(MODULE.sys, "platform", "win32"), mock.patch.object(
+                MODULE.subprocess, "run", return_value=failed_acl
+            ):
+                with self.assertRaises(ValueError) as raised:
+                    MODULE.sync_support_tree(source, target, dry_run=False)
+
+            self.assertIn(".agents-pipeline.staging-", str(raised.exception))
+            self.assertEqual((target / MODULE.MARKER_FILE).read_bytes(), original_marker)
+
+    def test_failed_backup_move_leaves_the_existing_support_target_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            MODULE.sync_support_tree(source, target, dry_run=False)
+            original_marker = (target / MODULE.MARKER_FILE).read_bytes()
+            real_replace = MODULE.os.replace
+
+            def fail_backup_move(source_path, destination_path):
+                if Path(source_path) == target:
+                    raise OSError("simulated backup move failure")
+                return real_replace(source_path, destination_path)
+
+            with mock.patch.object(MODULE.os, "replace", side_effect=fail_backup_move):
+                with self.assertRaises(ValueError) as raised:
+                    MODULE.sync_support_tree(source, target, dry_run=False)
+
+            self.assertIn(str(target), str(raised.exception))
+            self.assertEqual((target / MODULE.MARKER_FILE).read_bytes(), original_marker)
+
+    def test_sync_succeeds_when_backup_cleanup_fails_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            MODULE.sync_support_tree(source, target, dry_run=False)
+            stale_file = target / "stale.txt"
+            stale_file.write_text("old support\n", encoding="utf-8")
+            cleanup_paths: list[Path] = []
+
+            def fail_cleanup(path, *args, **kwargs):
+                cleanup_paths.append(Path(path))
+                raise OSError("simulated immediate cleanup failure")
+
+            with mock.patch.object(
+                MODULE.shutil, "rmtree", side_effect=fail_cleanup
+            ), mock.patch.object(MODULE.sys, "stderr", new_callable=io.StringIO) as stderr:
+                MODULE.sync_support_tree(source, target, dry_run=False)
+
+            self.assertEqual(len(cleanup_paths), 1)
+            backup_path = cleanup_paths[0]
+            self.assertTrue(backup_path.is_dir())
+            self.assertTrue((backup_path / "stale.txt").is_file())
+            self.assertFalse(stale_file.exists())
+            self.assertIn(str(backup_path), stderr.getvalue())
+            self.assertIn("cleanup", stderr.getvalue())
+            self.assert_valid_installed_target(target)
+
+    def test_sync_succeeds_when_backup_cleanup_fails_after_partial_deletion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "agents-pipeline"
+            MODULE.sync_support_tree(source, target, dry_run=False)
+            stale_file = target / "stale.txt"
+            stale_file.write_text("old support\n", encoding="utf-8")
+            cleanup_paths: list[Path] = []
+
+            def partially_remove_backup(path, *args, **kwargs):
+                backup_path = Path(path)
+                cleanup_paths.append(backup_path)
+                (backup_path / "AGENTS.md").unlink()
+                raise OSError("simulated partial cleanup failure")
+
+            with mock.patch.object(
+                MODULE.shutil, "rmtree", side_effect=partially_remove_backup
+            ), mock.patch.object(MODULE.sys, "stderr", new_callable=io.StringIO) as stderr:
+                MODULE.sync_support_tree(source, target, dry_run=False)
+
+            self.assertEqual(len(cleanup_paths), 1)
+            backup_path = cleanup_paths[0]
+            self.assertTrue(backup_path.is_dir())
+            self.assertFalse((backup_path / "AGENTS.md").exists())
+            self.assertTrue((backup_path / "stale.txt").is_file())
+            self.assertFalse(stale_file.exists())
+            self.assertIn(str(backup_path), stderr.getvalue())
+            self.assertIn("cleanup", stderr.getvalue())
+            self.assert_valid_installed_target(target)
 
     def test_sync_preserves_backup_when_install_and_rollback_fail(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:

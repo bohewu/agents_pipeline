@@ -193,7 +193,7 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             self.assertIn("never installs user skills", rejected.stderr)
             self.assertFalse((root / "must-not-write").exists())
 
-    def test_unowned_skill_collision_fails_before_codex_target_mutation(self) -> None:
+    def test_unmarked_managed_skill_is_replaced_and_preserved(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             home = root / "home"
@@ -203,25 +203,36 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             collision.mkdir(parents=True)
             (collision / "SKILL.md").write_text("user-owned\n", encoding="utf-8")
 
-            result = self.run_installer(
+            self.run_installer(
                 home,
                 "--target",
                 str(target),
                 "--user-skills-root",
                 str(user_skills),
                 "--no-backup",
-                check=False,
             )
 
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("unowned skill directory", result.stderr)
-            self.assertFalse(target.exists())
-            self.assertEqual(
+            self.assert_managed_collection(user_skills)
+            self.assertTrue((target / "agents-pipeline").is_dir())
+            self.assertNotEqual(
                 (collision / "SKILL.md").read_text(encoding="utf-8"),
                 "user-owned\n",
             )
+            backups = list(
+                (
+                    user_skills.parent
+                    / f".{user_skills.name}.agents-pipeline-backups"
+                ).glob("agents-pipeline-skills-*")
+            )
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(
+                (backups[0] / "run-pipeline" / "SKILL.md").read_text(
+                    encoding="utf-8"
+                ),
+                "user-owned\n",
+            )
 
-    def test_unowned_support_collision_fails_before_skill_install(self) -> None:
+    def test_unmarked_support_root_is_replaced_before_skill_install(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             home = root / "home"
@@ -231,22 +242,18 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             (support / "user.txt").write_text("preserve\n", encoding="utf-8")
             user_skills = root / "user-skills"
 
-            result = self.run_installer(
+            self.run_installer(
                 home,
                 "--target",
                 str(target),
                 "--user-skills-root",
                 str(user_skills),
                 "--no-backup",
-                check=False,
             )
 
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("Refusing to replace unowned support directory", result.stderr)
-            self.assertFalse(user_skills.exists())
-            self.assertEqual(
-                (support / "user.txt").read_text(encoding="utf-8"), "preserve\n"
-            )
+            self.assert_managed_collection(user_skills)
+            self.assertTrue((support / ".agents-pipeline-support.json").is_file())
+            self.assertFalse((support / "user.txt").exists())
 
     def test_actual_role_export_failure_leaves_discovery_skills_untouched(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
@@ -352,7 +359,7 @@ os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
             self.assertEqual(payload["health"], "incomplete")
             self.assertIn("skills:sync-pending", payload["missing_generated_files"])
 
-    def test_explicit_migration_backs_up_legacy_capability_skills(self) -> None:
+    def test_legacy_capability_skill_is_replaced_without_migration_flag(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
             home = root / "home"
@@ -363,15 +370,8 @@ os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[1:]])
             )
             (legacy / "SKILL.md").write_text(legacy_text, encoding="utf-8")
 
-            rejected = self.run_installer(home, "--no-backup", check=False)
-            self.assertEqual(rejected.returncode, 2)
-            self.assertIn("--migrate-legacy-skills", rejected.stderr)
-
-            self.run_installer(
-                home,
-                "--no-backup",
-                "--migrate-legacy-skills",
-            )
+            self.run_installer(home, "--no-backup")
+            self.assert_managed_collection(home / ".agents" / "skills")
             backups = list(
                 (home / ".agents" / ".skills.agents-pipeline-backups").glob(
                     "agents-pipeline-skills-*"

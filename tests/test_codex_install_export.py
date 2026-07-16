@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 import shutil
@@ -13,6 +14,8 @@ from unittest import mock
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXPORT_SCRIPT_PATH = REPO_ROOT / "scripts" / "export-codex-agents.py"
 INSTALL_SCRIPT_PATH = REPO_ROOT / "scripts" / "install-codex-config.py"
+PROJECT_PROFILE_SCRIPT_PATH = REPO_ROOT / "scripts" / "codex-project-profile.py"
+AGENT_PROFILE_TOOL_PATH = REPO_ROOT / "tools" / "agent-profile.py"
 RELEASE_BUNDLE_WORKFLOW_PATH = (
     REPO_ROOT / ".github" / "workflows" / "release-bundle.yml"
 )
@@ -34,6 +37,9 @@ def load_module(name: str, path: Path):
 
 EXPORT_MODULE = load_module("export_codex_agents", EXPORT_SCRIPT_PATH)
 INSTALL_MODULE = load_module("install_codex_config", INSTALL_SCRIPT_PATH)
+PROJECT_PROFILE_MODULE = load_module(
+    "codex_project_profile", PROJECT_PROFILE_SCRIPT_PATH
+)
 
 
 class CodexInstallExportTest(unittest.TestCase):
@@ -1151,7 +1157,26 @@ class CodexInstallExportTest(unittest.TestCase):
                 installed_contract,
             )
 
-    def test_sync_support_tree_preserves_an_unowned_target(self) -> None:
+    def test_sync_support_tree_forwards_successful_helper_warning_to_stderr(self) -> None:
+        backup_path = "/tmp/agents-pipeline-backup"
+        warning = (
+            "Support tree installed successfully, but cleanup of the previous "
+            f"backup failed; it remains at {backup_path}: permission denied\n"
+        )
+        result = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="", stderr=warning
+        )
+
+        with (
+            mock.patch.object(INSTALL_MODULE.subprocess, "run", return_value=result),
+            mock.patch.object(INSTALL_MODULE.sys, "stderr", new_callable=io.StringIO) as stderr,
+        ):
+            INSTALL_MODULE.sync_support_tree(Path("source"), Path("target"))
+
+        self.assertIn(backup_path, stderr.getvalue())
+        self.assertEqual(stderr.getvalue(), warning)
+
+    def test_sync_support_tree_replaces_an_unmarked_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
             source = root / "source"
@@ -1167,10 +1192,12 @@ class CodexInstallExportTest(unittest.TestCase):
             sentinel = target / "user-owned.txt"
             sentinel.write_text("preserve me", encoding="utf-8")
 
-            with self.assertRaisesRegex(RuntimeError, "unowned support directory"):
-                INSTALL_MODULE.sync_support_tree(source, target)
+            INSTALL_MODULE.sync_support_tree(source, target)
 
-            self.assertEqual(sentinel.read_text(encoding="utf-8"), "preserve me")
+            self.assertFalse(sentinel.exists())
+            self.assertTrue((target / ".agents-pipeline-support.json").is_file())
+            for dirname in INSTALL_MODULE.SUPPORT_TREE_DIRS:
+                self.assertTrue((target / dirname).is_dir())
 
     def test_installed_support_tree_executes_status_cli_from_other_workdir(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
@@ -1383,6 +1410,127 @@ class CodexInstallExportTest(unittest.TestCase):
             inferred = INSTALL_MODULE.infer_previous_managed(target)
             self.assertEqual(inferred["managed_agent_names"], [])
             self.assertEqual(inferred["managed_agent_files"], [])
+
+    @unittest.skipUnless(shutil.which("bash"), "Bash is required for this smoke test")
+    def test_pending_skill_sync_allows_cache_seed_before_ready_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            target = root / "codex"
+            user_skills_root = root / "user-skills"
+            environment = {**os.environ, "HOME": (root / "home").as_posix()}
+            (root / "home").mkdir()
+
+            def run(
+                command: list[str], *, expected: int = 0
+            ) -> subprocess.CompletedProcess[str]:
+                completed = subprocess.run(
+                    command,
+                    cwd=REPO_ROOT,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    timeout=90,
+                    check=False,
+                )
+                self.assertEqual(
+                    completed.returncode,
+                    expected,
+                    f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}",
+                )
+                return completed
+
+            run(
+                [
+                    "bash",
+                    INSTALL_SH_PATH.as_posix(),
+                    "--target",
+                    target.as_posix(),
+                    "--user-skills-root",
+                    user_skills_root.as_posix(),
+                    "--no-backup",
+                ]
+            )
+            manifest_path = target / INSTALL_MODULE.MANIFEST_FILENAME
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["managed_skill_sync_state"], "ready")
+            manifest["managed_skill_sync_state"] = "pending"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                PROJECT_PROFILE_MODULE.ProjectProfileError,
+                "skill metadata is missing or invalid",
+            ):
+                PROJECT_PROFILE_MODULE.validate_global_install(target)
+
+            support_root = target / INSTALL_MODULE.SUPPORT_TREE_DIRNAME
+            shutil.rmtree(target / "agents-pipeline-profiles", ignore_errors=True)
+            run(
+                [
+                    sys.executable,
+                    (support_root / "scripts" / "codex-project-profile.py").as_posix(),
+                    "cache",
+                    "--global-target",
+                    target.as_posix(),
+                    "--asset-root",
+                    support_root.as_posix(),
+                    "--profile",
+                    "balanced",
+                    "--model-set",
+                    "openai",
+                ]
+            )
+            self.assertEqual(
+                json.loads(manifest_path.read_text(encoding="utf-8"))["managed_skill_sync_state"],
+                "pending",
+            )
+
+            seed_only_argv = [
+                INSTALL_SCRIPT_PATH.as_posix(),
+                "--target-dir",
+                target.as_posix(),
+                "--seed-project-profile-caches-only",
+            ]
+            with (
+                mock.patch.object(
+                    INSTALL_MODULE,
+                    "seed_builtin_project_profile_caches",
+                    side_effect=RuntimeError("cache seeding failed"),
+                ),
+                mock.patch.object(sys, "argv", seed_only_argv),
+            ):
+                self.assertEqual(INSTALL_MODULE.main(), 2)
+
+            self.assertEqual(
+                json.loads(manifest_path.read_text(encoding="utf-8"))["managed_skill_sync_state"],
+                "pending",
+            )
+            status = json.loads(
+                run(
+                    [
+                        sys.executable,
+                        AGENT_PROFILE_TOOL_PATH.as_posix(),
+                        "status",
+                        "--runtime",
+                        "codex",
+                        "--scope",
+                        "global",
+                        "--target",
+                        target.as_posix(),
+                        "--json",
+                    ]
+                ).stdout
+            )
+            self.assertEqual(status["health"], "incomplete")
+
+            with mock.patch.object(sys, "argv", seed_only_argv):
+                self.assertEqual(INSTALL_MODULE.main(), 0)
+            self.assertEqual(
+                json.loads(manifest_path.read_text(encoding="utf-8"))["managed_skill_sync_state"],
+                "ready",
+            )
 
     @unittest.skipUnless(shutil.which("bash"), "Bash is required for this smoke test")
     def test_installed_codex_support_tree_profile_manager_lists_and_clears(self) -> None:
