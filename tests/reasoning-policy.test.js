@@ -33,8 +33,23 @@ test("bundled reasoning policy loads and preserves the quality floors", () => {
   assert.equal(policy.global_floor, "medium");
   assert.equal(policy.model_floors.mini, "high");
   assert.equal(policy.allow_ultra, false);
-  assert.equal(policy.default_mode, "adaptive");
+  assert.equal(policy.default_mode, "inherit");
   assert.equal(policy.compatibility.allow_degraded_deep, false);
+});
+
+test("omitted mode defaults to inherit without requesting a selector", () => {
+  const decision = resolveReasoning({
+    role: "executor",
+    task_intent: "execute",
+    model_tier: "standard",
+    selector_available: true
+  });
+
+  assert.equal(decision.mode, "inherit");
+  assert.equal(decision.enforcement_status, "inherited");
+  assert.equal(decision.requested_effort, null);
+  assert.equal(decision.dispatch_effort, null);
+  assert.equal(decision.conflict, null);
 });
 
 test("task intents resolve through class, model capability, and effort deterministically", () => {
@@ -249,10 +264,11 @@ test("mini deliberative work starts at xhigh", () => {
 });
 
 test("unknown model tier is bounded for routine and deliberative but conflicts for deep", () => {
-  const routine = resolveReasoning({ role: "executor", task_intent: "execute" });
-  const deliberative = resolveReasoning({ role: "executor", task_intent: "diagnose" });
+  const routine = resolveReasoning({ role: "executor", mode: "adaptive", task_intent: "execute" });
+  const deliberative = resolveReasoning({ role: "executor", mode: "adaptive", task_intent: "diagnose" });
   const deep = resolveReasoning({
     role: "executor",
+    mode: "adaptive",
     task_intent: "design",
     reasoning_signals: ["cross_system"]
   });
@@ -1120,14 +1136,14 @@ test("policy validation supports only schema version 2.0", () => {
   assert.throws(() => validatePolicy(policy), /schema_version must be 2\.0/);
 });
 
-test("policy validation supports only policy version 2 with adaptive default", () => {
+test("policy validation supports only policy version 2 with inherit default", () => {
   const versionPolicy = JSON.parse(fs.readFileSync(DEFAULT_POLICY_PATH, "utf8"));
   versionPolicy.policy_version = "1";
   assert.throws(() => validatePolicy(versionPolicy), /policy_version must be supported version 2/);
 
   const modePolicy = JSON.parse(fs.readFileSync(DEFAULT_POLICY_PATH, "utf8"));
-  modePolicy.default_mode = "inherit";
-  assert.throws(() => validatePolicy(modePolicy), /default_mode must remain adaptive/);
+  modePolicy.default_mode = "adaptive";
+  assert.throws(() => validatePolicy(modePolicy), /default_mode must remain inherit/);
 });
 
 test("policy validation requires a minimum class for every signal", () => {

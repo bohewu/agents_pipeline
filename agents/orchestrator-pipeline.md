@@ -137,7 +137,7 @@ Parse `--review=max` as `review_mode = on` plus `review_reasoning_effort = max`.
 Reject `--review=off` rather than weakening the mandatory review gate. For any other
 invalid value, warn once and fall back to the mandatory inherited-effort default.
 
-If no reasoning flag is provided, set `reasoning_mode = adaptive`,
+If no reasoning flag is provided, set `reasoning_mode = inherit`,
 `reasoning_policy_version` to the installed policy version, and
 `reasoning_ceiling = max`.
 
@@ -186,7 +186,7 @@ If an invalid `--commit` value is provided:
 If an invalid `--reasoning` value is provided:
 
 - Warn the user.
-- Fall back to reasoning_mode = adaptive.
+- Fall back to reasoning_mode = inherit.
 
 If an upstream Adaptive controller supplies `preset_mode`, persist it unchanged beside
 the already-expanded effective flags. It is provenance metadata, not a Pipeline parser

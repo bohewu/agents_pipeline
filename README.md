@@ -72,13 +72,13 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.32.2"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.32.2" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -86,13 +86,13 @@ tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.32.2"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.32.2" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -100,16 +100,16 @@ tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.32.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.32.2"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.32.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.32.2" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.32.1` must release as `v0.32.1`.
+Release invariant: `VERSION=0.32.2` must release as `v0.32.2`.
 
 <!-- END current-release -->
 
@@ -261,7 +261,7 @@ Common controls include:
 - `--preset=balanced|autonomous|careful|delivery|interactive`: Adaptive run policy; presets do not select the route.
 - `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
 - `--resume`: resume from a compatible checkpoint.
-- `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Policy v2 defaults to `adaptive`. `inherit` retains classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes requested effort without applying it; strict assurance conflicts, while an ordinary shadowed review-max request remains unenforced until runtime evidence exists and conflicts if that evidence mismatches. `adaptive` requests the selector and verifies local Codex child traces before claiming the effective-effort contract was enforced. A matching child effort may still be observationally indistinguishable from parent inheritance when both values are equal; the helper reports that as `selector_evidence=matches_parent`, not selector causality. A non-strict, non-exact unavailable selector may be `degraded`; strict/exact requests conflict. Observed effort above the workspace ceiling conflicts in every mode; adaptive effort below dispatch also conflicts, while within-ceiling overprovisioning is explicitly degraded. See the central policy for capability rows and the deliberate deep compatibility exception.
+- `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Policy v2 defaults to `inherit`; use explicit `--reasoning=adaptive` to request selector enforcement. `inherit` retains classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes requested effort without applying it; strict assurance conflicts, while an ordinary shadowed review-max request remains unenforced until runtime evidence exists and conflicts if that evidence mismatches. `adaptive` requests the selector and verifies local Codex child traces before claiming the effective-effort contract was enforced. A matching child effort may still be observationally indistinguishable from parent inheritance when both values are equal; the helper reports that as `selector_evidence=matches_parent`, not selector causality. A non-strict, non-exact unavailable selector may be `degraded`; strict/exact requests conflict. Observed effort above the workspace ceiling conflicts in every mode; adaptive effort below dispatch also conflicts, while within-ceiling overprovisioning is explicitly degraded. See the central policy for capability rows and the deliberate deep compatibility exception.
 - `--review=off|on|max`: reviewer policy for Adaptive and the supported engineering workflows. `on` uses the run reasoning policy, while `max` is an exact reviewer-only effort override for every bounded review and re-review. Any runtime or observed fallback away from the resulting exact request conflicts. It keeps ordinary review deep; it does not certify the work, change the profile-selected reviewer model, or affect executors, test runners, or the main orchestrator. Simple uses a bounded ad-hoc gate, Flow uses its optional gate, and Pipeline is mandatory and rejects `off`.
 - `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
 - `--confirm` / `--verbose`: add stage/task pauses.

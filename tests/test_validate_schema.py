@@ -701,7 +701,7 @@ class ValidateSchemaFormatTest(unittest.TestCase):
         weakened.append(("policy version", policy_version_policy))
 
         default_mode_policy = json.loads(json.dumps(base_policy))
-        default_mode_policy["default_mode"] = "inherit"
+        default_mode_policy["default_mode"] = "adaptive"
         weakened.append(("default mode", default_mode_policy))
 
         inverted_role_policy = json.loads(json.dumps(base_policy))

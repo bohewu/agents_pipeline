@@ -298,7 +298,7 @@ function validatePolicy(policy) {
     policy.policy_version === "2" && SAFE_POLICY_VERSION.test(policy.policy_version),
     "policy_version must be supported version 2"
   );
-  assert(policy.default_mode === "adaptive", "default_mode must remain adaptive for policy version 2");
+  assert(policy.default_mode === "inherit", "default_mode must remain inherit for policy version 2");
   assert(JSON.stringify(policy.task_intents) === JSON.stringify(TASK_INTENTS), "task_intents must use the canonical order");
   assert(isObject(policy.intent_baseline_classes), "intent_baseline_classes must be an object");
   assert(

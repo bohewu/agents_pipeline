@@ -122,7 +122,7 @@ If no review flag is provided:
 
 If no reasoning flag is provided:
 
-- reasoning_mode = adaptive.
+- reasoning_mode = inherit.
 - reasoning_policy_version = the installed `protocols/reasoning-policy.json` policy version.
 - reasoning_ceiling = max.
 
@@ -185,7 +185,7 @@ If an invalid `--review` value is provided:
 If an invalid `--reasoning` value is provided:
 
 - Warn the user.
-- Fall back to reasoning_mode = adaptive.
+- Fall back to reasoning_mode = inherit.
 
 ## FLOW FLAGS (QUICK REFERENCE)
 

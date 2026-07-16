@@ -218,7 +218,8 @@ Simple, Flow, Pipeline, and Adaptive use:
 --reasoning=inherit|shadow|adaptive
 ```
 
-Policy v2 defaults to `adaptive`.
+Policy v2 defaults to `inherit`; callers must opt in explicitly to `adaptive`
+selector enforcement.
 
 | Mode | Resolution and selector behavior |
 |---|---|

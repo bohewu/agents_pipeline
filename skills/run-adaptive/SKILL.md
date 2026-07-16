@@ -60,10 +60,10 @@ omitted. Track whether the value was explicit so prompt-only output does not nee
 repeat the default; the Simple handoff wrapper still passes the effective value as
 `output_root`.
 
-The effective `reasoning_mode` defaults to `adaptive`. It is route-independent and
+The effective `reasoning_mode` defaults to `inherit`. It is route-independent and
 does not influence Simple/Flow/Pipeline selection. Invalid values warn once and fall
-back to `adaptive`; `inherit` is the explicit rollback mode and `shadow` is the
-diagnostic no-enforcement mode. `inherit` preserves classification metadata but
+back to `inherit`; `adaptive` is the explicit selector-enforcement mode and `shadow` is
+the diagnostic no-enforcement mode. `inherit` preserves classification metadata but
 never applies a selector, so exact overrides and strict assurance conflict.
 `shadow` computes requested effort without applying it; strict assurance
 conflicts, while an ordinary shadowed review-max request remains unenforced.

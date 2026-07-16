@@ -28,7 +28,7 @@
       "enum": ["1", "2"]
     },
     "default_mode": {
-      "const": "adaptive"
+      "enum": ["inherit", "adaptive"]
     },
     "task_intents": {
       "const": [
@@ -273,6 +273,7 @@
       "then": {
         "properties": {
           "policy_version": { "const": "1" },
+          "default_mode": { "const": "adaptive" },
           "dispatch_contexts": {
             "properties": {
               "formal-assurance": { "$ref": "#/$defs/v1FormalAssurance" }
@@ -294,6 +295,7 @@
         ],
         "properties": {
           "policy_version": { "const": "2" },
+          "default_mode": { "const": "inherit" },
           "signal_minimum_classes": {
             "$ref": "#/$defs/v2SignalMinimumClasses"
           },

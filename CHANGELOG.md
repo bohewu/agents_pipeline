@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.32.2] - 2026-07-16
+
+### Changed
+
+- Changed fresh Adaptive, Simple, Flow, and Pipeline runs to default to `--reasoning=inherit`; selector-enforced effort remains available through explicit `--reasoning=adaptive`, while persisted resume modes remain unchanged.
+
 ## [0.32.1] - 2026-07-16
 
 ### Fixed

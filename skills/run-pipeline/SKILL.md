@@ -5,7 +5,7 @@ description: Adopt and execute the installed agents_pipeline full-pipeline workf
 
 # Run Pipeline
 
-Use the installed `orchestrator-pipeline` definition as the authoritative workflow. Keep actual role-model/tier selection in the effective Codex runtime/profile configuration and use policy v2's shared resolver for child-spawn effort only. Policy v2 defaults to `--reasoning=adaptive`; `inherit` preserves classification without a selector, while `shadow` computes without applying. `--review=max` remains an exact deep reviewer-only effort override, not certification or model routing.
+Use the installed `orchestrator-pipeline` definition as the authoritative workflow. Keep actual role-model/tier selection in the effective Codex runtime/profile configuration and use policy v2's shared resolver for child-spawn effort only. Policy v2 defaults to `--reasoning=inherit`; `adaptive` is the explicit selector-enforcement mode, while `shadow` computes without applying. `--review=max` remains an exact deep reviewer-only effort override, not certification or model routing.
 
 ## Resolve the definition
 

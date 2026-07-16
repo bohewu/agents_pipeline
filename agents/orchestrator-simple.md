@@ -33,7 +33,7 @@ Supported flags:
 
 - `--max-parallel=<n>` -> maximum concurrent subagent dispatches. Default: 3. Minimum: 1. Maximum: 8.
 - `--review=off|on|max` -> direct Simple review policy. `max` enables review and requests maximum reasoning for each reviewer dispatch.
-- `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy. Default: `adaptive`.
+- `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy. Default: `inherit`.
 - `--confirm` -> ask before dispatching the first batch.
 - `--verbose` -> provide brief batch-level progress; implies `--confirm`.
 
@@ -47,8 +47,8 @@ If the value is invalid, warn once and fall back to the default.
 Here `review_reasoning_effort = inherit` means "no exact reviewer-only override";
 the run-level `reasoning_mode` still applies.
 
-If no reasoning flag is provided, set `reasoning_mode = adaptive`. If the value is
-invalid, warn once and fall back to `adaptive`.
+If no reasoning flag is provided, set `reasoning_mode = inherit`. If the value is
+invalid, warn once and fall back to `inherit`.
 
 # ADAPTIVE POLICY WRAPPER
 

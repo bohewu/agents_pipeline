@@ -82,7 +82,7 @@
         "reasoning_mode": {
           "type": "string",
           "enum": ["inherit", "shadow", "adaptive"],
-          "default": "adaptive"
+          "default": "inherit"
         },
         "reasoning_policy_version": {
           "type": "string",
