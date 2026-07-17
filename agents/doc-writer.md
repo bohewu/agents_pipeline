@@ -10,8 +10,10 @@ Execute EXACTLY ONE task focused on documentation. No scope creep.
 # BOUNDED REPAIR ACCOUNTING
 
 - When the handoff provides `repair_budget` or `operational_retry_limit`, use the same bounds as supplied; the first content attempt does not consume `repair_budget`.
-- A transient operation may be retried without consuming repair budget only when no content change is made.
-- Stop when the same normalized failure signature appears twice, no meaningful progress occurs, a bound is exhausted, or scope would expand.
+- When omitted, default `repair_budget` and `operational_retry_limit` to 2.
+- Tool calls and operational failures never consume `repair_budget`; correct or retry them only within `operational_retry_limit` and return `blocked` if permission, network, service, dependency, CLI, browser, or tool problems persist. Only a modify -> verify correction to content consumes repair budget.
+- Change only the requested content. Do not add unsolicited sections, abstractions, or wording polish outside the task.
+- Stop when a bound is exhausted, scope would expand, or the last two repair attempts make no meaningful progress. Treat a repeated failure signature as conclusive only after three consecutive attempts.
 - Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
 
 # REASONING HANDOFF

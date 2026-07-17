@@ -139,14 +139,20 @@ Schema: `./protocols/schemas/test-report.schema.json`
 ### Risk-Derived Execution Rigor
 
 - Pipeline TaskList entries explicitly provide `risk`, `complexity`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, and `reasoning_signals`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides resource and batch reasoning metadata. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
-- FlowTaskList entries explicitly provide `risk`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional in-task modify-and-verify cycles after the first attempt, while transient operational retries and the single Flow-level recovery are separate bounds.
+- FlowTaskList entries explicitly provide `risk`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional implementation/content modify-and-verify cycles after the first attempt, while operational retries and the single Flow-level recovery are separate bounds. Tool calls, CLI mistakes, permission failures, network failures, unavailable services/dependencies, browser startup failures, and tool failures never consume repair budget.
 - Model and provider selection are profile/runtime-owned. The profile selects the actual role model/tier; `./protocols/REASONING_POLICY.md` validates that selected capability and selects only per-spawn child effort. It never routes a raw/dynamic model or changes current/main-agent effort, and remains independent from workflow risk, verification, retry, and resource controls.
-- Pipeline low-risk/S tasks normally use basic verification and no repair pass; medium-risk/M and high-risk/L tasks use one bounded repair pass, with strong verification for high-risk/L work.
+- Pipeline low-risk/S tasks use basic verification and one bounded repair pass; medium-risk/M and high-risk/L tasks use two bounded repair passes, with strong verification for high-risk/L work.
 - Flow low-risk tasks may use `verification = none` for bounded non-executable outputs, while localized implementation tasks normally receive two bounded in-task correction cycles.
 - Flow medium-risk tasks use at least basic verification and one or two bounded in-task correction cycles; Flow review becomes required when they cross an integration or user-critical boundary.
 - Flow high-risk tasks use strong verification, one or two bounded in-task correction cycles, and required review; Pipeline review remains global.
 - Resource class reflects actual process/browser/server lifecycle needs and must not be inferred from risk alone.
 - Retry-round precedence is deterministic: explicit `--max-retry` wins; `--full-auto` defaults to 5; otherwise derive 1/2/3 rounds from the highest TaskList risk (`low`/`medium`/`high`), using 2 provisionally before TaskList risk is available.
+
+### Review and User-Facing Output
+
+- Reviewer failures require an evidence-backed, practically relevant P0-P2 defect or a direct violation of an explicit requirement. P3 suggestions, wording preferences, optional hardening, and optional refactors do not create repair work or retries.
+- Review stops after the scoped requirements and required verification are satisfied; it does not continue searching for optional polish.
+- Final summaries match the user's language, lead with the practical result, and translate internal agent/protocol fields into ordinary engineering language unless protocol details were requested.
 
 ### Adaptive Reasoning
 

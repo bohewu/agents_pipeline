@@ -259,7 +259,7 @@ When `prompt_mode = off`:
 1. Read the selected installed TOML definition.
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
-4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent, pass a model override, or dynamically route/upgrade/downgrade a model.
+4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent, pass a model override, or dynamically route/upgrade/downgrade a model. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
 
 For `route_mode = auto`, materially underestimated work may promote once from Simple to
 Flow and once from Flow to Pipeline. Finish the current workflow honestly, retain

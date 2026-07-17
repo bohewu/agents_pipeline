@@ -60,7 +60,7 @@ upstream policy merely because Simple does not expose those flags directly.
 - Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
 - Adaptive preserves its normalized `reasoning_mode` for every wrapper and Simple-core child spawn.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
-- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
+- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair for an evidence-backed blocking P0-P2 finding through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
 - An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
@@ -125,7 +125,7 @@ indeterminate between a same-value selector and inheritance.
 When Simple is invoked directly with `review_mode = on`, run one ad-hoc reviewer after
 the implementation and available verification complete. Include the changed targets,
 scoped requirements, and evidence. On failure, dispatch at most one narrow same-scope
-repair through the original worker or an existing executor, then run one re-review. A
+repair for an evidence-backed blocking P0-P2 finding through the original worker or an existing executor, then run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. A
 second failure stops; do not create a broader retry loop.
 
 Resolve the initial review and re-review independently under the reasoning dispatch
@@ -150,3 +150,5 @@ Return a concise final summary:
 - `Done`: completed changes or deliverables
 - `Verified`: checks/tests/reviews run, or why skipped
 - `Notes`: blockers, assumptions, or recommended follow-up
+
+Match the user's language, lead with the practical result, and translate internal agent/protocol terms into ordinary engineering language unless the user asks for protocol details.

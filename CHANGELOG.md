@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.32.3] - 2026-07-17
+
+### Changed
+
+- Limited reviewer failures and repair routing to evidence-backed P0-P2 defects or explicit requirement violations; optional polish and wording preferences no longer trigger retries.
+- Increased Pipeline task-local repair budgets from `0/1/1` to `1/2/2`, stopped only after two no-progress repairs or a true bound, and made tool/CLI/environment failures use separate operational retries without consuming repair budget.
+- Required Adaptive, Simple, Flow, Pipeline, and summarizer output to translate internal agent/protocol terms into concise language matching the user.
+
 ## [0.32.2] - 2026-07-16
 
 ### Changed

@@ -404,12 +404,13 @@ Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + resource
 Stage 5: Execute batches + optional validation:
 
 - If `test_only = false`, dispatch tasks to @executor / @peon / @generalist / @doc-writer as specified
-- For `@executor` tasks, include an explicit bounded execution profile in the handoff. Derive verification and repair rigor from task `risk` / `complexity`, while the independent reasoning policy uses `reasoning_class` / `reasoning_signals`:
-  - low risk + S complexity -> `verification = basic`, `repair_budget = 0`
-  - medium risk or M complexity -> `verification = basic`, `repair_budget = 1`
-  - high risk or L complexity -> `verification = strong`, `repair_budget = 1`
+- For every task-worker handoff (`@executor`, `@peon`, `@generalist`, or `@doc-writer`), include an explicit bounded execution profile. Derive verification and repair rigor from task `risk` / `complexity`, while the independent reasoning policy uses `reasoning_class` / `reasoning_signals`:
+  - low risk + S complexity -> `verification = basic`, `repair_budget = 1`
+  - medium risk or M complexity -> `verification = basic`, `repair_budget = 2`
+  - high risk or L complexity -> `verification = strong`, `repair_budget = 2`
   - derive `resource_class` from the actual commands/tools and lifecycle needs (`light | process | server | browser`), not from risk alone
   - include task intent/baseline/source metadata, legacy class/signals, and the resolved per-attempt ReasoningDecision; the executor must not reinterpret risk as effort
+  - tool calls and operational failures never consume `repair_budget`; they use a separate bounded operational retry and become blockers when permission, network, service, dependency, CLI, browser, or tool problems persist
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
@@ -421,8 +422,8 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
-Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, and optional improvements never enter `required_followups`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
+Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. Retry only blocking P0-P2 followups. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
 - Treat the run as trivial only when all of these are true:
@@ -454,7 +455,7 @@ Stage 9: Orchestrator-owned summary (no subagent). Use this template:
 ## Next Steps
 - Up to 2 actionable items
 
-Rules: max 2 bullets per section, no JSON dumps, no stage narration.
+Rules: max 2 bullets per section, no JSON dumps, no stage narration. Match the user's language, lead with the practical result, and translate internal agent/protocol terms into ordinary engineering language unless the user asks for protocol details.
 
 Before returning the Stage 9 final summary:
 
@@ -518,6 +519,7 @@ If `decision_only = true`:
   - `[artifact]`: prefer narrow repair of output formatting, filenames, missing artifact blocks, or other contract-shape gaps in the already-assigned task output.
   - `[evidence]`: prefer narrow repair of missing verification, cleanup proof, or unsupported claims by re-running the smallest task or validation step that can produce the missing evidence.
   - `[logic]`: treat as substantive implementation/content gaps; use the normal delta-task retry path.
+  - P3 suggestions, wording preferences, and optional improvements never create delta tasks or consume a retry round.
   - If prefixes are mixed, only skip the broad Stage 4-6 retry when every followup is `[artifact]` or `[evidence]` and the repair can stay within the existing task boundaries. Otherwise use the normal delta-task retry path.
 - If `test_only = true`, skip Stage 7 retries and summarize the reviewer result directly.
 - On review fail (and retries remaining):

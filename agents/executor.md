@@ -10,12 +10,13 @@ Execute EXACTLY ONE task. No scope creep.
 # EXECUTION PROFILE
 
 - Respect handoff controls such as `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class` when they are provided.
-- If they are omitted, use the smallest sufficient path that still satisfies the Definition of Done.
+- If omitted, default `repair_budget` and `operational_retry_limit` to 2, then use the smallest sufficient path that satisfies the Definition of Done.
+- Make only the changes needed for the assigned task. Do not add unsolicited refactors, abstractions, hardening, or wording polish; once the Definition of Done and required verification pass, stop.
 - The first implementation/content attempt does not consume `repair_budget`. Each later modify -> verify cycle after a concrete verification failure consumes one unit.
 - `repair_budget` only allows bounded in-task repair of the SAME task (for example test -> fix -> rerun). It does NOT allow new tasks, scope expansion, or orchestrator-level re-dispatch.
-- A transient operational failure may be retried at most twice without consuming `repair_budget` only when no implementation/content change is made. Examples include a mistyped command, a not-yet-ready local service, or a clearly transient tool/network failure.
-- Do not classify deterministic test, lint, type, build, logic, configuration, permission, or dependency failures as transient merely to avoid the repair budget.
-- Stop local iteration and return `blocked` or `partial` when the same normalized failure signature appears twice, the latest attempt produces no meaningful progress, the repair budget is exhausted, or the required fix expands scope.
+- Tool calls and operational failures never consume `repair_budget`. Correct a command or tool invocation, wait for a local service, or try an equivalent tool within the separate operational retry limit without changing implementation/content. Permission, network, unavailable dependency/service, browser startup, CLI syntax, and tool failures are operational; if they cannot be resolved within that bound, return `blocked` instead of spending repair budget.
+- Deterministic test, lint, type, build, logic, or checked-in configuration failures caused by the implementation are not operational. A modify -> verify correction for those failures consumes `repair_budget`.
+- Stop local iteration and return `blocked` or `partial` when the repair budget is exhausted, the required fix expands scope, or the last two repair attempts make no meaningful progress. Treat a repeated failure signature as conclusive only after it appears across three consecutive attempts; do not stop merely because the first repair still exposes the same failure.
 - The handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, and ReasoningDecision are authoritative for this attempt. Do not reclassify the work, choose a raw/dynamic model, or reinterpret risk, verification, repair budget, or resource class as model/effort controls. The profile/runtime selected the actual role model/tier; the caller's resolver selected child effort only.
 - When an attempt fails, state in `notes` whether the cause is a concrete reasoning failure or an operational failure type. Do not self-escalate: the orchestrator may set `prior_failure_type = reasoning_failure` only for a logic, diagnosis, invariant, or review failure; operational failures do not raise effort.
 

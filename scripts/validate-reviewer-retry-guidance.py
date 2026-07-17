@@ -19,12 +19,17 @@ CHECKS = {
         "[logic][P1] src/auth.ts:84",
         "`overall_status = fail` requires at least one issue and at least one actionable required followup",
         "For review failures caused only by artifact/evidence gaps",
+        "currently reachable wrong behavior or practical risk",
+        "Omit P3 findings unless",
+        "Never turn a warning, wording preference",
     ],
     Path("agents/orchestrator-pipeline.md"): [
         "reviewer MUST prefix every issue/followup string",
         "If every `required_followups` entry is `[artifact]` and/or `[evidence]`",
         "If any `required_followups` entry is `[logic]`",
         "Retry classification rules:",
+        "Only evidence-backed blocking P0-P2 findings may fail the run",
+        "P3 suggestions, wording preferences, and optional improvements never create delta tasks",
     ],
 }
 

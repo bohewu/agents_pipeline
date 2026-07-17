@@ -226,7 +226,8 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("`flow_recovery_limit = 1`", flow)
         self.assertIn("one total recovery across the run", flow)
         self.assertIn("first implementation/content attempt does not consume", executor)
-        self.assertIn("same normalized failure signature appears twice", executor)
+        self.assertIn("three consecutive attempts", executor)
+        self.assertIn("Tool calls and operational failures never consume", executor)
         self.assertIn("localized low-risk bug fixes", splitter)
         repair = schema["properties"]["tasks"]["items"]["properties"]["repair_budget"]
         self.assertEqual(repair["minimum"], 0)
@@ -239,6 +240,36 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
                 self.assertIn('"operational_retries_used": 0', worker)
                 self.assertIn('"repair_attempts_used": 0', worker)
                 self.assertIn('"last_failure_signature": ""', worker)
+                self.assertIn("default `repair_budget` and `operational_retry_limit` to 2", worker)
+                self.assertIn("three consecutive attempts", worker)
+                self.assertIn("Tool calls and operational failures never consume", worker)
+
+    def test_review_and_repair_policy_stays_bounded(self) -> None:
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        reviewer = REVIEWER.read_text(encoding="utf-8")
+        summarizer = (REPO_ROOT / "agents" / "summarizer.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("currently reachable wrong behavior or practical risk", reviewer)
+        self.assertIn("For prose, documentation, labels, or copy", reviewer)
+        self.assertIn("Omit P3 findings unless", reviewer)
+        self.assertIn("Never turn a warning, wording preference", reviewer)
+        self.assertIn("`repair_budget = 1`", pipeline)
+        self.assertIn("`repair_budget = 2`", pipeline)
+        self.assertNotIn("`repair_budget = 0`", pipeline)
+        self.assertIn(
+            "For every task-worker handoff (`@executor`, `@peon`, `@generalist`, or `@doc-writer`)",
+            pipeline,
+        )
+        self.assertIn("tool calls and operational failures never consume", pipeline)
+        for workflow in (simple, flow, pipeline):
+            self.assertIn("P3 suggestions, wording preferences", workflow)
+            self.assertIn("translate internal agent/protocol terms", workflow)
+        self.assertIn("Match the user's language", summarizer)
+        self.assertIn("Do not expose raw prefixes or fields", summarizer)
 
     def test_review_max_is_reviewer_only_and_resume_safe(self) -> None:
         adaptive = SKILL.read_text(encoding="utf-8")

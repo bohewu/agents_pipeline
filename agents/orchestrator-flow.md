@@ -346,7 +346,7 @@ Stage 2 — Flow Task Split (@flow-splitter)
   - `repair_budget`
   - `resource_class`
   - `definition_of_done`
-- Treat `repair_budget` only as additional modify -> verify cycles after the first implementation/content attempt. It does not include transient operational retries or Flow-level recovery re-dispatch.
+- `repair_budget` counts only modify -> verify cycles after implementation/content changes. Tool/CLI/environment failures use separate operational retries and never consume it.
 - If `review_mode = auto`, resolve it after task splitting: set `review_mode = on` when any task has `review_required = true`; otherwise set it to `off`.
 - Persist the resolved `review_mode` in the Stage 2 `stage.completed.flags` payload before any later stage can be skipped on resume.
 - No DAGs. No hidden dependencies. Keep tasks execution-ready.
@@ -357,9 +357,9 @@ Stage 3 — Dispatch & Execution
   - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
   - sequential_tasks (if ordering is required or the task is resource-heavy)
 - Default behavior is one orchestrator dispatch per task. Work inside that dispatch may use the separate operational and local-repair bounds below.
-- An executor may retry a clearly transient operation at most `operational_retry_limit` times without consuming `repair_budget`, but only when it makes no implementation/content change. Deterministic test, lint, type, build, logic, configuration, permission, and dependency failures are not transient.
+- Tool/CLI/environment failures may retry up to `operational_retry_limit` without implementation/content changes or repair-budget use; if they persist, report a blocker. Deterministic verification failures caused by the implementation use a repair cycle.
 - A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done. The first implementation/content attempt is free; each later modify -> verify cycle consumes one unit.
-- Stop local iteration when the same normalized failure signature appears twice, an attempt produces no meaningful progress, the task budget is exhausted, or the fix would expand scope. Require the executor to report operational retries used, repair attempts used, and the last failure signature.
+- Stop when the budget is exhausted, scope expands, or two repair attempts make no progress. A repeated signature is conclusive only after three attempts. Report retry/repair counters and the last signature.
 - If an executor returns `blocked` for a non-hard blocker after local handling, Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and concrete evidence supports a changed handoff or strategy within the original scope. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
 - The Flow-level recovery is one total recovery across the run, not one recovery per task. Do not spend it on an identical retry, a transient operation, or a localized repair that belongs inside the executor task.
 - Flow still MUST NOT generate new user-visible tasks, delta tasks, or multi-round reviewer loops.
@@ -437,6 +437,7 @@ If primary_output is implementation:
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:
+  - Repair only blocking P0-P2 findings; P3 suggestions, wording preferences, and optional improvements do not trigger repair.
   - Do NOT create new Flow tasks, delta tasks, or a planner/router retry path.
   - Perform at most ONE bounded repair cycle inside the same run.
   - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures.
@@ -465,3 +466,5 @@ If neither flag is enabled, provide one final brief with:
 - Overall done/not-done status
 - Primary deliverables
 - Blockers/risks and next action
+
+Match the user's language and translate internal agent/protocol terms unless details were requested.

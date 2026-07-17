@@ -31,4 +31,6 @@ Return Markdown with exactly these four sections in this order:
 - Maximum 2 bullets per section.
 - Keep each bullet short and specific.
 - No JSON dumps, no repeated stage narration, no filler text.
+- Match the user's language and lead with the practical result.
+- Translate internal agent/protocol terms into ordinary engineering language. Do not expose raw prefixes or fields such as `[artifact]`, `[evidence]`, `[logic]`, `DoD`, `DeltaTaskList`, `dispatch_context`, `reasoning_class`, or `repair_budget` unless the user asks for protocol details.
 - Expand only when the user explicitly asks for detail.
