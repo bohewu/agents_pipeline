@@ -68,8 +68,11 @@ CHILD_RESULT_SELECTION_LABEL_LINE = (
     "line with role, model, and effort. Use `model=<name> (verified)` only when a "
     "bounded expected model matches the local trace; otherwise label the configured "
     "model as unverified or use `unknown`. Use `(effective)` only for observed effort; "
-    "otherwise label it requested or inherited/unverified. Do not make the child "
-    "self-report this metadata or combine model and effort into one opaque value."
+    "otherwise label it requested or inherited/unverified. Emit one line per child "
+    "dispatch, even when a role is dispatched more than once; never slash-join effort "
+    "values such as `max/high`. If one child has different requested, dispatched, or "
+    "effective efforts, show separate named fields. Do not make the child self-report "
+    "this metadata or combine model and effort into one opaque value."
 )
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."

@@ -162,6 +162,11 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn(
             "Whenever a child returns user-visible output", managed_block
         )
+        self.assertIn("one line per child dispatch", managed_block)
+        self.assertIn("never slash-join effort values", managed_block)
+        self.assertIn(
+            "different requested, dispatched, or effective efforts", managed_block
+        )
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
@@ -281,6 +286,11 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         self.assertIn(
             "Whenever a child returns user-visible output", managed_block
+        )
+        self.assertIn("one line per child dispatch", managed_block)
+        self.assertIn("never slash-join effort values", managed_block)
+        self.assertIn(
+            "different requested, dispatched, or effective efforts", managed_block
         )
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,

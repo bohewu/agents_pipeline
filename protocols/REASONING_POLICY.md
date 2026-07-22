@@ -399,9 +399,18 @@ Use the registered role name. Show `(verified)` only when `model_matches = true`
 otherwise show the configured model as `(unverified)` or `model=unknown`. Show
 `(effective)` only when the trace supplied `effective_effort`; otherwise label the
 effort `(requested)` or `(inherited; unverified)` as applicable. A mismatch must be
-visible and continues to follow the workflow's acceptance rules. Do not ask the
-child to self-report runtime metadata, repeat the child body, or combine model and
-effort into one opaque label.
+visible and continues to follow the workflow's acceptance rules. Emit one selection
+line per child dispatch, including repeated dispatches of the same role. Never merge
+multiple dispatches by slash-joining effort values such as `effort=max/high`. If a
+single child has different requested, dispatched, or effective values, show separate
+named fields, for example:
+
+```text
+executor · model=gpt-5.6-sol (unverified) · requested=max · dispatch=high
+```
+
+Do not ask the child to self-report runtime metadata, repeat the child body, or
+combine model and effort into one opaque label.
 
 Terminal Flow/Pipeline attempts may write a content-free local observation at:
 

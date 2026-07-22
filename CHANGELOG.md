@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-07-23
+
+### Changed
+
+- Changed child selection summaries to preserve one line per dispatch and forbid ambiguous slash-joined effort values; differing requested, dispatched, and effective effort values now use separate named fields.
+
 ## [0.34.0] - 2026-07-22
 
 ### Added
