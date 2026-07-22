@@ -95,8 +95,9 @@ effort but omits the selector; strict assurance conflicts. Use
 `dispatch_context = ad-hoc-review` for reviewer attempts; `--review=max` passes
 `explicit_effort = max` only for that reviewer, stays deep, does not certify the
 review, and does not change the model. On local Codex, after every spawn returns
-its agent ID, run `node tools/codex-child-trace.js` with the expected role and,
-when non-null, expected `dispatch_effort`; rerun the resolver with the reported
+its identifier, run `node tools/codex-child-trace.js` with V2 `--task-name` or
+legacy `--agent-id`, the expected role and, when non-null, expected
+`dispatch_effort`; rerun the resolver with the reported
 `observed_effective_effort` before accepting the child result. A role mismatch,
 an effort below dispatch, or an effort above the workspace ceiling blocks;
 within-ceiling overprovisioning is degraded. Missing trace evidence stays

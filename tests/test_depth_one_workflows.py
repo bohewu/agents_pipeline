@@ -32,7 +32,7 @@ class DepthOneWorkflowContractTest(unittest.TestCase):
         self.assertNotIn("@orchestrator-pipeline", modernize)
         self.assertNotIn("@orchestrator-modernize", pipeline)
         self.assertIn("adopt that Pipeline definition in place", modernize)
-        self.assertIn("agents.max_depth = 1", modernize)
+        self.assertIn("exported worker roles are leaf agents", modernize)
         self.assertIn("MUST NOT spawn a second primary orchestrator", pipeline)
 
     def test_current_codex_docs_do_not_require_depth_two(self) -> None:

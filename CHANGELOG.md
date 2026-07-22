@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-07-22
+
+### Added
+
+- Enabled Codex multi-agent V2 in generated and installed config, documented the V2 child-spawn parameter mapping, and extended local trace verification to resolve parent-bound V2 task paths and distinguish explicit policy effort from a lower parent effort.
+
+### Changed
+
+- Changed fresh `$run-adaptive` execution to default to `--reasoning=adaptive`; direct Simple/Flow/Pipeline entry points, policy defaults, explicit flags, and persisted resume state retain their existing semantics.
+- Preserved boolean and object-form V2 feature settings during install, accepted enabled V2 configuration objects in global health checks, and exported subagent roles as leaf workers because Codex V2 does not enforce `agents.max_depth`.
+
 ## [0.32.3] - 2026-07-17
 
 ### Changed

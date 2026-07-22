@@ -324,9 +324,10 @@ and does not change the selected model. Conflicts block the spawn. Deep
 It never permits assurance or model routing.
 
 Include the complete decision in each `agent.started` status payload as
-`reasoning`. On local Codex, after every spawn returns its agent ID, run
-`node tools/codex-child-trace.js` with the expected role and, when non-null,
-expected `dispatch_effort`; rerun the resolver with the reported
+`reasoning`. On local Codex, after every spawn returns its identifier, run
+`node tools/codex-child-trace.js` with V2 `--task-name` or legacy `--agent-id`,
+the expected role and, when non-null, expected `dispatch_effort`; rerun the
+resolver with the reported
 `observed_effective_effort` and persist the updated decision in the next
 lifecycle event before accepting the child result. A role mismatch, effort below
 dispatch, or effort above the workspace ceiling blocks; within-ceiling

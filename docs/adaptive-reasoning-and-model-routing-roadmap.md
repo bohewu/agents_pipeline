@@ -197,6 +197,20 @@ It must not turn observations into dynamic raw-model routing. If a selected
 profile tier cannot meet a required class, the default outcome remains a
 capability conflict (or the explicit, bounded deep compatibility exception).
 
+### Possible model-tier routing experiment
+
+Production model routing remains out of scope. A future experiment is justified
+only if a fixed-workload baseline shows material cost or latency waste that
+adaptive effort alone cannot address. The first experiment must be default-off
+and shadow-only: it records a hypothetical tier choice without changing a
+dispatch.
+
+Any candidate policy must be deterministic, choose only profile-approved model
+tiers, leave raw model names and provider mapping to the workspace profile, pin
+the choice across retries, and fail closed when capability or trace evidence is
+missing. Do not proceed to an enforcing flag unless repeated runs show a
+material gain with no quality, reliability, or explainability regression.
+
 ### Evidence gates for a future policy revision
 
 Before changing a class floor or effort projection:

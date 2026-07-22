@@ -15,6 +15,7 @@ const SCHEMA_VERSION = "1.1";
 const RUNTIME = "codex";
 const EFFORTS = Object.freeze(["medium", "high", "xhigh", "max"]);
 const EFFORT_SET = new Set(EFFORTS);
+const PARENT_EFFORT_SET = new Set(["low", ...EFFORTS]);
 const SELECTOR_EVIDENCE = Object.freeze([
   "distinct_from_parent",
   "matches_parent",
@@ -25,11 +26,14 @@ const MAX_WAIT_MS = 60_000;
 const POLL_INTERVAL_MS = 50;
 const MAX_CANDIDATES = 64;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TASK_NAME_PATTERN = /^\/root(?:\/[a-z0-9_]{1,64})+$/;
 const SAFE_EXPECTED_ROLE_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const HELP_TEXT = `Usage:
-  node tools/codex-child-trace.js --agent-id <uuid> [options]
+  node tools/codex-child-trace.js (--agent-id <uuid> | --task-name <path>) [options]
 
 Options:
+  --task-name <path>           Resolve a V2 child from its returned /root/... path
+  --parent-id <uuid>           Override the V2 parent (defaults to CODEX_THREAD_ID)
   --expected-role <role>       Compare the bounded child role
   --expected-effort <effort>   Compare medium, high, xhigh, or max
   --codex-home <path>          Override CODEX_HOME
@@ -86,6 +90,13 @@ function normalizeAgentId(value) {
   return value.toLowerCase();
 }
 
+function normalizeTaskName(value) {
+  if (typeof value !== "string" || !TASK_NAME_PATTERN.test(value)) {
+    throw new ChildTraceInputError("--task-name must be a bounded /root/... agent path");
+  }
+  return value;
+}
+
 function normalizeExpectedRole(value) {
   if (typeof value !== "string" || !SAFE_EXPECTED_ROLE_PATTERN.test(value)) {
     throw new ChildTraceInputError("--expected-role must be a bounded lowercase role identifier");
@@ -122,8 +133,31 @@ function normalizeInspectionOptions(input = {}, environment = process.env) {
     throw new ChildTraceInputError("inspection options must be an object");
   }
 
+  const hasAgentId = input.agentId !== undefined;
+  const hasTaskName = input.taskName !== undefined;
+  if (hasAgentId === hasTaskName) {
+    throw new ChildTraceInputError("exactly one of --agent-id or --task-name is required");
+  }
+  if (!hasTaskName && input.parentId !== undefined) {
+    throw new ChildTraceInputError("--parent-id is valid only with --task-name");
+  }
+
+  const environmentParentId = isUuid(environment.CODEX_THREAD_ID)
+    ? environment.CODEX_THREAD_ID
+    : undefined;
+  const parentId = input.parentId === undefined
+    ? environmentParentId
+    : input.parentId;
+  if (hasTaskName && parentId === undefined) {
+    throw new ChildTraceInputError(
+      "--task-name requires CODEX_THREAD_ID or an explicit --parent-id"
+    );
+  }
+
   const options = {
-    agentId: normalizeAgentId(input.agentId),
+    agentId: hasAgentId ? normalizeAgentId(input.agentId) : undefined,
+    taskName: hasTaskName ? normalizeTaskName(input.taskName) : undefined,
+    parentId: hasTaskName ? normalizeAgentId(parentId) : undefined,
     codexHome: normalizeCodexHome(input.codexHome, environment),
     expectedRole: undefined,
     expectedEffort: undefined,
@@ -157,6 +191,8 @@ function parseArgs(argv, environment = process.env) {
   }
   const raw = {
     agentId: undefined,
+    taskName: undefined,
+    parentId: undefined,
     codexHome: undefined,
     expectedEffort: undefined,
     expectedRole: undefined,
@@ -174,6 +210,16 @@ function parseArgs(argv, environment = process.env) {
     switch (token) {
       case "--agent-id":
         raw.agentId = requireValue(argv, index, token);
+        seen.add(token);
+        index += 1;
+        break;
+      case "--task-name":
+        raw.taskName = requireValue(argv, index, token);
+        seen.add(token);
+        index += 1;
+        break;
+      case "--parent-id":
+        raw.parentId = requireValue(argv, index, token);
         seen.add(token);
         index += 1;
         break;
@@ -216,6 +262,10 @@ function isObject(value) {
 
 function sanitizeEffort(value) {
   return EFFORT_SET.has(value) ? value : null;
+}
+
+function sanitizeParentEffort(value) {
+  return PARENT_EFFORT_SET.has(value) ? value : null;
 }
 
 async function lstatSafe(filePath) {
@@ -298,6 +348,49 @@ async function collectCandidates(codexHome, agentId) {
       }
 
       if (await isPlainResolvedPath(entryPath, "file")) {
+        candidates.push(entryPath);
+      }
+    }
+  }
+
+  await visit(path.join(codexHome, "sessions"));
+  await visit(path.join(codexHome, "archived_sessions"));
+  return candidates;
+}
+
+async function collectRecentCandidates(codexHome) {
+  if (!await isPlainResolvedPath(codexHome, "directory")) {
+    return [];
+  }
+
+  const candidates = [];
+  async function visit(directory) {
+    if (candidates.length >= MAX_CANDIDATES) {
+      return;
+    }
+    if (!await isPlainResolvedPath(directory, "directory")) {
+      return;
+    }
+
+    let entries;
+    try {
+      entries = await fs.readdir(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    entries.sort((left, right) => right.name.localeCompare(left.name));
+    for (const entry of entries) {
+      if (candidates.length >= MAX_CANDIDATES || entry.isSymbolicLink()) {
+        continue;
+      }
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(entryPath);
+      } else if (
+        entry.isFile()
+        && entry.name.endsWith(".jsonl")
+        && await isPlainResolvedPath(entryPath, "file")
+      ) {
         candidates.push(entryPath);
       }
     }
@@ -493,7 +586,7 @@ async function readParentEffortFile(filePath, parentId, childTimestamp) {
         continue;
       }
       selectedTimestamp = record.timestamp;
-      selectedEffort = sanitizeEffort(record.payload.effort);
+      selectedEffort = sanitizeParentEffort(record.payload.effort);
     }
   } catch {
     return null;
@@ -513,14 +606,20 @@ async function readParentEffortFile(filePath, parentId, childTimestamp) {
 }
 
 async function findTrace(options) {
-  const candidates = await collectCandidates(options.codexHome, options.agentId);
+  const candidates = options.agentId === undefined
+    ? await collectRecentCandidates(options.codexHome)
+    : await collectCandidates(options.codexHome, options.agentId);
   for (const candidate of candidates) {
     const trace = await readTraceFile(candidate);
-    if (
-      trace
-      && isUuid(trace.sessionMeta.id)
-      && trace.sessionMeta.id.toLowerCase() === options.agentId
-    ) {
+    if (!trace || !isUuid(trace.sessionMeta.id)) {
+      continue;
+    }
+    const idMatches = options.agentId !== undefined
+      && trace.sessionMeta.id.toLowerCase() === options.agentId;
+    const taskMatches = options.taskName !== undefined
+      && trace.sessionMeta.source?.subagent?.thread_spawn?.agent_path === options.taskName
+      && parentThreadIdFromSessionMeta(trace.sessionMeta) === options.parentId;
+    if (idMatches || taskMatches) {
       return trace;
     }
   }
@@ -566,7 +665,7 @@ function sleep(milliseconds) {
 }
 
 async function resultFromTrace(options, trace) {
-  const result = createResult(options.agentId);
+  const result = createResult(trace.sessionMeta.id.toLowerCase());
   const agentRole = trace.sessionMeta.agent_role;
   const effectiveEffort = sanitizeEffort(trace.turnContext.effort);
 
@@ -619,7 +718,7 @@ async function inspectChildTrace(input = {}, environment = process.env) {
     await sleep(Math.min(POLL_INTERVAL_MS, remainingMs));
   } while (Date.now() <= deadline);
 
-  return createResult(options.agentId);
+  return createResult(options.agentId || null);
 }
 
 function formatResult(result, compact) {

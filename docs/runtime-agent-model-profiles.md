@@ -120,7 +120,7 @@ Codex applies `.codex/config.toml` only for a trusted project. The profile manag
 - `clear` never removes global agents or support assets.
 - Workspace `set`, `status`, and `clear` never change the model-free global role files.
 
-Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Supported Codex skills keep primary workflow control in the current/main agent and dispatch only direct worker roles, so `agents.max_depth = 1` is sufficient.
+Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Codex 0.145.0 uses `agents.max_threads` as the V2 concurrency fallback and ignores `agents.max_depth` on V2. Supported Codex skills keep primary workflow control in the current/main agent, and generated subagent roles are leaf workers.
 
 ### Profile-aware workflow skills
 
@@ -170,7 +170,7 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
-Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently, defaulting supported engineering workflows to inherit mode. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. The resolver never uses it to route a raw/dynamic model, upgrade/downgrade a model, or change the current/main agent. Global inheritance, uniform raw-model profiles, and unprovable mappings use logical tier `unknown` rather than guessing from a model slug. Local Codex workflows verify actual child effort from bounded trace metadata when explicit adaptive mode requests selector enforcement, because a profile/model match does not prove that a per-spawn effort request was honored.
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. The resolver never uses it to route a raw/dynamic model, upgrade/downgrade a model, or change the current/main agent. Global inheritance, uniform raw-model profiles, and unprovable mappings use logical tier `unknown` rather than guessing from a model slug. Local Codex workflows verify actual child effort from bounded trace metadata when adaptive mode requests selector enforcement, because a profile/model match does not prove that a per-spawn effort request was honored.
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|

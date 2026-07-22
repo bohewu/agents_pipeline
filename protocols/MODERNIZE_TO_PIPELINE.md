@@ -15,7 +15,7 @@ If you also pass `--autopilot`, the orchestrator should run non-interactively an
 
 If you pass `--full-auto`, it should also imply `--autopilot`, disable interactive pauses, prefer deep planning output, forward stronger Pipeline execution defaults where applicable, and attempt the strongest safe bounded in-scope non-hard-blocker recovery before surfacing a stop condition.
 
-For same-session execution, the current/main agent reads and adopts the installed `orchestrator-pipeline` definition in place for each phase, then dispatches Pipeline worker roles directly. It must not spawn another primary orchestrator. This keeps the Codex workflow compatible with `agents.max_depth = 1`.
+For same-session execution, the current/main agent reads and adopts the installed `orchestrator-pipeline` definition in place for each phase, then dispatches Pipeline worker roles directly. It must not spawn another primary orchestrator, and exported worker roles remain leaf agents.
 
 Immediate execution works only when the current/main agent and its tools can honor the target repo as `working_project_dir`. If they cannot, fall back to the later manual path instead of letting implementation continue from the source-project worktree.
 

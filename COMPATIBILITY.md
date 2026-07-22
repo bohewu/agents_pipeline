@@ -40,7 +40,8 @@ Full cross-platform changes should exercise both shell families. Linux-only vali
 
 ## Codex requirements
 
-- A current Codex installation and valid local login
+- Codex CLI 0.145.0 or newer for the managed multi-agent V2 feature flag and per-spawn reasoning selector
+- A valid local login
 - A writable global Codex home, normally `~/.codex`
 - Support for the generated role configuration used by this repository
 - Node.js 18+ when status/checkpoint-capable modes invoke the installed neutral writer
@@ -73,7 +74,7 @@ Manifest-backed `$run-*` skills adopt the globally installed workflow definition
 
 Global Codex status uses `~/.codex/.agents-pipeline-codex-manifest.json`; global `clear` is available to regenerate model-free roles and remove legacy global profile state. Neither command selects a Codex model profile. Claude Code and Copilot use the runtime-tagged common manifest in their global agent target and retain global profile selection. Status rejects unsafe managed paths and reports missing generated output. Neither profile setup nor status reads OpenCode settings. `install` remains only a deprecated compatibility alias for `set` where `set` is supported.
 
-Codex exporters omit `agents.max_threads` and `agents.max_depth`, and the global installer preserves user-managed values instead of supplying machine-wide defaults. Codex project profiles inherit the effective global values. Formal skills keep primary workflow control in the current/main agent and spawn only direct worker roles, so `agents.max_depth = 1` is sufficient for supported Codex workflows.
+Codex exporters omit `agents.max_threads` and `agents.max_depth`, and the global installer preserves user-managed values instead of supplying machine-wide defaults. Codex 0.145.0 uses `agents.max_threads` as the V2 concurrency fallback but ignores `agents.max_depth` on V2. Formal skills keep primary workflow control in the current/main agent, and exported subagent roles are leaf workers so they cannot create nested dispatches.
 
 Direct workspace installers remain available as explicit materialization compatibility. They copy complete generated definitions and support trees into a project and are not profile-only. This is the only workspace path for Claude Code and Copilot; the Codex path still does not publish user skills.
 

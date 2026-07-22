@@ -81,6 +81,20 @@ class RuntimeModelExporterTest(unittest.TestCase):
         )
         self.assertNotIn("\nmodel:", frontmatter(claude_content))
 
+    def test_codex_export_marks_only_subagent_roles_as_leaf_workers(self) -> None:
+        subagent_body = CODEX.adapt_body(
+            "executor", "# ROLE\nDo work.\n", False, agent_kind="subagent"
+        )
+        primary_body = CODEX.adapt_body(
+            "orchestrator-simple",
+            "# ROLE\nDispatch work.\n",
+            False,
+            agent_kind="primary",
+        )
+
+        self.assertIn("This exported subagent is a leaf worker", subagent_body)
+        self.assertNotIn("This exported subagent is a leaf worker", primary_body)
+
     def test_codex_profile_writes_role_model_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
@@ -126,6 +140,8 @@ class RuntimeModelExporterTest(unittest.TestCase):
             self.assertNotIn("reasoning", role_content)
             self.assertNotIn("model =", root_config)
             self.assertNotIn("model_provider", root_config)
+            self.assertIn("multi_agent = true", root_config)
+            self.assertIn("multi_agent_v2 = true", root_config)
             self.assertNotIn("max_threads", root_config)
             self.assertNotIn("max_depth", root_config)
 

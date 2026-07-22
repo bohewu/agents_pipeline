@@ -112,6 +112,7 @@ jobs:
           positive = [
               ("checkpoint.schema.json", "checkpoint.reasoning-v2.valid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.valid.json"),
+              ("codex-child-trace.schema.json", "codex-child-trace.v2.valid.json"),
               ("dev-spec.schema.json", "dev-spec.valid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.valid.json"),
               ("flow-task-list.schema.json", "flow-task-list.valid.json"),

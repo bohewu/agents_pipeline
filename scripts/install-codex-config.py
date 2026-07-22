@@ -483,7 +483,8 @@ def ensure_root_table(blocks: List[Block], path: str) -> Block:
 
 
 def upsert_assignment(block: Block, key: str, value: str) -> None:
-    assign_re = re.compile(rf"^\s*{re.escape(key)}\s*=")
+    key_token = rf'(?:{re.escape(key)}|"{re.escape(key)}"|\'{re.escape(key)}\')'
+    assign_re = re.compile(rf"^\s*{key_token}\s*=")
     new_line = f"{key} = {value}"
     output = [block.lines[0]]
     replaced = False
@@ -503,6 +504,81 @@ def upsert_assignment(block: Block, key: str, value: str) -> None:
         output.append(new_line)
 
     block.lines = output
+
+
+def remove_assignment_tree(block: Block, key: str) -> None:
+    key_token = rf'(?:{re.escape(key)}|"{re.escape(key)}"|\'{re.escape(key)}\')'
+    pattern = re.compile(rf"^\s*{key_token}\s*(?:=|\.)")
+    block.lines = [
+        line
+        for line, syntax_line in zip(block.lines, _syntax_line_flags(block.lines))
+        if not (
+            syntax_line
+            and pattern.match(line)
+            and not line.lstrip().startswith("#")
+        )
+    ]
+
+
+def remove_dotted_assignment_tree(block: Block, root: str, key: str) -> None:
+    root_token = rf'(?:{re.escape(root)}|"{re.escape(root)}"|\'{re.escape(root)}\')'
+    key_token = rf'(?:{re.escape(key)}|"{re.escape(key)}"|\'{re.escape(key)}\')'
+    pattern = re.compile(rf"^\s*{root_token}\s*\.\s*{key_token}\s*(?:=|\.)")
+    block.lines = [
+        line
+        for line, syntax_line in zip(block.lines, _syntax_line_flags(block.lines))
+        if not (
+            syntax_line
+            and pattern.match(line)
+            and not line.lstrip().startswith("#")
+        )
+    ]
+
+
+def toml_scalar(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    raise ValueError(
+        "features.multi_agent_v2 contains an unsupported configured value"
+    )
+
+
+def enable_multi_agent_v2_config(
+    blocks: List[Block], preamble: Block, parsed_features: object
+) -> None:
+    configured = (
+        parsed_features.get("multi_agent_v2")
+        if isinstance(parsed_features, dict)
+        else None
+    )
+    nested_idx = find_block_index(
+        blocks, kind="table", path="features.multi_agent_v2"
+    )
+    if isinstance(configured, dict):
+        if nested_idx is not None:
+            upsert_assignment(blocks[nested_idx], "enabled", "true")
+            return
+
+        features_idx = find_block_index(blocks, kind="table", path="features")
+        if features_idx is not None:
+            remove_assignment_tree(blocks[features_idx], "multi_agent_v2")
+        remove_dotted_assignment_tree(preamble, "features", "multi_agent_v2")
+        feature_block = ensure_root_table(blocks, "features.multi_agent_v2")
+        for key, value in configured.items():
+            upsert_assignment(feature_block, key, toml_scalar(value))
+        upsert_assignment(feature_block, "enabled", "true")
+        return
+
+    features_idx = find_block_index(blocks, kind="table", path="features")
+    if features_idx is None and has_dotted_root_assignment(preamble, "features"):
+        upsert_dotted_root_assignment(preamble, "features", "multi_agent_v2", "true")
+    else:
+        features_block = ensure_root_table(blocks, "features")
+        upsert_assignment(features_block, "multi_agent_v2", "true")
 
 
 def remove_assignment_if_value(block: Block, key: str, value: str) -> bool:
@@ -1015,6 +1091,7 @@ def merge_config_text(
     remove_legacy_agent_limits: bool,
 ) -> str:
     validate_toml_text(existing_text, "Existing Codex config")
+    parsed_existing = tomllib.loads(existing_text) if existing_text.strip() else {}
     blocks = parse_blocks(existing_text)
     managed_headers = {
         f"agents.{name}"
@@ -1035,6 +1112,11 @@ def merge_config_text(
     else:
         features_block = ensure_root_table(blocks, "features")
         upsert_assignment(features_block, "multi_agent", "true")
+    enable_multi_agent_v2_config(
+        blocks,
+        preamble,
+        parsed_existing.get("features"),
+    )
 
     agents_idx = find_block_index(blocks, kind="table", path="agents")
     use_dotted_agents = (
@@ -1556,6 +1638,7 @@ def main() -> int:
             )
             print(f"Dry run: would merge Codex config into {target_dir.as_posix()}")
             print("- set features.multi_agent = true")
+            print("- set features.multi_agent_v2 = true")
             if workspace_profile_target:
                 print("- preserve agents.max_threads/max_depth from global Codex config")
                 if previous_manifest_exists:

@@ -204,12 +204,14 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertNotIn("Available subagents (practical set):", managed_block)
         self.assertNotIn("routing aliases for installed Codex roles", managed_block)
 
-    def test_release_codex_guidance_omits_removed_spawn_key(self) -> None:
-        removed_spawn_key = "fork" + "_turns"
-        release_guidance_paths = [
+    def test_release_codex_guidance_scopes_v2_spawn_keys(self) -> None:
+        v2_spawn_key = "fork" + "_turns"
+        v2_guidance_paths = [
             REPO_ROOT / "AGENTS.md",
             CODEX_MAPPING_DOC_PATH,
             REPO_ROOT / "scripts" / "codex_mode_aliases.py",
+        ]
+        runtime_neutral_workflow_paths = [
             REPO_ROOT / "agents" / "orchestrator-flow.md",
             REPO_ROOT / "agents" / "orchestrator-pipeline.md",
             REPO_ROOT / "agents" / "orchestrator-simple.md",
@@ -228,16 +230,20 @@ class CodexInstallExportTest(unittest.TestCase):
             ),
         }
 
-        for path in release_guidance_paths:
+        for path in v2_guidance_paths:
             with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
-                self.assertNotIn(
-                    removed_spawn_key,
-                    path.read_text(encoding="utf-8"),
-                )
+                text = path.read_text(encoding="utf-8")
+                self.assertIn(v2_spawn_key, text)
+                self.assertIn("fork_context", text)
+
+        for path in runtime_neutral_workflow_paths:
+            with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
+                self.assertNotIn(v2_spawn_key, path.read_text(encoding="utf-8"))
 
         for label, text in generated_guidance.items():
             with self.subTest(generated=label):
-                self.assertNotIn(removed_spawn_key, text)
+                self.assertIn(v2_spawn_key, text)
+                self.assertIn("fork_context", text)
 
     def test_build_workspace_agents_managed_block_uses_workspace_definition_path(
         self,
@@ -893,6 +899,48 @@ class CodexInstallExportTest(unittest.TestCase):
 
         self.assertNotIn("max_threads", config)
         self.assertNotIn("max_depth", config)
+        self.assertIn("multi_agent = true", config)
+        self.assertIn("multi_agent_v2 = true", config)
+
+    def test_merge_preserves_inline_multi_agent_v2_configuration(self) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "[features]\n"
+            "multi_agent_v2 = { enabled = false, max_concurrent_threads_per_session = 3, default_wait_timeout_ms = 1200 }\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+            remove_legacy_agent_limits=False,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertTrue(parsed["features"]["multi_agent_v2"]["enabled"])
+        self.assertEqual(
+            parsed["features"]["multi_agent_v2"]
+            ["max_concurrent_threads_per_session"],
+            3,
+        )
+        self.assertEqual(
+            parsed["features"]["multi_agent_v2"]["default_wait_timeout_ms"],
+            1200,
+        )
+
+    def test_merge_preserves_nested_multi_agent_v2_configuration(self) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "[features.multi_agent_v2]\n"
+            '"enabled" = false\n'
+            "max_wait_timeout_ms = 9000\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+            remove_legacy_agent_limits=False,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertTrue(parsed["features"]["multi_agent_v2"]["enabled"])
+        self.assertEqual(
+            parsed["features"]["multi_agent_v2"]["max_wait_timeout_ms"],
+            9000,
+        )
 
     def test_global_installer_preserves_user_managed_agent_limits(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
@@ -1010,6 +1058,7 @@ class CodexInstallExportTest(unittest.TestCase):
         parsed = INSTALL_MODULE.tomllib.loads(merged)
         self.assertIn("[agents.executor]\nmulti_agent = false", parsed["features"]["message"])
         self.assertTrue(parsed["features"]["multi_agent"])
+        self.assertTrue(parsed["features"]["multi_agent_v2"])
         self.assertEqual(parsed["agents"]["executor"]["description"], "Execute work.")
 
     def test_merge_replaces_quoted_managed_agent_table(self) -> None:
@@ -1047,6 +1096,7 @@ class CodexInstallExportTest(unittest.TestCase):
         parsed = INSTALL_MODULE.tomllib.loads(merged)
         self.assertTrue(parsed["features"]["web_search"])
         self.assertTrue(parsed["features"]["multi_agent"])
+        self.assertTrue(parsed["features"]["multi_agent_v2"])
         self.assertEqual(parsed["agents"]["custom"]["description"], "Keep")
         self.assertNotIn("max_threads", parsed["agents"])
         self.assertNotIn("max_depth", parsed["agents"])

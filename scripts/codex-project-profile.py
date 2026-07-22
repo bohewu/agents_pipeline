@@ -302,6 +302,15 @@ def _validate_global_codex_registration(global_target: Path, names: Sequence[str
     features = config.get("features")
     if not isinstance(features, dict) or features.get("multi_agent") is not True:
         raise ProjectProfileError("Global Codex config does not enable features.multi_agent.")
+    multi_agent_v2 = features.get("multi_agent_v2")
+    if not (
+        multi_agent_v2 is True
+        or (
+            isinstance(multi_agent_v2, dict)
+            and multi_agent_v2.get("enabled") is True
+        )
+    ):
+        raise ProjectProfileError("Global Codex config does not enable features.multi_agent_v2.")
 
     override = global_target / "AGENTS.override.md"
     _validate_leaf(override, "Global Codex AGENTS override")

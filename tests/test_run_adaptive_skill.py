@@ -52,7 +52,7 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("Next prompt: not emitted", text)
         self.assertIn("profile problems are warnings", text)
 
-    def test_reasoning_policy_is_route_independent_and_inherit_by_default(self) -> None:
+    def test_reasoning_policy_is_route_independent_with_adaptive_entrypoint_default(self) -> None:
         adaptive = SKILL.read_text(encoding="utf-8")
         simple = SIMPLE.read_text(encoding="utf-8")
         flow = FLOW.read_text(encoding="utf-8")
@@ -80,6 +80,8 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("formal accept/reject process semantic", protocol)
         self.assertIn("selector capability", protocol)
         self.assertIn("never routes a raw model", protocol)
+        self.assertIn("defaults to `adaptive` for a fresh Adaptive run", adaptive)
+        self.assertIn("fall back to `adaptive`", adaptive)
         self.assertEqual(policy["default_mode"], "inherit")
         reasoning_mode = checkpoint["properties"]["flags"]["properties"][
             "reasoning_mode"

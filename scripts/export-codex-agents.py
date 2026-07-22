@@ -106,6 +106,7 @@ class AgentSource:
     description: str
     body: str
     fm_keys: Set[str]
+    kind: str = "subagent"
 
 
 def read_text(path: Path) -> str:
@@ -251,6 +252,7 @@ def parse_source_agents(source_agents_dir: Path) -> List[AgentSource]:
                 description=description,
                 body=body,
                 fm_keys=set(fm.keys()) | ({"tools"} if tools else set()),
+                kind=kind,
             )
         )
     return agents
@@ -614,6 +616,7 @@ def adapt_body(
     original_body: str,
     has_subagents: bool,
     *,
+    agent_kind: str = "subagent",
     mode_aliases: Optional[Sequence[str]] = None,
     support_root_ref: Optional[str] = None,
     source_support_root_ref: Optional[str] = None,
@@ -625,6 +628,12 @@ def adapt_body(
         blocks.append(make_input_adapter(agent_name, mode_aliases))
     if has_subagents:
         blocks.append(make_role_reference_adapter())
+    if agent_kind == "subagent":
+        blocks.append(
+            "# CODEX CHILD DELEGATION\n\n"
+            "- This exported subagent is a leaf worker. Do not spawn or delegate "
+            "to another agent; return blockers to the parent orchestrator.\n"
+        )
     blocks.append(body.lstrip("\n"))
     adapted = compact_markdown("\n\n".join(blocks).rstrip() + "\n")
     return rewrite_neutral_refs(adapted, support_root_ref, source_support_root_ref)
@@ -718,6 +727,7 @@ def build_root_config(
             [
                 "[features]",
                 "multi_agent = true",
+                "multi_agent_v2 = true",
                 "",
             ]
         )
@@ -888,7 +898,10 @@ def main() -> int:
         dest="enable_feature_flag",
         action="store_true",
         default=True,
-        help="Emit `[features] multi_agent = true` in generated config.toml (default: enabled).",
+        help=(
+            "Emit `[features] multi_agent = true` and `multi_agent_v2 = true` "
+            "in generated config.toml (default: enabled)."
+        ),
     )
     parser.add_argument(
         "--no-enable-feature-flag",
@@ -1059,6 +1072,7 @@ def main() -> int:
             agent.name,
             agent.body,
             has_subagents=bool(subagents),
+            agent_kind=agent.kind,
             mode_aliases=agent_mode_aliases.get(agent.name),
             support_root_ref=support_root_ref,
             source_support_root_ref=source_support_root_ref,

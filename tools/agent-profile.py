@@ -1112,6 +1112,17 @@ def _missing_codex_config_registration(target: Path, agent_names: Sequence[str])
     features = config.get("features")
     if not isinstance(features, dict) or features.get("multi_agent") is not True:
         missing.append("config:features.multi_agent")
+    multi_agent_v2 = (
+        features.get("multi_agent_v2") if isinstance(features, dict) else None
+    )
+    if not (
+        multi_agent_v2 is True
+        or (
+            isinstance(multi_agent_v2, dict)
+            and multi_agent_v2.get("enabled") is True
+        )
+    ):
+        missing.append("config:features.multi_agent_v2")
     return missing
 
 

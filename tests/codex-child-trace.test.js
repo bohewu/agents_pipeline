@@ -13,6 +13,7 @@ const {
 const TOOL_PATH = path.resolve(__dirname, "..", "tools", "codex-child-trace.js");
 const AGENT_ID = "123e4567-e89b-42d3-a456-426614174000";
 const PARENT_ID = "223e4567-e89b-42d3-a456-426614174000";
+const TASK_NAME = "/root/run_adaptive_review_01";
 
 async function createCodexHome(t) {
   const tempRoot = await fs.realpath(os.tmpdir());
@@ -87,6 +88,32 @@ function traceRecords({
   ];
 }
 
+function v2TraceRecords({
+  effort = "max",
+  taskName = TASK_NAME,
+  parentId = PARENT_ID,
+  sessionTimestamp = "2026-07-15T10:00:00.000Z",
+  turnTimestamp = "2026-07-15T10:00:01.000Z"
+} = {}) {
+  const records = traceRecords({
+    effort,
+    parentId: undefined,
+    sessionTimestamp,
+    turnTimestamp
+  });
+  records[0].payload.source = {
+    subagent: {
+      thread_spawn: {
+        parent_thread_id: parentId,
+        agent_path: taskName,
+        depth: 1,
+        agent_role: "executor"
+      }
+    }
+  };
+  return records;
+}
+
 function parentTraceRecords(efforts) {
   return [
     {
@@ -106,10 +133,10 @@ function parentTraceRecords(efforts) {
   ];
 }
 
-function invokeCli(args, codexHome) {
+function invokeCli(args, codexHome, environment = {}) {
   return spawnSync(process.execPath, [TOOL_PATH, ...args], {
     encoding: "utf8",
-    env: { ...process.env, CODEX_HOME: codexHome }
+    env: { ...process.env, CODEX_HOME: codexHome, ...environment }
   });
 }
 
@@ -215,6 +242,8 @@ test("prints bounded help without requiring a trace", () => {
 
   assert.equal(processResult.status, EXIT_CODES.OK);
   assert.match(processResult.stdout, /--agent-id <uuid>/);
+  assert.match(processResult.stdout, /--task-name <path>/);
+  assert.match(processResult.stdout, /--parent-id <uuid>/);
   assert.match(processResult.stdout, /--expected-effort/);
   assert.equal(processResult.stderr, "");
 });
@@ -419,6 +448,102 @@ test("separates selector evidence from parent-effort inheritance", async (t) => 
       }));
     });
   }
+});
+
+test("resolves the V2 spawn task name and a lower parent effort", async (t) => {
+  const codexHome = await createCodexHome(t);
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-parent-${PARENT_ID}.jsonl`),
+    parentTraceRecords([
+      { timestamp: "2026-07-15T09:30:00.000Z", effort: "low" }
+    ])
+  );
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-child-${AGENT_ID}.jsonl`),
+    v2TraceRecords()
+  );
+
+  const result = await inspectChildTrace({
+    taskName: TASK_NAME,
+    codexHome,
+    expectedRole: "executor",
+    expectedEffort: "max"
+  }, { CODEX_THREAD_ID: PARENT_ID });
+
+  assert.deepEqual(result, expectedFoundResult({
+    effective_effort: "max",
+    role_matches: true,
+    effort_matches: true,
+    parent_trace_found: true,
+    parent_effective_effort: "low",
+    inheritance_consistent: false,
+    selector_evidence: "distinct_from_parent"
+  }));
+
+  const processResult = invokeCli([
+    "--task-name", TASK_NAME,
+    "--expected-role", "executor",
+    "--expected-effort", "max",
+    "--compact"
+  ], codexHome, { CODEX_THREAD_ID: PARENT_ID });
+  assert.equal(processResult.status, EXIT_CODES.OK);
+  assert.deepEqual(JSON.parse(processResult.stdout), result);
+});
+
+test("requires exactly one bounded V1 or V2 spawn identifier", async (t) => {
+  const codexHome = await createCodexHome(t);
+  for (const args of [
+    [],
+    ["--agent-id", AGENT_ID, "--task-name", TASK_NAME],
+    ["--agent-id", AGENT_ID, "--parent-id", PARENT_ID],
+    ["--task-name", "/root/../private"]
+  ]) {
+    const processResult = invokeCli([...args, "--compact"], codexHome);
+    assert.equal(processResult.status, EXIT_CODES.INVALID_OR_NOT_FOUND);
+    assert.equal(JSON.parse(processResult.stdout).trace_found, false);
+  }
+
+  const missingParent = invokeCli(
+    ["--task-name", TASK_NAME, "--compact"],
+    codexHome,
+    { CODEX_THREAD_ID: "" }
+  );
+  assert.equal(missingParent.status, EXIT_CODES.INVALID_OR_NOT_FOUND);
+  assert.equal(JSON.parse(missingParent.stdout).trace_found, false);
+});
+
+test("binds a repeated V2 task path to the current parent thread", async (t) => {
+  const codexHome = await createCodexHome(t);
+  const otherAgentId = "323e4567-e89b-42d3-a456-426614174000";
+  const otherParentId = "423e4567-e89b-42d3-a456-426614174000";
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-other-${otherAgentId}.jsonl`),
+    v2TraceRecords({ parentId: otherParentId, effort: "medium" }).map((record) => {
+      if (record.type === "session_meta") {
+        record.payload.id = otherAgentId;
+      }
+      return record;
+    })
+  );
+  await writeSession(
+    codexHome,
+    path.join("archived_sessions", "2026", "07", `rollout-current-${AGENT_ID}.jsonl`),
+    v2TraceRecords({ effort: "max" })
+  );
+
+  const result = await inspectChildTrace(
+    { taskName: TASK_NAME, codexHome, expectedEffort: "max" },
+    { CODEX_THREAD_ID: PARENT_ID }
+  );
+  assert.deepEqual(result, expectedFoundResult({
+    effective_effort: "max",
+    effort_matches: true,
+    parent_trace_found: false,
+    selector_evidence: "indeterminate"
+  }));
 });
 
 test("never emits parent identifiers or parent session content", async (t) => {

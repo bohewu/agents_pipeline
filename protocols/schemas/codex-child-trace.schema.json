@@ -50,7 +50,7 @@
     },
     "parent_effective_effort": {
       "description": "The parent's last observed effort at or before child creation.",
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "inheritance_consistent": {
       "description": "Whether child and parent effective effort are equal. Equality is consistent with inheritance but does not prove it.",

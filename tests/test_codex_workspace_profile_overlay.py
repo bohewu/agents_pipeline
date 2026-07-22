@@ -625,6 +625,38 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             )
 
             override.unlink()
+            config_path = codex_home / "config.toml"
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "multi_agent_v2 = true\n",
+                    "\n[features.multi_agent_v2]\nenabled = true\nmax_concurrent_threads_per_session = 3\n",
+                ),
+                encoding="utf-8",
+            )
+            status = json.loads(self.run_command(command, env=env).stdout)
+            self.assertEqual(status["health"], "ok")
+            PROJECT_PROFILE._validate_global_codex_registration(
+                codex_home,
+                sorted(
+                    path.stem for path in (codex_home / "agents").glob("*.toml")
+                ),
+            )
+
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "enabled = true\n", "enabled = false\n"
+                ),
+                encoding="utf-8",
+            )
+            status = json.loads(self.run_command(command, env=env).stdout)
+            self.assertEqual(status["health"], "incomplete")
+            self.assertTrue(
+                any(
+                    str(item) == "config:features.multi_agent_v2"
+                    for item in status["missing_generated_files"]
+                )
+            )
+
             (codex_home / "config.toml").unlink()
             status = json.loads(self.run_command(command, env=env).stdout)
             self.assertEqual(status["health"], "incomplete")

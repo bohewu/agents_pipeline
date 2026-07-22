@@ -350,7 +350,7 @@ In-place transition rules:
 - Before the first execution phase, load the runtime's authoritative installed `orchestrator-pipeline` definition. In Codex this is `${CODEX_HOME:-$HOME/.codex}/agents/orchestrator-pipeline.toml`.
 - The current/main agent MUST adopt that Pipeline definition in place for the phase. Do NOT spawn, delegate to, or hand off control to another primary orchestrator.
 - Preserve the Modernize phase sequence and checkpoint state around each Pipeline phase so `full-exec` can resume outer sequencing after the phase result.
-- Pipeline atomization, routing, execution, testing, review, retries, and synthesis remain governed by the adopted Pipeline definition. Dispatch only its worker roles as direct children of the current/main agent; this keeps the workflow compatible with `agents.max_depth = 1`.
+- Pipeline atomization, routing, execution, testing, review, retries, and synthesis remain governed by the adopted Pipeline definition. Dispatch only its worker roles as direct children of the current/main agent; exported worker roles are leaf agents.
 - For `phase-exec` / `full-exec`, execute against project B (`target_project_dir`), not source project A. For `branch`, execute in the current project on `target_branch`.
 - Treat `working_project_dir` as the source of truth for tool cwd, status anchoring, and later manual continuation. In branch mode, set it to the current project path.
 - If the current/main agent or its tools cannot operate safely in `working_project_dir`, stop Stage 5 and provide the human-facing target-project `$run-pipeline` command; never continue implementation from the wrong project.

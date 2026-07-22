@@ -276,9 +276,10 @@ fully computes requested effort but omits the selector; strict assurance
 conflicts. An ordinary review-max request remains deep and does not certify or
 change the selected model.
 Before a spawn, include the complete decision in the `agent.started` status
-payload as `reasoning`. On local Codex, after every spawn returns its agent ID,
-run `node tools/codex-child-trace.js` with the expected role and, when non-null,
-expected `dispatch_effort`; rerun the resolver with the reported
+payload as `reasoning`. On local Codex, after every spawn returns its identifier,
+run `node tools/codex-child-trace.js` with V2 `--task-name` or legacy
+`--agent-id`, the expected role and, when non-null, expected `dispatch_effort`;
+rerun the resolver with the reported
 `observed_effective_effort` and include the updated decision in the next agent
 lifecycle event before accepting the child result. A role mismatch, effort below
 dispatch, or effort above the workspace ceiling blocks; within-ceiling

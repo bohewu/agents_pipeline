@@ -218,8 +218,10 @@ Simple, Flow, Pipeline, and Adaptive use:
 --reasoning=inherit|shadow|adaptive
 ```
 
-Policy v2 defaults to `inherit`; callers must opt in explicitly to `adaptive`
-selector enforcement.
+Policy v2 and direct Simple/Flow/Pipeline entry points default to `inherit`. A fresh
+`$run-adaptive` invocation deliberately selects `adaptive` by default and passes that
+normalized mode into whichever workflow it adopts; explicit flags and persisted resume
+state still win.
 
 | Mode | Resolution and selector behavior |
 |---|---|
@@ -330,18 +332,32 @@ selector or inherited the parent, and those paths are observationally
 indistinguishable.
 
 In adaptive mode, request a non-null `dispatch_effort` through the native
-per-spawn effort selector while omitting `model`. Include the complete
+per-spawn effort selector while omitting `model`. On Codex multi-agent V2, pass
+the registered role as `agent_type`, pass `dispatch_effort` as
+`reasoning_effort`, and use `fork_turns = "none"`. On a legacy spawn surface,
+use the equivalent no-history `fork_context = false`. Include the complete
 ReasoningDecision in Flow/Pipeline agent lifecycle status. Selector presence
 and a successful spawn prove only `requested`, not `enforced`.
 
-On local Codex, after a spawn returns its agent ID and before accepting the
-terminal child result, inspect the child trace with:
+On local Codex, before accepting the terminal child result, inspect the child
+trace using the identifier returned by the active spawn surface. V2 returns a
+task path:
+
+```text
+node tools/codex-child-trace.js --task-name '<task-name>' --expected-role '<role>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
+```
+
+Legacy surfaces return an agent UUID:
 
 ```text
 node tools/codex-child-trace.js --agent-id '<agent-id>' --expected-role '<role>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
 ```
 
-Omit `--expected-effort` when no effort was dispatched. This verification
+Use a unique V2 `task_name` for each dispatch. The helper binds task-name lookup
+to the `CODEX_THREAD_ID` that Codex injects into the current shell; an external
+diagnostic may pass the same parent UUID explicitly with `--parent-id`. Without
+that parent identity, task-name lookup fails instead of accepting a potentially
+stale trace. Omit `--expected-effort` when no effort was dispatched. This verification
 attempt is mandatory when the installed helper is available. A role mismatch
 blocks acceptance because it means the configured role was not applied. When
 the helper reports an effective effort, rerun the same resolver input with
@@ -351,8 +367,10 @@ event and final acceptance. If trace evidence is unavailable, keep the decision
 exact effort override cannot complete successfully without matching evidence.
 Ordinary non-strict work may continue only with an explicit unverified warning.
 
-The trace helper reads local Codex session metadata plus the parent session's
-last effective effort at child creation. `selector_evidence =
+The trace helper reads local Codex V1 or V2 session metadata plus the parent
+session's last effective effort at child creation. Parent observation also
+accepts `low`, allowing a policy-controlled child at `medium` or above to prove
+it did not merely inherit a lower main-session effort. `selector_evidence =
 distinct_from_parent` rules out simple parent-effort inheritance but does not
 attest Codex's internal implementation path. `matches_parent` means a
 same-value selector and inheritance cannot be distinguished; `mismatch` means
