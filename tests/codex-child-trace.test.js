@@ -142,12 +142,13 @@ function invokeCli(args, codexHome, environment = {}) {
 
 function expectedFoundResult(overrides = {}) {
   return {
-    schema_version: "1.1",
+    schema_version: "1.2",
     runtime: "codex",
     agent_id: AGENT_ID,
     trace_found: true,
     agent_role: null,
     model: null,
+    model_matches: null,
     effective_effort: "xhigh",
     role_matches: null,
     effort_matches: null,
@@ -181,6 +182,41 @@ test("finds a synthetic archived trace through the importable API and compact CL
   assert.equal(processResult.stderr, "");
   assert.equal(processResult.stdout.split("\n").filter(Boolean).length, 1);
   assert.deepEqual(JSON.parse(processResult.stdout), expectedFoundResult());
+});
+
+test("verifies a caller-supplied model without emitting mismatched raw metadata", async (t) => {
+  const codexHome = await createCodexHome(t);
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-model-${AGENT_ID}.jsonl`),
+    traceRecords({ model: "gpt-5.6-sol" })
+  );
+
+  const matched = await inspectChildTrace({
+    agentId: AGENT_ID,
+    codexHome,
+    expectedModel: "gpt-5.6-sol"
+  });
+  assert.deepEqual(matched, expectedFoundResult({
+    model: "gpt-5.6-sol",
+    model_matches: true
+  }));
+  const processResult = invokeCli([
+    "--agent-id", AGENT_ID,
+    "--expected-model", "gpt-5.6-sol",
+    "--codex-home", codexHome,
+    "--compact"
+  ], codexHome);
+  assert.equal(processResult.status, EXIT_CODES.OK);
+  assert.deepEqual(JSON.parse(processResult.stdout), matched);
+
+  const mismatched = await inspectChildTrace({
+    agentId: AGENT_ID,
+    codexHome,
+    expectedModel: "gpt-5.6-terra"
+  });
+  assert.deepEqual(mismatched, expectedFoundResult({ model_matches: false }));
+  assert.equal(JSON.stringify(mismatched).includes("gpt-5.6-sol"), false);
 });
 
 test("reports role and effort mismatches without treating a found trace as an error", async (t) => {
@@ -219,12 +255,13 @@ test("rejects an invalid UUID with only the bounded JSON schema", async (t) => {
   assert.equal(processResult.stderr, "");
   assert.equal(processResult.stdout.split("\n").filter(Boolean).length, 1);
   assert.deepEqual(JSON.parse(processResult.stdout), {
-    schema_version: "1.1",
+    schema_version: "1.2",
     runtime: "codex",
     agent_id: null,
     trace_found: false,
     agent_role: null,
     model: null,
+    model_matches: null,
     effective_effort: null,
     role_matches: null,
     effort_matches: null,
@@ -244,6 +281,7 @@ test("prints bounded help without requiring a trace", () => {
   assert.match(processResult.stdout, /--agent-id <uuid>/);
   assert.match(processResult.stdout, /--task-name <path>/);
   assert.match(processResult.stdout, /--parent-id <uuid>/);
+  assert.match(processResult.stdout, /--expected-model/);
   assert.match(processResult.stdout, /--expected-effort/);
   assert.equal(processResult.stderr, "");
 });
@@ -261,6 +299,21 @@ test("rejects unsafe expected-role input without echoing it", async (t) => {
   assert.equal(processResult.status, EXIT_CODES.INVALID_OR_NOT_FOUND);
   assert.equal(processResult.stdout.includes(privateRole), false);
   assert.equal(JSON.parse(processResult.stdout).trace_found, false);
+});
+
+test("rejects unsafe expected-model input without echoing it", async (t) => {
+  const codexHome = await createCodexHome(t);
+  const privateModel = "ghp_PRIVATESECRET123";
+  const processResult = invokeCli([
+    "--agent-id", AGENT_ID,
+    "--expected-model", privateModel,
+    "--codex-home", codexHome,
+    "--compact"
+  ], codexHome);
+
+  assert.equal(processResult.status, EXIT_CODES.INVALID_OR_NOT_FOUND);
+  assert.equal(processResult.stdout.includes(privateModel), false);
+  assert.equal(JSON.parse(processResult.stdout).model_matches, null);
 });
 
 test("ignores a symlinked matching session file", async (t) => {
@@ -356,6 +409,7 @@ test("never emits trace identifiers, credentials, session content, or later reco
     "trace_found",
     "agent_role",
     "model",
+    "model_matches",
     "effective_effort",
     "role_matches",
     "effort_matches",

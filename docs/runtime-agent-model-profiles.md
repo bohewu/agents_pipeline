@@ -120,7 +120,7 @@ Codex applies `.codex/config.toml` only for a trusted project. The profile manag
 - `clear` never removes global agents or support assets.
 - Workspace `set`, `status`, and `clear` never change the model-free global role files.
 
-Codex workspace profiles inherit global `agents.max_threads` and `agents.max_depth`. Codex 0.145.0 uses `agents.max_threads` as the V2 concurrency fallback and ignores `agents.max_depth` on V2. Supported Codex skills keep primary workflow control in the current/main agent, and generated subagent roles are leaf workers.
+Codex workspace profiles inherit global `agents.max_concurrent_threads_per_session` and `agents.max_depth`. A full/global install supplies defaults of `8` and `1`, respectively, while preserving explicit new values and migrating numeric legacy `agents.max_threads` values. Codex 0.145.0 uses the new concurrency key and ignores `agents.max_depth` on V2. Supported Codex skills keep primary workflow control in the current/main agent, and generated subagent roles are leaf workers.
 
 ### Profile-aware workflow skills
 

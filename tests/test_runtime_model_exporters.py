@@ -143,6 +143,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
             self.assertIn("multi_agent = true", root_config)
             self.assertIn("multi_agent_v2 = true", root_config)
             self.assertNotIn("max_threads", root_config)
+            self.assertNotIn("max_concurrent_threads_per_session", root_config)
             self.assertNotIn("max_depth", root_config)
 
     def test_copilot_profile_writes_scalar_and_list_models_with_solo_match(self) -> None:

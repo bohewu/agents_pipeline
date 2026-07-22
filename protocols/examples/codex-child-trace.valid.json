@@ -1,10 +1,11 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "runtime": "codex",
   "agent_id": "019f648d-687c-73e0-ab26-1c288541670c",
   "trace_found": true,
   "agent_role": null,
   "model": null,
+  "model_matches": null,
   "effective_effort": "max",
   "role_matches": true,
   "effort_matches": false,

@@ -359,6 +359,35 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             cleared = self.workspace_status(wrapper, workspace, env=env)
             self.assertFalse(cleared["installed"])
 
+    def test_workspace_profile_reinstall_removes_legacy_managed_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            workspace = root / "project"
+            env = self.isolated_environment(home)
+            _, wrapper = self.install_global_codex(home, env)
+
+            self.run_profile(wrapper, "set", workspace, env=env)
+            config_path = workspace / ".codex" / "config.toml"
+            config_text = config_path.read_text(encoding="utf-8")
+            self.assertIn("[agents.", config_text)
+            config_path.write_text(
+                config_text.replace(
+                    "[agents.",
+                    "[agents]\nmax_threads = 6\nmax_depth = 2\n\n[agents.",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            self.run_profile(wrapper, "set", workspace, env=env)
+            parsed = tomllib.loads(config_path.read_text(encoding="utf-8"))
+            self.assertNotIn("max_threads", parsed["agents"])
+            self.assertNotIn("max_depth", parsed["agents"])
+            self.assertNotIn(
+                "max_concurrent_threads_per_session", parsed["agents"]
+            )
+
     def test_workspace_preflight_rejects_model_pinned_global_roles(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)

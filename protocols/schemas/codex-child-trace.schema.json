@@ -10,6 +10,7 @@
     "trace_found",
     "agent_role",
     "model",
+    "model_matches",
     "effective_effort",
     "role_matches",
     "effort_matches",
@@ -19,7 +20,7 @@
     "selector_evidence"
   ],
   "properties": {
-    "schema_version": { "const": "1.1" },
+    "schema_version": { "const": "1.2" },
     "runtime": { "const": "codex" },
     "agent_id": {
       "oneOf": [
@@ -36,8 +37,18 @@
       "const": null
     },
     "model": {
-      "description": "Reserved and always redacted; raw model metadata is never emitted.",
-      "const": null
+      "description": "Caller-supplied expected model, emitted only after an exact match. Raw trace model metadata is never emitted.",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "pattern": "^(?:gpt-[a-z0-9][a-z0-9.-]{0,62}|o[1-9][a-z0-9.-]{0,62})$"
+        }
+      ]
+    },
+    "model_matches": {
+      "description": "Whether the raw trace model exactly matched the bounded caller-supplied expected model.",
+      "type": ["boolean", "null"]
     },
     "effective_effort": {
       "enum": [null, "medium", "high", "xhigh", "max"]
@@ -77,6 +88,7 @@
         "properties": {
           "agent_role": { "const": null },
           "model": { "const": null },
+          "model_matches": { "const": null },
           "effective_effort": { "const": null },
           "role_matches": { "const": null },
           "effort_matches": { "const": null },
@@ -85,6 +97,33 @@
           "inheritance_consistent": { "const": null },
           "selector_evidence": { "const": null }
         }
+      }
+    },
+    {
+      "if": {
+        "required": ["model_matches"],
+        "properties": { "model_matches": { "const": true } }
+      },
+      "then": {
+        "properties": { "model": { "type": "string" } }
+      }
+    },
+    {
+      "if": {
+        "required": ["model_matches"],
+        "properties": { "model_matches": { "enum": [null, false] } }
+      },
+      "then": {
+        "properties": { "model": { "const": null } }
+      }
+    },
+    {
+      "if": {
+        "required": ["model"],
+        "properties": { "model": { "type": "string" } }
+      },
+      "then": {
+        "properties": { "model_matches": { "const": true } }
       }
     },
     {

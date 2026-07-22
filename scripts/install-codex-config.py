@@ -43,6 +43,8 @@ MANAGED_AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 MANAGED_AGENT_FILE_RE = re.compile(
     r"^agents/([a-z0-9][a-z0-9-]*)\.toml$"
 )
+DEFAULT_MAX_CONCURRENT_THREADS_PER_SESSION = 8
+DEFAULT_MAX_DEPTH = 1
 LEGACY_MANAGED_MAX_THREADS = 6
 LEGACY_MANAGED_MAX_DEPTH = 2
 DEFAULT_PROFILE_DIR = "tools/agent-profiles"
@@ -654,6 +656,83 @@ def remove_dotted_root_assignment_if_value(
     return removed
 
 
+def configure_agent_runtime_limits(
+    blocks: List[Block],
+    preamble: Block,
+    parsed_agents: object,
+    *,
+    manage_defaults: bool,
+    remove_legacy_managed_limits: bool,
+) -> None:
+    agents_idx = find_block_index(blocks, kind="table", path="agents")
+    use_dotted_agents = (
+        agents_idx is None and has_dotted_root_assignment(preamble, "agents")
+    )
+    agents_block = None if use_dotted_agents else ensure_root_table(blocks, "agents")
+
+    if manage_defaults:
+        configured_agents = parsed_agents if isinstance(parsed_agents, dict) else {}
+        configured_concurrency = configured_agents.get(
+            "max_concurrent_threads_per_session"
+        )
+        legacy_concurrency = configured_agents.get("max_threads")
+        write_concurrency = configured_concurrency is None
+        if configured_concurrency is None:
+            if legacy_concurrency is None:
+                configured_concurrency = DEFAULT_MAX_CONCURRENT_THREADS_PER_SESSION
+            elif type(legacy_concurrency) is int:
+                configured_concurrency = legacy_concurrency
+            else:
+                raise ValueError(
+                    "agents.max_threads must be an integer before it can be migrated "
+                    "to agents.max_concurrent_threads_per_session"
+                )
+
+        if use_dotted_agents:
+            remove_dotted_assignment_tree(preamble, "agents", "max_threads")
+            if write_concurrency:
+                upsert_dotted_root_assignment(
+                    preamble,
+                    "agents",
+                    "max_concurrent_threads_per_session",
+                    str(configured_concurrency),
+                )
+            if "max_depth" not in configured_agents:
+                upsert_dotted_root_assignment(
+                    preamble, "agents", "max_depth", str(DEFAULT_MAX_DEPTH)
+                )
+        else:
+            assert agents_block is not None
+            remove_assignment_tree(agents_block, "max_threads")
+            if write_concurrency:
+                upsert_assignment(
+                    agents_block,
+                    "max_concurrent_threads_per_session",
+                    str(configured_concurrency),
+                )
+            if "max_depth" not in configured_agents:
+                upsert_assignment(agents_block, "max_depth", str(DEFAULT_MAX_DEPTH))
+        return
+
+    if not remove_legacy_managed_limits:
+        return
+    if use_dotted_agents:
+        remove_dotted_root_assignment_if_value(
+            preamble, "agents", "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
+        )
+        remove_dotted_root_assignment_if_value(
+            preamble, "agents", "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
+        )
+    else:
+        assert agents_block is not None
+        remove_assignment_if_value(
+            agents_block, "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
+        )
+        remove_assignment_if_value(
+            agents_block, "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
+        )
+
+
 def is_workspace_profile_target(
     target_dir: Path, global_agents_target: Optional[Path]
 ) -> bool:
@@ -1088,7 +1167,8 @@ def merge_config_text(
     *,
     previous_agent_names: Sequence[str],
     job_max_runtime_seconds: Optional[int],
-    remove_legacy_agent_limits: bool,
+    manage_agent_runtime_limits: bool = False,
+    remove_legacy_agent_limits: bool = False,
 ) -> str:
     validate_toml_text(existing_text, "Existing Codex config")
     parsed_existing = tomllib.loads(existing_text) if existing_text.strip() else {}
@@ -1118,27 +1198,18 @@ def merge_config_text(
         parsed_existing.get("features"),
     )
 
+    configure_agent_runtime_limits(
+        blocks,
+        preamble,
+        parsed_existing.get("agents"),
+        manage_defaults=manage_agent_runtime_limits,
+        remove_legacy_managed_limits=remove_legacy_agent_limits,
+    )
     agents_idx = find_block_index(blocks, kind="table", path="agents")
     use_dotted_agents = (
         agents_idx is None and has_dotted_root_assignment(preamble, "agents")
     )
     agents_block = None if use_dotted_agents else ensure_root_table(blocks, "agents")
-    if remove_legacy_agent_limits:
-        if use_dotted_agents:
-            remove_dotted_root_assignment_if_value(
-                preamble, "agents", "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
-            )
-            remove_dotted_root_assignment_if_value(
-                preamble, "agents", "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
-            )
-        else:
-            assert agents_block is not None
-            remove_assignment_if_value(
-                agents_block, "max_threads", str(LEGACY_MANAGED_MAX_THREADS)
-            )
-            remove_assignment_if_value(
-                agents_block, "max_depth", str(LEGACY_MANAGED_MAX_DEPTH)
-            )
     if job_max_runtime_seconds is not None:
         if use_dotted_agents:
             upsert_dotted_root_assignment(
@@ -1609,8 +1680,12 @@ def main() -> int:
             generated_agent_blocks,
             previous_agent_names=previous_names,
             job_max_runtime_seconds=args.job_max_runtime_seconds,
+            manage_agent_runtime_limits=(
+                not canonical_workspace_target and not workspace_profile_target
+            ),
             remove_legacy_agent_limits=(
-                workspace_profile_target and previous_manifest_exists
+                (canonical_workspace_target or workspace_profile_target)
+                and previous_manifest_exists
             ),
         )
         merged_global_agents_text: Optional[str] = None
@@ -1640,15 +1715,26 @@ def main() -> int:
             print("- set features.multi_agent = true")
             print("- set features.multi_agent_v2 = true")
             if workspace_profile_target:
-                print("- preserve agents.max_threads/max_depth from global Codex config")
+                print(
+                    "- inherit agents.max_concurrent_threads_per_session/max_depth "
+                    "from global Codex config"
+                )
                 if previous_manifest_exists:
                     print(
                         "- remove legacy agents.max_threads/max_depth when they match "
                         "the previous managed defaults"
                     )
+            elif canonical_workspace_target:
+                print(
+                    "- leave agents.max_concurrent_threads_per_session/max_depth "
+                    "unset to inherit global Codex config"
+                )
             else:
-                print("- preserve user-managed agents.max_threads")
-                print("- preserve user-managed agents.max_depth")
+                print(
+                    "- ensure agents.max_concurrent_threads_per_session = 8 "
+                    "(preserve an explicit new value or migrate agents.max_threads)"
+                )
+                print("- ensure agents.max_depth = 1 (preserve an explicit value)")
             if args.job_max_runtime_seconds is not None:
                 print(
                     "- set agents.job_max_runtime_seconds = "

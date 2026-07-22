@@ -320,6 +320,9 @@ Describe "install-codex.ps1 direct workspace materialization" {
             Should -Be 45
         Test-Path -LiteralPath (Join-Path $targetPath "config.toml") -PathType Leaf |
             Should -BeTrue
+        $workspaceConfig = Get-Content -LiteralPath (Join-Path $targetPath "config.toml") -Raw
+        $workspaceConfig | Should -Not -Match '(?m)^max_concurrent_threads_per_session\s*='
+        $workspaceConfig | Should -Not -Match '(?m)^max_depth\s*='
         Test-Path -LiteralPath (Join-Path $targetPath "agents-pipeline") -PathType Container |
             Should -BeTrue
         Test-Path -LiteralPath (Join-Path $workspace "AGENTS.md") -PathType Leaf |
@@ -341,6 +344,10 @@ Describe "install-codex.ps1 workspace profile overlay" {
 
         & $installer -Target $targetPath -UserSkillsRoot $userSkillsRoot -NoBackup | Out-Null
         $LASTEXITCODE | Should -Be 0
+        $globalConfig = Get-Content -LiteralPath (Join-Path $targetPath "config.toml") -Raw
+        $globalConfig | Should -Match '(?m)^max_concurrent_threads_per_session\s*=\s*8\s*$'
+        $globalConfig | Should -Match '(?m)^max_depth\s*=\s*1\s*$'
+        $globalConfig | Should -Not -Match '(?m)^max_threads\s*='
         $profileTool = Join-Path $targetPath "agents-pipeline/scripts/agent-profile.ps1"
         $globalRoleBefore = [System.IO.File]::ReadAllBytes(
             (Join-Path $targetPath "agents/executor.toml")
@@ -369,6 +376,9 @@ Describe "install-codex.ps1 workspace profile overlay" {
                 Should -Match '(?m)^model\s*='
             Test-Path -LiteralPath (Join-Path $localCodex "config.toml") -PathType Leaf |
                 Should -BeTrue
+            $workspaceConfig = Get-Content -LiteralPath (Join-Path $localCodex "config.toml") -Raw
+            $workspaceConfig | Should -Not -Match '(?m)^max_concurrent_threads_per_session\s*='
+            $workspaceConfig | Should -Not -Match '(?m)^max_depth\s*='
             Test-Path -LiteralPath (Join-Path $localCodex ".agents-pipeline-project-profile.json") -PathType Leaf |
                 Should -BeTrue
             Test-Path -LiteralPath (Join-Path $localCodex "agents-pipeline") |

@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-07-22
+
+### Added
+
+- Added bounded Codex child-model verification and a common user-visible child result label that distinguishes verified/effective runtime metadata from configured, requested, inherited, or unverified values.
+
+### Changed
+
+- Changed full/global Codex installs to default `agents.max_concurrent_threads_per_session` to `8` and `agents.max_depth` to `1`; explicit new values are preserved, numeric legacy `agents.max_threads` values are migrated, and workspace profiles continue to inherit global limits.
+
 ## [0.33.0] - 2026-07-22
 
 ### Added

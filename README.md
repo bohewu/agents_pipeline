@@ -48,7 +48,7 @@ skills/                         portable repo-managed skills
 skills/run-*/                   formal Codex workflow entry skills
 skills/<capability>/            reusable design and audit capability skills
 tools/status-event.js           runtime-neutral status/checkpoint CLI
-tools/codex-child-trace.js      local Codex child role/effort verifier
+tools/codex-child-trace.js      local Codex child model/role/effort verifier
 tools/status-runtime/           reusable status projection core
 tools/agent-profile.py          interactive/runtime-neutral profile manager
 tools/agent-profiles/           neutral mini/standard/strong profiles
@@ -74,13 +74,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.33.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.34.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.33.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.34.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -88,13 +88,13 @@ tag="v0.33.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.33.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.34.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.33.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.34.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -102,16 +102,16 @@ tag="v0.33.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.33.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.34.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.33.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.34.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.33.0` must release as `v0.33.0`.
+Release invariant: `VERSION=0.34.0` must release as `v0.34.0`.
 
 <!-- END current-release -->
 
@@ -213,7 +213,7 @@ bash "$profile_tool" list --runtime codex
 
 `status` reports profile/install file health and trust eligibility, not workflow run progress or a full native Codex config evaluation. A Codex workspace with no overlay reports that it inherits the model-free global role definitions and parent-session model selection. Workspace `clear` removes the installer-owned workspace role files, managed config block, and project-profile manifest, preserving unrelated `.codex/config.toml` content and every global asset. Codex global status validates its native manifest, role registrations, active managed `AGENTS.md` block, generated model-free roles, critical global support assets, and the marker/content integrity of all recorded discovery skills. Global `clear` regenerates those model-free roles to remove a legacy global profile; it is not a Codex profile-selection workflow. Claude Code and Copilot continue to validate and manage their global profile manifests, generated agents, and sibling support trees. None of these commands reads OpenCode settings.
 
-Codex exports and normal global installs do not write or replace `agents.max_threads` or `agents.max_depth`; configure those machine-level limits in your own global Codex config. Codex 0.145.0 uses `agents.max_threads` as the V2 concurrency fallback and ignores `agents.max_depth` on V2. Workspace profiles inherit those values, while exported subagent roles are leaf workers and cannot create nested dispatches. Modernize execution still transitions into Pipeline in place instead of spawning another primary orchestrator. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
+Codex exports leave machine-level limits unset. Normal full/global installs ensure `agents.max_concurrent_threads_per_session = 8` and `agents.max_depth = 1`, preserve explicit new values, and migrate a numeric legacy `agents.max_threads` value into the supported concurrency key. Codex 0.145.0 uses the new key for V2 concurrency and ignores `agents.max_depth` on V2. Workspace profiles and direct workspace materializations inherit the global values, while exported subagent roles are leaf workers and cannot create nested dispatches. Modernize execution still transitions into Pipeline in place instead of spawning another primary orchestrator. The local role files reference the machine's installed global support root, so the generated workspace profile should normally not be committed. Run `set` once on another machine after its one-time global bootstrap.
 
 The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. All managed discovery-skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
 

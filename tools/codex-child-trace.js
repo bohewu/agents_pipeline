@@ -11,7 +11,7 @@ const EXIT_CODES = Object.freeze({
   OK: 0,
   INVALID_OR_NOT_FOUND: 2
 });
-const SCHEMA_VERSION = "1.1";
+const SCHEMA_VERSION = "1.2";
 const RUNTIME = "codex";
 const EFFORTS = Object.freeze(["medium", "high", "xhigh", "max"]);
 const EFFORT_SET = new Set(EFFORTS);
@@ -28,6 +28,7 @@ const MAX_CANDIDATES = 64;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TASK_NAME_PATTERN = /^\/root(?:\/[a-z0-9_]{1,64})+$/;
 const SAFE_EXPECTED_ROLE_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+const SAFE_EXPECTED_MODEL_PATTERN = /^(?:gpt-[a-z0-9][a-z0-9.-]{0,62}|o[1-9][a-z0-9.-]{0,62})$/;
 const HELP_TEXT = `Usage:
   node tools/codex-child-trace.js (--agent-id <uuid> | --task-name <path>) [options]
 
@@ -35,6 +36,7 @@ Options:
   --task-name <path>           Resolve a V2 child from its returned /root/... path
   --parent-id <uuid>           Override the V2 parent (defaults to CODEX_THREAD_ID)
   --expected-role <role>       Compare the bounded child role
+  --expected-model <model>     Compare a bounded OpenAI model name
   --expected-effort <effort>   Compare medium, high, xhigh, or max
   --codex-home <path>          Override CODEX_HOME
   --wait-ms <0-${MAX_WAIT_MS}>       Wait briefly for the trace to appear
@@ -57,6 +59,7 @@ function createResult(agentId = null) {
     trace_found: false,
     agent_role: null,
     model: null,
+    model_matches: null,
     effective_effort: null,
     role_matches: null,
     effort_matches: null,
@@ -100,6 +103,13 @@ function normalizeTaskName(value) {
 function normalizeExpectedRole(value) {
   if (typeof value !== "string" || !SAFE_EXPECTED_ROLE_PATTERN.test(value)) {
     throw new ChildTraceInputError("--expected-role must be a bounded lowercase role identifier");
+  }
+  return value;
+}
+
+function normalizeExpectedModel(value) {
+  if (typeof value !== "string" || !SAFE_EXPECTED_MODEL_PATTERN.test(value)) {
+    throw new ChildTraceInputError("--expected-model must be a bounded OpenAI model name");
   }
   return value;
 }
@@ -160,12 +170,16 @@ function normalizeInspectionOptions(input = {}, environment = process.env) {
     parentId: hasTaskName ? normalizeAgentId(parentId) : undefined,
     codexHome: normalizeCodexHome(input.codexHome, environment),
     expectedRole: undefined,
+    expectedModel: undefined,
     expectedEffort: undefined,
     waitMs: 0
   };
 
   if (input.expectedRole !== undefined) {
     options.expectedRole = normalizeExpectedRole(input.expectedRole);
+  }
+  if (input.expectedModel !== undefined) {
+    options.expectedModel = normalizeExpectedModel(input.expectedModel);
   }
   if (input.expectedEffort !== undefined) {
     options.expectedEffort = normalizeExpectedEffort(input.expectedEffort);
@@ -195,6 +209,7 @@ function parseArgs(argv, environment = process.env) {
     parentId: undefined,
     codexHome: undefined,
     expectedEffort: undefined,
+    expectedModel: undefined,
     expectedRole: undefined,
     waitMs: undefined,
     compact: false
@@ -225,6 +240,11 @@ function parseArgs(argv, environment = process.env) {
         break;
       case "--expected-role":
         raw.expectedRole = requireValue(argv, index, token);
+        seen.add(token);
+        index += 1;
+        break;
+      case "--expected-model":
+        raw.expectedModel = requireValue(argv, index, token);
         seen.add(token);
         index += 1;
         break;
@@ -674,6 +694,10 @@ async function resultFromTrace(options, trace) {
   result.role_matches = options.expectedRole === undefined
     ? null
     : agentRole === options.expectedRole;
+  if (options.expectedModel !== undefined) {
+    result.model_matches = trace.turnContext.model === options.expectedModel;
+    result.model = result.model_matches ? options.expectedModel : null;
+  }
   result.effort_matches = options.expectedEffort === undefined
     ? null
     : effectiveEffort === options.expectedEffort;

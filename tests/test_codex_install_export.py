@@ -160,6 +160,9 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, managed_block)
         self.assertIn(
+            "Whenever a child returns user-visible output", managed_block
+        )
+        self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
         )
@@ -275,6 +278,9 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn(
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
+        )
+        self.assertIn(
+            "Whenever a child returns user-visible output", managed_block
         )
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
@@ -898,6 +904,7 @@ class CodexInstallExportTest(unittest.TestCase):
         )
 
         self.assertNotIn("max_threads", config)
+        self.assertNotIn("max_concurrent_threads_per_session", config)
         self.assertNotIn("max_depth", config)
         self.assertIn("multi_agent = true", config)
         self.assertIn("multi_agent_v2 = true", config)
@@ -942,7 +949,9 @@ class CodexInstallExportTest(unittest.TestCase):
             9000,
         )
 
-    def test_global_installer_preserves_user_managed_agent_limits(self) -> None:
+    def test_global_installer_migrates_legacy_concurrency_and_preserves_depth(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             home = Path(temp_dir_name) / "home"
             target = home / ".codex"
@@ -975,11 +984,14 @@ class CodexInstallExportTest(unittest.TestCase):
             parsed = INSTALL_MODULE.tomllib.loads(
                 config_path.read_text(encoding="utf-8")
             )
-            self.assertEqual(parsed["agents"]["max_threads"], 11)
+            self.assertNotIn("max_threads", parsed["agents"])
+            self.assertEqual(
+                parsed["agents"]["max_concurrent_threads_per_session"], 11
+            )
             self.assertEqual(parsed["agents"]["max_depth"], 1)
             self.assertFalse(parsed["agents"]["interrupt_message"])
 
-    def test_global_installer_leaves_unconfigured_agent_limits_absent(self) -> None:
+    def test_global_installer_writes_default_agent_limits(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             home = Path(temp_dir_name) / "home"
             target = home / ".codex"
@@ -1004,7 +1016,47 @@ class CodexInstallExportTest(unittest.TestCase):
                 (target / "config.toml").read_text(encoding="utf-8")
             )
             self.assertNotIn("max_threads", parsed["agents"])
-            self.assertNotIn("max_depth", parsed["agents"])
+            self.assertEqual(
+                parsed["agents"]["max_concurrent_threads_per_session"], 8
+            )
+            self.assertEqual(parsed["agents"]["max_depth"], 1)
+
+    def test_global_merge_prefers_explicit_new_concurrency_over_legacy_key(
+        self,
+    ) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "[agents]\n"
+            "max_threads = 11\n"
+            "max_concurrent_threads_per_session = 5 # keep\n"
+            "max_depth = 3\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+            manage_agent_runtime_limits=True,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertNotIn("max_threads", parsed["agents"])
+        self.assertEqual(parsed["agents"]["max_concurrent_threads_per_session"], 5)
+        self.assertEqual(parsed["agents"]["max_depth"], 3)
+        self.assertIn("max_concurrent_threads_per_session = 5 # keep", merged)
+
+    def test_global_merge_migrates_dotted_legacy_concurrency(self) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "agents.max_threads = 6\nagents.interrupt_message = false\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+            manage_agent_runtime_limits=True,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertNotIn("max_threads", parsed["agents"])
+        self.assertEqual(
+            parsed["agents"]["max_concurrent_threads_per_session"], 6
+        )
+        self.assertEqual(parsed["agents"]["max_depth"], 1)
+        self.assertFalse(parsed["agents"]["interrupt_message"])
 
     def test_workspace_profile_target_inherits_global_agent_limits(self) -> None:
         workspace_target = Path("/work/repo/.codex")
@@ -1034,6 +1086,93 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertNotIn("max_depth", merged)
         self.assertIn("interrupt_message = false", merged)
         self.assertIn("[agents.executor]", merged)
+
+    def test_workspace_upgrade_removes_dotted_legacy_managed_limits(self) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "agents.max_threads = 6\n"
+            "agents.max_depth = 2\n"
+            "agents.interrupt_message = false\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+            remove_legacy_agent_limits=True,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertNotIn("max_threads", parsed["agents"])
+        self.assertNotIn("max_depth", parsed["agents"])
+        self.assertFalse(parsed["agents"]["interrupt_message"])
+
+    def test_direct_workspace_reinstall_removes_legacy_managed_limits(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            workspace = Path(temp_dir_name) / "workspace"
+            target = workspace / ".codex"
+            command = [
+                "bash",
+                INSTALL_SH_PATH.as_posix(),
+                "--target",
+                target.as_posix(),
+                "--workspace-root",
+                workspace.as_posix(),
+                "--no-backup",
+            ]
+            environment = {
+                **os.environ,
+                "HOME": str(Path(temp_dir_name) / "home"),
+                "CODEX_HOME": str(Path(temp_dir_name) / "home" / ".codex"),
+            }
+
+            first = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
+            config_path = target / "config.toml"
+            config_text = config_path.read_text(encoding="utf-8")
+            self.assertIn("[agents]", config_text)
+            config_path.write_text(
+                config_text.replace(
+                    "[agents]",
+                    "[agents]\nmax_threads = 6\nmax_depth = 2",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+
+            second = subprocess.run(
+                command,
+                cwd=REPO_ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+            parsed = INSTALL_MODULE.tomllib.loads(
+                config_path.read_text(encoding="utf-8")
+            )
+            self.assertNotIn("max_threads", parsed["agents"])
+            self.assertNotIn("max_depth", parsed["agents"])
+            self.assertNotIn(
+                "max_concurrent_threads_per_session", parsed["agents"]
+            )
+
+    def test_workspace_merge_does_not_add_global_agent_limits(self) -> None:
+        merged = INSTALL_MODULE.merge_config_text(
+            "[agents]\ninterrupt_message = false\n",
+            {},
+            previous_agent_names=[],
+            job_max_runtime_seconds=None,
+        )
+
+        parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertNotIn("max_threads", parsed["agents"])
+        self.assertNotIn("max_concurrent_threads_per_session", parsed["agents"])
+        self.assertNotIn("max_depth", parsed["agents"])
 
     def test_merge_ignores_table_and_assignment_text_inside_multiline_strings(self) -> None:
         existing = (

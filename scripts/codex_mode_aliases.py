@@ -63,6 +63,14 @@ CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "reasoning policy protocol, use its shared resolver for child effort and never "
     "infer effort from workflow risk or apply a child selector to the current/main agent."
 )
+CHILD_RESULT_SELECTION_LABEL_LINE = (
+    "Whenever a child returns user-visible output, show one adjacent compact selection "
+    "line with role, model, and effort. Use `model=<name> (verified)` only when a "
+    "bounded expected model matches the local trace; otherwise label the configured "
+    "model as unverified or use `unknown`. Use `(effective)` only for observed effort; "
+    "otherwise label it requested or inherited/unverified. Do not make the child "
+    "self-report this metadata or combine model and effort into one opaque value."
+)
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."
 )
@@ -282,6 +290,7 @@ def build_mode_summary_lines() -> List[str]:
         WORKSPACE_PROFILE_PREFLIGHT_LINE,
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
         CUSTOM_ROLE_FORK_ISOLATION_LINE,
+        CHILD_RESULT_SELECTION_LABEL_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,
         MODE_ALIAS_DEFINITION_LOOKUP_LINE,

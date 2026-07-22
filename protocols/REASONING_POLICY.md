@@ -344,21 +344,23 @@ trace using the identifier returned by the active spawn surface. V2 returns a
 task path:
 
 ```text
-node tools/codex-child-trace.js --task-name '<task-name>' --expected-role '<role>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
+node tools/codex-child-trace.js --task-name '<task-name>' --expected-role '<role>' --expected-model '<configured-model>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
 ```
 
 Legacy surfaces return an agent UUID:
 
 ```text
-node tools/codex-child-trace.js --agent-id '<agent-id>' --expected-role '<role>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
+node tools/codex-child-trace.js --agent-id '<agent-id>' --expected-role '<role>' --expected-model '<configured-model>' --expected-effort '<dispatch-effort>' --wait-ms 5000 --compact
 ```
 
 Use a unique V2 `task_name` for each dispatch. The helper binds task-name lookup
 to the `CODEX_THREAD_ID` that Codex injects into the current shell; an external
 diagnostic may pass the same parent UUID explicitly with `--parent-id`. Without
 that parent identity, task-name lookup fails instead of accepting a potentially
-stale trace. Omit `--expected-effort` when no effort was dispatched. This verification
-attempt is mandatory when the installed helper is available. A role mismatch
+stale trace. Pass `--expected-model` only when effective Codex configuration
+provides a bounded OpenAI model name for the selected role. Omit
+`--expected-effort` when no effort was dispatched. This verification attempt is
+mandatory when the installed helper is available. A role mismatch
 blocks acceptance because it means the configured role was not applied. When
 the helper reports an effective effort, rerun the same resolver input with
 `observed_effective_effort` and use that updated decision for the next lifecycle
@@ -375,13 +377,31 @@ distinct_from_parent` rules out simple parent-effort inheritance but does not
 attest Codex's internal implementation path. `matches_parent` means a
 same-value selector and inheritance cannot be distinguished; `mismatch` means
 the requested effort was not observed. `inheritance_consistent` is likewise
-observational, not causal. The helper emits only the child ID, closed effort
-values, and boolean/enum comparisons; raw child role/model values and the
-parent ID are always redacted. Do not copy parent comparison fields into a
+observational, not causal. For model verification, the helper emits the
+caller-supplied expected model only after an exact raw-trace match plus a
+`model_matches` boolean; it never emits a mismatched or unsolicited raw model.
+All other output remains limited to the child ID, closed effort values, and
+boolean/enum comparisons; raw child role values and the parent ID are always
+redacted. Do not copy parent comparison fields into a
 ReasoningObservation, and never persist trace paths or session contents. Simple
 follows the same contract in memory and writes no status artifact. Searches
 fail closed when the Codex home, a parent directory, or a candidate trace is
 reached through a symlink, Windows junction, or other path redirection.
+
+For every terminal child result surfaced to the user, print one compact adjacent
+selection line before the result summary:
+
+```text
+reviewer · model=gpt-5.6-sol (verified) · effort=xhigh (effective)
+```
+
+Use the registered role name. Show `(verified)` only when `model_matches = true`;
+otherwise show the configured model as `(unverified)` or `model=unknown`. Show
+`(effective)` only when the trace supplied `effective_effort`; otherwise label the
+effort `(requested)` or `(inherited; unverified)` as applicable. A mismatch must be
+visible and continues to follow the workflow's acceptance rules. Do not ask the
+child to self-report runtime metadata, repeat the child body, or combine model and
+effort into one opaque label.
 
 Terminal Flow/Pipeline attempts may write a content-free local observation at:
 
