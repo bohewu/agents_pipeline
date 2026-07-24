@@ -140,7 +140,7 @@ Schema: `./protocols/schemas/test-report.schema.json`
 
 - Pipeline TaskList entries explicitly provide `risk`, `complexity`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, and `reasoning_signals`; the orchestrator derives `verification` and `repair_budget` for executor handoffs, while the DispatchPlan provides resource and batch reasoning metadata. Pipeline Stage 6 reviews the complete run and prioritizes high-risk/L-complexity tasks.
 - FlowTaskList entries explicitly provide `risk`, `task_intent`, intent-baseline metadata, legacy-compatible `reasoning_class`, `reasoning_signals`, `verification`, `review_required`, `repair_budget`, and `resource_class`; omitted `--review` behavior is derived from those task contracts. Flow `repair_budget` counts only additional implementation/content modify-and-verify cycles after the first attempt, while operational retries and the single Flow-level recovery are separate bounds. Tool calls, CLI mistakes, permission failures, network failures, unavailable services/dependencies, browser startup failures, and tool failures never consume repair budget.
-- Model and provider selection are profile/runtime-owned. The profile selects the actual role model/tier; `./protocols/REASONING_POLICY.md` validates that selected capability and selects only per-spawn child effort. It never routes a raw/dynamic model or changes current/main-agent effort, and remains independent from workflow risk, verification, retry, and resource controls.
+- Model and provider selection are profile/runtime-owned. The profile selects the normal role model/tier; `./protocols/REASONING_POLICY.md` validates that selected capability and selects only per-spawn child effort. It never routes a raw/dynamic model or changes current/main-agent effort, and remains independent from workflow risk, verification, retry, and resource controls. The only model-uplift path is the bounded `./protocols/CAPABILITY_RECOVERY.md` policy for one eligible child retry.
 - Pipeline low-risk/S tasks use basic verification and one bounded repair pass; medium-risk/M and high-risk/L tasks use two bounded repair passes, with strong verification for high-risk/L work.
 - Flow low-risk tasks may use `verification = none` for bounded non-executable outputs, while localized implementation tasks normally receive two bounded in-task correction cycles.
 - Flow medium-risk tasks use at least basic verification and one or two bounded in-task correction cycles; Flow review becomes required when they cross an integration or user-critical boundary.
@@ -359,7 +359,7 @@ Minimal payload skeleton guidance:
 - `stage.completed`: add `stage`, `name`, `status`, `artifact_key`; include `stage_artifact`, `next_stage`, and any relevant canonical artifact path fields only when they changed. Include object `flags` whenever the stage derives or changes effective flags; the runtime merges them into `checkpoint.flags`.
 - Required derived-flag persistence points: Pipeline Stage 3 persists risk-derived `max_retry_rounds`; Flow Stage 2 persists risk-derived `review_mode` plus `review_reasoning_effort`. Fresh Flow/Pipeline runs persist `reasoning_mode`, `reasoning_policy_version`, and `reasoning_ceiling`; resume must preserve an omitted mode, reject a policy-version mismatch, and use `inherit` for a legacy checkpoint unless the resume invocation explicitly selects a mode. An explicit `--review=max` persists `review_reasoning_effort = max` so resume and every re-review keep the same reviewer-only override.
 - `tasks.registered`: add canonical task summaries, including `task_intent`, `intent_baseline_class`, `classification_source`, legacy `reasoning_class`, and `reasoning_signals` when present; include `task_list_path` when available.
-- `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`.
+- `task.updated`: add `task_id` plus only the changed semantic task fields, such as `status`, routing metadata, result/evidence fields, or `error`. Pipeline retry dispatches increment `retry_opportunities_used` by exactly one. A promoted model retry must set `capability_recovery_used = true` in that same task update before spawning; the runtime rejects duplicate claims, resets, gaps, and values above persisted `max_retry_rounds`.
 - `agent.started` / `agent.heartbeat` / `agent.finished`: add `agent_id`; include `agent` on start and `task_id` only when attached to a canonical task. Instrumented Flow/Pipeline attempts include the complete ReasoningDecision as `reasoning` and update it when effective-effort trace evidence becomes available.
 - Emitter guidance for `agent.heartbeat`: use standalone heartbeats only for still-active work that genuinely needs liveness visibility. Prefer a coarse cadence (roughly no more than once per 15 seconds per active agent) unless semantic state, resource state, or cleanup state changed. If completion is imminent, skip the heartbeat and flush the final batch instead.
 - `run.finished`: add terminal run `status`; include `waiting_on`, `notes`, or `last_error` only when relevant.
@@ -460,6 +460,8 @@ Optional fields:
 - `classification_source`
 - `prior_failure_type`
 - `allow_degraded_deep`
+- `retry_opportunities_used`
+- `capability_recovery_used`
 - `reasoning_class`
 - `reasoning_signals[]`
 - `batch_id`
@@ -484,6 +486,7 @@ Relationship rules:
 - Each `TaskStatus` belongs to exactly one `RunStatus`.
 - Each `TaskStatus` maps to exactly one canonical `task_id` from `TaskList`.
 - A `TaskStatus` MAY reference the currently responsible `AgentStatus`; MVP does not require full attempt history in this repo.
+- Pipeline capability recovery atomically changes `capability_recovery_used` from false/omitted to true while incrementing `retry_opportunities_used`. Resume preserves both fields, and all later task redispatches use the same monotonically increasing counter.
 
 Task status vocabulary:
 

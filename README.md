@@ -74,13 +74,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.34.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.34.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -88,13 +88,13 @@ tag="v0.34.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.34.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.34.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -102,16 +102,16 @@ tag="v0.34.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.34.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.34.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.34.1` must release as `v0.34.1`.
+Release invariant: `VERSION=0.35.0` must release as `v0.35.0`.
 
 <!-- END current-release -->
 
@@ -173,7 +173,7 @@ bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
 ```
 
-The menu selects the action, runtime, scope when applicable, profile, and runtime-specific model set. The public actions are `set`, `status`, `clear`, and `list`; `install` remains only as a deprecated compatibility alias for `set`. Codex is the recommended runtime, and Codex model-profile `set` is workspace-only. Global Codex `status` and `clear` remain available for installation diagnostics and legacy profile cleanup. Claude Code and Copilot profiles remain global-only.
+The menu selects the action, runtime, scope when applicable, profile, and runtime-specific model set. The public actions are `set`, `status`, `clear`, and `list`; `install` remains only as a deprecated compatibility alias for `set`. Workflows also have a non-interactive, read-only `resolve-recovery` action for one bounded child recovery lookup. Codex is the recommended runtime, and Codex model-profile `set` is workspace-only. Global Codex `status` and `clear` remain available for installation diagnostics and legacy profile cleanup. Claude Code and Copilot profiles remain global-only.
 
 If a Codex project does not need explicit per-role model tiers, do nothing: it uses the model-free global roles and support installation, and those roles inherit the parent Codex session's model selection.
 
@@ -203,6 +203,7 @@ profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 # Optional per-project profile override; this is not an install.
 bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai
 bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
+bash "$profile_tool" resolve-recovery --runtime codex --scope workspace --workspace /path/to/project --agent executor --model-tier strong --json
 bash "$profile_tool" clear --runtime codex --scope workspace --workspace /path/to/project
 
 # Global installation diagnostics and legacy profile cleanup.
@@ -217,7 +218,7 @@ Codex exports leave machine-level limits unset. Normal full/global installs ensu
 
 The installed marker-owned support tree includes `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. Its installed profile-manager wrapper supports `set`, `status`, `clear`, and `list` without requiring a source clone. All managed discovery-skill copies remain global at `~/.agents/skills/`; neither a workspace profile nor explicit full workspace materialization installs user skills.
 
-Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. For Codex, these mappings are emitted only into workspace-local roles; the global roles always omit model settings and inherit the parent session. Claude Code and Copilot retain global profile output. A profile/runtime selects the actual role model and proven tier; the versioned child-spawn resolver uses that tier only to validate capability and select effort. It never routes a raw or dynamic model, downgrades a model, or changes the current/main agent. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
+Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map those tiers to valid runtime model settings. For Codex, these mappings are emitted only into workspace-local roles; the global roles always omit model settings and inherit the parent session. Claude Code and Copilot retain global profile output. A profile/runtime selects the normal role model and proven tier; the reasoning resolver uses that tier to validate capability and select effort. A separate child-only recovery policy can request one higher profile-approved tier for `executor` or `generalist`, within the profile ceiling and existing retry budget. It never changes the current/main agent, an orchestrator, a reviewer model, or performs a downgrade. See [runtime agent model profiles](docs/runtime-agent-model-profiles.md).
 
 ## Modes
 
@@ -264,6 +265,7 @@ Common controls include:
 - `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
 - `--resume`: resume from a compatible checkpoint.
 - `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Fresh `$run-adaptive` execution defaults to `adaptive`; direct Simple/Flow/Pipeline entry points and the underlying policy default remain `inherit`. Explicit flags and persisted resume state win. `inherit` retains classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes requested effort without applying it; strict assurance conflicts, while an ordinary shadowed review-max request remains unenforced until runtime evidence exists and conflicts if that evidence mismatches. `adaptive` requests the selector and verifies local Codex child traces before claiming the effective-effort contract was enforced. A matching child effort may still be observationally indistinguishable from parent inheritance when both values are equal; the helper reports that as `selector_evidence=matches_parent`, not selector causality. A non-strict, non-exact unavailable selector may be `degraded`; strict/exact requests conflict. Observed effort above the workspace ceiling conflicts in every mode; adaptive effort below dispatch also conflicts, while within-ceiling overprovisioning is explicitly degraded. See the central policy for capability rows and the deliberate deep compatibility exception.
+- `--capability-recovery=off|shadow|auto`: one task-scoped model-tier recovery for `executor` or `generalist` after the same material reasoning failure repeats without progress. Direct Simple/Flow/Pipeline default to `off`; fresh Adaptive `autonomous` and `delivery` default to `auto`, while the other presets default to `off`. The uplift is one tier step within the active profile ceiling, consumes an existing recovery opportunity, and requires native model/effort trace verification in `auto`. Operational failures never trigger it or consume repair budget.
 - `--review=off|on|max`: reviewer policy for Adaptive and the supported engineering workflows. `on` uses the run reasoning policy, while `max` is an exact reviewer-only effort override for every bounded review and re-review. Any runtime or observed fallback away from the resulting exact request conflicts. It keeps ordinary review deep; it does not certify the work, change the profile-selected reviewer model, or affect executors, test runners, or the main orchestrator. Simple uses a bounded ad-hoc gate, Flow uses its optional gate, and Pipeline is mandatory and rejects `off`.
 - `--max-retry=<n>`: cap workflow repair rounds; it is not model reasoning effort.
 - `--confirm` / `--verbose`: add stage/task pauses.
@@ -281,9 +283,9 @@ For resumable Flow/Pipeline runs, Adaptive persists the selected preset plus its
 | Adaptive preset | Policy |
 |---|---|
 | `balanced` | Selected workflow defaults and risk-derived rigor |
-| `autonomous` | Full-auto behavior within the selected workflow's existing safety and repair bounds |
+| `autonomous` | Full-auto behavior plus bounded child capability recovery within existing safety and repair bounds |
 | `careful` | Focused scouting plus review |
-| `delivery` | Full-auto, review, kanban auto-sync, and one safe local commit after success |
+| `delivery` | Full-auto, bounded child capability recovery, review, kanban auto-sync, and one safe local commit after success |
 | `interactive` | Confirm and verbose interaction |
 
 All presets remain Simple-eligible. Under Simple, Adaptive applies requested policy as a bounded wrapper: optional focused scout/commit-before, one Simple core execution, at most one ad-hoc reviewer repair and re-review, then requested handoff, kanban, and commit-after helpers. The Simple core still creates no ProblemSpec, task list, checkpoint, status, or retry loop. Under Flow and Pipeline, Adaptive expands the same policy into their native flags. On a fresh run, standalone Adaptive `--full-auto` remains a compatibility form of `--preset=autonomous` when no explicit preset is present and normalizes to that preset without duplicating the flag; with an explicit preset it remains an individual override. On resume, `--full-auto` is always a current override of the locked preset rather than a preset change. Explicit individual flags override preset values, subject to workflow hard safety gates.
@@ -294,7 +296,7 @@ The agents_pipeline `reviewer` custom role is separate from Codex's native `/rev
 
 Flow keeps three separate bounded controls: up to two operational retries that make no implementation/content change, task-local `repair_budget` of `0..2` additional modify-and-verify cycles after the first attempt, and one total Flow-level recovery re-dispatch per run. Tool calls, CLI mistakes, permission/network/service failures, and other operational problems never consume repair budget. Local repair stops when its budget is exhausted, scope would expand, or two repair attempts make no meaningful progress; a repeated failure signature is conclusive only after three consecutive attempts. Reviewer repair remains a separate single targeted repair plus one re-review.
 
-Review gates block only evidence-backed defects with practical impact or direct violations of explicit requirements. P3 suggestions, wording preferences, and optional improvements do not trigger repair or retries. Pipeline task-local repair budgets are one cycle for low-risk/S work and two cycles for medium-risk/M or high-risk/L work. Final summaries translate internal workflow terms into concise language that matches the user.
+Before repair, reviewer followup, capability recovery, or a new Goal continuation round, the workflow applies `protocols/MATERIALITY_GATE.md`: an original goal condition must remain unmet, concrete evidence must prove it, and leaving it unchanged must have practical impact. P3 suggestions, wording preferences, speculative hardening, and optional improvements stay optional and do not trigger work or consume a budget. Pipeline task-local repair budgets are one cycle for low-risk/S work and two cycles for medium-risk/M or high-risk/L work. Budgets are upper bounds, not quotas; once the original requirements and material verification pass, the workflow freezes scope and finishes. Final summaries translate internal workflow terms into concise language that matches the user.
 
 ## Runtime-neutral status writer
 
@@ -334,7 +336,7 @@ python3 scripts/validate-reviewer-retry-guidance.py
 python3 scripts/validate-status-emission-guidance.py
 python3 scripts/validate-skill-frontmatter.py
 python3 scripts/update-agent-model-sets.py --check
-node --test tests/status-runtime.test.js
+node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js
 node scripts/validate-status-runtime-smoke.cjs
 ```
 

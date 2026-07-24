@@ -271,6 +271,14 @@ try {
     if ((ConvertTo-NeutralBundleVersion -ReleaseTag $releaseTag) -ge [version]"0.32.1") {
         $requiredBundlePaths += "tools/codex-child-trace.js"
     }
+    if ((ConvertTo-NeutralBundleVersion -ReleaseTag $releaseTag) -ge [version]"0.35.0") {
+        $requiredBundlePaths += @(
+            "protocols/CAPABILITY_RECOVERY.md",
+            "protocols/MATERIALITY_GATE.md",
+            "protocols/capability-recovery-policy.json",
+            "tools/capability-recovery.js"
+        )
+    }
     foreach ($requiredPath in $requiredBundlePaths) {
         $resolvedRequiredPath = Join-Path $bundleDir.FullName $requiredPath
         if (-not (Test-Path -LiteralPath $resolvedRequiredPath)) {

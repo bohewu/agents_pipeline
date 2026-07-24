@@ -182,6 +182,36 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stdout)
             self.assertIn("missing: tools/codex-child-trace.js", result.stderr)
 
+    def test_codex_bash_bootstrap_requires_capability_assets_from_v0350(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            temp_root = Path(raw_temp)
+            env, _ = self._write_fake_release(
+                temp_root,
+                release_tag="v0.35.0",
+                include_child_trace=True,
+            )
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(ROOT / "scripts/bootstrap-install-codex.sh"),
+                    "--repo",
+                    "example/project",
+                    "--version",
+                    "v0.35.0",
+                    "--target",
+                    str(temp_root / "codex-home"),
+                ],
+                cwd=ROOT,
+                env=env,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("missing: protocols/CAPABILITY_RECOVERY.md", result.stderr)
+
     def test_codex_bash_bootstrap_forwards_workspace_targets(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             temp_root = Path(raw_temp)
@@ -349,6 +379,8 @@ class BootstrapWorkspaceFlagTests(unittest.TestCase):
             "$installParams.GlobalAgentsTarget = $GlobalAgentsTarget",
             "$installParams.UserSkillsRoot = $UserSkillsRoot",
             "Codex agent model profiles are workspace-only",
+            '[version]"0.35.0"',
+            '"tools/capability-recovery.js"',
         ):
             self.assertIn(expected, codex)
         for expected in (

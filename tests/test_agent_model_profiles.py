@@ -30,12 +30,17 @@ def write_json(directory: Path, name: str, payload: dict) -> Path:
     return path
 
 
-def profile_payload(models: dict, runtime: str = "neutral") -> dict:
-    return {
+def profile_payload(
+    models: dict, runtime: str = "neutral", recovery_ceiling_tiers: dict | None = None
+) -> dict:
+    payload = {
         "name": "test-profile",
         "runtime": runtime,
         "models": models,
     }
+    if recovery_ceiling_tiers is not None:
+        payload["recovery_ceiling_tiers"] = recovery_ceiling_tiers
+    return payload
 
 
 def codex_tiers() -> dict:
@@ -55,6 +60,19 @@ def model_set_payload(runtime: str, tiers: dict) -> dict:
 
 
 class AgentModelProfilesTest(unittest.TestCase):
+    def test_builtin_recovery_ceiling_mappings(self) -> None:
+        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
+        expected = {
+            "frugal": {"executor": "standard", "generalist": "standard"},
+            "balanced": {"executor": "strong", "generalist": "strong"},
+            "premium": {"executor": "strong", "generalist": "strong"},
+        }
+
+        for name, ceilings in expected.items():
+            with self.subTest(profile=name):
+                profile = RESOLVER.load_profile(name, profiles_dir, "codex")
+                self.assertEqual(profile.recovery_ceiling_tiers, ceilings)
+
     def test_unknown_tier_fails_during_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
@@ -231,6 +249,138 @@ class AgentModelProfilesTest(unittest.TestCase):
             self.assertEqual(len(captured), 1)
             self.assertIn(profile_path.as_posix(), str(captured[0].message))
             self.assertIn("missing-agent", str(captured[0].message))
+
+    def test_recovery_model_setting_returns_copied_bounded_setting(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            profile_dir = root / "profiles"
+            model_set_dir = root / "model-sets"
+            write_json(
+                profile_dir,
+                "profile",
+                profile_payload(
+                    {"executor": "standard", "generalist": "standard"},
+                    recovery_ceiling_tiers={"executor": "strong", "generalist": "strong"},
+                ),
+            )
+            write_json(model_set_dir, "openai", model_set_payload("codex", codex_tiers()))
+            profile = RESOLVER.load_profile("profile", profile_dir, "codex")
+            model_set = RESOLVER.load_model_set("openai", model_set_dir, "codex")
+
+            resolved = RESOLVER.resolve_recovery_model_setting(
+                "executor", "strong", profile, model_set
+            )
+
+            self.assertEqual(
+                resolved,
+                {
+                    "model_setting": {"model": "gpt-5.6-sol"},
+                    "base_tier": "standard",
+                    "requested_tier": "strong",
+                    "ceiling_tier": "strong",
+                },
+            )
+            resolved["model_setting"]["model"] = "changed"
+            self.assertEqual(model_set.tiers["strong"], {"model": "gpt-5.6-sol"})
+
+    def test_recovery_model_setting_requires_configured_supported_role(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            profile_dir = root / "profiles"
+            model_set_dir = root / "model-sets"
+            write_json(
+                profile_dir,
+                "profile",
+                profile_payload({"executor": "standard"}),
+            )
+            write_json(model_set_dir, "openai", model_set_payload("codex", codex_tiers()))
+            profile = RESOLVER.load_profile("profile", profile_dir, "codex")
+            model_set = RESOLVER.load_model_set("openai", model_set_dir, "codex")
+
+            with self.assertRaisesRegex(ValueError, "not configured"):
+                RESOLVER.resolve_recovery_model_setting(
+                    "executor", "strong", profile, model_set
+                )
+            with self.assertRaisesRegex(ValueError, "must be one of"):
+                RESOLVER.resolve_recovery_model_setting(
+                    "reviewer", "strong", profile, model_set
+                )
+
+    def test_recovery_model_setting_requires_tier_above_base(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            profile_dir = root / "profiles"
+            model_set_dir = root / "model-sets"
+            write_json(
+                profile_dir,
+                "profile",
+                profile_payload(
+                    {"executor": "standard"},
+                    recovery_ceiling_tiers={"executor": "strong"},
+                ),
+            )
+            write_json(model_set_dir, "openai", model_set_payload("codex", codex_tiers()))
+            profile = RESOLVER.load_profile("profile", profile_dir, "codex")
+            model_set = RESOLVER.load_model_set("openai", model_set_dir, "codex")
+
+            for requested_tier in ("mini", "standard"):
+                with self.subTest(requested_tier=requested_tier):
+                    with self.assertRaisesRegex(ValueError, "must be above base tier"):
+                        RESOLVER.resolve_recovery_model_setting(
+                            "executor", requested_tier, profile, model_set
+                        )
+
+    def test_recovery_model_setting_rejects_tier_above_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            profile_dir = root / "profiles"
+            model_set_dir = root / "model-sets"
+            write_json(
+                profile_dir,
+                "profile",
+                profile_payload(
+                    {"executor": "mini"},
+                    recovery_ceiling_tiers={"executor": "standard"},
+                ),
+            )
+            write_json(model_set_dir, "openai", model_set_payload("codex", codex_tiers()))
+            profile = RESOLVER.load_profile("profile", profile_dir, "codex")
+            model_set = RESOLVER.load_model_set("openai", model_set_dir, "codex")
+
+            with self.assertRaisesRegex(ValueError, "exceeds ceiling tier"):
+                RESOLVER.resolve_recovery_model_setting(
+                    "executor", "strong", profile, model_set
+                )
+
+    def test_invalid_recovery_ceiling_profile_fails_load(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            profile_dir = Path(temp_dir_name)
+            cases = {
+                "below-base": (
+                    {"executor": "standard"},
+                    {"executor": "mini"},
+                    "cannot be below base tier",
+                ),
+                "unknown-tier": (
+                    {"executor": "standard"},
+                    {"executor": "max"},
+                    "must be one of",
+                ),
+                "unlisted-role": (
+                    {"reviewer": "standard"},
+                    {"reviewer": "strong"},
+                    "must be one of",
+                ),
+            }
+            for name, (models, ceilings, message) in cases.items():
+                with self.subTest(profile=name):
+                    write_json(
+                        profile_dir,
+                        "profile",
+                        profile_payload(models, recovery_ceiling_tiers=ceilings),
+                    )
+                    with self.assertRaisesRegex(ValueError, message):
+                        RESOLVER.load_profile("profile", profile_dir, "codex")
 
 
 if __name__ == "__main__":

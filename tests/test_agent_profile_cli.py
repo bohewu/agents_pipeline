@@ -198,6 +198,26 @@ class AgentProfileInteractionTests(unittest.TestCase):
                     stdout=NonTtyStringIO(),
                 )
 
+    def test_resolve_recovery_requires_agent_and_model_tier(self) -> None:
+        base = (
+            "resolve-recovery",
+            "--runtime",
+            "codex",
+            "--scope",
+            "workspace",
+            "--asset-root",
+            str(REPO_ROOT),
+        )
+        for extra in ((), ("--agent", "executor"), ("--model-tier", "strong")):
+            with self.subTest(extra=extra), self.assertRaisesRegex(
+                PROFILE.ProfileError, "requires --agent and --model-tier"
+            ):
+                PROFILE.resolve_request(
+                    parse(*base, *extra),
+                    stdin=NonTtyStringIO(),
+                    stdout=NonTtyStringIO(),
+                )
+
     def test_non_tty_codex_set_defaults_to_workspace_scope(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             workspace = Path(temp_name) / "project"
@@ -479,6 +499,46 @@ class AgentProfileCommandTests(unittest.TestCase):
             self.assertIn("--model-set", command)
             self.assertIn("openai", command)
             self.assertNotIn("install-codex.sh", " ".join(command))
+
+    def test_codex_workspace_resolve_recovery_uses_project_profile_helper(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            installed_helper = (
+                home
+                / ".codex"
+                / "agents-pipeline"
+                / "scripts"
+                / "codex-project-profile.py"
+            )
+            installed_helper.parent.mkdir(parents=True)
+            installed_helper.write_text("# fixture\n", encoding="utf-8")
+            args, request = self.resolve(
+                "resolve-recovery",
+                "--runtime",
+                "codex",
+                "--scope",
+                "workspace",
+                "--workspace",
+                str(root / "project"),
+                "--agent",
+                "executor",
+                "--model-tier",
+                "strong",
+                home=home,
+            )
+            with mock.patch.dict(
+                os.environ, {"CODEX_HOME": str((home / ".codex").resolve())}
+            ):
+                command = PROFILE.build_project_profile_command(request, args, home=home)
+            self.assertEqual(Path(command[1]), installed_helper.resolve())
+            self.assertEqual(command[2], "resolve-recovery")
+            self.assertEqual(
+                command[command.index("--agent") + 1], "executor"
+            )
+            self.assertEqual(
+                command[command.index("--model-tier") + 1], "strong"
+            )
 
     def test_clear_reruns_installer_without_profile_flags(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

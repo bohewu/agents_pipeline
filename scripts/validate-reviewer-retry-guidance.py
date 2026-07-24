@@ -30,6 +30,21 @@ CHECKS = {
         "Retry classification rules:",
         "Only evidence-backed blocking P0-P2 findings may fail the run",
         "P3 suggestions, wording preferences, and optional improvements never create delta tasks",
+        "Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, retry, or",
+        "Reviewer models never uplift",
+        "generic risk",
+        "`optional_notes` are not remaining work",
+    ],
+    Path("agents/orchestrator-flow.md"): [
+        "Apply `protocols/MATERIALITY_GATE.md` before every repair, reviewer re-review, or",
+        "Reviewer models never uplift",
+        "generic risk alone does not",
+        "unmet original requirement, concrete evidence, and practical impact",
+    ],
+    Path("agents/orchestrator-simple.md"): [
+        "Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, or narrow recovery",
+        "Reviewer models never uplift",
+        "generic risk alone does not",
     ],
 }
 

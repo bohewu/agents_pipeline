@@ -17,6 +17,7 @@ CHECKS = {
         "runtime MUST merge these overrides over persisted `checkpoint.flags`",
         "`checkpoint.updated`",
         "Required derived-flag persistence points",
+        "Pipeline retry dispatches increment `retry_opportunities_used`",
     ],
     Path("agents/orchestrator-pipeline.md"): [
         "roughly no more than once per 15 seconds",
@@ -24,6 +25,9 @@ CHECKS = {
         '`--event batch`',
         "hydrate the persisted effective flags from `checkpoint.flags` first",
         "Stage 3 completion event MUST persist the risk-derived `max_retry_rounds`",
+        "normalized `capability_recovery_mode` before task execution can resume",
+        "`capability_recovery_used = true`",
+        "`retry_opportunities_used = <persisted value + 1>`",
     ],
     Path("agents/orchestrator-flow.md"): [
         "roughly >=15 seconds",
@@ -32,6 +36,7 @@ CHECKS = {
         "legacy task with `effort` but without required `risk` / `review_required`",
         "Start a fresh run with a new `run_id`",
         "Stage 2 completion event MUST persist the risk-derived `review_mode`, `review_reasoning_effort`",
+        "`capability_recovery_mode`, and the internal recovery limits",
         "--event checkpoint.updated",
     ],
     Path("docs/status-implementation-checklist.md"): [

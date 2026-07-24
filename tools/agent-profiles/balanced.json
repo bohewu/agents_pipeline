@@ -2,6 +2,10 @@
   "name": "balanced",
   "runtime": "neutral",
   "description": "Default routing profile balancing cost and quality for routine repository work.",
+  "recovery_ceiling_tiers": {
+    "executor": "strong",
+    "generalist": "strong"
+  },
   "models": {
     "analysis-complexity": "standard",
     "analysis-correctness": "standard",

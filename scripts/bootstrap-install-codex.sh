@@ -490,6 +490,14 @@ REQUIRED_BUNDLE_PATHS=(
 if release_at_least "${RELEASE_TAG}" "v0.32.1"; then
   REQUIRED_BUNDLE_PATHS+=("tools/codex-child-trace.js")
 fi
+if release_at_least "${RELEASE_TAG}" "v0.35.0"; then
+  REQUIRED_BUNDLE_PATHS+=(
+    "protocols/CAPABILITY_RECOVERY.md"
+    "protocols/MATERIALITY_GATE.md"
+    "protocols/capability-recovery-policy.json"
+    "tools/capability-recovery.js"
+  )
+fi
 for required_path in "${REQUIRED_BUNDLE_PATHS[@]}"; do
   if [[ ! -e "${BUNDLE_DIR}/${required_path}" ]]; then
     echo "Codex bundle layout is incomplete; missing: ${required_path}" >&2

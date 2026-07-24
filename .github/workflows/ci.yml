@@ -58,7 +58,11 @@ jobs:
           test -d protocols
           test -d skills
           test -d tools/status-runtime
+          test -f protocols/CAPABILITY_RECOVERY.md
+          test -f protocols/MATERIALITY_GATE.md
+          test -f protocols/capability-recovery-policy.json
           test -f protocols/reasoning-policy.json
+          test -f tools/capability-recovery.js
           test -f tools/reasoning-policy.js
           test -f tools/reasoning-vocabulary.js
           test -f tools/codex-child-trace.js
@@ -110,6 +114,7 @@ jobs:
 
           tool = [sys.executable, "tools/validate-schema.py", "--require-jsonschema"]
           positive = [
+              ("capability-recovery-decision.schema.json", "capability-recovery-decision.valid.json"),
               ("checkpoint.schema.json", "checkpoint.reasoning-v2.valid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.valid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.v2.valid.json"),
@@ -137,6 +142,7 @@ jobs:
               ("reasoning-policy.schema.json", "reasoning-policy.legacy.valid.json"),
           ]
           negative = [
+              ("capability-recovery-decision.schema.json", "capability-recovery-decision.invalid.json"),
               ("checkpoint.schema.json", "checkpoint.allow-degraded-deep-incomplete.invalid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.causal-overclaim.invalid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.known-efforts-null-comparison.invalid.json"),
@@ -179,6 +185,7 @@ jobs:
           ]
           for schema, fixture in positive:
               subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)
+          subprocess.run(tool + ["--schema", "protocols/schemas/capability-recovery-policy.schema.json", "--input", "protocols/capability-recovery-policy.json"], check=True)
           subprocess.run(tool + ["--schema", "protocols/schemas/reasoning-policy.schema.json", "--input", "protocols/reasoning-policy.json"], check=True)
           for schema, fixture in negative:
               result = subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"])
@@ -242,10 +249,11 @@ jobs:
         shell: bash
         run: |
           node --check tools/status-event.js
+          node --check tools/capability-recovery.js
           node --check tools/reasoning-policy.js
           node --check tools/reasoning-vocabulary.js
           node --check tools/codex-child-trace.js
-          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/codex-child-trace.test.js
+          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate local-preview lifecycle

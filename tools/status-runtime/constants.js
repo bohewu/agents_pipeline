@@ -116,6 +116,8 @@ const TASK_KEY_ORDER = [
   "classification_source",
   "prior_failure_type",
   "allow_degraded_deep",
+  "retry_opportunities_used",
+  "capability_recovery_used",
   "reasoning_class",
   "reasoning_signals",
   "batch_id",

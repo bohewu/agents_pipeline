@@ -46,6 +46,7 @@ Accepted policy overrides:
 - `--commit=off|before|after`
 - `--review=off|on|max`
 - `--reasoning=inherit|shadow|adaptive`
+- `--capability-recovery=off|shadow|auto`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -111,6 +112,14 @@ alone. Do not require field-level provenance to survive in a checkpoint.
 unchanged across route mapping and promotion. Flow and Pipeline persist it with the
 installed policy version and effective ceiling.
 
+Normalize `capability_recovery_mode` independently from reasoning effort. A fresh
+Adaptive `delivery` or `autonomous` preset defaults it to `auto`; `balanced`,
+`careful`, and `interactive` default it to `off`. An explicit
+`--capability-recovery=off|shadow|auto` always wins. Invalid values warn once and
+fall back to the applicable default. This policy never changes route selection and
+never authorizes a main/orchestrator model change; it only controls the bounded
+child recovery defined in `protocols/CAPABILITY_RECOVERY.md`.
+
 Precedence is deterministic:
 
 1. Selected workflow hard safety constraints.
@@ -126,6 +135,7 @@ corresponding preset value. Resolve autonomy versus interaction by provenance:
 - Explicit `--review=max` sets `review_mode = on` and `review_reasoning_effort = max`.
 - Explicit `--review=off` sets `review_mode = off` and `review_reasoning_effort = inherit`.
 - Explicit `--reasoning=*` replaces the selected workflow default without changing route selection.
+- Explicit `--capability-recovery=*` replaces the preset/default recovery mode without changing route selection.
 - Explicit `--confirm` or `--verbose` clears preset-derived `autopilot_mode` and `full_auto_mode` before mapping.
 - Explicit `--autopilot` or `--full-auto` clears preset-derived `confirm_mode` and `verbose_mode`.
 - If autonomy and interaction controls are both explicit, autopilot/full-auto wins with one warning, matching the native workflow safety rule.
@@ -166,6 +176,11 @@ persisted mode remains. Require the persisted policy version to match the instal
 policy. A legacy checkpoint without reasoning fields uses `inherit` unless this resume
 invocation explicitly selects a mode; the fresh-run Adaptive default does not rewrite an
 older run's policy.
+Current explicit `--capability-recovery=*` replaces persisted
+`capability_recovery_mode`; when omitted, the persisted effective mode remains. A
+legacy checkpoint without that field uses `off` unless the current invocation
+explicitly supplies the flag. Persist the normalized mode before the next Flow or
+Pipeline spawn.
 This needs no persisted field-level provenance. A legacy checkpoint without
 `preset_mode` is treated as a locked `balanced` run while retaining its persisted
 expanded flags.
@@ -199,12 +214,15 @@ explicit policy wrapper around that core:
 2. Run `commit_mode = before` through one bounded `peon` helper when requested.
 3. For `scout_mode = force`, run one focused `repo-scout`; for `auto`, inspect only when target files are unclear.
 4. Execute the Simple workflow. Full-auto/autopilot suppresses pauses but never expands Simple's narrow recovery bound.
-5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. On failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. Resolve both reviewer attempts through `protocols/REASONING_POLICY.md` with `dispatch_context = ad-hoc-review`; when `review_reasoning_effort = max`, also pass exact reviewer-only `explicit_effort = max`. Adaptive applies it, shadow records it without applying it, and inherit conflicts; it stays deep ordinary review and does not certify the work. Every wrapper/core child uses the normalized `reasoning_mode` and registered role selection without passing a model. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
+5. If `review_mode = on`, dispatch one ad-hoc reviewer with changed targets, requirements, and evidence. Apply `protocols/MATERIALITY_GATE.md` before any repair or re-review; on an admitted material failure, dispatch at most one narrow same-scope repair to the original worker or an existing `executor`, then run one re-review. Ordinary review uses the profile's strong tier with `xhigh` effort. Only explicit `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not and reviewer models never uplift. Resolve both reviewer attempts through `protocols/REASONING_POLICY.md` with `dispatch_context = ad-hoc-review`; when `review_reasoning_effort = max`, also pass exact reviewer-only `explicit_effort = max`. Adaptive applies it, shadow records it without applying it, and inherit conflicts; it stays deep ordinary review and does not certify the work. Every wrapper/core child uses the normalized `reasoning_mode` and registered role selection without passing a model. The Adaptive/current agent must not modify application or business code directly. A second failure stops.
 6. For handoff, dispatch `handoff-writer` with `mode = ad_hoc`, effective `output_root`, `orchestrator = orchestrator-simple`, the original `user_prompt`, `goal`, `scope_boundary`, `completed_items`, `pending_items`, `blocked_items`, `decisions`, `risks`, `artifact_paths`, `kanban_sync_required`, `kanban_updates`, `next_recommended_action`, `recommended_command`, and the in-memory Simple result/evidence. Generate `handoff_id` as the containment-safe basename `adaptive-simple-<UTC YYYYMMDDTHHMMSSZ>-<8 lowercase hex prompt digest>`; refuse an existing target instead of overwriting it. The writer must write under `<output_dir>/adaptive-simple-handoffs/<handoff_id>/` and must not discover or bind to an older persisted run. For `kanban_mode = auto`, run the kanban helper; for `manual`, report the manual sync action; for `off`, do nothing. Then run `commit_mode = after`; when review is enabled it must pass first, and the commit helper must safely separate run changes from pre-existing dirty changes.
 
 These helpers do not become Simple tasks. Reviewer scope expansion or evidence that the
 work is not a single bounded delivery recommends Flow. In `route_mode = auto`, retain
 the normalized policy and promote once to Flow; with `route_mode = simple`, stop.
+Simple never performs execution model recovery: retain the normalized
+`capability_recovery_mode` only as route policy metadata and report that an `auto` or
+`shadow` request cannot produce a recovery spawn on this route.
 Optional handoff output may use `output_dir`, but the Simple core still writes no
 checkpoint, status, task-list, or planning artifacts. Without an enabled helper that
 writes output, `output_dir` is retained as policy metadata but reported as not
@@ -215,7 +233,8 @@ applicable rather than forcing a higher route.
 Translate the normalized policy into Flow's native flags and remove `--preset` and
 `--route` before adoption. Flow supports the scout, commit, review (including `--review=max`), handoff, kanban,
 reasoning, output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
-Persist `preset_mode` beside the expanded effective flags in the Flow checkpoint.
+Forward normalized `--capability-recovery=off|shadow|auto` and persist it with
+`preset_mode` beside the expanded effective flags in the Flow checkpoint.
 
 ### Pipeline
 
@@ -224,7 +243,8 @@ and `--route` before adoption. `review_mode = on` with inherited effort is redun
 because Pipeline review is mandatory; omit that flag and report the normalization.
 Preserve `--review=max` so Pipeline can enforce the reviewer-only spawn override.
 `review_mode = off` conflicts with Pipeline's hard gate, so stop rather than weaken review. Persist `preset_mode`
-beside the expanded effective flags in the Pipeline checkpoint.
+and `capability_recovery_mode` beside the expanded effective flags in the Pipeline
+checkpoint.
 
 ## Prompt-only mode
 
@@ -260,7 +280,7 @@ When `prompt_mode = off`:
 1. Read the selected installed TOML definition.
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
-4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent, pass a model override, or dynamically route/upgrade/downgrade a model. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
+4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent or dynamically route a model. The sole exception is a Flow/Pipeline child recovery that fully satisfies `protocols/CAPABILITY_RECOVERY.md`: on Codex only, its one recovery spawn may pass the profile-resolved raw model and must verify that model and effort by child trace before acceptance. Other runtime exports conflict rather than inventing model routing; shadow may only compute a proven tier policy without spawning. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
 
 For `route_mode = auto`, materially underestimated work may promote once from Simple to
 Flow and once from Flow to Pipeline. Finish the current workflow honestly, retain
@@ -269,3 +289,11 @@ and reapply the same normalized preset plus explicit overrides. Do not treat one
 workflow's checkpoint as another's, do not nest primary orchestrators, and never
 downgrade after execution begins. Ordinary operational errors or localized repairable
 bugs are not promotion reasons.
+
+## Goal continuation admission
+
+A Goal may start a fresh workflow run, but prior output may seed continuation work
+only after `protocols/MATERIALITY_GATE.md` identifies the unmet original Goal
+condition, concrete evidence, and practical impact. `required_followups` contains
+only such material blockers; `optional_notes`, P3 findings, and polish never become
+remaining work. Do not create a `run-goal` artifact or synthetic goal task.

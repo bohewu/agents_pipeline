@@ -57,7 +57,7 @@ These rules apply to **all agents**.
 
 > Your decision is final.
 > If status is `fail` and `test_only = false`, orchestrator-pipeline must:
-> 1) Convert required_followups into delta tasks
+> 1) Apply the materiality gate and convert only admitted required_followups into delta tasks
 > 2) Re-dispatch via router
 > 3) Retry execution (up to `max_retry_rounds`)
 > If `test_only = true`, skip retries and report the reviewer result.
@@ -106,6 +106,7 @@ Flag semantics:
 - `--commit=off|before|after` -> commit_mode
 - `--review=on|max` -> mandatory review policy. `on` uses the run-level reasoning policy with no exact reviewer-only override; `max` requests exact maximum reasoning for every reviewer dispatch. `--review=off` is invalid because Pipeline review is mandatory.
 - `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy.
+- `--capability-recovery=off|shadow|auto` -> bounded child model recovery policy.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -140,6 +141,9 @@ invalid value, warn once and fall back to the mandatory inherited-effort default
 If no reasoning flag is provided, set `reasoning_mode = inherit`,
 `reasoning_policy_version` to the installed policy version, and
 `reasoning_ceiling = max`.
+
+If no capability-recovery flag is provided, set `capability_recovery_mode = off`.
+Invalid values warn once and fall back to `off`.
 
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
@@ -243,7 +247,7 @@ If the user prompt explicitly references a persisted handoff file such as `<outp
 3. **Checkpoint resume**: If `resume_mode = true`, check for `<run_output_dir>/checkpoint.json`.
    - If found, load it and validate that `checkpoint.orchestrator` matches `orchestrator-pipeline`; on mismatch, treat checkpoint as invalid.
    - For a valid checkpoint, hydrate the persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
-   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run.
+   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run. Hydrate persisted `capability_recovery_mode` first; an omitted flag preserves it, a current explicit flag replaces it, and a legacy checkpoint without it defaults to `off`.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume automatically and skip completed stages without asking confirmation.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
@@ -277,7 +281,7 @@ After each stage completes successfully:
    - `stage_artifacts`: map of stage outputs (the JSON produced at each stage)
     - `created_at` / `updated_at`: ISO 8601 timestamps
 2. The checkpoint file MUST conform to `protocols/schemas/checkpoint.schema.json`.
-3. Include the current effective `flags` object in `stage.completed` whenever a stage derives or changes a flag value. In particular, the Stage 3 completion event MUST persist the risk-derived `max_retry_rounds` when no explicit `--max-retry` or `--full-auto` default already controls it.
+3. Include the current effective `flags` object in `stage.completed` whenever a stage derives or changes a flag value. In particular, the Stage 3 completion event MUST persist the risk-derived `max_retry_rounds` when no explicit `--max-retry` or `--full-auto` default already controls it, plus the normalized `capability_recovery_mode` before task execution can resume.
 
 # STATUS ARTIFACT PROTOCOL
 
@@ -321,7 +325,7 @@ conflicts. `--review=max` remains ordinary deep review, does not certify work,
 and does not change the selected model. Conflicts block the spawn. Deep
 `mini`/`unknown` work conflicts by default; only an explicitly supplied
 `allow_degraded_deep` compatibility input may continue as degraded deep `max`.
-It never permits assurance or model routing.
+It never permits assurance or model routing outside the bounded capability recovery below.
 
 Include the complete decision in each `agent.started` status payload as
 `reasoning`. On local Codex, after every spawn returns its identifier, run
@@ -336,6 +340,44 @@ formal assurance or exact overrides. Do not claim enforcement without matching
 trace evidence. Matching effort enforces the policy contract;
 `selector_evidence = matches_parent` remains indeterminate between a same-value
 selector and inheritance.
+
+## MATERIALITY AND CAPABILITY RECOVERY
+
+Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, retry, or
+capability recovery. Admit work only with the unmet original requirement or acceptance
+criterion, concrete evidence, and practical impact. Budgets are upper bounds, not
+quotas: `required_followups` contains material blockers only, while `optional_notes`,
+P3 findings, wording, style, and optional hardening never seed work.
+
+Call `node tools/capability-recovery.js` only after the same concrete material
+`reasoning_failure` repeats for the same `executor` or `generalist` task and its
+preceding retry made no meaningful progress. Operational failures never qualify. One
+task-scoped uplift is allowed only for that concrete failed task inside existing retry
+bounds, and its used state persists with task evidence; no retry, repair, or recovery
+counter resets. The current/main agent, Pipeline orchestrator, and reviewer never
+uplift models.
+
+In `shadow`, compute and record the decision without a recovery spawn. In `auto`, fail
+closed unless Codex provides a native per-spawn selector, healthy eligible workspace
+profile, and `python tools/agent-profile.py resolve-recovery --runtime codex --scope
+workspace --workspace . --agent <executor|generalist> --model-tier <tier> --json`
+provides the approved raw model. Other runtime exports conflict rather than inventing
+model routing; shadow may only compute a proven tier policy. Re-run
+`tools/reasoning-policy.js` for the stronger tier using the prior effective class and
+no inherited recovery boost, then pass that raw model only on the one promoted spawn.
+Verify expected role, model, and normal projected effort with
+`tools/codex-child-trace.js`; re-run both resolvers with `model_matches`, the
+trace-proven tier, and effort evidence before accepting. A missing or mismatched
+selector/profile/trace result blocks the recovery attempt.
+
+For Pipeline `auto`, after all selector/profile/reasoning prechecks succeed but
+before the promoted spawn, emit and await one `task.updated` event for the failed
+canonical task with `capability_recovery_used = true` and
+`retry_opportunities_used = <persisted value + 1>`. The status runtime requires
+both changes in the same atomic task write, rejects a second claim or a
+non-sequential counter, and enforces the persisted `max_retry_rounds`. On resume,
+hydrate these fields from `status/tasks/<task_id>.json`; a true used flag forbids
+another uplift. `shadow` never writes this claim.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 
@@ -419,12 +461,12 @@ Stage 5: Execute batches + optional validation:
 - For localized landing page, dashboard polish, or component UI work, prefer explicit rendered visual QA and an appropriate `resource_class` over increasing model reasoning.
 - Include status expectations in every task handoff: executors may return semantic updates only for the assigned task plus their own agent attempt; the orchestrator serializes those deltas through the neutral status CLI. Executors should request standalone heartbeats only for genuinely long-running active work that still needs liveness visibility, keep heartbeats coarse (roughly no more than once per 15 seconds unless semantic/resource/cleanup state changes), record heavy-resource fields for browser/server/process work, and never claim success until required cleanup is reflected in status.
 - If `teardown_required = true`, require executor evidence that cleanup completed before moving on to the next heavy batch.
-- If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply BLOCKER RECOVERY POLICY before ending the execution stage.
+- If an executor returns `blocked` for a non-hard blocker, record it, continue remaining runnable tasks, then apply `protocols/MATERIALITY_GATE.md` and the BLOCKER RECOVERY POLICY before ending the execution stage.
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, and optional improvements never enter `required_followups`. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
-Stage 7: If fail and `test_only = false` -> inspect reviewer prefixes before creating DeltaTaskList. Retry only blocking P0-P2 followups. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]`, create DeltaTaskList and re-run Stage 4-6 (up to max_retry_rounds retry rounds).
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, and optional improvements never enter `required_followups`. Ordinary review uses the profile's strong tier with `xhigh` effort; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
+Stage 7: If fail and `test_only = false` -> apply `protocols/MATERIALITY_GATE.md` before creating work. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, and practical impact. Before each affected task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
 - Treat the run as trivial only when all of these are true:
@@ -482,6 +524,7 @@ If `decision_only = true`:
 # BLOCKER RECOVERY POLICY
 
 - Applies when a task/executor returns `status = blocked` and the blocker is NOT a hard blocker.
+- Before every recovery action, apply `protocols/MATERIALITY_GATE.md`; without an unmet original condition, evidence, and impact, record an optional note and create no recovery work.
 - Do NOT stop the pipeline immediately for a recoverable blocker. First:
   1) continue remaining runnable tasks in the current batch or round
   2) collect blocked tasks and blocker reasons
@@ -524,7 +567,7 @@ If `decision_only = true`:
   - If prefixes are mixed, only skip the broad Stage 4-6 retry when every followup is `[artifact]` or `[evidence]` and the repair can stay within the existing task boundaries. Otherwise use the normal delta-task retry path.
 - If `test_only = true`, skip Stage 7 retries and summarize the reviewer result directly.
 - On review fail (and retries remaining):
-  1) Convert "required_followups" into Delta tasks (atomic)
+  1) Apply `protocols/MATERIALITY_GATE.md`, then convert only admitted `required_followups` into Delta tasks (atomic)
   2) Re-run router + execute + reviewer
 - Stop conditions (stop early even if retries remain):
   - Environment/permission block (missing credentials, cannot run required commands, etc.).
@@ -542,6 +585,9 @@ If `decision_only = true`:
   - original endpoint
   - original acceptance criterion
 - If scope cannot be satisfied, executor must STOP and report BLOCKED.
+- A Goal may start a fresh run, but a continuation task from prior output must identify
+  the unmet original Goal condition, concrete evidence, and practical impact. Never
+  create a `run-goal`; `optional_notes` are not remaining work.
 
 # RISK / EXECUTION RIGOR RULES
 

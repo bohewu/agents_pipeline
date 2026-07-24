@@ -28,6 +28,11 @@ from codex_skill_catalog import (
     SKILL_SYNC_STATE_READY,
     skill_collection_issues,
 )
+from agent_model_profiles import (
+    load_model_set,
+    load_profile,
+    resolve_recovery_model_setting,
+)
 
 
 PROJECT_MANIFEST_FILENAME = ".agents-pipeline-project-profile.json"
@@ -56,14 +61,18 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "AGENTS.md",
     "VERSION",
     "modes.json",
+    "protocols/CAPABILITY_RECOVERY.md",
+    "protocols/MATERIALITY_GATE.md",
     "protocols/UI_UX_WORKFLOW.md",
     "protocols/UX_DEVTOOLS_WORKFLOW.md",
+    "protocols/capability-recovery-policy.json",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
     "scripts/path_safety.py",
     "scripts/sync-runtime-support.py",
     "tools/agent-profile.py",
+    "tools/capability-recovery.js",
     "tools/status-event.js",
 )
 SUPPORT_CODEX_REQUIRED_FILES = (
@@ -1433,15 +1442,93 @@ def clear_profile(*, workspace: Path, dry_run: bool) -> dict[str, Any]:
     }
 
 
+def resolve_recovery(
+    *,
+    workspace: Path,
+    global_target: Path,
+    asset_root: Path,
+    agent: str,
+    requested_tier: str,
+) -> dict[str, Any]:
+    """Resolve a bounded recovery model from a healthy workspace overlay."""
+
+    status = read_status(
+        workspace,
+        global_target=global_target,
+        asset_root=asset_root,
+    )
+    if not status.get("configured") or status.get("mode") == "inherit":
+        raise ProjectProfileError(
+            "Recovery resolution requires a configured workspace profile; this workspace "
+            "inherits the global profile."
+        )
+    if status.get("mode") != "profile":
+        raise ProjectProfileError(
+            "Recovery resolution requires profile mode; uniform profiles are not supported."
+        )
+    if status.get("health") != "ok":
+        raise ProjectProfileError(
+            "Recovery resolution requires a healthy workspace profile; "
+            f"health is {status.get('health')!r}."
+        )
+    if status.get("profile_eligibility") != "eligible":
+        raise ProjectProfileError(
+            "Recovery resolution requires an eligible workspace profile; project trust is "
+            f"{status.get('project_trust')!r}."
+        )
+    if status.get("catalog_state") != "current":
+        raise ProjectProfileError(
+            "Recovery resolution requires the current workspace profile catalog; "
+            "rerun workspace 'set' before requesting model recovery."
+        )
+
+    profile_name = status.get("profile")
+    model_set_name = status.get("model_set")
+    if not isinstance(profile_name, str) or not isinstance(model_set_name, str):
+        raise ProjectProfileError(
+            "Recovery resolution requires a named workspace profile and model set."
+        )
+    try:
+        profile = load_profile(profile_name, asset_root / "tools" / "agent-profiles", "codex")
+        model_set = load_model_set(
+            model_set_name, asset_root / "runtimes" / "codex" / "model-sets", "codex"
+        )
+        resolved = resolve_recovery_model_setting(agent, requested_tier, profile, model_set)
+    except ValueError as exc:
+        raise ProjectProfileError(f"Recovery resolution unavailable: {exc}") from exc
+
+    model_setting = resolved["model_setting"]
+    if not isinstance(model_setting, dict) or not isinstance(model_setting.get("model"), str):
+        raise ProjectProfileError("Recovery resolution returned an invalid Codex model setting.")
+    result: dict[str, Any] = {
+        "available": True,
+        "runtime": "codex",
+        "workspace": str(status["workspace"]),
+        "profile": profile_name,
+        "model_set": model_set_name,
+        "agent": agent,
+        "base_model_tier": resolved["base_tier"],
+        "requested_model_tier": resolved["requested_tier"],
+        "recovery_ceiling_model_tier": resolved["ceiling_tier"],
+        "model": model_setting["model"],
+    }
+    provider = model_setting.get("model_provider")
+    if isinstance(provider, str):
+        result["model_provider"] = provider
+    return result
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("cache", "set", "status", "clear"))
+    parser.add_argument("action", choices=("cache", "set", "status", "clear", "resolve-recovery"))
     parser.add_argument("--workspace")
     parser.add_argument("--global-target")
     parser.add_argument("--asset-root")
     parser.add_argument("--profile")
     parser.add_argument("--model-set")
     parser.add_argument("--uniform-model")
+    parser.add_argument("--agent", choices=("executor", "generalist"))
+    parser.add_argument("--model-tier", choices=("mini", "standard", "strong"))
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser
@@ -1488,6 +1575,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             if not args.uniform_model and bool(args.profile) != bool(args.model_set):
                 raise ProjectProfileError("--profile and --model-set must be supplied together.")
+        if args.action == "resolve-recovery" and (not args.agent or not args.model_tier):
+            raise ProjectProfileError("resolve-recovery requires --agent and --model-tier.")
+        if args.action == "resolve-recovery" and (
+            args.profile or args.model_set or args.uniform_model
+        ):
+            raise ProjectProfileError(
+                "resolve-recovery uses the configured workspace profile; do not pass "
+                "--profile, --model-set, or --uniform-model."
+            )
+        if args.action != "resolve-recovery" and (args.agent or args.model_tier):
+            raise ProjectProfileError(
+                "--agent and --model-tier are only valid with resolve-recovery."
+            )
         if args.action == "cache":
             names = validate_global_install(
                 global_target, allow_pending_skill_sync=True
@@ -1528,7 +1628,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.action == "clear":
             result = clear_profile(workspace=workspace, dry_run=args.dry_run)
-        if args.json:
+        elif args.action == "resolve-recovery":
+            result = resolve_recovery(
+                workspace=workspace,
+                global_target=global_target,
+                asset_root=asset_root,
+                agent=args.agent,
+                requested_tier=args.model_tier,
+            )
+        if args.json or args.action == "resolve-recovery":
             print(json.dumps(result, indent=2, sort_keys=True, ensure_ascii=False))
         else:
             if args.action == "cache":

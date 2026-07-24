@@ -15,6 +15,7 @@ Review explicit targets. Enforce pipeline quality gates when TaskList/DeltaTaskL
 - Prefer actionable correctness, security, regression, data-integrity, compatibility, and missing-test findings. Do not fail for style preferences or speculative concerns that lack a concrete code path or contract violation.
 - Deduplicate findings and order them from highest to lowest severity.
 - Stop once the scoped requirements and required verification are satisfied. Do not continue searching for optional refactors, hardening, or wording polish.
+- Apply `protocols/MATERIALITY_GATE.md` before creating any blocking issue or `required_followups` entry. A preference is not a defect.
 
 # REVIEW MODE SELECTION
 
@@ -22,7 +23,7 @@ Review explicit targets. Enforce pipeline quality gates when TaskList/DeltaTaskL
 
 - The orchestrator resolves every reviewer spawn through `protocols/REASONING_POLICY.md`; this role does not choose its own model or effort.
 - Ordinary ad hoc review uses `ad-hoc-review` (deep, non-strict); Pipeline review uses `pipeline-review` (deep, strong-tier minimum, non-strict).
-- `--review=max` is an exact effort override for ordinary deep review only. It does not certify the work or change the profile-selected reviewer model.
+- Reviewer max may come from explicit `--review=max`, a workflow-selected high-consequence security/data-integrity review, or a material reviewer reasoning recovery. It remains ordinary deep review and never changes the reviewer model.
 - Formal accept/reject work must be explicitly dispatched as `certify` / `formal-assurance`, which is fixed strict assurance on a strong tier. Never relabel an ordinary review as assurance.
 
 - Pipeline review mode: if `mode = pipeline` or TaskList/DeltaTaskList is present, validate executor outputs against its DoD and traceability contracts.
@@ -53,7 +54,7 @@ Review explicit targets. Enforce pipeline quality gates when TaskList/DeltaTaskL
 - Optional hardening, cleanup, refactoring, extra abstraction, and "could be clearer" suggestions are not blocking findings.
 - Missing tests or evidence block only when the changed behavior has no adequate verification or an explicit requirement calls for that coverage. Do not demand exhaustive or duplicative cases after the relevant behavior is verified.
 - For prose, documentation, labels, or copy, block only factual errors, materially misleading or unusable wording, or an explicit legal, accessibility, brand, or contract requirement. Omit synonym, tone, punctuation, and formatting preferences.
-- Omit P3 findings unless the caller explicitly asks for non-blocking suggestions. Requested P3 suggestions never create `required_followups` or a failed review.
+- Omit P3 findings unless the caller explicitly asks for non-blocking suggestions. Put requested P3 items only in `optional_notes`; they never create `issues`, `required_followups`, or a failed review.
 - After the mandatory machine prefix and severity, write the problem, practical impact, and required change in plain language. Avoid unexplained internal terminology.
 
 Severity guidance inside issue strings:
@@ -106,10 +107,11 @@ If the handoff includes `--loose-review` or `loose_review = true`:
 - Every required followup must be atomic, scoped, and verifiable. State what must change or what evidence must be produced; do not use vague instructions such as "fix the implementation and tests."
 - For review failures caused only by artifact/evidence gaps, keep `required_followups` narrowly repair-oriented so the orchestrator can avoid a full retry loop when possible.
 - Include `required_followups` only for blocking P0-P2 findings. Never turn a warning, wording preference, or optional improvement into repair work.
+- Every `required_followups` item must identify the original requirement or acceptance criterion, concrete evidence, and practical impact. If those are missing, omit the item or place it in `optional_notes` when optional suggestions were requested.
 
 # DECISION INVARIANTS
 
-- `overall_status = pass` requires `required_followups = []`. Non-blocking warnings may remain in `issues` only when the caller requested them or a review mode explicitly requires an unverified warning.
+- `overall_status = pass` requires `required_followups = []`. Non-blocking suggestions belong in `optional_notes`; a review mode may still require an unverified warning in `issues`.
 - `overall_status = fail` requires at least one issue and at least one actionable required followup.
 - Do not mark a review as passing when required verification or cleanup evidence is missing, except where `loose_review = true` explicitly permits an unverified warning.
 
@@ -117,5 +119,6 @@ If the handoff includes `--loose-review` or `loose_review = true`:
 {
   "overall_status": "pass | fail",
   "issues": [],
-  "required_followups": []
+  "required_followups": [],
+  "optional_notes": []
 }

@@ -1,6 +1,6 @@
 # Runtime Agent Model Profiles
 
-Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers. The effective profile/runtime selects the actual role model and proves its logical tier. The separate policy-v2 child-spawn resolver may read that tier to validate capability and select effort, but profiles do not contain or emit effort settings.
+Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers. The effective profile/runtime selects the normal role model and proves its logical tier. The separate policy-v2 child-spawn resolver may read that tier to validate capability and select effort. Profiles do not contain or emit effort settings, but they may bound one temporary `executor`/`generalist` recovery tier.
 
 The runtime installation is global-first, but Codex model selection is workspace-only:
 
@@ -107,6 +107,20 @@ Codex cannot implement this as a single project `profile = "balanced"` key: proj
 
 The generated workspace roles contain references to the current machine's global support installation. Treat the whole workspace profile layer as machine-local generated configuration rather than a portable source artifact. On another machine, run the one-time global bootstrap and `set` for that workspace again.
 
+For a healthy, eligible named profile, workflows can resolve one bounded recovery model without changing the profile:
+
+```bash
+bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh" resolve-recovery \
+  --runtime codex \
+  --scope workspace \
+  --workspace /path/to/project \
+  --agent executor \
+  --model-tier strong \
+  --json
+```
+
+This action is read-only. It accepts only `executor` or `generalist`, requires a tier above that role's normal tier and no higher than its profile ceiling, and returns the raw model solely from the installed model set. Uniform, inherited, unhealthy, ineligible, or pinned-catalog profiles are rejected; rerun workspace `set` before recovering from an older pinned catalog.
+
 Workspace role hashes and source-version metadata keep an existing project profile pinned across a global agents_pipeline upgrade. Workspace `status` reports `catalog_state: pinned` when the local role set was materialized from an older catalog and `current` after `set` refreshes it to the installed catalog. Re-running `set` after an upgrade is recommended when you want the new role catalog, but an upgrade never silently rewrites a project's selected roles.
 
 Codex applies `.codex/config.toml` only for a trusted project. The profile manager never changes global project trust. Workspace `set` and `status` read the explicit global `projects.<path>.trust_level` value and report `project_trust` plus `profile_eligibility`; file `health` remains a separate integrity result. `eligible` means the trust gate is open, not that arbitrary preserved project settings passed Codex's complete semantic parser. For `unknown` or `untrusted`, trust the project through Codex's normal prompt and rerun `status`. Official behavior is documented under [project config files](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml).
@@ -165,12 +179,18 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 
 ## Profile and model-set inputs
 
-- `tools/agent-profiles/*.json` maps agent names to `mini`, `standard`, and `strong`.
+- `tools/agent-profiles/*.json` maps agent names to `mini`, `standard`, and `strong`, plus optional `recovery_ceiling_tiers` for `executor` and `generalist`.
 - `runtimes/codex/model-sets/*.json` maps tiers to Codex `model` and optional `model_provider` values.
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
-Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. The resolver never uses it to route a raw/dynamic model, upgrade/downgrade a model, or change the current/main agent. Global inheritance, uniform raw-model profiles, and unprovable mappings use logical tier `unknown` rather than guessing from a model slug. Local Codex workflows verify actual child effort from bounded trace metadata when adaptive mode requests selector enforcement, because a profile/model match does not prove that a per-spawn effort request was honored.
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. General dynamic model routing, downgrade, reviewer model uplift, and current/main-agent changes remain forbidden. `protocols/CAPABILITY_RECOVERY.md` defines the sole exception: one profile-approved tier step for an `executor` or `generalist` child after repeated material reasoning failure. Local Codex workflows verify the recovered child model and effort from bounded trace metadata.
+
+| Profile | `executor` recovery ceiling | `generalist` recovery ceiling |
+|---|---|---|
+| `frugal` | `standard` | `standard` |
+| `balanced` | `strong` | `strong` |
+| `premium` | `strong` | `strong` |
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|

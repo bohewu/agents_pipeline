@@ -28,6 +28,10 @@ Ownership is deliberately separated:
   upgrades or downgrades a model, or applies effort to the current/main agent.
 - `requires_model_escalation` is capability-conflict metadata. It never
   authorizes dynamic model routing.
+- The separate bounded child recovery protocol may request one
+  profile-approved higher tier for `executor` or `generalist` after a repeated
+  material reasoning failure. It does not change this resolver's ownership or
+  permit free-form model routing; see `CAPABILITY_RECOVERY.md`.
 
 Risk, verification, approvals, retries, resources, and reasoning demand stay
 separate controls.
@@ -205,10 +209,15 @@ ad-hoc or Pipeline review it remains deep; it does not certify the work, change
 the selected model/tier, or apply to non-review roles or the current/main
 agent. A formal gate must be requested through `certify`,
 `formal_accept_reject`, or `formal-assurance`, not through `--review=max`.
+The same exact deep `max` request may be selected internally for an
+evidence-backed high-consequence security/data-integrity review or a reviewer
+reasoning recovery. Those paths are not user flags, do not change the reviewer
+model, and do not create assurance.
 At the resolver-contract level every supported `explicit_effort` value is an
 upward, exact floor: class/model floors may raise it, but runtime fallback or
 observed effort that differs from the resulting exact request conflicts in
-either direction. `--review=max` remains the only workflow-facing review flag.
+either direction. Generic risk labels, wording preferences, and P3 findings do
+not justify an internal max request.
 
 ## Resolver modes
 
@@ -255,6 +264,14 @@ Operational failure types (`timeout`, `permission_denied`, `network_error`,
 failure type and keep operational retry, repair, and reasoning recovery
 budgets separate.
 
+After this effort-only path has failed on the same material criterion without
+meaningful progress, Flow or Pipeline may invoke the separate bounded
+capability recovery policy. It may select one higher profile-approved tier for
+an `executor` or `generalist`, reproject normal effort for that tier, and
+consume an existing retry opportunity. It never applies to a reviewer,
+orchestrator, operational failure, or assurance decision. See
+`CAPABILITY_RECOVERY.md` and `MATERIALITY_GATE.md`.
+
 ## Dispatch and evidence rules
 
 Before every child spawn, call:
@@ -266,8 +283,9 @@ node tools/reasoning-policy.js --input-json '<json>' --compact
 Provide the registered role, mode, intent/classification metadata, signals,
 proven selected tier or `unknown`, selector capability, runtime-supported
 efforts when known, workspace ceiling, applicable context, and retry failure
-metadata. Only pass `explicit_effort = max` for `--review=max` reviewer
-dispatches.
+metadata. Pass reviewer `explicit_effort = max` only for explicit
+`--review=max`, a material high-consequence security/data-integrity review, or
+reviewer reasoning recovery.
 
 Version-2 decisions retain the legacy aliases and add bounded
 `task_intent`, `intent_baseline_class`, `classification_source`, `role_policy`,
@@ -332,10 +350,13 @@ selector or inherited the parent, and those paths are observationally
 indistinguishable.
 
 In adaptive mode, request a non-null `dispatch_effort` through the native
-per-spawn effort selector while omitting `model`. On Codex multi-agent V2, pass
-the registered role as `agent_type`, pass `dispatch_effort` as
-`reasoning_effort`, and use `fork_turns = "none"`. On a legacy spawn surface,
-use the equivalent no-history `fork_context = false`. Include the complete
+per-spawn effort selector. Normally omit `model`. The only exception is an
+`auto` CapabilityRecoveryDecision whose requested tier was resolved by the
+active profile's read-only `resolve-recovery` action. On Codex multi-agent V2,
+pass the registered role as `agent_type`, pass `dispatch_effort` as
+`reasoning_effort`, use `fork_turns = "none"`, and pass that bounded recovery
+model only for the eligible recovery spawn. On a legacy spawn surface, use the
+equivalent no-history `fork_context = false`. Include the complete
 ReasoningDecision in Flow/Pipeline agent lifecycle status. Selector presence
 and a successful spawn prove only `requested`, not `enforced`.
 

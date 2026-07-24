@@ -13,6 +13,54 @@ VALIDATOR = REPO_ROOT / "tools" / "validate-schema.py"
 
 @unittest.skipUnless(importlib.util.find_spec("jsonschema"), "jsonschema is not installed")
 class ValidateSchemaFormatTest(unittest.TestCase):
+    def test_capability_recovery_policy_and_fixtures(self) -> None:
+        cases = [
+            (
+                "capability-recovery-policy.schema.json",
+                REPO_ROOT / "protocols" / "capability-recovery-policy.json",
+                0,
+            ),
+            (
+                "capability-recovery-decision.schema.json",
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "capability-recovery-decision.valid.json",
+                0,
+            ),
+            (
+                "capability-recovery-decision.schema.json",
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "capability-recovery-decision.invalid.json",
+                1,
+            ),
+        ]
+        for schema_name, payload, expected in cases:
+            with self.subTest(payload=payload.name):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        VALIDATOR.as_posix(),
+                        "--schema",
+                        (
+                            REPO_ROOT / "protocols" / "schemas" / schema_name
+                        ).as_posix(),
+                        "--input",
+                        payload.as_posix(),
+                        "--require-jsonschema",
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    expected,
+                    result.stdout + result.stderr,
+                )
+
     def test_require_jsonschema_enforces_date_time_format(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)
@@ -988,6 +1036,99 @@ class ValidateSchemaFormatTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 1)
         self.assertIn("reasoning_policy_version", result.stderr)
+
+    def test_checkpoint_capability_recovery_mode_schema_contract(self) -> None:
+        schema = json.loads(
+            (
+                REPO_ROOT / "protocols" / "schemas" / "checkpoint.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        mode = schema["properties"]["flags"]["properties"][
+            "capability_recovery_mode"
+        ]
+
+        self.assertEqual(mode["type"], "string")
+        self.assertEqual(mode["enum"], ["off", "shadow", "auto"])
+        self.assertEqual(mode["default"], "off")
+
+    def test_task_status_capability_recovery_accounting_contract(self) -> None:
+        schema = json.loads(
+            (
+                REPO_ROOT / "protocols" / "schemas" / "task-status.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        properties = schema["properties"]
+
+        self.assertEqual(
+            properties["retry_opportunities_used"],
+            {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5,
+                "description": (
+                    "Pipeline retry opportunities already charged to this task, "
+                    "including a capability recovery spawn."
+                ),
+            },
+        )
+        self.assertEqual(
+            properties["capability_recovery_used"]["type"],
+            "boolean",
+        )
+        recovery_rule = schema["allOf"][1]
+        self.assertEqual(
+            recovery_rule["then"]["required"],
+            ["retry_opportunities_used"],
+        )
+        self.assertEqual(
+            recovery_rule["then"]["properties"]["retry_opportunities_used"][
+                "minimum"
+            ],
+            1,
+        )
+        payload = json.loads(
+            (
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "status-layout.expanded.valid"
+                / "tasks"
+                / "task-doc-summary.json"
+            ).read_text(encoding="utf-8")
+        )
+        payload["retry_opportunities_used"] = 1
+        payload["capability_recovery_used"] = True
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            payload_path = Path(temp_dir_name) / "task-status.json"
+            payload_path.write_text(json.dumps(payload), encoding="utf-8")
+            command = [
+                sys.executable,
+                VALIDATOR.as_posix(),
+                "--schema",
+                (
+                    REPO_ROOT / "protocols" / "schemas" / "task-status.schema.json"
+                ).as_posix(),
+                "--input",
+                payload_path.as_posix(),
+                "--require-jsonschema",
+            ]
+            valid = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(valid.returncode, 0, valid.stderr)
+
+            del payload["retry_opportunities_used"]
+            payload_path.write_text(json.dumps(payload), encoding="utf-8")
+            invalid = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(invalid.returncode, 1)
 
 
 if __name__ == "__main__":

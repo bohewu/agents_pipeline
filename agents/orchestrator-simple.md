@@ -34,6 +34,7 @@ Supported flags:
 - `--max-parallel=<n>` -> maximum concurrent subagent dispatches. Default: 3. Minimum: 1. Maximum: 8.
 - `--review=off|on|max` -> direct Simple review policy. `max` enables review and requests maximum reasoning for each reviewer dispatch.
 - `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy. Default: `inherit`.
+- `--capability-recovery=off|shadow|auto` -> normalized child recovery policy. Default: `off`.
 - `--confirm` -> ask before dispatching the first batch.
 - `--verbose` -> provide brief batch-level progress; implies `--confirm`.
 
@@ -50,6 +51,12 @@ the run-level `reasoning_mode` still applies.
 If no reasoning flag is provided, set `reasoning_mode = inherit`. If the value is
 invalid, warn once and fall back to `inherit`.
 
+If no capability-recovery flag is provided, set `capability_recovery_mode = off`.
+Warn once and fall back to `off` for an invalid value. Simple MUST NOT perform
+execution model recovery in any mode: it never calls `tools/capability-recovery.js`,
+never invokes `resolve-recovery`, and never passes a recovery model. An Adaptive
+wrapper may retain the normalized flag only if it promotes/selects Flow or Pipeline.
+
 # ADAPTIVE POLICY WRAPPER
 
 When the current/main agent entered Simple through `$run-adaptive`, Adaptive may retain
@@ -60,7 +67,7 @@ upstream policy merely because Simple does not expose those flags directly.
 - Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
 - Adaptive preserves its normalized `reasoning_mode` for every wrapper and Simple-core child spawn.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
-- After the Simple core, Adaptive may run one ad-hoc reviewer, dispatch at most one narrow same-scope repair for an evidence-backed blocking P0-P2 finding through the original worker or an existing executor, and run one re-review, then explicitly requested ad-hoc handoff, kanban, and commit-after helpers. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
+- After the Simple core, Adaptive may run one ad-hoc reviewer, then only after `protocols/MATERIALITY_GATE.md` admits an evidence-backed blocking P0-P2 gap, dispatch at most one narrow same-scope repair through the original worker or an existing executor and run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
 - An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
@@ -92,9 +99,12 @@ selector and continue without claiming enforcement; strict/exact cases conflict
 and block. `inherit` preserves classification metadata but omits the selector,
 so exact overrides and strict assurance conflict. `shadow` computes requested
 effort but omits the selector; strict assurance conflicts. Use
-`dispatch_context = ad-hoc-review` for reviewer attempts; `--review=max` passes
-`explicit_effort = max` only for that reviewer, stays deep, does not certify the
-review, and does not change the model. On local Codex, after every spawn returns
+`dispatch_context = ad-hoc-review` for reviewer attempts. Ordinary reviewer dispatch
+uses the profile's strong tier with `xhigh` effort. Only explicit `--review=max`, a
+material high-consequence security/data-integrity review, or reviewer reasoning
+recovery may request `max`; generic risk alone does not. Reviewer models never uplift.
+`--review=max` passes `explicit_effort = max` only for that reviewer, stays deep, and
+does not certify the review. On local Codex, after every spawn returns
 its identifier, run `node tools/codex-child-trace.js` with V2 `--task-name` or
 legacy `--agent-id`, the expected role and, when non-null, expected
 `dispatch_effort`; rerun the resolver with the reported
@@ -126,7 +136,9 @@ indeterminate between a same-value selector and inheritance.
 When Simple is invoked directly with `review_mode = on`, run one ad-hoc reviewer after
 the implementation and available verification complete. Include the changed targets,
 scoped requirements, and evidence. On failure, dispatch at most one narrow same-scope
-repair for an evidence-backed blocking P0-P2 finding through the original worker or an existing executor, then run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. A
+repair only after `protocols/MATERIALITY_GATE.md` records the unmet requirement,
+concrete evidence, and practical impact for an evidence-backed blocking P0-P2 finding;
+then run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. A
 second failure stops; do not create a broader retry loop.
 
 Resolve the initial review and re-review independently under the reasoning dispatch
@@ -141,6 +153,7 @@ every non-review role use their own normal policy decisions.
 - Keep subagent prompts narrow and outcome-oriented.
 - Ask for clarification only when proceeding would risk destructive or wrong-scope changes.
 - Do not run broad retries. If a subagent fails, attempt one narrow recovery only when the fix is obvious; otherwise report the blocker.
+- Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, or narrow recovery. Budgets are upper bounds, not quotas; `optional_notes` never seeds work.
 - Preserve user and concurrent-agent changes. Never revert unrelated work.
 - For code changes, require evidence from the implementing subagent and run `@test-runner` when verification is non-trivial.
 

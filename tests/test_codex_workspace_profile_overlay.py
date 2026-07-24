@@ -22,6 +22,9 @@ RELEASE_VERSION = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 def load_project_profile_module():
     path = REPO_ROOT / "scripts" / "codex-project-profile.py"
+    scripts_dir = path.parent.as_posix()
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
     spec = importlib.util.spec_from_file_location("codex_project_profile", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -192,6 +195,37 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             env=env,
         )
         return json.loads(completed.stdout)
+
+    def resolve_recovery(
+        self,
+        wrapper: Path,
+        workspace: Path,
+        *,
+        env: dict[str, str],
+        agent: str = "executor",
+        model_tier: str = "strong",
+        expected: int = 0,
+    ) -> subprocess.CompletedProcess[str]:
+        return self.run_command(
+            [
+                "bash",
+                wrapper.as_posix(),
+                "resolve-recovery",
+                "--runtime",
+                "codex",
+                "--scope",
+                "workspace",
+                "--workspace",
+                workspace.as_posix(),
+                "--agent",
+                agent,
+                "--model-tier",
+                model_tier,
+                "--json",
+            ],
+            env=env,
+            expected=expected,
+        )
 
     def read_overlay_agent_files(self, workspace: Path) -> dict[str, Path]:
         config_path = workspace / ".codex" / "config.toml"
@@ -880,6 +914,54 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             premium_paths = self.read_overlay_agent_files(premium)
             self.assertTrue(all(path.is_relative_to(frugal) for path in frugal_paths.values()))
             self.assertTrue(all(path.is_relative_to(premium) for path in premium_paths.values()))
+
+    def test_resolve_recovery_returns_bounded_model_without_mutating_workspace_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            balanced = root / "balanced-project"
+            frugal = root / "frugal-project"
+            env = self.isolated_environment(home)
+            codex_home, wrapper = self.install_global_codex(home, env)
+            self.set_project_trust(codex_home, balanced, "trusted")
+            self.set_project_trust(codex_home, frugal, "trusted")
+            self.run_profile(wrapper, "set", balanced, env=env)
+            self.run_profile(wrapper, "set", frugal, env=env, profile="frugal")
+
+            balanced_config = (balanced / ".codex" / "config.toml").read_bytes()
+            balanced_executor = (balanced / ".codex" / "agents" / "executor.toml")
+            balanced_executor_contents = balanced_executor.read_bytes()
+            resolution = json.loads(
+                self.resolve_recovery(wrapper, balanced, env=env).stdout
+            )
+            self.assertEqual(
+                resolution,
+                {
+                    "available": True,
+                    "runtime": "codex",
+                    "workspace": balanced.resolve().as_posix(),
+                    "profile": "balanced",
+                    "model_set": "openai",
+                    "agent": "executor",
+                    "base_model_tier": "standard",
+                    "requested_model_tier": "strong",
+                    "recovery_ceiling_model_tier": "strong",
+                    "model": "gpt-5.6-sol",
+                    "model_provider": "openai",
+                },
+            )
+            self.assertEqual((balanced / ".codex" / "config.toml").read_bytes(), balanced_config)
+            self.assertEqual(balanced_executor.read_bytes(), balanced_executor_contents)
+
+            rejected = self.resolve_recovery(wrapper, frugal, env=env, expected=2)
+            self.assertIn("exceeds ceiling tier 'standard'", rejected.stderr)
+
+            major, minor, patch = (int(value) for value in RELEASE_VERSION.split("."))
+            (codex_home / "agents-pipeline" / "VERSION").write_text(
+                f"{major}.{minor}.{patch + 1}\n", encoding="utf-8"
+            )
+            pinned = self.resolve_recovery(wrapper, balanced, env=env, expected=2)
+            self.assertIn("requires the current workspace profile catalog", pinned.stderr)
 
     def test_status_separates_file_health_from_trust_eligibility_and_plain_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

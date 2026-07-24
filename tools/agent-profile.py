@@ -36,7 +36,7 @@ from codex_skill_catalog import (  # noqa: E402 - support-tree sibling import.
 )
 
 
-PUBLIC_ACTIONS = ("set", "install", "status", "clear", "list")
+PUBLIC_ACTIONS = ("set", "install", "status", "clear", "list", "resolve-recovery")
 INTERACTIVE_ACTIONS = ("set", "status", "clear", "list")
 INTERNAL_ACTION = "record"
 RUNTIMES = ("codex", "claude", "copilot")
@@ -82,14 +82,18 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "AGENTS.md",
     "VERSION",
     "modes.json",
+    "protocols/CAPABILITY_RECOVERY.md",
+    "protocols/MATERIALITY_GATE.md",
     "protocols/UI_UX_WORKFLOW.md",
     "protocols/UX_DEVTOOLS_WORKFLOW.md",
+    "protocols/capability-recovery-policy.json",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
     "scripts/path_safety.py",
     "scripts/sync-runtime-support.py",
     "tools/agent-profile.py",
+    "tools/capability-recovery.js",
     "tools/status-event.js",
 )
 SUPPORT_RUNTIME_REQUIRED_FILES = {
@@ -180,6 +184,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-set")
     parser.add_argument("--uniform-model")
     parser.add_argument("--model", help="Compatibility alias for --uniform-model.")
+    parser.add_argument("--agent", choices=("executor", "generalist"))
+    parser.add_argument("--model-tier", choices=("mini", "standard", "strong"))
     parser.add_argument("--profile-dir")
     parser.add_argument("--model-set-dir")
     parser.add_argument("--asset-root", help=argparse.SUPPRESS)
@@ -493,7 +499,7 @@ def resolve_request(
         scope = args.scope or "workspace"
     elif action == "list":
         scope = args.scope or "global"
-    elif runtime == "codex" and action == "set":
+    elif runtime == "codex" and action in ("set", "resolve-recovery"):
         # Codex global roles are always model-free and inherit the parent
         # session. Resource-tier profiles belong only to project-local roles.
         scope = args.scope or "workspace"
@@ -562,6 +568,10 @@ def resolve_request(
             "Codex agent model profiles are workspace-only. Install global roles "
             "without a profile, then use --scope workspace --workspace <path>."
         )
+    if action == "resolve-recovery" and (runtime != "codex" or scope != "workspace"):
+        raise ProfileError(
+            "resolve-recovery is available only for a Codex workspace profile."
+        )
 
     if (
         interactive
@@ -608,7 +618,7 @@ def resolve_request(
         runtime == "codex"
         and scope == "workspace"
         and args.target
-        and action in ("set", "clear", "status")
+        and action in ("set", "clear", "status", "resolve-recovery")
     ):
         expected_workspace_target = resolve_target(
             runtime,
@@ -627,6 +637,18 @@ def resolve_request(
     profile = args.profile
     model_set = args.model_set
     uniform_model = args.uniform_model
+    if action == "resolve-recovery":
+        if not args.agent or not args.model_tier:
+            raise ProfileError(
+                "resolve-recovery requires --agent and --model-tier."
+            )
+        if profile or model_set or uniform_model:
+            raise ProfileError(
+                "resolve-recovery uses the configured workspace profile; do not pass "
+                "--profile, --model-set, or --uniform-model."
+            )
+    elif args.agent or args.model_tier:
+        raise ProfileError("--agent and --model-tier are only valid with resolve-recovery.")
     if scope == "workspace" and runtime != "codex" and action in ("set", "clear"):
         raise ProfileError(
             f"Workspace profile-only setup is not supported for {RUNTIME_NAMES[runtime]}. "
@@ -836,6 +858,8 @@ def build_project_profile_command(
             command.extend(
                 ["--profile", str(request.profile), "--model-set", str(request.model_set)]
             )
+    elif request.action == "resolve-recovery":
+        command.extend(["--agent", str(args.agent), "--model-tier", str(args.model_tier)])
     return command
 
 

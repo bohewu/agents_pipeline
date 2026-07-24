@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CapabilityRecoveryPolicy",
+  "description": "Bounded child-only model capability recovery policy.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "policy_version",
+    "default_mode",
+    "modes",
+    "eligible_roles",
+    "max_model_uplifts_per_task"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "policy_version": {
+      "const": "1"
+    },
+    "default_mode": {
+      "const": "off"
+    },
+    "modes": {
+      "const": [
+        "off",
+        "shadow",
+        "auto"
+      ]
+    },
+    "eligible_roles": {
+      "const": [
+        "executor",
+        "generalist"
+      ]
+    },
+    "max_model_uplifts_per_task": {
+      "const": 1
+    }
+  },
+  "additionalProperties": false
+}

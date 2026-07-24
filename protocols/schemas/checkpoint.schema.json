@@ -113,6 +113,11 @@
           "minimum": 0,
           "maximum": 1
         },
+        "capability_recovery_mode": {
+          "type": "string",
+          "enum": ["off", "shadow", "auto"],
+          "default": "off"
+        },
         "handoff_mode": { "type": "boolean", "default": false },
         "kanban_mode": {
           "type": "string",

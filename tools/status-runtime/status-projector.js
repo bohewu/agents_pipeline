@@ -213,6 +213,18 @@ class StatusProjector {
       assert(taskId, "tasks.registered requires task_id or id");
       const existing = state.tasks.get(taskId);
       const createdAt = existing?.created_at || timestamp;
+      if (
+        existing?.capability_recovery_used === true
+        && input.capability_recovery_used === false
+      ) {
+        throw new Error("capability_recovery_used cannot be reset");
+      }
+      if (
+        input.retry_opportunities_used !== undefined
+        && input.retry_opportunities_used < (existing?.retry_opportunities_used || 0)
+      ) {
+        throw new Error("retry_opportunities_used cannot decrease");
+      }
       const task = {
         protocol_version: PROTOCOL_VERSION,
         run_id: state.runStatus.run_id,
@@ -227,6 +239,10 @@ class StatusProjector {
         classification_source: input.classification_source,
         prior_failure_type: input.prior_failure_type,
         allow_degraded_deep: input.allow_degraded_deep,
+        retry_opportunities_used:
+          input.retry_opportunities_used ?? existing?.retry_opportunities_used,
+        capability_recovery_used:
+          input.capability_recovery_used ?? existing?.capability_recovery_used,
         reasoning_class: input.reasoning_class,
         reasoning_signals: input.reasoning_signals,
         batch_id: input.batch_id,
@@ -256,6 +272,45 @@ class StatusProjector {
     assert(state.runStatus, "run.started must be emitted before task.updated");
     const task = state.tasks.get(payload.task_id);
     assert(task, `Unknown task_id: ${payload.task_id}`);
+
+    const currentRetryCount = task.retry_opportunities_used || 0;
+    if (payload.retry_opportunities_used !== undefined) {
+      assert(
+        Number.isInteger(payload.retry_opportunities_used),
+        "retry_opportunities_used must be an integer"
+      );
+      assert(
+        payload.retry_opportunities_used === currentRetryCount + 1,
+        "retry_opportunities_used must increase by exactly one"
+      );
+      const retryLimit = state.checkpoint?.flags?.max_retry_rounds;
+      if (state.runStatus.orchestrator === "orchestrator-pipeline") {
+        assert(
+          Number.isInteger(retryLimit),
+          "Pipeline retry accounting requires persisted max_retry_rounds"
+        );
+        assert(
+          payload.retry_opportunities_used <= retryLimit,
+          "retry_opportunities_used exceeds max_retry_rounds"
+        );
+      }
+    }
+    if (payload.capability_recovery_used !== undefined) {
+      assert(
+        typeof payload.capability_recovery_used === "boolean",
+        "capability_recovery_used must be a boolean"
+      );
+      assert(
+        task.capability_recovery_used !== true,
+        "capability recovery has already been used for this task"
+      );
+      if (payload.capability_recovery_used === true) {
+        assert(
+          payload.retry_opportunities_used === currentRetryCount + 1,
+          "capability recovery must atomically consume one retry opportunity"
+        );
+      }
+    }
 
     const patch = { ...payload };
     delete patch.run_id;

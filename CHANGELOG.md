@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-07-24
+
+### Added
+
+- Added deterministic child capability recovery with `off|shadow|auto` modes, one profile-bounded model-tier uplift for `executor`/`generalist`, read-only profile resolution, and model/effort trace verification.
+- Added a shared materiality gate for repairs, reviewer followups, capability recovery, and Goal continuation so optional polish and P3 findings cannot consume bounded recovery work.
+
+### Changed
+
+- Adaptive `autonomous` and `delivery` presets now default capability recovery to `auto`; direct Simple, Flow, and Pipeline entry points and other Adaptive presets default it to `off`.
+- Clarified that reviewer `max` remains effort-only and is reserved for explicit overrides, formal assurance, material security/data-integrity review, or reviewer reasoning recovery.
+- Pipeline now atomically records each task's capability-recovery use against its existing retry opportunities before the promoted spawn, preventing resume from repeating an uplift or restoring that task's consumed retry.
+
 ## [0.34.1] - 2026-07-23
 
 ### Changed

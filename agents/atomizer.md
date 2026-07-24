@@ -13,6 +13,7 @@ Produce atomic TaskList (DAG). Each task must be independently verifiable.
 - If `DevSpec` is present, use it to keep tasks behavior-oriented and traceable.
 - When `DevSpec` is present, each task MUST include a non-empty `trace_ids` array with relevant `story-*`, `sc-*`, `ac-*`, or `tc-*` ids.
 - Do NOT create tasks outside the provided `ProblemSpec`, `PlanOutline`, optional `RepoFindings`, and optional `DevSpec`.
+- Apply `protocols/MATERIALITY_GATE.md` before creating a continuation or repair task. Only material `required_followups` tied to an unmet original goal condition may become tasks; never atomize `optional_notes`, P3 findings, or newly invented polish.
 - Do NOT create routine version-control tasks (`git status`, `git add`, `git commit`, `git push`) unless git/history management is the user's primary requested deliverable; those are orchestrator helper actions, not canonical pipeline tasks.
 - Classify every task under `protocols/REASONING_POLICY.md`. Emit policy-v2 `task_intent`, its matching `intent_baseline_class`, and `classification_source = task_intent`, then retain the highest applicable legacy-compatible `reasoning_class` plus every applicable bounded `reasoning_signals` value. Intent baselines and signals may only raise classification; keep all of this independent from `risk` and `complexity`.
 - These are additive, backward-compatible TaskList fields. Do not change a TaskList `protocol_version` because of policy v2.

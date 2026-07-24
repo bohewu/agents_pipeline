@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1",
+  "mode": "automatic",
+  "role": "reviewer",
+  "requested": true,
+  "eligible": true,
+  "failure_type": "reasoning_failure",
+  "same_failure": true,
+  "material_failure": false,
+  "no_meaningful_progress": true,
+  "recovery_used": false,
+  "selected_model_tier": "strong",
+  "recovery_ceiling_model_tier": "strong",
+  "requested_model_tier": "strong",
+  "dispatch_model_tier": "strong",
+  "effective_model_tier": "strong",
+  "model_selector_available": true,
+  "status": "verified",
+  "reason": "verified",
+  "conflict": null,
+  "conflict_reason": null
+}

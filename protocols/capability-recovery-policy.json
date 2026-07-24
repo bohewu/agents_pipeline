@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "policy_version": "1",
+  "default_mode": "off",
+  "modes": [
+    "off",
+    "shadow",
+    "auto"
+  ],
+  "eligible_roles": [
+    "executor",
+    "generalist"
+  ],
+  "max_model_uplifts_per_task": 1
+}

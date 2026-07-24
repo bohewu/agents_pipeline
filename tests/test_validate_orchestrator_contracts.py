@@ -59,10 +59,59 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
         schema = {"properties": {"orchestrator": {"enum": ["orchestrator-general"]}}}
         self.write_json(self.repo_root / "protocols/schemas/run-status.schema.json", schema)
         self.write_json(self.repo_root / "protocols/schemas/checkpoint.schema.json", schema)
+        workflow_contracts = (
+            Path("fixtures/run-adaptive.md"),
+            Path("fixtures/orchestrator-simple.md"),
+            Path("fixtures/orchestrator-flow.md"),
+            Path("fixtures/orchestrator-pipeline.md"),
+        )
+        (self.repo_root / "fixtures").mkdir()
+        common = "--capability-recovery=off|shadow|auto\nprotocols/MATERIALITY_GATE.md\n"
+        self.write(
+            self.repo_root / workflow_contracts[0],
+            common
+            + """
+            delivery` or `autonomous` preset defaults it to `auto`
+            persisted effective mode remains
+            Do not create a `run-goal`
+            """,
+        )
+        self.write(
+            self.repo_root / workflow_contracts[1],
+            common
+            + """
+            Simple MUST NOT perform
+            never invokes `resolve-recovery`
+            """,
+        )
+        self.write(
+            self.repo_root / workflow_contracts[2],
+            common
+            + "tools/capability-recovery.js\n"
+            + "resolve-recovery\n"
+            + "without the old\n"
+            + "recovery boost\n"
+            + "Missing selector, profile, or trace\n"
+            + "Other runtime exports conflict\n",
+        )
+        self.write(
+            self.repo_root / workflow_contracts[3],
+            common
+            + """
+            tools/capability-recovery.js
+            resolve-recovery
+            no inherited recovery boost
+            Reviewer models never uplift
+            `optional_notes` are not remaining work
+            `capability_recovery_used = true`
+            `retry_opportunities_used = <persisted value + 1>`
+            """,
+        )
         self.patchers = [
             mock.patch.object(MODULE, "REPO_ROOT", self.repo_root),
             mock.patch.object(MODULE, "AGENTS_DIR", self.repo_root / "agents"),
             mock.patch.object(MODULE, "MODES_PATH", self.repo_root / "modes.json"),
+            mock.patch.object(MODULE, "WORKFLOW_CONTRACTS", workflow_contracts),
         ]
         for patcher in self.patchers:
             patcher.start()

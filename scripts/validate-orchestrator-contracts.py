@@ -14,6 +14,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_DIR = REPO_ROOT / "agents"
 MODES_PATH = REPO_ROOT / "modes.json"
 RESERVED_MODE_NAMES = frozenset({"goal"})
+WORKFLOW_CONTRACTS = (
+    Path("skills/run-adaptive/SKILL.md"),
+    Path("agents/orchestrator-simple.md"),
+    Path("agents/orchestrator-flow.md"),
+    Path("agents/orchestrator-pipeline.md"),
+)
 
 
 def normalize_mode_alias(value: str) -> str:
@@ -173,6 +179,60 @@ def ensure_same_members(label: str, expected: list[str], actual: list[str]) -> N
         raise ValueError(f"{label} is out of sync with expected members: {'; '.join(details)}")
 
 
+def validate_capability_and_materiality_contracts() -> None:
+    for relative_path in WORKFLOW_CONTRACTS:
+        text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        required = ["--capability-recovery=off|shadow|auto", "protocols/MATERIALITY_GATE.md"]
+        missing = [token for token in required if token not in text]
+        if missing:
+            raise ValueError(f"{relative_path} is missing capability/materiality guidance: {missing}")
+
+    adaptive = (REPO_ROOT / WORKFLOW_CONTRACTS[0]).read_text(encoding="utf-8")
+    simple = (REPO_ROOT / WORKFLOW_CONTRACTS[1]).read_text(encoding="utf-8")
+    flow = (REPO_ROOT / WORKFLOW_CONTRACTS[2]).read_text(encoding="utf-8")
+    pipeline = (REPO_ROOT / WORKFLOW_CONTRACTS[3]).read_text(encoding="utf-8")
+    checks = {
+        "adaptive presets/resume": (
+            adaptive,
+            [
+                "delivery` or `autonomous` preset defaults it to `auto`",
+                "persisted effective mode remains",
+                "Do not create a `run-goal`",
+            ],
+        ),
+        "simple no-recovery boundary": (
+            simple,
+            ["Simple MUST NOT perform", "never invokes `resolve-recovery`"],
+        ),
+        "flow capability sequence": (
+            flow,
+            [
+                "tools/capability-recovery.js",
+                "resolve-recovery",
+                "without the old\nrecovery boost",
+                "Missing selector, profile, or trace",
+                "Other runtime exports conflict",
+            ],
+        ),
+        "pipeline capability sequence": (
+            pipeline,
+            [
+                "tools/capability-recovery.js",
+                "resolve-recovery",
+                "no inherited recovery boost",
+                "Reviewer models never uplift",
+                "`optional_notes` are not remaining work",
+                "`capability_recovery_used = true`",
+                "`retry_opportunities_used = <persisted value + 1>`",
+            ],
+        ),
+    }
+    for label, (text, tokens) in checks.items():
+        missing = [token for token in tokens if token not in text]
+        if missing:
+            raise ValueError(f"{label} is missing required contract guidance: {missing}")
+
+
 def main() -> int:
     agent_names = discover_agent_names()
     orchestrators = discover_primary_orchestrators()
@@ -197,6 +257,8 @@ def main() -> int:
     ]
     for label, expected, actual in checks:
         ensure_same_members(label, expected, actual)
+
+    validate_capability_and_materiality_contracts()
 
     unknown_targets = sorted(set(mode_agents) - set(agent_names))
     if unknown_targets:

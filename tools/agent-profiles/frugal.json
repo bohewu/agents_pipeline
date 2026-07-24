@@ -2,6 +2,10 @@
   "name": "frugal",
   "runtime": "neutral",
   "description": "Cost-conservative routing profile: mechanical roles use mini, routine planning/execution stays standard, and review/security/judges stay strong.",
+  "recovery_ceiling_tiers": {
+    "executor": "standard",
+    "generalist": "standard"
+  },
   "models": {
     "analysis-complexity": "standard",
     "analysis-correctness": "standard",

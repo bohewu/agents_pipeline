@@ -94,6 +94,7 @@ Supported flags (Flow-only, minimal):
 - `--commit=off|before|after` -> commit_mode
 - `--review=off|on|max` -> review policy. `on` sets `review_mode = on` with no exact reviewer-only override; `max` sets `review_mode = on` and exact reviewer-only max; `off` disables review. Persist the compatibility field `review_reasoning_effort = inherit|max`; run-level `reasoning_mode` still applies when that field is `inherit`.
 - `--reasoning=inherit|shadow|adaptive` -> child-spawn reasoning policy.
+- `--capability-recovery=off|shadow|auto` -> bounded child model recovery policy.
 - `--handoff` -> handoff_mode = true
 - `--kanban=off|manual|auto` -> kanban_mode
 - `--output-dir=<path>` -> output_dir (default: `.pipeline-output/`)
@@ -126,6 +127,10 @@ If no reasoning flag is provided:
 - reasoning_policy_version = the installed `protocols/reasoning-policy.json` policy version.
 - reasoning_ceiling = max.
 
+If no capability-recovery flag is provided:
+
+- capability_recovery_mode = off.
+
 If `--commit=*` is provided explicitly, it wins over any workflow-style commit wording in `main_task_prompt`.
 
 If conflicting flags exist (e.g. --skip-scout + --force-scout):
@@ -145,7 +150,7 @@ If `--full-auto` is provided:
 - Set `autopilot_mode = true`.
 - Set `confirm_mode = false` and `verbose_mode = false`.
 - If no explicit scout flag was provided, set `scout_mode = force`.
-- Prefer the strongest safe bounded in-scope autonomous completion path available within the fixed Flow model.
+  - Prefer the strongest safe bounded in-scope autonomous completion path allowed by the Flow policy.
 - Still stop on hard blockers.
 
 Internal recovery controls are not user-facing flags:
@@ -187,6 +192,11 @@ If an invalid `--reasoning` value is provided:
 - Warn the user.
 - Fall back to reasoning_mode = inherit.
 
+If an invalid `--capability-recovery` value is provided:
+
+- Warn the user.
+- Fall back to capability_recovery_mode = off.
+
 ## FLOW FLAGS (QUICK REFERENCE)
 
 - `--scout=auto|skip|force`
@@ -195,6 +205,7 @@ If an invalid `--reasoning` value is provided:
 - `--commit=off|before|after`
 - `--review=off|on|max`
 - `--reasoning=inherit|shadow|adaptive`
+- `--capability-recovery=off|shadow|auto`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -213,7 +224,7 @@ If an invalid `--reasoning` value is provided:
    - If the checkpoint completed Stage 2 or later (`current_stage >= 2` or an equivalent completed-stage entry), require `<run_output_dir>/flow/task-list.json` to exist and validate it against the current `protocols/schemas/flow-task-list.schema.json` before skipping any completed stage.
    - A missing or incompatible persisted FlowTaskList—including a legacy task with `effort` but without required `risk` / `review_required`—makes the checkpoint incompatible. Do not translate the old task list and do not reuse its run id. Start a fresh run with a new `run_id`; for resume-only, reuse `checkpoint.user_prompt` when it is available, otherwise stop and require a new prompt.
    - For a valid compatible checkpoint, hydrate persisted effective flags from `checkpoint.flags` first, then apply only flags explicitly provided by the current invocation as overrides. Omitted invocation flags MUST NOT reset persisted derived values or other prior effective settings.
-   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run.
+   - Require a persisted `reasoning_policy_version` to match the installed policy before resuming child dispatch. A legacy checkpoint without reasoning fields resumes with `reasoning_mode = inherit` unless the current invocation explicitly supplies `--reasoning=*`; persist the resulting mode, installed policy version, and ceiling before the next spawn. A version mismatch is incompatible and requires a fresh run. Hydrate persisted `capability_recovery_mode` first; an omitted flag preserves it, a current explicit flag replaces it, and a legacy checkpoint without it defaults to `off`.
    - If checkpoint is valid and `main_task_prompt` is empty (resume-only invocation), hydrate `main_task_prompt` from `checkpoint.user_prompt` and continue.
    - If checkpoint is valid and `autopilot_mode = true`, resume immediately and skip completed stages.
    - If checkpoint is valid and `autopilot_mode = false`, display completed stages, ask user to confirm resuming, then skip completed stages.
@@ -223,7 +234,7 @@ If an invalid `--reasoning` value is provided:
 
 ## CHECKPOINT PROTOCOL
 
-After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode`, `review_reasoning_effort`, and the internal recovery limits. Before a Flow-level recovery re-dispatch, increment `flow_recovery_used` and persist it with `node tools/status-event.js --event checkpoint.updated --payload-json '<json>'`; this merges flags without marking Stage 3 complete, so an interrupted/resumed run cannot repeat the consumed recovery or skip unfinished execution.
+After each stage completes successfully, call `node tools/status-event.js --event stage.completed --payload-json '<json>'` so the runtime-neutral status writer can write/update `<run_output_dir>/checkpoint.json` (see `protocols/schemas/checkpoint.schema.json` for schema). Include the current effective `flags` object whenever a stage derives or changes a flag value. In particular, the Stage 2 completion event MUST persist the risk-derived `review_mode`, `review_reasoning_effort`, `capability_recovery_mode`, and the internal recovery limits. Before a Flow-level recovery re-dispatch, increment `flow_recovery_used` and persist it with `node tools/status-event.js --event checkpoint.updated --payload-json '<json>'`; this merges flags without marking Stage 3 complete, so an interrupted/resumed run cannot repeat the consumed recovery or skip unfinished execution.
 
 ## STATUS ARTIFACT PROTOCOL
 
@@ -250,7 +261,8 @@ For task attempts, pass `task_intent`, `intent_baseline_class`,
 `classification_source`, legacy-compatible `reasoning_class`, and
 `reasoning_signals` from the task. The effective profile/runtime selects the
 actual role model/tier; the resolver validates that capability and selects only
-child effort. Never pass a raw model or attempt dynamic model routing.
+child effort. Never pass a raw model or attempt dynamic model routing except for the
+one trace-verified child recovery permitted below.
 Before resolution, verify that the assigned role policy ceiling accepts the
 task class. `peon` is fixed-routine and may receive only `routine` tasks;
 reroute a higher-class task to `executor`, `generalist`, `doc-writer`, or
@@ -289,7 +301,38 @@ contract, but `selector_evidence = matches_parent` does not prove selector
 causality. Conflicts block the spawn. Deep
 `mini`/`unknown` work conflicts by default; only an explicitly supplied
 `allow_degraded_deep` compatibility input may continue as degraded deep `max`.
-It never permits assurance or changes the model.
+It never permits assurance or changes the model outside capability recovery.
+
+## MATERIALITY AND CAPABILITY RECOVERY
+
+Apply `protocols/MATERIALITY_GATE.md` before every repair, reviewer re-review, or
+Flow recovery. Admit work only when the unmet original requirement, concrete evidence,
+and practical impact are recorded; repair and recovery budgets are upper bounds, not
+quotas. `required_followups` may contain only material blockers. `optional_notes`, P3
+findings, wording, style, and optional hardening never seed work.
+
+For a task assigned to `executor` or `generalist`, call
+`node tools/capability-recovery.js` only after the same concrete material
+`reasoning_failure` repeats and the preceding retry made no meaningful progress.
+Operational failures never qualify. Track one recovery use on that task and never
+reset it. This is the only child model uplift; the current/main agent, Flow
+orchestrator, and reviewer are immutable.
+
+In `shadow`, record the resolver decision and do not dispatch a model override. In
+`auto`, require Codex with a native per-spawn selector, a healthy eligible workspace
+profile, and the profile result from `python tools/agent-profile.py resolve-recovery
+--runtime codex --scope workspace --workspace . --agent <executor|generalist>
+--model-tier <tier> --json`. Other runtime exports conflict rather than inventing model
+routing; shadow may only compute a proven tier policy. Re-run `tools/reasoning-policy.js`
+for the selected stronger tier using the prior effective class but without the old
+recovery boost, so the stronger tier receives normal projected effort. Pass the returned
+raw model only on this one recovery spawn. Trace it with
+`tools/codex-child-trace.js --expected-role ... --expected-model ... --expected-effort
+...`, then re-run both resolvers with `model_matches`, the trace-proven model tier,
+and effective effort before accepting the result. Missing selector, profile, or trace
+evidence fails closed; mismatched evidence does too.
+The model recovery consumes the existing one total `flow_recovery`; it never resets
+task-local repair, operational, or Flow counters.
 
 ## CONFIRM / VERBOSE PROTOCOL
 
@@ -361,7 +404,7 @@ Stage 3 — Dispatch & Execution
 - Tool/CLI/environment failures may retry up to `operational_retry_limit` without implementation/content changes or repair-budget use; if they persist, report a blocker. Deterministic verification failures caused by the implementation use a repair cycle.
 - A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done. The first implementation/content attempt is free; each later modify -> verify cycle consumes one unit.
 - Stop when the budget is exhausted, scope expands, or two repair attempts make no progress. A repeated signature is conclusive only after three attempts. Report retry/repair counters and the last signature.
-- If an executor returns `blocked` for a non-hard blocker after local handling, Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and concrete evidence supports a changed handoff or strategy within the original scope. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
+- If an executor returns `blocked` for a non-hard blocker after local handling, first apply `protocols/MATERIALITY_GATE.md`. Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and the admitted material evidence supports a changed handoff or strategy within the original scope. For repeated no-progress material reasoning failures, use the capability-recovery sequence above only for `executor` or `generalist`; otherwise do not pass a model. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
 - The Flow-level recovery is one total recovery across the run, not one recovery per task. Do not spend it on an identical retry, a transient operation, or a localized repair that belongs inside the executor task.
 - Flow still MUST NOT generate new user-visible tasks, delta tasks, or multi-round reviewer loops.
 - Classify each task conservatively as `light`, `process`, `server`, or `browser` using the Stage 2 task metadata.
@@ -434,11 +477,11 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
-- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
+- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. Ordinary review uses the profile's strong tier with `xhigh` effort. Only `--review=max`, a material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not. Reviewer models never uplift. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:
-  - Repair only blocking P0-P2 findings; P3 suggestions, wording preferences, and optional improvements do not trigger repair.
+  - Apply `protocols/MATERIALITY_GATE.md` before every repair and re-review. Repair only blocking P0-P2 findings that identify the unmet original requirement, concrete evidence, and practical impact; P3 suggestions, wording preferences, and optional improvements do not trigger repair.
   - Do NOT create new Flow tasks, delta tasks, or a planner/router retry path.
   - Perform at most ONE bounded repair cycle inside the same run.
   - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures.

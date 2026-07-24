@@ -92,7 +92,32 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             set(reasoning_dependencies["reasoning_mode"]),
             {"reasoning_policy_version", "reasoning_ceiling"},
         )
+        capability_recovery_mode = checkpoint["properties"]["flags"]["properties"][
+            "capability_recovery_mode"
+        ]
+        self.assertEqual(capability_recovery_mode["enum"], ["off", "shadow", "auto"])
+        self.assertEqual(capability_recovery_mode["default"], "off")
         self.assertTrue((REPO_ROOT / "tools" / "reasoning-policy.js").is_file())
+
+    def test_capability_recovery_and_materiality_contracts_are_bounded(self) -> None:
+        adaptive = SKILL.read_text(encoding="utf-8")
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+
+        for text in (adaptive, simple, flow, pipeline):
+            self.assertIn("--capability-recovery=off|shadow|auto", text)
+            self.assertIn("protocols/MATERIALITY_GATE.md", text)
+        self.assertIn("delivery` or `autonomous` preset defaults it to `auto`", adaptive)
+        self.assertIn("balanced`,\n`careful`, and `interactive` default it to `off`", adaptive)
+        self.assertIn("persisted effective mode remains", adaptive)
+        self.assertIn("Do not create a `run-goal`", adaptive)
+        self.assertIn("Simple MUST NOT perform\nexecution model recovery", simple)
+        for text in (flow, pipeline):
+            self.assertIn("tools/capability-recovery.js", text)
+            self.assertIn("resolve-recovery", text)
+            self.assertIn("Other runtime exports conflict", text)
+            self.assertIn("Reviewer models never uplift", text)
 
     def test_every_orchestrator_uses_shared_task_intent_resolution(self) -> None:
         orchestrators = sorted((REPO_ROOT / "agents").glob("orchestrator-*.md"))

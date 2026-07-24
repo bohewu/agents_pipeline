@@ -205,7 +205,7 @@ def rewrite_support_refs(
     if previous_root is not None:
         text = text.replace(previous_root.as_posix().rstrip("/"), normalized_root)
     text = re.sub(
-        r"\bnode\s+[\"']?(?:\./)?tools/(status-event|reasoning-policy|codex-child-trace)\.js[\"']?",
+        r"\bnode\s+[\"']?(?:\./)?tools/(status-event|reasoning-policy|capability-recovery|codex-child-trace)\.js[\"']?",
         lambda match: f'node "{normalized_root}/tools/{match.group(1)}.js"',
         text,
     )

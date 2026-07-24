@@ -33,4 +33,5 @@ Return Markdown with exactly these four sections in this order:
 - No JSON dumps, no repeated stage narration, no filler text.
 - Match the user's language and lead with the practical result.
 - Translate internal agent/protocol terms into ordinary engineering language. Do not expose raw prefixes or fields such as `[artifact]`, `[evidence]`, `[logic]`, `DoD`, `DeltaTaskList`, `dispatch_context`, `reasoning_class`, or `repair_budget` unless the user asks for protocol details.
+- Apply `protocols/MATERIALITY_GATE.md` when describing next steps. Only material required followups may be called remaining work; optional notes must not become a new Goal round or completion blocker.
 - Expand only when the user explicitly asks for detail.

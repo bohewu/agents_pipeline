@@ -30,6 +30,13 @@
       "items": {
         "type": "string"
       }
+    },
+    "optional_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
     }
   },
   "additionalProperties": false

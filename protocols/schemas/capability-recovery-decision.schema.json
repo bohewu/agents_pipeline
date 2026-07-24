@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CapabilityRecoveryDecision",
+  "description": "Deterministic, content-free decision for one child model recovery request.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "policy_version",
+    "mode",
+    "role",
+    "requested",
+    "eligible",
+    "failure_type",
+    "same_failure",
+    "material_failure",
+    "no_meaningful_progress",
+    "recovery_used",
+    "selected_model_tier",
+    "recovery_ceiling_model_tier",
+    "requested_model_tier",
+    "dispatch_model_tier",
+    "effective_model_tier",
+    "model_matches",
+    "model_selector_available",
+    "status",
+    "reason",
+    "conflict",
+    "conflict_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "policy_version": {
+      "const": "1"
+    },
+    "mode": {
+      "enum": ["off", "shadow", "auto"]
+    },
+    "role": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$",
+      "maxLength": 64
+    },
+    "requested": {
+      "type": "boolean"
+    },
+    "eligible": {
+      "type": "boolean"
+    },
+    "failure_type": {
+      "enum": [
+        null,
+        "reasoning_failure",
+        "timeout",
+        "permission_denied",
+        "network_error",
+        "dependency_unavailable",
+        "browser_startup_failure",
+        "cli_format_error",
+        "tool_failure"
+      ]
+    },
+    "same_failure": {
+      "type": "boolean"
+    },
+    "material_failure": {
+      "type": "boolean"
+    },
+    "no_meaningful_progress": {
+      "type": "boolean"
+    },
+    "recovery_used": {
+      "type": "boolean"
+    },
+    "selected_model_tier": {
+      "enum": ["mini", "standard", "strong", "unknown"]
+    },
+    "recovery_ceiling_model_tier": {
+      "enum": [null, "mini", "standard", "strong"]
+    },
+    "requested_model_tier": {
+      "enum": [null, "mini", "standard", "strong"]
+    },
+    "dispatch_model_tier": {
+      "enum": [null, "mini", "standard", "strong"]
+    },
+    "effective_model_tier": {
+      "enum": [null, "mini", "standard", "strong"]
+    },
+    "model_matches": {
+      "type": ["boolean", "null"]
+    },
+    "model_selector_available": {
+      "type": ["boolean", "null"]
+    },
+    "status": {
+      "enum": [
+        "not-requested",
+        "off",
+        "shadow",
+        "requested",
+        "verified",
+        "conflict"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "not_requested",
+        "disabled",
+        "role_not_eligible",
+        "failure_not_reasoning",
+        "failure_not_repeated",
+        "failure_not_material",
+        "meaningful_progress_present",
+        "recovery_already_used",
+        "tier_unknown",
+        "ceiling_missing",
+        "no_higher_tier_available",
+        "model_selector_unavailable",
+        "awaiting_trace",
+        "effective_model_mismatch",
+        "effective_model_tier_missing",
+        "effective_model_tier_mismatch",
+        "eligible",
+        "verified"
+      ]
+    },
+    "conflict": {
+      "enum": [null, "conflict"]
+    },
+    "conflict_reason": {
+      "type": ["string", "null"],
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "conflict"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "conflict": {
+            "const": "conflict"
+          },
+          "conflict_reason": {
+            "type": "string"
+          },
+          "dispatch_model_tier": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "conflict": {
+            "const": null
+          },
+          "conflict_reason": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "requested"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "effective_model_tier": {
+            "const": null
+          },
+          "model_matches": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "shadow"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "requested_model_tier": {
+            "enum": ["mini", "standard", "strong"]
+          },
+          "dispatch_model_tier": {
+            "const": null
+          },
+          "effective_model_tier": {
+            "const": null
+          },
+          "model_matches": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": ["requested", "verified"]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "mode": {
+            "const": "auto"
+          },
+          "eligible": {
+            "const": true
+          },
+          "requested_model_tier": {
+            "enum": ["mini", "standard", "strong"]
+          },
+          "dispatch_model_tier": {
+            "enum": ["mini", "standard", "strong"]
+          },
+          "model_selector_available": {
+            "const": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "verified"
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "effective_model_tier": {
+            "enum": ["mini", "standard", "strong"]
+          },
+          "model_matches": {
+            "const": true
+          },
+          "reason": {
+            "const": "verified"
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

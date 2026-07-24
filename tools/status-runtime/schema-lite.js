@@ -922,6 +922,28 @@ function canonicalizeTaskStatus(taskStatus) {
     assert(typeof taskStatus.allow_degraded_deep === "boolean", "allow_degraded_deep must be a boolean");
     result.allow_degraded_deep = taskStatus.allow_degraded_deep;
   }
+  if (taskStatus.retry_opportunities_used !== undefined) {
+    result.retry_opportunities_used = ensureInteger(
+      taskStatus.retry_opportunities_used,
+      "retry_opportunities_used",
+      0
+    );
+    assert(result.retry_opportunities_used <= 5, "retry_opportunities_used must be <= 5");
+  }
+  if (taskStatus.capability_recovery_used !== undefined) {
+    assert(
+      typeof taskStatus.capability_recovery_used === "boolean",
+      "capability_recovery_used must be a boolean"
+    );
+    result.capability_recovery_used = taskStatus.capability_recovery_used;
+  }
+  if (result.capability_recovery_used === true) {
+    assert(
+      result.retry_opportunities_used !== undefined
+        && result.retry_opportunities_used >= 1,
+      "capability_recovery_used requires retry_opportunities_used >= 1"
+    );
+  }
   if (result.task_intent !== undefined && result.task_intent !== null) {
     assert(
       result.intent_baseline_class === REASONING_POLICY.intent_baseline_classes[result.task_intent],
@@ -1120,6 +1142,21 @@ function canonicalizeCheckpoint(checkpoint) {
       reasoningFlagCount === reasoningFlagNames.length,
       "flags.allow_degraded_deep requires the complete reasoning policy flag set"
     );
+  }
+  if (result.flags.capability_recovery_mode !== undefined) {
+    ensureEnum(
+      result.flags.capability_recovery_mode,
+      ["off", "shadow", "auto"],
+      "flags.capability_recovery_mode"
+    );
+  }
+  if (result.flags.max_retry_rounds !== undefined) {
+    const maxRetryRounds = ensureInteger(
+      result.flags.max_retry_rounds,
+      "flags.max_retry_rounds",
+      0
+    );
+    assert(maxRetryRounds <= 5, "flags.max_retry_rounds must be <= 5");
   }
   assert(isIsoDateTime(result.created_at), "created_at must be an ISO date-time");
   assert(isIsoDateTime(result.updated_at), "updated_at must be an ISO date-time");

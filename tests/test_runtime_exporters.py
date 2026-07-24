@@ -315,6 +315,14 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
             "ref: ${{ inputs.checkout_ref || github.sha }}",
             bundle_workflow,
         )
+        self.assertIn(
+            'test -f "${BUNDLE_DIR}/protocols/CAPABILITY_RECOVERY.md"',
+            bundle_workflow,
+        )
+        self.assertIn(
+            'node "${BUNDLE_DIR}/tools/capability-recovery.js" --help',
+            bundle_workflow,
+        )
         self.assertNotIn("git fetch --tags --force", bundle_workflow)
 
     def test_ci_runs_both_pester_suites_and_macos_installer_smoke(self) -> None:
@@ -766,8 +774,12 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                     )
                     self.assertTrue((support_root / "tools" / "status-event.js").is_file())
                     self.assertTrue((support_root / "tools" / "reasoning-policy.js").is_file())
+                    self.assertTrue((support_root / "tools" / "capability-recovery.js").is_file())
                     self.assertTrue((support_root / "tools" / "codex-child-trace.js").is_file())
                     self.assertTrue((support_root / "tools" / "reasoning-vocabulary.js").is_file())
+                    self.assertTrue(
+                        (support_root / "protocols" / "capability-recovery-policy.json").is_file()
+                    )
                     self.assertTrue((support_root / "protocols" / "reasoning-policy.json").is_file())
 
                     self.assert_no_unresolved_neutral_refs(target, support_root)
@@ -778,6 +790,9 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                     quoted_reasoning_command = (
                         f'node "{support_root.as_posix()}/tools/reasoning-policy.js"'
                     )
+                    quoted_capability_command = (
+                        f'node "{support_root.as_posix()}/tools/capability-recovery.js"'
+                    )
                     quoted_trace_command = (
                         f'node "{support_root.as_posix()}/tools/codex-child-trace.js"'
                     )
@@ -786,8 +801,18 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                         support_root / "agents" / "orchestrator-flow.md",
                     ):
                         content = flow_path.read_text(encoding="utf-8")
+                        if "## Canonical Definition Loading" in content:
+                            self.assertIn(
+                                (
+                                    f"{support_root.as_posix()}/agents/"
+                                    "orchestrator-flow.md"
+                                ),
+                                content,
+                            )
+                            continue
                         self.assertIn(quoted_status_command, content)
                         self.assertIn(quoted_reasoning_command, content)
+                        self.assertIn(quoted_capability_command, content)
                         self.assertIn(quoted_trace_command, content)
                         self.assertNotIn(
                             f"node {support_root.as_posix()}/tools/status-event.js",
@@ -795,6 +820,10 @@ class RuntimeExporterMigrationTest(unittest.TestCase):
                         )
                         self.assertNotIn(
                             f"node {support_root.as_posix()}/tools/reasoning-policy.js",
+                            content,
+                        )
+                        self.assertNotIn(
+                            f"node {support_root.as_posix()}/tools/capability-recovery.js",
                             content,
                         )
 

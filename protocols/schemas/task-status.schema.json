@@ -99,6 +99,17 @@
       "type": "boolean",
       "default": false
     },
+    "retry_opportunities_used": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Pipeline retry opportunities already charged to this task, including a capability recovery spawn."
+    },
+    "capability_recovery_used": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this task has already consumed its single capability recovery."
+    },
     "reasoning_class": {
       "type": "string",
       "enum": [
@@ -262,6 +273,28 @@
   },
   "allOf": [
     { "$ref": "reasoning-task-hints.schema.json" },
+    {
+      "if": {
+        "properties": {
+          "capability_recovery_used": {
+            "const": true
+          }
+        },
+        "required": [
+          "capability_recovery_used"
+        ]
+      },
+      "then": {
+        "required": [
+          "retry_opportunities_used"
+        ],
+        "properties": {
+          "retry_opportunities_used": {
+            "minimum": 1
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

@@ -12,6 +12,8 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/repo-findings.schema.json` | RepoFindings | repo-scout | Discovery and risks |
 | `./protocols/schemas/task-list.schema.json` | TaskList / DeltaTaskList | atomizer | Atomic tasks with additive, backward-compatible intent metadata, legacy-compatible class/signals, and optional `trace_ids` |
 | `./protocols/schemas/dispatch-plan.schema.json` | DispatchPlan | router | Routing, batching, resource metadata, and aggregated additive intent/class/signal metadata |
+| `./protocols/schemas/capability-recovery-policy.schema.json` | CapabilityRecoveryPolicy | capability recovery resolver | Child-only `off|shadow|auto` policy with a fixed executor/generalist allowlist and one uplift per task |
+| `./protocols/schemas/capability-recovery-decision.schema.json` | CapabilityRecoveryDecision | capability recovery resolver / Flow / Pipeline | Content-free one-tier model recovery decision; raw model mapping remains in the active workspace profile |
 | `./protocols/schemas/reasoning-policy.schema.json` | ReasoningPolicy | reasoning resolver | Policy v2/schema 2.0 role/context bounds, selected-tier capability floors, and the deterministic child-effort matrix |
 | `./protocols/schemas/reasoning-decision.schema.json` | ReasoningDecision | reasoning resolver / orchestrators | Schema-2.0 bounded policy-v2 per-spawn decision, including intent/source and selected-tier metadata; no prompt or source content |
 | `./protocols/schemas/reasoning-task-hints.schema.json` | ReasoningTaskHints | TaskList / FlowTaskList / DispatchPlan / TaskStatus / ReasoningDecision / ReasoningObservation | Shared intent-baseline and signal-to-minimum-class consistency rules; legacy fields remain optional for compatibility |
@@ -20,7 +22,7 @@ All JSON outputs must conform to these schemas.
 | `./protocols/schemas/run-status.schema.json` | RunStatus | the runtime-neutral status writer / status writers | Required top-level status index at `<run_output_dir>/status/run-status.json` |
 | `./protocols/schemas/task-status.schema.json` | TaskStatus | the runtime-neutral status writer / orchestrators / executors | Optional expanded status-protocol-1.0 record with additive intent metadata at `<run_output_dir>/status/tasks/<task_id>.json` |
 | `./protocols/schemas/agent-status.schema.json` | AgentStatus | the runtime-neutral status writer / executors | Optional expanded executor/resource record at `<run_output_dir>/status/agents/<agent_id>.json` |
-| `./protocols/schemas/review-report.schema.json` | ReviewReport | reviewer | Pass or fail |
+| `./protocols/schemas/review-report.schema.json` | ReviewReport | reviewer | Pass or fail, material required followups, and optional non-blocking notes |
 | `./protocols/schemas/test-report.schema.json` | TestReport | test-runner | Evidence and results |
 | `./protocols/schemas/context-pack.schema.json` | ContextPack | compressor | Compressed context |
 | `./protocols/schemas/todo-ledger.schema.json` | TodoLedger | optional | Carryover items |
@@ -54,6 +56,20 @@ Repository validation and CI must validate the positive fixtures against the mat
 - Negative context/identity records: `./protocols/examples/reasoning-decision.custom-context.invalid.json`, `./protocols/examples/reasoning-observation.custom-context.invalid.json`, `./protocols/examples/agent-status.reasoning-custom-context.invalid.json`, `./protocols/examples/reasoning-observation.pipeline-context-forged.invalid.json`, `./protocols/examples/agent-status.reasoning-role-mismatch.invalid.json`, and `./protocols/examples/agent-status.reasoning-unlisted-role.invalid.json`
 - Negative conflict-representation records: `./protocols/examples/reasoning-decision.conflict-reason-mismatch.invalid.json` and `./protocols/examples/agent-status.reasoning-conflict-reason-mismatch.invalid.json`
 - Negative underprovisioning relabels: `./protocols/examples/reasoning-decision.underprovisioned-degraded.invalid.json` and `./protocols/examples/reasoning-observation.underprovisioned-degraded.invalid.json`
+
+## Capability recovery fixtures
+
+- Policy: `./protocols/capability-recovery-policy.json`
+- Positive decision: `./protocols/examples/capability-recovery-decision.valid.json`
+- Negative decision: `./protocols/examples/capability-recovery-decision.invalid.json`
+
+Capability recovery does not change the reasoning policy/schema version or the
+status protocol version. The decision contains tiers only. The active profile
+manager validates the requested tier against `recovery_ceiling_tiers` and maps
+it to a raw runtime model. Pipeline `TaskStatus` optionally persists
+`capability_recovery_used` and `retry_opportunities_used`; the promoted spawn
+atomically sets/increments them before dispatch so resume cannot repeat the
+uplift or regain the consumed retry. See `./protocols/CAPABILITY_RECOVERY.md`.
 
 Current task-producing artifacts emit `task_intent`, `intent_baseline_class`,
 and `classification_source` beside the legacy-compatible `reasoning_class` /

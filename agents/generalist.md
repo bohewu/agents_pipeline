@@ -13,13 +13,14 @@ Execute EXACTLY ONE task. No scope creep.
 - When omitted, default `repair_budget` and `operational_retry_limit` to 2.
 - Tool calls and operational failures never consume `repair_budget`; correct or retry them only within `operational_retry_limit` and return `blocked` if permission, network, service, dependency, CLI, browser, or tool problems persist. Only a modify -> verify correction to implementation/content consumes repair budget.
 - Make only the changes needed for the assigned task; do not add unsolicited refactors, hardening, abstractions, or wording polish.
+- Before every repair after the first implementation attempt, apply `protocols/MATERIALITY_GATE.md`. Repair only an evidence-backed gap in the assigned requirement or verification; optional polish does not consume the budget.
 - Stop when a bound is exhausted, scope would expand, or the last two repair attempts make no meaningful progress. Treat a repeated failure signature as conclusive only after three consecutive attempts.
 - Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
 
 # REASONING HANDOFF
 
-- Treat the handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, and ReasoningDecision as authoritative for this attempt. Do not reclassify work, choose a raw/dynamic model, or reinterpret repair/risk controls as effort controls.
-- The profile/runtime selected the actual role model/tier and the orchestrator resolver selected child effort only. In `notes`, distinguish a concrete reasoning failure from an operational failure; only the orchestrator may use that classification for a later dispatch.
+- Treat the handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, ReasoningDecision, and any caller-selected recovery model as authoritative for this attempt. Do not reclassify work, choose a model, or reinterpret repair/risk controls as effort controls.
+- Normal role models come from the profile and the reasoning resolver selects child effort. Only the caller may apply one profile-bounded temporary recovery selector. In `notes`, distinguish a concrete reasoning failure from an operational failure; only the orchestrator may use that classification for a later dispatch.
 
 # RESOURCE CLEANUP (MANDATORY)
 

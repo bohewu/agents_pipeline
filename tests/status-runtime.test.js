@@ -2078,6 +2078,7 @@ test("run.resumed overlays invocation flags and preserves Flow recovery usage", 
     orchestrator: "orchestrator-flow",
     user_prompt: "Persist derived review policy",
     flags: {
+      capability_recovery_mode: "shadow",
       confirm_mode: false,
       flow_recovery_limit: 1,
       flow_recovery_used: 0,
@@ -2126,6 +2127,7 @@ test("run.resumed overlays invocation flags and preserves Flow recovery usage", 
 
   const checkpoint = await readJson(result.checkpoint_path);
   assert.deepEqual(checkpoint.flags, {
+    capability_recovery_mode: "shadow",
     confirm_mode: true,
     flow_recovery_limit: 1,
     flow_recovery_used: 1,
@@ -2136,6 +2138,174 @@ test("run.resumed overlays invocation flags and preserves Flow recovery usage", 
     scout_mode: "skip"
   });
   assert.equal(checkpoint.current_stage, 2);
+});
+
+test("capability recovery mode rejects invalid lifecycle values without persistence", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-capability-recovery-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-capability-recovery";
+  const basePayload = {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-flow",
+    timestamp: "2026-07-14T11:30:00.000Z"
+  };
+
+  await assert.rejects(
+    runtime.applyEvent("run.started", {
+      ...basePayload,
+      user_prompt: "Reject unsupported recovery mode before layout creation",
+      flags: { capability_recovery_mode: "enabled" }
+    }),
+    /flags\.capability_recovery_mode must be one of/
+  );
+  await assert.rejects(
+    fs.lstat(path.join(tempRoot, runId)),
+    (error) => error && error.code === "ENOENT"
+  );
+
+  const started = await runtime.applyEvent("run.started", {
+    ...basePayload,
+    user_prompt: "Persist a supported recovery mode",
+    flags: { capability_recovery_mode: "auto" }
+  });
+  const before = await fs.readFile(started.checkpoint_path, "utf8");
+
+  for (const capability_recovery_mode of ["enabled", true]) {
+    await assert.rejects(
+      runtime.applyEvent("checkpoint.updated", {
+        ...basePayload,
+        flags: { capability_recovery_mode },
+        timestamp: "2026-07-14T11:31:00.000Z"
+      }),
+      /flags\.capability_recovery_mode must be one of/
+    );
+  }
+  assert.equal(await fs.readFile(started.checkpoint_path, "utf8"), before);
+
+  await assert.rejects(
+    runtime.applyEvent("run.resumed", {
+      ...basePayload,
+      flags: { capability_recovery_mode: false },
+      timestamp: "2026-07-14T11:32:00.000Z"
+    }),
+    /flags\.capability_recovery_mode must be one of/
+  );
+  assert.equal(await fs.readFile(started.checkpoint_path, "utf8"), before);
+});
+
+test("Pipeline capability recovery atomically consumes one persisted task retry", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-pipeline-recovery-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-pipeline-recovery";
+  const taskId = "task-recovery";
+  const envelope = {
+    output_root: tempRoot,
+    run_id: runId
+  };
+
+  await runtime.applyEvent("run.started", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Persist bounded task capability recovery",
+    flags: {
+      capability_recovery_mode: "auto",
+      max_retry_rounds: 3
+    },
+    timestamp: "2026-07-14T11:40:00.000Z"
+  });
+  const registered = await runtime.applyEvent("tasks.registered", {
+    ...envelope,
+    tasks: [{
+      task_id: taskId,
+      summary: "Exercise one promoted retry",
+      status: "ready"
+    }],
+    timestamp: "2026-07-14T11:40:01.000Z"
+  });
+  const taskPath = path.join(
+    path.dirname(registered.run_status_path),
+    "tasks",
+    `${taskId}.json`
+  );
+  const beforeInvalidClaim = await fs.readFile(taskPath, "utf8");
+
+  await assert.rejects(
+    runtime.applyEvent("task.updated", {
+      ...envelope,
+      task_id: taskId,
+      capability_recovery_used: true,
+      timestamp: "2026-07-14T11:40:02.000Z"
+    }),
+    /atomically consume one retry opportunity/
+  );
+  assert.equal(await fs.readFile(taskPath, "utf8"), beforeInvalidClaim);
+
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 1,
+    timestamp: "2026-07-14T11:40:03.000Z"
+  });
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 2,
+    capability_recovery_used: true,
+    timestamp: "2026-07-14T11:40:04.000Z"
+  });
+
+  let taskStatus = await readJson(taskPath);
+  assert.equal(taskStatus.retry_opportunities_used, 2);
+  assert.equal(taskStatus.capability_recovery_used, true);
+
+  await runtime.applyEvent("run.resumed", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    timestamp: "2026-07-14T11:41:00.000Z"
+  });
+  taskStatus = await readJson(taskPath);
+  assert.equal(taskStatus.retry_opportunities_used, 2);
+  assert.equal(taskStatus.capability_recovery_used, true);
+
+  const beforeDuplicateClaim = await fs.readFile(taskPath, "utf8");
+  await assert.rejects(
+    runtime.applyEvent("task.updated", {
+      ...envelope,
+      task_id: taskId,
+      retry_opportunities_used: 3,
+      capability_recovery_used: true,
+      timestamp: "2026-07-14T11:41:01.000Z"
+    }),
+    /capability recovery has already been used/
+  );
+  assert.equal(await fs.readFile(taskPath, "utf8"), beforeDuplicateClaim);
+
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 3,
+    timestamp: "2026-07-14T11:41:02.000Z"
+  });
+  const exhausted = await fs.readFile(taskPath, "utf8");
+  await assert.rejects(
+    runtime.applyEvent("task.updated", {
+      ...envelope,
+      task_id: taskId,
+      retry_opportunities_used: 4,
+      timestamp: "2026-07-14T11:41:03.000Z"
+    }),
+    /exceeds max_retry_rounds/
+  );
+  assert.equal(await fs.readFile(taskPath, "utf8"), exhausted);
 });
 
 test("checkpoint.updated requires a non-empty flags delta", async () => {

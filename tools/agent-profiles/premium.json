@@ -2,6 +2,10 @@
   "name": "premium",
   "runtime": "neutral",
   "description": "Higher-rigor routing profile for complex or risky work while keeping purely mechanical helpers low-cost.",
+  "recovery_ceiling_tiers": {
+    "executor": "strong",
+    "generalist": "strong"
+  },
   "models": {
     "analysis-complexity": "strong",
     "analysis-correctness": "strong",

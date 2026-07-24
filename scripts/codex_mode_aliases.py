@@ -54,14 +54,27 @@ CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "type, model, and reasoning effort; use it only when that inheritance is "
     "intentional. If the selectors are unavailable, do not claim that workspace "
     "profile routing succeeded. On Codex multi-agent V2, pass the registered role as "
-    "`agent_type`, omit `model`, pass a non-null resolver `dispatch_effort` as "
-    "`reasoning_effort`, and use `fork_turns = \"none\"`; on a legacy spawn surface, "
+    "`agent_type`, normally omit `model`, pass a non-null resolver `dispatch_effort` as "
+    "`reasoning_effort`, and use `fork_turns = \"none\"`. The only managed exception "
+    "is an `auto` child CapabilityRecoveryDecision for `executor` or `generalist`: "
+    "pass only the raw model returned by the active workspace profile's read-only "
+    "`resolve-recovery` action, then verify both model and effort in the child trace. "
+    "Never apply recovery to the current/main agent or an orchestrator. On a legacy spawn surface, "
     "use the equivalent no-history `fork_context = false`. V2 returns a task path; "
     "pass that path to `codex-child-trace.js --task-name`, while legacy surfaces "
     "use the returned UUID with `--agent-id`. Exported subagent roles are leaf "
     "workers and must not spawn another agent. When the adopted definition invokes the installed "
     "reasoning policy protocol, use its shared resolver for child effort and never "
     "infer effort from workflow risk or apply a child selector to the current/main agent."
+)
+MATERIALITY_AND_GOAL_LINE = (
+    "Before any repair, reviewer followup, capability recovery, or new Goal "
+    "continuation round, apply the installed `protocols/MATERIALITY_GATE.md`. "
+    "Admit work only when an original goal condition remains unmet, concrete "
+    "evidence proves it, and leaving it unchanged has practical impact. A new "
+    "Goal run is allowed when required, but P3 findings, wording/style preferences, "
+    "optional notes, speculative hardening, and possible polish must not become "
+    "remaining work or consume repair/recovery budget."
 )
 CHILD_RESULT_SELECTION_LABEL_LINE = (
     "Whenever a child returns user-visible output, show one adjacent compact selection "
@@ -294,6 +307,7 @@ def build_mode_summary_lines() -> List[str]:
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
         CUSTOM_ROLE_FORK_ISOLATION_LINE,
         CHILD_RESULT_SELECTION_LABEL_LINE,
+        MATERIALITY_AND_GOAL_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,
         MODE_ALIAS_DEFINITION_LOOKUP_LINE,

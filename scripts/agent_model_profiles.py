@@ -9,12 +9,14 @@ does not handle reasoning-effort settings.
 import json
 import re
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 
 REQUIRED_TIERS = frozenset({"mini", "standard", "strong"})
+TIER_ORDER = {"mini": 0, "standard": 1, "strong": 2}
+RECOVERY_CEILING_AGENTS = frozenset({"executor", "generalist"})
 SUPPORTED_RUNTIMES = frozenset({"codex", "copilot", "claude"})
 SHARED_PROFILE_RUNTIME = "neutral"
 CLAUDE_MODEL_ALIASES = frozenset({"inherit", "sonnet", "opus", "haiku"})
@@ -36,6 +38,7 @@ class AgentModelProfile:
     models: Dict[str, str]
     path: Path
     description: Optional[str] = None
+    recovery_ceiling_tiers: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -269,6 +272,45 @@ def load_profile(
         )
         models[agent] = tier
 
+    raw_recovery_ceilings = data.get("recovery_ceiling_tiers", {})
+    if not isinstance(raw_recovery_ceilings, dict):
+        raise ValueError(
+            f"{path.as_posix()}: profile field 'recovery_ceiling_tiers' must be an object"
+        )
+    recovery_ceiling_tiers: Dict[str, str] = {}
+    for raw_agent, raw_ceiling in raw_recovery_ceilings.items():
+        agent = _validate_agent_name(
+            raw_agent, f"{path.as_posix()}: recovery ceiling agent name"
+        )
+        if agent not in RECOVERY_CEILING_AGENTS:
+            expected = ", ".join(sorted(RECOVERY_CEILING_AGENTS))
+            raise ValueError(
+                f"{path.as_posix()}: recovery ceiling agent '{agent}' must be one of: {expected}"
+            )
+        if agent not in models:
+            raise ValueError(
+                f"{path.as_posix()}: recovery ceiling agent '{agent}' must exist in profile models"
+            )
+        ceiling = _validate_tier_name(
+            raw_ceiling, f"{path.as_posix()}: recovery ceiling for agent '{agent}'"
+        )
+        if ceiling not in REQUIRED_TIERS:
+            expected = ", ".join(sorted(REQUIRED_TIERS))
+            raise ValueError(
+                f"{path.as_posix()}: recovery ceiling for agent '{agent}' must be one of: {expected}"
+            )
+        base_tier = models[agent]
+        if base_tier not in REQUIRED_TIERS:
+            expected = ", ".join(sorted(REQUIRED_TIERS))
+            raise ValueError(
+                f"{path.as_posix()}: recovery ceiling agent '{agent}' has base tier '{base_tier}' outside required tiers: {expected}"
+            )
+        if TIER_ORDER[ceiling] < TIER_ORDER[base_tier]:
+            raise ValueError(
+                f"{path.as_posix()}: recovery ceiling '{ceiling}' for agent '{agent}' cannot be below base tier '{base_tier}'"
+            )
+        recovery_ceiling_tiers[agent] = ceiling
+
     name = _optional_single_line_string(
         data.get("name"), f"{path.as_posix()}: profile name"
     )
@@ -282,6 +324,7 @@ def load_profile(
         models=models,
         path=path,
         description=description,
+        recovery_ceiling_tiers=recovery_ceiling_tiers,
     )
 
 
@@ -398,10 +441,62 @@ def resolve_agent_model_settings(
     return resolved
 
 
+def resolve_recovery_model_setting(
+    agent_name: str,
+    requested_tier: str,
+    profile: AgentModelProfile,
+    model_set: RuntimeModelSet,
+) -> Dict[str, Any]:
+    """Resolve a bounded recovery model setting without changing base mappings."""
+
+    agent = _validate_agent_name(agent_name, "recovery agent name")
+    if agent not in RECOVERY_CEILING_AGENTS:
+        expected = ", ".join(sorted(RECOVERY_CEILING_AGENTS))
+        raise ValueError(f"recovery agent '{agent}' must be one of: {expected}")
+    requested = _validate_tier_name(requested_tier, "requested recovery tier")
+    if requested not in REQUIRED_TIERS:
+        expected = ", ".join(sorted(REQUIRED_TIERS))
+        raise ValueError(f"requested recovery tier must be one of: {expected}")
+
+    _infer_runtime(profile, model_set, None)
+    base_tier = profile.models.get(agent)
+    if base_tier is None:
+        raise ValueError(f"{profile.path.as_posix()}: recovery agent '{agent}' is not in profile models")
+    ceiling_tier = profile.recovery_ceiling_tiers.get(agent)
+    if ceiling_tier is None:
+        raise ValueError(
+            f"{profile.path.as_posix()}: recovery ceiling for agent '{agent}' is not configured"
+        )
+    if base_tier not in REQUIRED_TIERS:
+        raise ValueError(
+            f"{profile.path.as_posix()}: recovery agent '{agent}' has unknown base tier '{base_tier}'"
+        )
+    if requested not in model_set.tiers:
+        raise ValueError(
+            f"{model_set.path.as_posix()}: requested recovery tier '{requested}' is not present"
+        )
+    if TIER_ORDER[requested] <= TIER_ORDER[base_tier]:
+        raise ValueError(
+            f"requested recovery tier '{requested}' must be above base tier '{base_tier}'"
+        )
+    if TIER_ORDER[requested] > TIER_ORDER[ceiling_tier]:
+        raise ValueError(
+            f"requested recovery tier '{requested}' exceeds ceiling tier '{ceiling_tier}'"
+        )
+
+    return {
+        "model_setting": _copy_setting(model_set.tiers[requested]),
+        "base_tier": base_tier,
+        "requested_tier": requested,
+        "ceiling_tier": ceiling_tier,
+    }
+
+
 __all__ = [
     "AgentModelProfile",
     "RuntimeModelSet",
     "load_profile",
     "load_model_set",
     "resolve_agent_model_settings",
+    "resolve_recovery_model_setting",
 ]
