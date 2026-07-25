@@ -674,6 +674,62 @@ test("reasoning failures escalate routine and deliberative but deep only receive
   assert.notEqual(deep.reasoning_class, "assurance");
 });
 
+test("strong-tier deep executor recovery reaches max without an explicit effort override", () => {
+  const decision = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_system"],
+    model_tier: "strong",
+    selector_available: true,
+    prior_failure_type: "reasoning_failure"
+  });
+
+  assert.equal(decision.reasoning_class, "deep");
+  assert.equal(decision.recovery_boost, true);
+  assert.equal(decision.requested_effort, "max");
+  assert.equal(decision.dispatch_effort, "max");
+  assert.equal(decision.explicit_override, null);
+  assert.equal(decision.reasons.includes("recovery_boost"), true);
+});
+
+test("repeated strong-tier recovery carries the prior effective class through deep max", () => {
+  const initial = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    model_tier: "strong",
+    selector_available: true
+  });
+  const deepRetry = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    reasoning_class: initial.effective_class,
+    model_tier: "strong",
+    selector_available: true,
+    prior_failure_type: "reasoning_failure"
+  });
+  const maxRetry = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    reasoning_class: deepRetry.effective_class,
+    model_tier: "strong",
+    selector_available: true,
+    prior_failure_type: "reasoning_failure"
+  });
+
+  assert.equal(initial.reasoning_class, "deliberative");
+  assert.equal(initial.requested_effort, "high");
+  assert.equal(deepRetry.reasoning_class, "deep");
+  assert.equal(deepRetry.requested_effort, "xhigh");
+  assert.equal(maxRetry.reasoning_class, "deep");
+  assert.equal(maxRetry.recovery_boost, true);
+  assert.equal(maxRetry.requested_effort, "max");
+  assert.equal(maxRetry.explicit_override, null);
+});
+
 test("an explicit assurance override clears a provisional deep recovery boost", () => {
   const decision = resolveReasoning({
     role: "reviewer",

@@ -60,7 +60,28 @@ Once the original requirements, required verification, and material blocking
 findings pass, freeze task scope and finish. Completion means the original
 objective is satisfied, not that no further improvement is imaginable.
 
-A Goal continuation may start a new workflow round when work is genuinely
-required. Only a material `required_followups` item that traces to an unmet
-original Goal condition may seed that round. Optional notes, P3 findings, and
-newly invented polish must not be described as remaining work.
+A Goal continuation may continue work only when a material
+`required_followups` item traces to an unmet original Goal condition. Choose
+the smallest valid lane in this order:
+
+1. **Resume the same run.** A compatible unfinished, blocked, partial, failed,
+   or stale Flow/Pipeline run keeps its run directory, route, checkpoint,
+   completed stages, outputs, and counters. Redispatch only the affected task.
+   Replayed `$run-*` text from automatic Goal continuation is not a fresh
+   invocation and does not justify replaying completed workflow stages.
+2. **Start a narrow continuation run.** Use this only when the prior run cannot
+   continue and a concrete strategy delta exists. Seed it with the unmet Goal
+   condition, evidence, prior attempts, reusable outputs, and the new strategy;
+   route only that remaining work through the smallest suitable workflow.
+3. **Start a full fresh run.** Use this only when requirements materially
+   changed, the prior plan is globally invalid, or workflow promotion is
+   required and justified.
+
+Budget exhaustion alone never justifies replaying the same full workflow. A
+new run may receive its own local execution budget, but it preserves prior
+failure and recovery history. The same model, effort, and strategy are not a
+new strategy. Without a concrete strategy delta, report the Goal as blocked
+instead of starting another automatic round.
+
+Optional notes, P3 findings, and newly invented polish must not be described as
+remaining work.

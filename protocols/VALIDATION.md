@@ -90,6 +90,8 @@ These gates define minimal acceptance for each stage output.
 - P3 findings, wording/style preferences, optional refactors, speculative unreachable cases, unmeasured performance ideas, and extra tests without a concrete gap never consume repair/retry/recovery budget.
 - `required_followups` contains only material blockers. `optional_notes` never seeds a task, retry, capability recovery, or new Goal round.
 - A Goal may start another workflow round when the original objective still has a material gap. Completion does not require exhausting every possible improvement.
+- Reasoning-effort recovery carries the prior attempt's effective class and runs before model capability recovery. A deep material retry may receive automatic `max` through `recovery_boost`; it is not an `explicit_effort` override.
+- Goal continuation prefers same-run resume, then a narrow continuation with a concrete strategy delta. Budget exhaustion alone never replays a full workflow.
 
 ## Resource Gate
 

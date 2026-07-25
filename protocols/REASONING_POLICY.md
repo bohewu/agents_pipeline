@@ -258,6 +258,23 @@ Only `prior_failure_type = reasoning_failure` can alter reasoning selection:
 class requirement produces `assurance`, the provisional boost is cleared;
 assurance obtains `max` from its own strict class contract.
 
+For an automatic `executor` or `generalist` retry, resolve this reasoning
+recovery before evaluating model capability recovery. A strong-tier child at
+`deep` plus `xhigh` therefore receives its next legal material retry at `max`
+on the same model through `recovery_boost`; it does not need a user override
+and must not be represented as `explicit_effort`. A
+`no_higher_tier_available` capability result is not a blocker until this legal
+effort-first path is exhausted.
+
+Recovery is monotonic across attempts. Keep the task's canonical intent,
+signals, and original class unchanged, but for each admitted reasoning
+redispatch pass the prior attempt's `effective_class` as the new resolver
+`reasoning_class` floor when it is higher. Then add
+`prior_failure_type = reasoning_failure`. This attempt state is neither
+`explicit_reasoning_class` nor a user override. Simple keeps it in memory;
+Flow and Pipeline persist it in the attempt's ReasoningDecision and hydrate the
+latest task attempt on resume.
+
 Operational failure types (`timeout`, `permission_denied`, `network_error`,
 `dependency_unavailable`, `browser_startup_failure`, `cli_format_error`, and
 `tool_failure`) do not raise the class or effort. Workflows record the actual

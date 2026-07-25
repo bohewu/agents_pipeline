@@ -143,7 +143,17 @@ corresponding preset value. Resolve autonomy versus interaction by provenance:
 
 ## Resume routing
 
-When `--resume` is present, inspect checkpoints read-only before route selection. If
+Treat an automatic Goal continuation for the same objective as a resume request even
+when the replayed invocation does not contain literal `--resume`. The replayed
+`$run-*` text is not a fresh invocation. Inspect compatible checkpoints first and
+normalize a matching unfinished, blocked, partial, failed, or stale Flow/Pipeline run
+to `--resume` with its exact run directory. Keep its route, checkpoint, completed
+stages, outputs, and counters, and redispatch only the affected task. For an active
+Adaptive Simple wrapper, use its existing narrow same-scope repair path instead of
+re-entering `$run-adaptive` from the beginning.
+
+When explicit or automatic `--resume` is effective, inspect checkpoints read-only
+before route selection. If
 `--output-dir` points directly to a run directory containing `checkpoint.json`, inspect
 that run first. Otherwise treat `--output-dir` as the base output root and scan immediate
 child run directories. Use the neutral status runtime's full resume compatibility
@@ -292,8 +302,18 @@ bugs are not promotion reasons.
 
 ## Goal continuation admission
 
-A Goal may start a fresh workflow run, but prior output may seed continuation work
-only after `protocols/MATERIALITY_GATE.md` identifies the unmet original Goal
-condition, concrete evidence, and practical impact. `required_followups` contains
-only such material blockers; `optional_notes`, P3 findings, and polish never become
-remaining work. Do not create a `run-goal` artifact or synthetic goal task.
+A Goal continuation first uses the automatic resume behavior above. If the prior run
+cannot continue, apply `protocols/MATERIALITY_GATE.md`; only an admitted unmet original
+Goal condition with concrete evidence, practical impact, and a concrete strategy delta
+may start a narrow continuation run. Seed only the remaining gap, prior evidence and
+attempts, reusable outputs, and new strategy, then choose the smallest suitable route.
+A resumed or narrow continuation keeps the latest attempt's persisted reasoning
+`effective_class` as the next retry floor; it does not restart reasoning recovery from
+the task's original class.
+A full fresh run is reserved for materially changed requirements, a globally invalid
+prior plan, or justified workflow promotion. Budget exhaustion alone does not justify
+replaying the full workflow, and the same model, effort, and strategy do not constitute
+a strategy delta. Without one, report blocked instead of starting another automatic
+round. `required_followups` contains only material blockers; `optional_notes`, P3
+findings, and polish never become remaining work. Do not create a `run-goal` artifact
+or synthetic goal task.

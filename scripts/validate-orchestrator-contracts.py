@@ -20,6 +20,8 @@ WORKFLOW_CONTRACTS = (
     Path("agents/orchestrator-flow.md"),
     Path("agents/orchestrator-pipeline.md"),
 )
+CAPABILITY_RECOVERY_CONTRACT = Path("protocols/CAPABILITY_RECOVERY.md")
+MATERIALITY_GATE_CONTRACT = Path("protocols/MATERIALITY_GATE.md")
 
 
 def normalize_mode_alias(value: str) -> str:
@@ -191,22 +193,70 @@ def validate_capability_and_materiality_contracts() -> None:
     simple = (REPO_ROOT / WORKFLOW_CONTRACTS[1]).read_text(encoding="utf-8")
     flow = (REPO_ROOT / WORKFLOW_CONTRACTS[2]).read_text(encoding="utf-8")
     pipeline = (REPO_ROOT / WORKFLOW_CONTRACTS[3]).read_text(encoding="utf-8")
+    capability = (REPO_ROOT / CAPABILITY_RECOVERY_CONTRACT).read_text(
+        encoding="utf-8"
+    )
+    materiality = (REPO_ROOT / MATERIALITY_GATE_CONTRACT).read_text(
+        encoding="utf-8"
+    )
     checks = {
+        "capability recovery order": (
+            capability,
+            [
+                "Reasoning-effort recovery is mandatory before model capability recovery",
+                "does not use `explicit_effort`",
+                "`no_higher_tier_available` is not a terminal blocker",
+                "prior attempt's `effective_class`",
+                "`deep` plus `max` attempt",
+                "profile recovery ceiling",
+            ],
+        ),
+        "Goal continuation lanes": (
+            materiality,
+            [
+                "Resume the same run",
+                "Start a narrow continuation run",
+                "Start a full fresh run",
+                "Budget exhaustion alone never justifies",
+                "Replayed `$run-*` text",
+                "concrete strategy delta",
+            ],
+        ),
         "adaptive presets/resume": (
             adaptive,
             [
                 "delivery` or `autonomous` preset defaults it to `auto`",
                 "persisted effective mode remains",
+                "automatic Goal continuation",
+                "not a fresh invocation",
+                "latest attempt's persisted reasoning",
+                "narrow continuation run",
+                "full fresh run",
                 "Do not create a `run-goal`",
             ],
         ),
         "simple no-recovery boundary": (
             simple,
-            ["Simple MUST NOT perform", "never invokes `resolve-recovery`"],
+            [
+                "Simple MUST NOT perform",
+                "never invokes `resolve-recovery`",
+                "reasoning-effort recovery",
+                "`recovery_boost`",
+                "do not encode this as `explicit_effort`",
+                "prior attempt's `effective_class`",
+                "rather than re-enter",
+                "`$run-adaptive`",
+            ],
         ),
         "flow capability sequence": (
             flow,
             [
+                "reasoning-effort recovery before model capability recovery",
+                "`prior_failure_type = reasoning_failure`",
+                "`recovery_boost = true`",
+                "`no_higher_tier_available`",
+                "attempt's persisted `reasoning.effective_class`",
+                "`deep` plus `max`",
                 "tools/capability-recovery.js",
                 "resolve-recovery",
                 "without the old\nrecovery boost",
@@ -217,6 +267,14 @@ def validate_capability_and_materiality_contracts() -> None:
         "pipeline capability sequence": (
             pipeline,
             [
+                "reasoning-effort recovery",
+                "before model capability recovery",
+                "`recovery_boost`",
+                "`no_higher_tier_available`",
+                "prior task attempt's persisted",
+                "`reasoning.effective_class`",
+                "`deep` plus `max`",
+                "never the same attempt",
                 "tools/capability-recovery.js",
                 "resolve-recovery",
                 "no inherited recovery boost",

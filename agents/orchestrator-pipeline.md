@@ -311,7 +311,16 @@ Canonical task attempts pass `task_intent`, `intent_baseline_class`,
 also pass exact reviewer-only `explicit_effort = max`. Set
 `prior_failure_type = reasoning_failure` only for a retry caused by concrete
 logic, diagnosis, invariant, or review failure; operational failure types do
-not raise reasoning.
+not raise reasoning. On such an admitted retry, run reasoning-effort recovery
+before model capability recovery. A prior deep decision remains deep and receives
+automatic `max` through `recovery_boost` on the same model; do not encode it as
+`explicit_effort`. A `no_higher_tier_available` result is not a blocker until this
+legal effort-first path is exhausted. Every new child dispatch still atomically
+increments `retry_opportunities_used`; stopping one child and spawning another is
+never the same attempt. Keep the task's canonical reasoning hints unchanged, but on
+each redispatch pass the prior task attempt's persisted
+`reasoning.effective_class` as the new `reasoning_class` floor when higher,
+including after resume. Do not restart recovery from the canonical task class.
 
 In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
@@ -351,7 +360,8 @@ P3 findings, wording, style, and optional hardening never seed work.
 
 Call `node tools/capability-recovery.js` only after the same concrete material
 `reasoning_failure` repeats for the same `executor` or `generalist` task and its
-preceding retry made no meaningful progress. Operational failures never qualify. One
+effort-first sequence has reached `deep` plus `max` without meaningful progress and a
+later persisted retry opportunity remains. Operational failures never qualify. One
 task-scoped uplift is allowed only for that concrete failed task inside existing retry
 bounds, and its used state persists with task evidence; no retry, repair, or recovery
 counter resets. The current/main agent, Pipeline orchestrator, and reviewer never
@@ -585,9 +595,13 @@ If `decision_only = true`:
   - original endpoint
   - original acceptance criterion
 - If scope cannot be satisfied, executor must STOP and report BLOCKED.
-- A Goal may start a fresh run, but a continuation task from prior output must identify
-  the unmet original Goal condition, concrete evidence, and practical impact. Never
-  create a `run-goal`; `optional_notes` are not remaining work.
+- A Goal continuation first resumes the same compatible run and skips completed
+  stages. If that is impossible, it may start only a narrow continuation with the
+  unmet original Goal condition, concrete evidence, practical impact, preserved
+  outputs and attempts, and a concrete strategy delta. A full fresh run requires
+  materially changed requirements, a globally invalid plan, or justified workflow
+  promotion. Budget exhaustion alone does not justify replaying the full workflow.
+  Never create a `run-goal`; `optional_notes` are not remaining work.
 
 # RISK / EXECUTION RIGOR RULES
 

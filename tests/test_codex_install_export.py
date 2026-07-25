@@ -168,6 +168,20 @@ class CodexInstallExportTest(unittest.TestCase):
             "different requested, dispatched, or effective efforts", managed_block
         )
         self.assertIn(
+            "reasoning-effort recovery before model capability recovery",
+            managed_block,
+        )
+        self.assertIn(
+            "prior attempt's `effective_class` as the next retry floor",
+            managed_block,
+        )
+        self.assertIn("same-run resume", managed_block)
+        self.assertIn("concrete strategy delta", managed_block)
+        self.assertIn(
+            "budget exhaustion alone does not justify replaying the full workflow",
+            managed_block,
+        )
+        self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
         )

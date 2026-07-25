@@ -104,6 +104,9 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         simple = SIMPLE.read_text(encoding="utf-8")
         flow = FLOW.read_text(encoding="utf-8")
         pipeline = PIPELINE.read_text(encoding="utf-8")
+        capability = (
+            REPO_ROOT / "protocols" / "CAPABILITY_RECOVERY.md"
+        ).read_text(encoding="utf-8")
 
         for text in (adaptive, simple, flow, pipeline):
             self.assertIn("--capability-recovery=off|shadow|auto", text)
@@ -118,6 +121,30 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             self.assertIn("resolve-recovery", text)
             self.assertIn("Other runtime exports conflict", text)
             self.assertIn("Reviewer models never uplift", text)
+        self.assertIn(
+            "Reasoning-effort recovery is mandatory before model capability recovery",
+            capability,
+        )
+        self.assertIn("does not use `explicit_effort`", capability)
+        self.assertIn("`no_higher_tier_available` is not a terminal blocker", capability)
+        self.assertIn("prior attempt's `effective_class`", capability)
+        self.assertIn("`deep` plus `max` attempt", capability)
+
+    def test_reasoning_recovery_precedes_model_recovery(self) -> None:
+        simple = SIMPLE.read_text(encoding="utf-8")
+        flow = FLOW.read_text(encoding="utf-8")
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+
+        for text in (simple, flow, pipeline):
+            self.assertIn("reasoning-effort recovery", text)
+            self.assertIn("recovery_boost", text)
+            self.assertIn("`explicit_effort`", text)
+            self.assertIn("effective_class", text)
+        for text in (flow, pipeline):
+            self.assertIn("before model capability recovery", text)
+            self.assertIn("`no_higher_tier_available`", text)
+            self.assertIn("`deep` plus `max`", text)
+        self.assertIn("never the same attempt", pipeline)
 
     def test_every_orchestrator_uses_shared_task_intent_resolution(self) -> None:
         orchestrators = sorted((REPO_ROOT / "agents").glob("orchestrator-*.md"))
@@ -153,6 +180,25 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("once from Flow to Pipeline", text)
         self.assertIn("one\nworkflow's checkpoint as another's", text)
         self.assertIn("Ordinary operational errors", text)
+
+    def test_goal_continuation_prefers_resume_then_narrow_work(self) -> None:
+        adaptive = SKILL.read_text(encoding="utf-8")
+        materiality = (
+            REPO_ROOT / "protocols" / "MATERIALITY_GATE.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("automatic Goal continuation", adaptive)
+        self.assertIn("not a fresh invocation", adaptive)
+        self.assertIn("exact run directory", adaptive)
+        self.assertIn("completed\nstages, outputs, and counters", adaptive)
+        self.assertIn("narrow continuation run", adaptive)
+        self.assertIn("latest attempt's persisted reasoning", adaptive)
+        self.assertIn("A full fresh run is reserved", adaptive)
+        self.assertIn("Budget exhaustion alone", adaptive)
+        self.assertIn("Resume the same run", materiality)
+        self.assertIn("Start a narrow continuation run", materiality)
+        self.assertIn("Start a full fresh run", materiality)
+        self.assertIn("concrete strategy delta", materiality)
 
     def test_presets_are_route_independent_and_simple_has_a_bounded_wrapper(self) -> None:
         adaptive = SKILL.read_text(encoding="utf-8")

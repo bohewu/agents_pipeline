@@ -92,6 +92,17 @@ reroute higher classes to `executor`, `generalist`, `doc-writer`, or another
 semantically compatible role. Never lower `reasoning_class` or discard signals
 to make a role fit.
 
+Before an admitted material repair redispatch, run reasoning-effort recovery
+before model capability recovery by setting
+`prior_failure_type = reasoning_failure` only for a concrete reasoning defect.
+A prior `deep` decision remains deep and automatically receives `max` through
+`recovery_boost`; do not encode this as `explicit_effort`. Operational failures
+do not raise effort. Keep the original task classification unchanged, but pass
+the prior attempt's `effective_class` as the next in-memory
+`reasoning_class` floor so repeated recovery is monotonic. Simple never
+performs model recovery, and an automatic Goal continuation must use this one
+narrow repair path rather than re-enter `$run-adaptive` from the beginning.
+
 In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 selector while omitting `model`. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the

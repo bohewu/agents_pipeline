@@ -22,6 +22,28 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
         (self.repo_root / "tools/status-runtime").mkdir(parents=True)
         (self.repo_root / "protocols/schemas").mkdir(parents=True)
         self.write(
+            self.repo_root / "protocols/CAPABILITY_RECOVERY.md",
+            """
+            Reasoning-effort recovery is mandatory before model capability recovery
+            does not use `explicit_effort`
+            `no_higher_tier_available` is not a terminal blocker
+            prior attempt's `effective_class`
+            `deep` plus `max` attempt
+            profile recovery ceiling
+            """,
+        )
+        self.write(
+            self.repo_root / "protocols/MATERIALITY_GATE.md",
+            """
+            Resume the same run
+            Start a narrow continuation run
+            Start a full fresh run
+            Budget exhaustion alone never justifies
+            Replayed `$run-*` text
+            concrete strategy delta
+            """,
+        )
+        self.write(
             self.repo_root / "AGENTS.md",
             """
             | Agent | Role | Mode | Notes |
@@ -73,6 +95,11 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             + """
             delivery` or `autonomous` preset defaults it to `auto`
             persisted effective mode remains
+            automatic Goal continuation
+            not a fresh invocation
+            latest attempt's persisted reasoning
+            narrow continuation run
+            full fresh run
             Do not create a `run-goal`
             """,
         )
@@ -82,12 +109,24 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             + """
             Simple MUST NOT perform
             never invokes `resolve-recovery`
+            reasoning-effort recovery
+            `recovery_boost`
+            do not encode this as `explicit_effort`
+            prior attempt's `effective_class`
+            rather than re-enter
+            `$run-adaptive`
             """,
         )
         self.write(
             self.repo_root / workflow_contracts[2],
             common
             + "tools/capability-recovery.js\n"
+            + "reasoning-effort recovery before model capability recovery\n"
+            + "`prior_failure_type = reasoning_failure`\n"
+            + "`recovery_boost = true`\n"
+            + "`no_higher_tier_available`\n"
+            + "attempt's persisted `reasoning.effective_class`\n"
+            + "`deep` plus `max`\n"
             + "resolve-recovery\n"
             + "without the old\n"
             + "recovery boost\n"
@@ -99,6 +138,14 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             common
             + """
             tools/capability-recovery.js
+            reasoning-effort recovery
+            before model capability recovery
+            `recovery_boost`
+            `no_higher_tier_available`
+            prior task attempt's persisted
+            `reasoning.effective_class`
+            `deep` plus `max`
+            never the same attempt
             resolve-recovery
             no inherited recovery boost
             Reviewer models never uplift

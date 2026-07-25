@@ -311,9 +311,23 @@ and practical impact are recorded; repair and recovery budgets are upper bounds,
 quotas. `required_followups` may contain only material blockers. `optional_notes`, P3
 findings, wording, style, and optional hardening never seed work.
 
+Run reasoning-effort recovery before model capability recovery for every admitted
+material reasoning redispatch. Re-run `tools/reasoning-policy.js` with
+`prior_failure_type = reasoning_failure`; if it raises the class or gives a deep
+decision `recovery_boost = true`, use that returned effort on the same role and model
+for the next legal redispatch. This automatic `max` path does not use
+`explicit_effort`. A `no_higher_tier_available` result is not a blocker until the
+legal effort-first path is exhausted. The redispatch still consumes the applicable
+existing Flow recovery allowance; it is not a free attempt.
+Keep canonical task reasoning hints unchanged. On every redispatch, pass the prior
+attempt's persisted `reasoning.effective_class` as the new `reasoning_class` floor
+when higher, including after resume, so recovery progresses monotonically instead of
+restarting from the task's original class.
+
 For a task assigned to `executor` or `generalist`, call
 `node tools/capability-recovery.js` only after the same concrete material
-`reasoning_failure` repeats and the preceding retry made no meaningful progress.
+`reasoning_failure` repeats, the effort-first sequence has reached `deep` plus `max`
+without meaningful progress, and a later existing recovery opportunity remains.
 Operational failures never qualify. Track one recovery use on that task and never
 reset it. This is the only child model uplift; the current/main agent, Flow
 orchestrator, and reviewer are immutable.

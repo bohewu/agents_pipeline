@@ -62,11 +62,27 @@ The ceiling may equal the normal tier. In that case no model uplift exists.
 
 ## Recovery sequence
 
-The normal reasoning failure path remains first: routine may become
-deliberative, deliberative may become deep, and deep may receive `max` without
-becoming assurance.
+Reasoning-effort recovery is mandatory before model capability recovery. For
+an admitted material reasoning failure, re-run the reasoning resolver first:
 
-When a later repeated material failure qualifies for model recovery:
+- `routine` may become `deliberative`;
+- `deliberative` may become `deep`;
+- `deep` remains `deep` and receives `max` through `recovery_boost`, without
+  becoming assurance.
+
+This automatic path does not use `explicit_effort`. When it raises the
+requested effort, spend the next legal retry opportunity on the same role and
+model at that effort. Do not call capability recovery for that redispatch.
+`no_higher_tier_available` is not a terminal blocker while a legal
+reasoning-effort recovery has not yet run.
+
+Repeat that resolver step for each later admitted reasoning failure while it
+can still raise the class or effort. Preserve the task's original reasoning
+hints, but use the prior attempt's `effective_class` as the next attempt's
+`reasoning_class` floor so recovery cannot restart from the canonical base
+class. Only after a `deep` plus `max` attempt still fails the same material
+criterion without meaningful progress may a later existing retry opportunity
+qualify for model recovery:
 
 1. Resolve the next tier with `tools/capability-recovery.js`.
 2. Resolve that tier to the profile-approved raw runtime model with the
@@ -94,8 +110,9 @@ creating a new budget.
 
 If the promoted attempt fails and the workflow still has an existing reasoning
 retry opportunity, it may retry the promoted tier at the reasoning resolver's
-normal recovery effort. It may not select another model tier. A failure at the
-profile ceiling with maximum effort stops and reports the blocker.
+normal recovery effort. It may not select another model tier. At the profile recovery ceiling,
+a material deep failure must receive its legal `max` effort-first attempt
+before the workflow stops and reports the blocker.
 
 Operational errors use operational retries or a corrected tool invocation.
 They never request model recovery and never consume repair budget.

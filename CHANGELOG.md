@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.1] - 2026-07-25
+
+### Changed
+
+- Material reasoning retries now carry the prior attempt's effective class and recover child effort before considering model uplift; a deep `executor` or `generalist` can automatically retry at `max` on the same model without a fake explicit override.
+- Goal continuations now prefer the same run and completed-stage checkpoint, then a narrow remaining-work continuation with a concrete strategy change; budget exhaustion no longer justifies replaying the full workflow.
+- Clarified that every stopped-and-respawned child is a new redispatch and consumes the existing workflow retry allowance.
+
 ## [0.35.0] - 2026-07-24
 
 ### Added

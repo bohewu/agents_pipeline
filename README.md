@@ -74,13 +74,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.35.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.35.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -88,13 +88,13 @@ tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.35.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.35.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -102,16 +102,16 @@ tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.35.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.35.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.35.0` must release as `v0.35.0`.
+Release invariant: `VERSION=0.35.1` must release as `v0.35.1`.
 
 <!-- END current-release -->
 
@@ -296,7 +296,7 @@ The agents_pipeline `reviewer` custom role is separate from Codex's native `/rev
 
 Flow keeps three separate bounded controls: up to two operational retries that make no implementation/content change, task-local `repair_budget` of `0..2` additional modify-and-verify cycles after the first attempt, and one total Flow-level recovery re-dispatch per run. Tool calls, CLI mistakes, permission/network/service failures, and other operational problems never consume repair budget. Local repair stops when its budget is exhausted, scope would expand, or two repair attempts make no meaningful progress; a repeated failure signature is conclusive only after three consecutive attempts. Reviewer repair remains a separate single targeted repair plus one re-review.
 
-Before repair, reviewer followup, capability recovery, or a new Goal continuation round, the workflow applies `protocols/MATERIALITY_GATE.md`: an original goal condition must remain unmet, concrete evidence must prove it, and leaving it unchanged must have practical impact. P3 suggestions, wording preferences, speculative hardening, and optional improvements stay optional and do not trigger work or consume a budget. Pipeline task-local repair budgets are one cycle for low-risk/S work and two cycles for medium-risk/M or high-risk/L work. Budgets are upper bounds, not quotas; once the original requirements and material verification pass, the workflow freezes scope and finishes. Final summaries translate internal workflow terms into concise language that matches the user.
+Before repair, reviewer followup, capability recovery, or a new Goal continuation round, the workflow applies `protocols/MATERIALITY_GATE.md`: an original goal condition must remain unmet, concrete evidence must prove it, and leaving it unchanged must have practical impact. Material reasoning retries carry the prior attempt's effective class and recover effort before model capability: a deep child can automatically move from `xhigh` to `max` on the same model through `recovery_boost`, without pretending that the user supplied an explicit override. Goal continuation first resumes a compatible run and skips completed stages; if resume is impossible, it starts only a narrow remaining-work run with a concrete strategy delta. A full fresh run requires changed requirements, a globally invalid plan, or justified workflow promotion. Budget exhaustion alone does not replay the full workflow. P3 suggestions, wording preferences, speculative hardening, and optional improvements stay optional and do not trigger work or consume a budget. Pipeline task-local repair budgets are one cycle for low-risk/S work and two cycles for medium-risk/M or high-risk/L work. Budgets are upper bounds, not quotas; once the original requirements and material verification pass, the workflow freezes scope and finishes. Final summaries translate internal workflow terms into concise language that matches the user.
 
 ## Runtime-neutral status writer
 
