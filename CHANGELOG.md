@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 ### Changed
 
 - Updated the local Codex child-trace contract to schema 1.3 so bounded observed role/model values remain visible independently of optional expected-value comparisons; invalid trace metadata is still redacted.
+- Kept workspace profiles current across release-only global upgrades when their role-generating inputs are unchanged; actual agent, profile, model-set, exporter, or catalog changes still pin the workspace until `set` refreshes it.
 
 ## [0.35.3] - 2026-08-03
 

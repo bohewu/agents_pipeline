@@ -394,6 +394,7 @@ def _asset_digest(
     profile: str | None,
     model_set: str | None,
     uniform_model: str | None,
+    version_override: str | None = None,
 ) -> str:
     """Fingerprint every input that can change generated Codex role files."""
 
@@ -427,7 +428,12 @@ def _asset_digest(
             raise ProjectProfileError(f"Profile cache input is missing or unsafe: {path}")
         digest.update(relative.as_posix().encode("utf-8"))
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        content = (
+            f"{version_override}\n".encode("ascii")
+            if relative == Path("VERSION") and version_override is not None
+            else path.read_bytes()
+        )
+        digest.update(content)
         digest.update(b"\0")
     return digest.hexdigest()
 
@@ -1315,15 +1321,24 @@ def read_status(
                 missing.append(f"agents/{name}.toml")
             elif _sha256_file(role) != hashes[name]:
                 missing.append(f"agents/{name}.toml:sha256")
-    if source_version == current_source_version:
-        expected_asset_digest = _asset_digest(
+    expected_asset_digest = _asset_digest(
+        asset_root,
+        profile=profile,
+        model_set=model_set,
+        uniform_model=uniform_model,
+    )
+    profile_inputs_current = data.get("asset_digest") == expected_asset_digest
+    if not profile_inputs_current and source_version != current_source_version:
+        recorded_version_digest = _asset_digest(
             asset_root,
             profile=profile,
             model_set=model_set,
             uniform_model=uniform_model,
+            version_override=source_version,
         )
-        if data.get("asset_digest") != expected_asset_digest:
-            missing.append("project:profile-input-digest")
+        profile_inputs_current = data.get("asset_digest") == recorded_version_digest
+    if source_version == current_source_version and not profile_inputs_current:
+        missing.append("project:profile-input-digest")
     if not config_path.is_file():
         missing.append("project:.codex/config.toml")
     else:
@@ -1348,7 +1363,7 @@ def read_status(
         "configured": True,
         "catalog_state": (
             "current"
-            if names == global_names and source_version == current_source_version
+            if names == global_names and profile_inputs_current
             else "pinned"
         ),
         "global_installed": True,

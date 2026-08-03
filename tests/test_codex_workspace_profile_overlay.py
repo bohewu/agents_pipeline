@@ -730,7 +730,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 )
             )
 
-    def test_workspace_status_keeps_hash_verified_previous_version_cache_healthy(self) -> None:
+    def test_workspace_status_keeps_unchanged_profile_inputs_current_across_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
             home = root / "home"
@@ -745,7 +745,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             )
             status = self.workspace_status(wrapper, workspace, env=env)
             self.assertEqual(status["health"], "ok")
-            self.assertEqual(status["catalog_state"], "pinned")
+            self.assertEqual(status["catalog_state"], "current")
             self.assertEqual(status["source_version"], RELEASE_VERSION)
 
     def test_status_rejects_linked_workspace_and_global_agent_directories(self) -> None:
@@ -970,6 +970,16 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             major, minor, patch = (int(value) for value in RELEASE_VERSION.split("."))
             (codex_home / "agents-pipeline" / "VERSION").write_text(
                 f"{major}.{minor}.{patch + 1}\n", encoding="utf-8"
+            )
+            version_only = json.loads(
+                self.resolve_recovery(wrapper, balanced, env=env).stdout
+            )
+            self.assertTrue(version_only["available"])
+
+            executor_source = codex_home / "agents-pipeline" / "agents" / "executor.md"
+            executor_source.write_text(
+                executor_source.read_text(encoding="utf-8") + "\nProfile input changed.\n",
+                encoding="utf-8",
             )
             pinned = self.resolve_recovery(wrapper, balanced, env=env, expected=2)
             self.assertIn("requires the current workspace profile catalog", pinned.stderr)
