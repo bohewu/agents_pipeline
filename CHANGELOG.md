@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.4] - 2026-08-03
+
 ### Changed
 
 - Updated the local Codex child-trace contract to schema 1.3 so bounded observed role/model values remain visible independently of optional expected-value comparisons; invalid trace metadata is still redacted.
