@@ -100,7 +100,8 @@ qualify for model recovery:
 6. Verify both model and effort through `tools/codex-child-trace.js`.
 7. Re-run the capability resolver with `model_matches` and the trace-proven
    effective tier before accepting the result. `model_matches = false` is an
-   explicit conflict; a mismatched raw model is never inferred or exposed.
+   explicit conflict; only a bounded observed mismatch is exposed, while
+   invalid raw model metadata remains redacted.
 
 Pipeline resume hydrates both task fields from canonical `TaskStatus`. A true
 `capability_recovery_used` forbids another uplift for that task. Every later

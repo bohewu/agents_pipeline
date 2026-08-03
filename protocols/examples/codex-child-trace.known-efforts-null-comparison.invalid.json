@@ -1,10 +1,10 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "runtime": "codex",
   "agent_id": "019f648d-687c-73e0-ab26-1c288541670c",
   "trace_found": true,
-  "agent_role": null,
-  "model": null,
+  "agent_role": "reviewer",
+  "model": "gpt-5.6-sol",
   "model_matches": null,
   "effective_effort": "max",
   "role_matches": true,

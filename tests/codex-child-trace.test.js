@@ -7,6 +7,7 @@ const assert = require("node:assert/strict");
 
 const {
   EXIT_CODES,
+  SCHEMA_VERSION,
   inspectChildTrace
 } = require("../tools/codex-child-trace");
 
@@ -142,12 +143,12 @@ function invokeCli(args, codexHome, environment = {}) {
 
 function expectedFoundResult(overrides = {}) {
   return {
-    schema_version: "1.2",
+    schema_version: "1.3",
     runtime: "codex",
     agent_id: AGENT_ID,
     trace_found: true,
-    agent_role: null,
-    model: null,
+    agent_role: "executor",
+    model: "gpt-5.3-codex",
     model_matches: null,
     effective_effort: "xhigh",
     role_matches: null,
@@ -159,6 +160,10 @@ function expectedFoundResult(overrides = {}) {
     ...overrides
   };
 }
+
+test("uses schema 1.3 for bounded observed role and model semantics", () => {
+  assert.equal(SCHEMA_VERSION, "1.3");
+});
 
 test("finds a synthetic archived trace through the importable API and compact CLI", async (t) => {
   const codexHome = await createCodexHome(t);
@@ -173,9 +178,16 @@ test("finds a synthetic archived trace through the importable API and compact CL
   const compared = await inspectChildTrace({
     agentId: AGENT_ID,
     codexHome,
-    expectedRole: "executor"
+    expectedRole: "executor",
+    expectedModel: "gpt-5.3-codex",
+    expectedEffort: "xhigh"
   });
-  assert.deepEqual(compared, expectedFoundResult({ role_matches: true }));
+  assert.deepEqual(compared, expectedFoundResult({
+    model_matches: true,
+    role_matches: true,
+    effort_matches: true,
+    selector_evidence: "indeterminate"
+  }));
 
   const processResult = invokeCli(["--agent-id", AGENT_ID, "--compact"], codexHome);
   assert.equal(processResult.status, EXIT_CODES.OK);
@@ -184,7 +196,7 @@ test("finds a synthetic archived trace through the importable API and compact CL
   assert.deepEqual(JSON.parse(processResult.stdout), expectedFoundResult());
 });
 
-test("verifies a caller-supplied model without emitting mismatched raw metadata", async (t) => {
+test("retains a bounded observed model for optional match and mismatch comparisons", async (t) => {
   const codexHome = await createCodexHome(t);
   await writeSession(
     codexHome,
@@ -215,8 +227,10 @@ test("verifies a caller-supplied model without emitting mismatched raw metadata"
     codexHome,
     expectedModel: "gpt-5.6-terra"
   });
-  assert.deepEqual(mismatched, expectedFoundResult({ model_matches: false }));
-  assert.equal(JSON.stringify(mismatched).includes("gpt-5.6-sol"), false);
+  assert.deepEqual(mismatched, expectedFoundResult({
+    model: "gpt-5.6-sol",
+    model_matches: false
+  }));
 });
 
 test("reports role and effort mismatches without treating a found trace as an error", async (t) => {
@@ -255,7 +269,7 @@ test("rejects an invalid UUID with only the bounded JSON schema", async (t) => {
   assert.equal(processResult.stderr, "");
   assert.equal(processResult.stdout.split("\n").filter(Boolean).length, 1);
   assert.deepEqual(JSON.parse(processResult.stdout), {
-    schema_version: "1.2",
+    schema_version: "1.3",
     runtime: "codex",
     agent_id: null,
     trace_found: false,
@@ -281,7 +295,9 @@ test("prints bounded help without requiring a trace", () => {
   assert.match(processResult.stdout, /--agent-id <uuid>/);
   assert.match(processResult.stdout, /--task-name <path>/);
   assert.match(processResult.stdout, /--parent-id <uuid>/);
-  assert.match(processResult.stdout, /--expected-model/);
+  assert.match(processResult.stdout, /bounded observed agent_role/);
+  assert.match(processResult.stdout, /bounded observed model/);
+  assert.match(processResult.stdout, /\*_matches/);
   assert.match(processResult.stdout, /--expected-effort/);
   assert.equal(processResult.stderr, "");
 });
@@ -383,7 +399,7 @@ test("ignores a filename match whose session metadata has a different agent ID",
 
 test("never emits trace identifiers, credentials, session content, or later records", async (t) => {
   const codexHome = await createCodexHome(t);
-  const privateRole = "sk-live-private-role";
+  const privateRole = "../PRIVATE_ROLE";
   const privateModel = "ghp_PRIVATESECRET123";
   await writeSession(
     codexHome,
@@ -394,6 +410,7 @@ test("never emits trace identifiers, credentials, session content, or later reco
   const processResult = invokeCli([
     "--agent-id", AGENT_ID,
     "--expected-role", "executor",
+    "--expected-model", "gpt-5.6-sol",
     "--codex-home", codexHome,
     "--compact"
   ], codexHome);
@@ -401,7 +418,10 @@ test("never emits trace identifiers, credentials, session content, or later reco
   const parsed = JSON.parse(output);
 
   assert.equal(processResult.status, EXIT_CODES.OK);
+  assert.equal(parsed.agent_role, null);
   assert.equal(parsed.model, null);
+  assert.equal(parsed.role_matches, false);
+  assert.equal(parsed.model_matches, false);
   assert.deepEqual(Object.keys(parsed), [
     "schema_version",
     "runtime",
@@ -433,6 +453,21 @@ test("never emits trace identifiers, credentials, session content, or later reco
     assert.equal(output.includes(privateValue), false);
   }
   assert.equal(processResult.stderr, "");
+});
+
+test("reports null bounded values when role and model are missing", async (t) => {
+  const codexHome = await createCodexHome(t);
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-missing-${AGENT_ID}.jsonl`),
+    traceRecords({ agentRole: null, model: null })
+  );
+
+  const result = await inspectChildTrace({ agentId: AGENT_ID, codexHome });
+  assert.deepEqual(result, expectedFoundResult({
+    agent_role: null,
+    model: null
+  }));
 });
 
 test("separates selector evidence from parent-effort inheritance", async (t) => {

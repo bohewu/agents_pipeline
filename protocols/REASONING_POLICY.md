@@ -415,11 +415,13 @@ distinct_from_parent` rules out simple parent-effort inheritance but does not
 attest Codex's internal implementation path. `matches_parent` means a
 same-value selector and inheritance cannot be distinguished; `mismatch` means
 the requested effort was not observed. `inheritance_consistent` is likewise
-observational, not causal. For model verification, the helper emits the
-caller-supplied expected model only after an exact raw-trace match plus a
-`model_matches` boolean; it never emits a mismatched or unsolicited raw model.
-All other output remains limited to the child ID, closed effort values, and
-boolean/enum comparisons; raw child role values and the parent ID are always
+observational, not causal. For role and model verification, the helper emits
+only observed values that match the same bounded patterns accepted by
+`--expected-role` and `--expected-model`. Optional expected values produce
+`role_matches` and `model_matches`; without them, the comparisons are null
+while safe observed values remain visible. Missing or invalid role/model
+metadata is redacted to null. All other output remains limited to the child ID,
+closed effort values, and boolean/enum comparisons; the parent ID is always
 redacted. Do not copy parent comparison fields into a
 ReasoningObservation, and never persist trace paths or session contents. Simple
 follows the same contract in memory and writes no status artifact. Searches

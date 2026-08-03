@@ -11,7 +11,7 @@ const EXIT_CODES = Object.freeze({
   OK: 0,
   INVALID_OR_NOT_FOUND: 2
 });
-const SCHEMA_VERSION = "1.2";
+const SCHEMA_VERSION = "1.3";
 const RUNTIME = "codex";
 const EFFORTS = Object.freeze(["medium", "high", "xhigh", "max"]);
 const EFFORT_SET = new Set(EFFORTS);
@@ -35,13 +35,17 @@ const HELP_TEXT = `Usage:
 Options:
   --task-name <path>           Resolve a V2 child from its returned /root/... path
   --parent-id <uuid>           Override the V2 parent (defaults to CODEX_THREAD_ID)
-  --expected-role <role>       Compare the bounded child role
-  --expected-model <model>     Compare a bounded OpenAI model name
+  --expected-role <role>       Optionally compare the bounded observed agent_role
+  --expected-model <model>     Optionally compare the bounded observed model
   --expected-effort <effort>   Compare medium, high, xhigh, or max
   --codex-home <path>          Override CODEX_HOME
   --wait-ms <0-${MAX_WAIT_MS}>       Wait briefly for the trace to appear
   --compact                    Emit one-line JSON
   --help, -h                   Show this help
+
+Output:
+  agent_role and model are bounded observed trace values. Their *_matches
+  fields compare optional expected values and are null when no comparison was requested.
 `;
 
 class ChildTraceInputError extends Error {
@@ -282,6 +286,18 @@ function isObject(value) {
 
 function sanitizeEffort(value) {
   return EFFORT_SET.has(value) ? value : null;
+}
+
+function sanitizeObservedRole(value) {
+  return typeof value === "string" && SAFE_EXPECTED_ROLE_PATTERN.test(value)
+    ? value
+    : null;
+}
+
+function sanitizeObservedModel(value) {
+  return typeof value === "string" && SAFE_EXPECTED_MODEL_PATTERN.test(value)
+    ? value
+    : null;
 }
 
 function sanitizeParentEffort(value) {
@@ -686,18 +702,20 @@ function sleep(milliseconds) {
 
 async function resultFromTrace(options, trace) {
   const result = createResult(trace.sessionMeta.id.toLowerCase());
-  const agentRole = trace.sessionMeta.agent_role;
+  const agentRole = sanitizeObservedRole(trace.sessionMeta.agent_role);
+  const model = sanitizeObservedModel(trace.turnContext.model);
   const effectiveEffort = sanitizeEffort(trace.turnContext.effort);
 
   result.trace_found = true;
+  result.agent_role = agentRole;
+  result.model = model;
   result.effective_effort = effectiveEffort;
   result.role_matches = options.expectedRole === undefined
     ? null
     : agentRole === options.expectedRole;
-  if (options.expectedModel !== undefined) {
-    result.model_matches = trace.turnContext.model === options.expectedModel;
-    result.model = result.model_matches ? options.expectedModel : null;
-  }
+  result.model_matches = options.expectedModel === undefined
+    ? null
+    : model === options.expectedModel;
   result.effort_matches = options.expectedEffort === undefined
     ? null
     : effectiveEffort === options.expectedEffort;
