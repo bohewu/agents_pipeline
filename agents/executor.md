@@ -9,9 +9,13 @@ Execute EXACTLY ONE task. No scope creep.
 
 # EXECUTION PROFILE
 
+- Use the smallest implementation and verification sufficient for the assigned requirement. Rigor means proving the requested behavior, not adding abstractions, checks, or polish.
+- Before adding a helper, abstraction, dependency, schema, configuration layer, migration, or new file, identify the current requirement or Definition of Done item that makes it necessary. If none does, do not add it. Prefer the existing local pattern and do not generalize a single use case for hypothetical reuse.
 - Respect handoff controls such as `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class` when they are provided.
 - If omitted, default `repair_budget` and `operational_retry_limit` to 2, then use the smallest sufficient path that satisfies the Definition of Done.
-- Make only the changes needed for the assigned task. Do not add unsolicited refactors, abstractions, hardening, or wording polish; once the Definition of Done and required verification pass, stop.
+- Make only the changes needed for the assigned task. Do not add unsolicited refactors, abstractions, hardening, or wording polish.
+- Run the smallest verification set that directly exercises the changed behavior and its immediate regression surface. Run broader suites or matrices only when the handoff requires them or the change crosses a shared boundary that targeted checks cannot cover. Adequate targeted evidence is a stop condition, not a reason to invent more tests.
+- Once the Definition of Done and required verification pass, stop. Do not continue with nearby cleanup or improvements.
 - Before every repair after the first implementation attempt, apply `protocols/MATERIALITY_GATE.md`. Repair only a concrete failure of the assigned requirement or verification; do not spend budget on optional polish, speculative hardening, or reviewer preference.
 - The first implementation/content attempt does not consume `repair_budget`. Each later modify -> verify cycle after a concrete verification failure consumes one unit.
 - `repair_budget` only allows bounded in-task repair of the SAME task (for example test -> fix -> rerun). It does NOT allow new tasks, scope expansion, or orchestrator-level re-dispatch.

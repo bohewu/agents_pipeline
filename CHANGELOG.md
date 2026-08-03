@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.2] - 2026-08-03
+
+### Changed
+
+- Made minimal implementation and proportional verification explicit across executor, generalist, reviewer, and managed Codex guidance; adequate targeted evidence now stops work unless a concrete uncovered path requires broader validation.
+- Changed reviewer failures from automatic repair authority into materiality-gated evidence: orchestrators now admit only P0-P2 followups tied to an unmet original requirement, concrete evidence, practical impact, and the smallest necessary fix.
+
 ## [0.35.1] - 2026-07-25
 
 ### Changed

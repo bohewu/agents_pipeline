@@ -365,11 +365,11 @@ def minify_handoff_protocol(text: str) -> str:
 
     if "## EXECUTOR -> REVIEWER HANDOFF" in section:
         lines.append(
-            "- Executor -> reviewer: only evidence and DoD satisfaction count; missing or weak evidence means incomplete."
+            "- Executor -> reviewer: only the scoped DoD and required evidence count; adequate targeted evidence is sufficient, and broader proof needs a concrete uncovered path."
         )
     if "## REVIEWER -> ORCHESTRATOR HANDOFF" in section:
         lines.append(
-            "- Reviewer -> orchestrator: reviewer decisions are final. If `status = fail` and `test_only = false`, convert `required_followups` into delta tasks, route them, and retry up to `max_retry_rounds`; if `test_only = true`, skip retries; stop and report blockers when failure persists."
+            "- Reviewer -> orchestrator: a failed review is evidence, not automatic edit authorization. If `status = fail` and `test_only = false`, apply the materiality gate to each followup and route only admitted `required_followups` through the narrowest repair, up to `max_retry_rounds`; if `test_only = true`, skip retries; stop and report blockers when failure persists."
         )
 
     replacement = "\n".join(lines) + "\n\n"

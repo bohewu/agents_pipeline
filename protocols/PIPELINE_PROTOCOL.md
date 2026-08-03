@@ -151,6 +151,8 @@ Schema: `./protocols/schemas/test-report.schema.json`
 ### Review and User-Facing Output
 
 - Reviewer failures require an evidence-backed, practically relevant P0-P2 defect or a direct violation of an explicit requirement. P3 suggestions, wording preferences, optional hardening, and optional refactors do not create repair work or retries.
+- A failed review is evidence for orchestrator admission, not automatic edit authorization. Each repair must identify the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix.
+- Alternative designs that already satisfy the contract and requests for broader verification without a concrete uncovered path do not create repair work. Adequate targeted evidence is sufficient unless an explicit requirement or changed shared boundary requires more.
 - Review stops after the scoped requirements and required verification are satisfied; it does not continue searching for optional polish.
 - Final summaries match the user's language, lead with the practical result, and translate internal agent/protocol fields into ordinary engineering language unless protocol details were requested.
 

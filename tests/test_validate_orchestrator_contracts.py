@@ -41,6 +41,10 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             Budget exhaustion alone never justifies
             Replayed `$run-*` text
             concrete strategy delta
+            review failure is evidence to evaluate
+            no smaller change or targeted verification
+            smallest change or verification step that closes the gap
+            Adequate targeted evidence is sufficient
             """,
         )
         self.write(

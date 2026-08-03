@@ -22,6 +22,9 @@ CHECKS = {
         "currently reachable wrong behavior or practical risk",
         "Omit P3 findings unless",
         "Never turn a warning, wording preference",
+        "It is not a search for every possible improvement",
+        "different implementation or architecture as a preference",
+        "not automatic authorization to edit",
     ],
     Path("agents/orchestrator-pipeline.md"): [
         "reviewer MUST prefix every issue/followup string",
@@ -34,17 +37,22 @@ CHECKS = {
         "Reviewer models never uplift",
         "generic risk",
         "`optional_notes` are not remaining work",
+        "smallest necessary fix",
     ],
     Path("agents/orchestrator-flow.md"): [
         "Apply `protocols/MATERIALITY_GATE.md` before every repair, reviewer re-review, or",
         "Reviewer models never uplift",
         "generic risk alone does not",
-        "unmet original requirement, concrete evidence, and practical impact",
+        "unmet original requirement, concrete evidence, practical impact, and smallest necessary fix",
+        "not automatic authorization to edit",
+        "smallest necessary fix",
     ],
     Path("agents/orchestrator-simple.md"): [
         "Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, or narrow recovery",
         "Reviewer models never uplift",
         "generic risk alone does not",
+        "not automatic authorization to edit",
+        "smallest necessary fix",
     ],
 }
 

@@ -222,6 +222,15 @@ def validate_capability_and_materiality_contracts() -> None:
                 "concrete strategy delta",
             ],
         ),
+        "KISS materiality admission": (
+            materiality,
+            [
+                "review failure is evidence to evaluate",
+                "no smaller change or targeted verification",
+                "smallest change or verification step that closes the gap",
+                "Adequate targeted evidence is sufficient",
+            ],
+        ),
         "adaptive presets/resume": (
             adaptive,
             [

@@ -168,6 +168,10 @@ class CodexInstallExportTest(unittest.TestCase):
             "different requested, dispatched, or effective efforts", managed_block
         )
         self.assertIn(
+            "Use the smallest implementation and verification sufficient",
+            managed_block,
+        )
+        self.assertIn(
             "reasoning-effort recovery before model capability recovery",
             managed_block,
         )
@@ -305,6 +309,10 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("never slash-join effort values", managed_block)
         self.assertIn(
             "different requested, dispatched, or effective efforts", managed_block
+        )
+        self.assertIn(
+            "Use the smallest implementation and verification sufficient",
+            managed_block,
         )
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,

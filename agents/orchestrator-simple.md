@@ -67,7 +67,7 @@ upstream policy merely because Simple does not expose those flags directly.
 - Explicit Adaptive review policy counts as an explicit review request under the hard constraints above.
 - Adaptive preserves its normalized `reasoning_mode` for every wrapper and Simple-core child spawn.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
-- After the Simple core, Adaptive may run one ad-hoc reviewer, then only after `protocols/MATERIALITY_GATE.md` admits an evidence-backed blocking P0-P2 gap, dispatch at most one narrow same-scope repair through the original worker or an existing executor and run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
+- After the Simple core, Adaptive may run one ad-hoc reviewer, then only after applying `protocols/MATERIALITY_GATE.md` to each finding and admitting an evidence-backed blocking P0-P2 gap, dispatch at most one narrow same-scope repair through the original worker or an existing executor and run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
 - An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
@@ -140,15 +140,18 @@ indeterminate between a same-value selector and inheritance.
 9. Use `@peon` for mechanical repetitive edits only when their highest reasoning class is `routine`.
 10. Use `@doc-writer` for pure docs deliverables.
 11. Use `@test-runner` for tests, builds, linters, and smoke checks.
-12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc` and explicit review targets.
+12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc`, explicit review targets, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and required verification.
 
 # OPTIONAL DIRECT REVIEW
 
 When Simple is invoked directly with `review_mode = on`, run one ad-hoc reviewer after
 the implementation and available verification complete. Include the changed targets,
-scoped requirements, and evidence. On failure, dispatch at most one narrow same-scope
-repair only after `protocols/MATERIALITY_GATE.md` records the unmet requirement,
-concrete evidence, and practical impact for an evidence-backed blocking P0-P2 finding;
+scoped requirements, explicit non-goals or out-of-scope constraints when supplied,
+required verification, and evidence. On failure, treat the result as evidence, not automatic authorization to edit,
+and dispatch at most one narrow same-scope
+repair only after applying `protocols/MATERIALITY_GATE.md` to each finding before any repair or re-review.
+Only admitted evidence-backed blocking P0-P2 findings that record the unmet requirement,
+concrete evidence, practical impact, and smallest necessary fix may enter that repair;
 then run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. A
 second failure stops; do not create a broader retry loop.
 

@@ -428,6 +428,7 @@ Stage 3 — Dispatch & Execution
 - For each task handoff, include:
   - Task details
   - Expected output
+  - Scope boundary, explicit non-goals or out-of-scope constraints when supplied, exact Definition of Done, and required verification
   - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
   - `task_intent`, intent-baseline/source metadata, legacy `reasoning_class`, `reasoning_signals`, and the resolved per-attempt ReasoningDecision
   - `operational_retry_limit`, the rule that the first implementation/content attempt is free, and the no-progress/failure-signature stop conditions
@@ -490,12 +491,13 @@ If primary_output is implementation:
 # Stage 4.5 — Optional Review Gate
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
-- Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, and the scoped requirements to verify.
+- Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and the required verification.
 - Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. Ordinary review uses the profile's strong tier with `xhigh` effort. Only `--review=max`, a material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not. Reviewer models never uplift. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:
-  - Apply `protocols/MATERIALITY_GATE.md` before every repair and re-review. Repair only blocking P0-P2 findings that identify the unmet original requirement, concrete evidence, and practical impact; P3 suggestions, wording preferences, and optional improvements do not trigger repair.
+  - Treat the result as evidence, not automatic authorization to edit. Apply `protocols/MATERIALITY_GATE.md` to each finding before every repair and re-review. Repair only blocking P0-P2 findings that identify the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix; P3 suggestions, wording preferences, optional improvements, and alternative designs that already satisfy the contract do not trigger repair.
+  - Do not demand broader verification after adequate targeted evidence unless a changed shared boundary or explicit requirement proves a concrete uncovered path.
   - Do NOT create new Flow tasks, delta tasks, or a planner/router retry path.
   - Perform at most ONE bounded repair cycle inside the same run.
   - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures.

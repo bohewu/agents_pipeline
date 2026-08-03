@@ -86,8 +86,9 @@ These gates define minimal acceptance for each stage output.
 ## Materiality Gate
 
 - Before repair, reviewer followup, capability recovery, or Goal continuation, apply `./protocols/MATERIALITY_GATE.md`.
-- Required work must identify the unmet original goal condition or explicit criterion, concrete evidence, and practical impact.
+- Required work must identify the unmet original goal condition or explicit criterion, concrete evidence, practical impact, and the smallest change or verification step that closes the gap. A failed review alone does not authorize edits.
 - P3 findings, wording/style preferences, optional refactors, speculative unreachable cases, unmeasured performance ideas, and extra tests without a concrete gap never consume repair/retry/recovery budget.
+- New dependencies, abstractions, schemas, services, migrations, broad refactors, and wider test matrices require evidence that no smaller implementation or targeted verification can satisfy the original requirement safely.
 - `required_followups` contains only material blockers. `optional_notes` never seeds a task, retry, capability recovery, or new Goal round.
 - A Goal may start another workflow round when the original objective still has a material gap. Completion does not require exhausting every possible improvement.
 - Reasoning-effort recovery carries the prior attempt's effective class and runs before model capability recovery. A deep material retry may receive automatic `max` through `recovery_boost`; it is not an `explicit_effort` override.

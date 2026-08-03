@@ -48,18 +48,19 @@ These rules apply to **all agents**.
 ## EXECUTOR -> REVIEWER HANDOFF
 
 > The reviewer does NOT trust claims without evidence.
-> Only provided evidence and DoD satisfaction will be considered.
-> If evidence is missing or weak, the task must be considered incomplete.
+> Only evidence required by the scoped DoD and verification contract will be considered.
+> Adequate targeted evidence is sufficient; broader proof needs a concrete uncovered path or explicit requirement.
 
 ---
 
 ## REVIEWER -> ORCHESTRATOR HANDOFF
 
-> Your decision is final.
+> Your scoped review result is evidence, not automatic authorization to edit.
 > If status is `fail` and `test_only = false`, orchestrator-pipeline must:
-> 1) Apply the materiality gate and convert only admitted required_followups into delta tasks
-> 2) Re-dispatch via router
-> 3) Retry execution (up to `max_retry_rounds`)
+> 1) Apply the materiality gate to each finding and reject any item without an unmet original requirement, concrete evidence, practical impact, and the smallest necessary fix
+> 2) Convert only admitted required_followups into delta tasks
+> 3) Re-dispatch via router
+> 4) Retry execution (up to `max_retry_rounds`)
 > If `test_only = true`, skip retries and report the reviewer result.
 > If still failing, stop and report blockers to the user.
 
@@ -463,6 +464,7 @@ Stage 5: Execute batches + optional validation:
   - high risk or L complexity -> `verification = strong`, `repair_budget = 2`
   - derive `resource_class` from the actual commands/tools and lifecycle needs (`light | process | server | browser`), not from risk alone
   - include task intent/baseline/source metadata, legacy class/signals, and the resolved per-attempt ReasoningDecision; the executor must not reinterpret risk as effort
+  - include the current scope boundary, explicit non-goals or out-of-scope constraints when supplied, exact Definition of Done, and required verification; instruct the worker to use the smallest sufficient implementation and verification
   - tool calls and operational failures never consume `repair_budget`; they use a separate bounded operational retry and become blockers when permission, network, service, dependency, CLI, browser, or tool problems persist
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
@@ -475,8 +477,8 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, and optional DevSpec. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, and optional improvements never enter `required_followups`. Ordinary review uses the profile's strong tier with `xhigh` effort; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
-Stage 7: If fail and `test_only = false` -> apply `protocols/MATERIALITY_GATE.md` before creating work. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, and practical impact. Before each affected task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, optional DevSpec, explicit non-goals or out-of-scope constraints when supplied, and the required verification. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, optional improvements, and alternative designs that already satisfy the contract never enter `required_followups`. Adequate targeted evidence is sufficient unless a changed shared boundary or explicit requirement proves a wider gap. Ordinary review uses the profile's strong tier with `xhigh` effort; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
+Stage 7: If fail and `test_only = false` -> treat the review result as input and apply `protocols/MATERIALITY_GATE.md` to each finding before creating work. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix. Before each affected task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
 - Treat the run as trivial only when all of these are true:

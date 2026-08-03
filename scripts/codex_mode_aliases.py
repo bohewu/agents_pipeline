@@ -93,6 +93,11 @@ CHILD_RESULT_SELECTION_LABEL_LINE = (
     "effective efforts, show separate named fields. Do not make the child self-report "
     "this metadata or combine model and effort into one opaque value."
 )
+MINIMAL_DELIVERY_LINE = (
+    "Use the smallest implementation and verification sufficient for the stated "
+    "requirement. Rigor means proving the requested behavior, not adding "
+    "abstractions, checks, or polish."
+)
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."
 )
@@ -313,6 +318,7 @@ def build_mode_summary_lines() -> List[str]:
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
         CUSTOM_ROLE_FORK_ISOLATION_LINE,
         CHILD_RESULT_SELECTION_LABEL_LINE,
+        MINIMAL_DELIVERY_LINE,
         MATERIALITY_AND_GOAL_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,

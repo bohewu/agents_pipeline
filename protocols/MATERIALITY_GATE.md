@@ -2,7 +2,8 @@
 
 This gate applies before a repair, reviewer followup, capability recovery, or
 new Goal continuation round. It limits work to changes needed to complete the
-original request. A repair or retry budget is an upper bound, not a quota.
+original request. A repair or retry budget is an upper bound, not a quota. A
+review failure is evidence to evaluate, not automatic authorization to edit.
 
 ## Material work
 
@@ -34,6 +35,11 @@ Do not spend repair, retry, capability, or continuation budget on:
 - a reviewer's preferred architecture when the implemented design satisfies
   the stated contract.
 
+A reviewer request to add a dependency, abstraction, helper layer, schema,
+service, migration, broad refactor, or wider test matrix is non-material unless
+concrete evidence shows that no smaller change or targeted verification can
+satisfy the original requirement safely.
+
 Operational failures such as timeout, permission, network, dependency, browser,
 CLI, or tool errors use their own operational handling. They are not evidence
 for reasoning or model capability recovery.
@@ -46,6 +52,7 @@ Before admitting followup work, answer all three questions:
    unmet?
 2. What concrete evidence proves the gap?
 3. What practical impact occurs if it remains unchanged?
+4. What is the smallest change or verification step that closes the gap?
 
 If any answer is missing, do not create repair work. Record it only as an
 optional note when the user asked for optional suggestions.
@@ -59,6 +66,8 @@ recovery, or Goal continuation.
 Once the original requirements, required verification, and material blocking
 findings pass, freeze task scope and finish. Completion means the original
 objective is satisfied, not that no further improvement is imaginable.
+Adequate targeted evidence is sufficient unless an explicit requirement or a
+changed shared boundary requires broader verification.
 
 A Goal continuation may continue work only when a material
 `required_followups` item traces to an unmet original Goal condition. Choose
