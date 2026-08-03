@@ -199,10 +199,12 @@ text.
 Local Codex runs also use `tools/codex-child-trace.js` as an ephemeral evidence
 adapter. It reads only the child role/effort metadata needed for comparison and
 the parent's effective effort at child creation; its raw output is not an
-observation record. Output redacts raw role/model values and the parent ID. The
-observed child effort is fed back to the shared resolver, while paths and
-session content remain excluded. Parent/request/child equality is explicitly
-indeterminate between same-value selection and inheritance.
+observation record. Output may include syntactically bounded observed child
+role/model values independently of optional comparisons; missing or invalid
+values and the parent ID remain redacted. The observed child effort is fed back
+to the shared resolver, while paths and session content remain excluded.
+Parent/request/child equality is explicitly indeterminate between same-value
+selection and inheritance.
 
 ### Calibration without general model routing
 
