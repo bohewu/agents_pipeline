@@ -186,6 +186,14 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 
 Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. General dynamic model routing, downgrade, reviewer model uplift, and current/main-agent changes remain forbidden. `protocols/CAPABILITY_RECOVERY.md` defines the sole exception: one profile-approved tier step for an `executor` or `generalist` child after repeated material reasoning failure. Local Codex workflows verify the recovered child model and effort from bounded trace metadata.
 
+The built-in profiles keep upstream control and final judgment stronger than bounded leaf work:
+
+- `frugal` uses `mini` for mechanical helpers and bounded advisory roles, keeps routing, planning, implementation, research, and deep analysis on `standard`, and reserves `strong` for review, security, and final judges.
+- `balanced` retains the default cost/quality distribution without additional leaf-role reductions.
+- `premium` keeps routine helpers and the KISS guard on `mini`, starts `executor` on `standard`, permits its existing bounded recovery to `strong`, and concentrates `strong` on higher-rigor analysis, planning, review, security, and judgment.
+
+On Codex, the reasoning resolver still applies class-specific effort. Moving a fixed-deliberative role to `mini` therefore requests `xhigh`, while fixed-routine `mini` roles request `high`; the profile does not override those mappings.
+
 | Profile | `executor` recovery ceiling | `generalist` recovery ceiling |
 |---|---|---|
 | `frugal` | `standard` | `standard` |

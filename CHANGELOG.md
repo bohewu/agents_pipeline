@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.3] - 2026-08-03
+
+### Changed
+
+- Retuned the built-in `frugal` profile toward Luna for bounded advisory roles, and the `premium` profile toward Luna for routine/KISS roles plus Terra-first executor work with its existing bounded Sol recovery; `balanced` and reasoning-effort policy remain unchanged.
+
 ## [0.35.2] - 2026-08-03
 
 ### Changed

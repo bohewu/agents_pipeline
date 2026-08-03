@@ -1,7 +1,7 @@
 {
   "name": "frugal",
   "runtime": "neutral",
-  "description": "Cost-conservative routing profile: mechanical roles use mini, routine planning/execution stays standard, and review/security/judges stay strong.",
+  "description": "Cost-conservative routing profile: mechanical and bounded advisory roles use mini, routing/planning/execution stays standard, and review/security/judges stay strong.",
   "recovery_ceiling_tiers": {
     "executor": "standard",
     "generalist": "standard"
@@ -11,12 +11,12 @@
     "analysis-correctness": "standard",
     "analysis-numerics": "standard",
     "analysis-robustness": "standard",
-    "art-director": "standard",
+    "art-director": "mini",
     "atomizer": "standard",
     "committee-architect": "standard",
     "committee-judge": "strong",
     "committee-kiss": "mini",
-    "committee-product": "standard",
+    "committee-product": "mini",
     "committee-qa": "standard",
     "committee-security": "strong",
     "compressor": "mini",
@@ -47,10 +47,10 @@
     "summarizer": "mini",
     "test-runner": "mini",
     "ui-ux-designer": "standard",
-    "ux-copy-trust": "standard",
+    "ux-copy-trust": "mini",
     "ux-judge": "strong",
-    "ux-novice": "standard",
+    "ux-novice": "mini",
     "ux-task-flow": "standard",
-    "ux-visual-hierarchy": "standard"
+    "ux-visual-hierarchy": "mini"
   }
 }

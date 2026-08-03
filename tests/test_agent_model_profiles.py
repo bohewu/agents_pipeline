@@ -60,6 +60,54 @@ def model_set_payload(runtime: str, tiers: dict) -> dict:
 
 
 class AgentModelProfilesTest(unittest.TestCase):
+    def test_builtin_profile_tiers_preserve_cost_quality_boundaries(self) -> None:
+        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
+        frugal = RESOLVER.load_profile("frugal", profiles_dir, "codex")
+        balanced = RESOLVER.load_profile("balanced", profiles_dir, "codex")
+        premium = RESOLVER.load_profile("premium", profiles_dir, "codex")
+
+        self.assertEqual(
+            {
+                tier: list(frugal.models.values()).count(tier)
+                for tier in RESOLVER.REQUIRED_TIERS
+            },
+            {"mini": 15, "standard": 26, "strong": 4},
+        )
+        self.assertEqual(
+            {
+                tier: list(balanced.models.values()).count(tier)
+                for tier in RESOLVER.REQUIRED_TIERS
+            },
+            {"mini": 9, "standard": 31, "strong": 5},
+        )
+        self.assertEqual(
+            {
+                tier: list(premium.models.values()).count(tier)
+                for tier in RESOLVER.REQUIRED_TIERS
+            },
+            {"mini": 9, "standard": 16, "strong": 20},
+        )
+
+        for role in (
+            "art-director",
+            "committee-product",
+            "ux-copy-trust",
+            "ux-novice",
+            "ux-visual-hierarchy",
+        ):
+            self.assertEqual(frugal.models[role], "mini")
+            self.assertEqual(balanced.models[role], "standard")
+
+        for role in (
+            "committee-kiss",
+            "handoff-writer",
+            "session-guide-writer",
+            "test-runner",
+        ):
+            self.assertEqual(premium.models[role], "mini")
+        self.assertEqual(premium.models["executor"], "standard")
+        self.assertEqual(premium.recovery_ceiling_tiers["executor"], "strong")
+
     def test_builtin_recovery_ceiling_mappings(self) -> None:
         profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
         expected = {

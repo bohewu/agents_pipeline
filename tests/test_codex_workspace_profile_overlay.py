@@ -889,21 +889,21 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             home = root / "home"
             env = self.isolated_environment(home)
             codex_home, wrapper = self.install_global_codex(home, env)
-            global_executor = codex_home / "agents" / "executor.toml"
-            original_global_executor = global_executor.read_bytes()
+            global_analysis = codex_home / "agents" / "analysis-correctness.toml"
+            original_global_analysis = global_analysis.read_bytes()
             frugal = root / "frugal-project"
             premium = root / "premium-project"
 
             self.run_profile(wrapper, "set", frugal, env=env, profile="frugal")
             self.run_profile(wrapper, "set", premium, env=env, profile="premium")
 
-            frugal_executor = frugal / ".codex" / "agents" / "executor.toml"
-            premium_executor = premium / ".codex" / "agents" / "executor.toml"
+            frugal_analysis = frugal / ".codex" / "agents" / "analysis-correctness.toml"
+            premium_analysis = premium / ".codex" / "agents" / "analysis-correctness.toml"
             self.assertNotEqual(
-                frugal_executor.read_text(encoding="utf-8"),
-                premium_executor.read_text(encoding="utf-8"),
+                frugal_analysis.read_text(encoding="utf-8"),
+                premium_analysis.read_text(encoding="utf-8"),
             )
-            self.assertEqual(global_executor.read_bytes(), original_global_executor)
+            self.assertEqual(global_analysis.read_bytes(), original_global_analysis)
             self.assertEqual(
                 self.workspace_status(wrapper, frugal, env=env)["profile"], "frugal"
             )
@@ -921,12 +921,15 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             home = root / "home"
             balanced = root / "balanced-project"
             frugal = root / "frugal-project"
+            premium = root / "premium-project"
             env = self.isolated_environment(home)
             codex_home, wrapper = self.install_global_codex(home, env)
             self.set_project_trust(codex_home, balanced, "trusted")
             self.set_project_trust(codex_home, frugal, "trusted")
+            self.set_project_trust(codex_home, premium, "trusted")
             self.run_profile(wrapper, "set", balanced, env=env)
             self.run_profile(wrapper, "set", frugal, env=env, profile="frugal")
+            self.run_profile(wrapper, "set", premium, env=env, profile="premium")
 
             balanced_config = (balanced / ".codex" / "config.toml").read_bytes()
             balanced_executor = (balanced / ".codex" / "agents" / "executor.toml")
@@ -952,6 +955,14 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             )
             self.assertEqual((balanced / ".codex" / "config.toml").read_bytes(), balanced_config)
             self.assertEqual(balanced_executor.read_bytes(), balanced_executor_contents)
+
+            premium_resolution = json.loads(
+                self.resolve_recovery(wrapper, premium, env=env).stdout
+            )
+            self.assertEqual(premium_resolution["profile"], "premium")
+            self.assertEqual(premium_resolution["base_model_tier"], "standard")
+            self.assertEqual(premium_resolution["requested_model_tier"], "strong")
+            self.assertEqual(premium_resolution["model"], "gpt-5.6-sol")
 
             rejected = self.resolve_recovery(wrapper, frugal, env=env, expected=2)
             self.assertIn("exceeds ceiling tier 'standard'", rejected.stderr)
