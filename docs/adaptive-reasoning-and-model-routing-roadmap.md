@@ -99,8 +99,10 @@ effort below `max` conflicts instead of degrading again.
 
 ### Review is not certification
 
-Ordinary review starts with `task_intent = review` and is raised to deep by its
-review context:
+The reviewer role has a deep floor, so an ordinary reviewer dispatch never
+resolves below deep even when context metadata is missing. Formal workflow
+dispatches still carry context to preserve their capability and assurance
+semantics:
 
 - `ad-hoc-review`: deep, non-strict.
 - `pipeline-review`: deep, strong-tier minimum, non-strict.

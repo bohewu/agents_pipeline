@@ -130,7 +130,8 @@ Fixed roles are semantic capability bounds, not default suggestions:
 `routine/deliberative/deep`; their target is only the legacy fallback, never a
 floor when intent or adequate signals exist. `ui-ux-designer` is adaptive
 `deliberative/deep/deep`. `reviewer` is adaptive
-`deliberative/deep/assurance`. Unlisted roles use the default adaptive
+`deep/deep/assurance`, so selecting the reviewer role always requires at least
+deep reasoning even when a producer omits its review context. Unlisted roles use the default adaptive
 `routine/deliberative/deep` policy for in-memory decisions and observations.
 Persisted AgentStatus reasoning is intentionally limited to the managed role
 catalog because its schema binds `agent` to a canonical role-policy snapshot;

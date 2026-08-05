@@ -150,6 +150,22 @@ test("formal assurance requires and records strong max runtime evidence", () => 
   assert.equal(intentOnly.effective_effort, "max");
 });
 
+test("reviewer role never resolves below deep or xhigh without review context", () => {
+  for (const taskIntent of ["execute", "review"]) {
+    const decision = resolveReasoning({
+      role: "reviewer",
+      mode: "adaptive",
+      task_intent: taskIntent,
+      model_tier: "strong",
+      selector_available: true
+    });
+    assert.equal(decision.reasoning_class, "deep", taskIntent);
+    assert.equal(decision.effective_class, "deep", taskIntent);
+    assert.equal(decision.requested_effort, "xhigh", taskIntent);
+    assert.equal(decision.dispatch_effort, "xhigh", taskIntent);
+  }
+});
+
 test("the version 2 decision fixture is an exact resolver projection", () => {
   const fixture = JSON.parse(fs.readFileSync(
     path.resolve(__dirname, "..", "protocols", "examples", "reasoning-decision.valid.json"),
@@ -1253,6 +1269,7 @@ test("policy validation locks task intents, role groups, review contexts, and co
     ["fixed deliberative", (policy) => { policy.role_policies.planner.reasoning_class = "deep"; }, /planner must remain fixed deliberative/],
     ["fixed deep", (policy) => { policy.role_policies["committee-qa"].reasoning_class = "deliberative"; }, /committee-qa must remain fixed deep/],
     ["security tier", (policy) => { policy.role_policies["committee-security"].minimum_model_tier = "standard"; }, /committee-security must require minimum model tier strong/],
+    ["reviewer role floor", (policy) => { policy.role_policies.reviewer.floor_class = "deliberative"; }, /reviewer must remain adaptive deep\/deep\/assurance/],
     ["review floor", (policy) => { policy.dispatch_contexts["ad-hoc-review"].floor_class = "deliberative"; }, /ad-hoc-review must keep a non-strict deep floor/],
     ["pipeline tier", (policy) => { policy.dispatch_contexts["pipeline-review"].minimum_model_tier = "standard"; }, /pipeline-review must keep a non-strict deep floor and strong model minimum/],
     ["compatibility", (policy) => { policy.compatibility.allow_degraded_deep = true; }, /allow_degraded_deep must default to false/]

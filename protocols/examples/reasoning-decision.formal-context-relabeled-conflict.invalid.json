@@ -8,7 +8,7 @@
   "classification_source": "legacy_role_target",
   "role_policy": {
     "mode": "adaptive",
-    "floor_class": "deliberative",
+    "floor_class": "deep",
     "target_class": "deep",
     "ceiling_class": "assurance",
     "strict": false

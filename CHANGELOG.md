@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- Raised the adaptive reviewer role floor to `deep`, ensuring ordinary reviewer dispatches request at least `xhigh` effort even when review context metadata is omitted; `--review=max` and formal assurance semantics are unchanged.
+
 ## [0.35.4] - 2026-08-03
 
 ### Changed

@@ -115,7 +115,7 @@ const CANONICAL_ROLE_POLICIES = Object.freeze({
   },
   reviewer: {
     mode: "adaptive",
-    floor_class: "deliberative",
+    floor_class: "deep",
     target_class: "deep",
     ceiling_class: "assurance",
     strict: false
@@ -438,10 +438,10 @@ function validatePolicy(policy) {
   const reviewer = policy.role_policies.reviewer;
   assert(
     reviewer.mode === "adaptive"
-      && reviewer.floor_class === "deliberative"
+      && reviewer.floor_class === "deep"
       && reviewer.target_class === "deep"
       && reviewer.ceiling_class === "assurance",
-    "role_policies.reviewer must remain adaptive deliberative/deep/assurance"
+    "role_policies.reviewer must remain adaptive deep/deep/assurance"
   );
   assert(isObject(policy.dispatch_contexts), "dispatch_contexts must be an object");
   for (const [context, contextPolicy] of Object.entries(policy.dispatch_contexts)) {

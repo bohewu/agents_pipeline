@@ -766,7 +766,7 @@ class ValidateSchemaFormatTest(unittest.TestCase):
         weakened.append(("weakened fixed role contract", fixed_role_policy))
 
         adaptive_role_policy = json.loads(json.dumps(base_policy))
-        adaptive_role_policy["role_policies"]["reviewer"]["floor_class"] = "routine"
+        adaptive_role_policy["role_policies"]["reviewer"]["floor_class"] = "deliberative"
         weakened.append(("weakened adaptive role contract", adaptive_role_policy))
 
         security_role_policy = json.loads(json.dumps(base_policy))

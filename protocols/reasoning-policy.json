@@ -242,7 +242,7 @@
     },
     "reviewer": {
       "mode": "adaptive",
-      "floor_class": "deliberative",
+      "floor_class": "deep",
       "target_class": "deep",
       "ceiling_class": "assurance",
       "strict": false
