@@ -13,6 +13,10 @@ HANDOFF = REPO_ROOT / "agents" / "handoff-writer.md"
 PIPELINE = REPO_ROOT / "agents" / "orchestrator-pipeline.md"
 REVIEWER = REPO_ROOT / "agents" / "reviewer.md"
 EXECUTOR = REPO_ROOT / "agents" / "executor.md"
+GENERALIST = REPO_ROOT / "agents" / "generalist.md"
+TEST_RUNNER = REPO_ROOT / "agents" / "test-runner.md"
+GENERAL = REPO_ROOT / "agents" / "orchestrator-general.md"
+MATERIALITY = REPO_ROOT / "protocols" / "MATERIALITY_GATE.md"
 SPLITTER = REPO_ROOT / "agents" / "flow-splitter.md"
 FLOW_WORKERS = ("executor", "peon", "generalist", "doc-writer")
 DIRECT_RUN_SKILLS = ("run-simple", "run-flow", "run-pipeline")
@@ -199,6 +203,44 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("Start a narrow continuation run", materiality)
         self.assertIn("Start a full fresh run", materiality)
         self.assertIn("concrete strategy delta", materiality)
+
+    def test_validation_cost_guardrails_stop_harness_repair_loops(self) -> None:
+        materiality = MATERIALITY.read_text(encoding="utf-8")
+        workers = [
+            EXECUTOR.read_text(encoding="utf-8"),
+            GENERALIST.read_text(encoding="utf-8"),
+        ]
+        workflows = [
+            SIMPLE.read_text(encoding="utf-8"),
+            FLOW.read_text(encoding="utf-8"),
+            PIPELINE.read_text(encoding="utf-8"),
+            GENERAL.read_text(encoding="utf-8"),
+            SKILL.read_text(encoding="utf-8"),
+        ]
+        reviewer = REVIEWER.read_text(encoding="utf-8")
+        test_runner = TEST_RUNNER.read_text(encoding="utf-8")
+
+        for token in (
+            "product_failure",
+            "harness_failure",
+            "operational_failure",
+            "Validation supports the requested product change",
+            "Fresh immutable one-shot certification",
+            "validators for validators",
+            "twice consecutively",
+        ):
+            self.assertIn(token, materiality)
+        for worker in workers:
+            self.assertIn("`harness_failure`", worker)
+            self.assertIn("focused rerun", worker)
+            self.assertIn("fresh run", worker)
+            self.assertIn("twice consecutively", worker)
+        for workflow in workflows:
+            self.assertIn("harness", workflow.lower())
+            self.assertIn("twice", workflow.lower())
+        self.assertIn("validation scope, cost, and necessity", reviewer)
+        self.assertIn("validator-for-validator", reviewer)
+        self.assertIn("Do not create or modify validators", test_runner)
 
     def test_presets_are_route_independent_and_simple_has_a_bounded_wrapper(self) -> None:
         adaptive = SKILL.read_text(encoding="utf-8")

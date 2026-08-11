@@ -98,6 +98,18 @@ MINIMAL_DELIVERY_LINE = (
     "requirement. Rigor means proving the requested behavior, not adding "
     "abstractions, checks, or polish."
 )
+VALIDATION_COST_GUARD_LINE = (
+    "Treat validation as bounded support for product delivery. Classify failed "
+    "checks as product, harness, or operational failures before editing. A "
+    "harness-only problem gets at most one smallest in-place correction and one "
+    "focused rerun without consuming repair, workflow retry, or recovery budget; "
+    "it never authorizes product changes, a new validator, fresh workflow run, "
+    "refreeze, recertification, or reasoning/model recovery. Stop "
+    "when the same harness or infrastructure signature occurs twice consecutively. "
+    "Do not build candidate-zero validators, mutation matrices, validators for "
+    "validators, or proof frameworks unless the original product contract explicitly "
+    "requires them."
+)
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."
 )
@@ -319,6 +331,7 @@ def build_mode_summary_lines() -> List[str]:
         CUSTOM_ROLE_FORK_ISOLATION_LINE,
         CHILD_RESULT_SELECTION_LABEL_LINE,
         MINIMAL_DELIVERY_LINE,
+        VALIDATION_COST_GUARD_LINE,
         MATERIALITY_AND_GOAL_LINE,
         MODE_ALIAS_DO_NOT_SPAWN_LINE,
         MODE_ALIAS_DEFINITION_HEADER_LINE,

@@ -6,6 +6,11 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Changed
+
+- Added validation-cost guardrails that separate product, harness, and operational failures; validation helpers now stay KISS, repeated harness/infrastructure failures stop after the second matching signature, and development checks cannot trigger fresh runs, recertification, or reasoning/model recovery.
+- Made final immutable certification explicitly opt-in after focused product and required integration checks pass, and made Goal mode opt-in for work inside this repository.
+
 ## [0.35.5] - 2026-08-05
 
 ### Changed

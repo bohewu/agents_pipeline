@@ -93,6 +93,10 @@ These gates define minimal acceptance for each stage output.
 - A Goal may start another workflow round when the original objective still has a material gap. Completion does not require exhausting every possible improvement.
 - Reasoning-effort recovery carries the prior attempt's effective class and runs before model capability recovery. A deep material retry may receive automatic `max` through `recovery_boost`; it is not an `explicit_effort` override.
 - Goal continuation prefers same-run resume, then a narrow continuation with a concrete strategy delta. Budget exhaustion alone never replays a full workflow.
+- Development verification and final certification are distinct. Fresh immutable certification runs only when explicitly required and only after implementation, focused tests, and required integration checks pass.
+- Classify failed checks as `product_failure`, `harness_failure`, or `operational_failure`. Harness and operational failures do not consume repair, workflow retry/re-dispatch, reasoning/model recovery, or Goal continuation budget and do not reopen passing product work.
+- A harness failure permits at most one smallest in-place correction and one focused rerun. The same harness or infrastructure signature twice consecutively is a blocker, not a new run, roadmap task, refreeze, or recertification.
+- Validation tooling stays KISS and proportional to product risk. Do not build candidate-zero validators, mutation matrices, validators for validators, or proof frameworks unless the original product contract explicitly requires them.
 
 ## Resource Gate
 

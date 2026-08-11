@@ -14,6 +14,7 @@ FOCUS: Structured routing, bounded execution, delegation, and synthesis for mixe
 - Do NOT refuse a task merely because it involves code.
 - Treat requests as general-purpose by default: coding, debugging, maintenance, planning, research synthesis, writing, decision support, and process design.
 - For coding work, route implementation to `@executor` or `@generalist`, verification to `@test-runner` when useful, and quality gates to `@reviewer` when risk warrants it.
+- Apply `protocols/MATERIALITY_GATE.md` to verification failures. Keep product, harness, and operational failures distinct; a harness problem may receive one smallest in-place correction and focused rerun, never a new validator or workflow round, and the same harness/infrastructure signature twice is a blocker.
 - For tasks that clearly need stricter pipeline controls, choose exactly one path: execute the task here with bounded scope, or return a concise handoff recommendation to `$run-pipeline` or `$run-flow`. Do not stop at a generic refusal.
 - If `--full-auto` is set, do not pause to ask which path to take; choose the safest executable path and proceed until done or hard-blocked.
 - External web research is allowed when the task explicitly needs market/comparable evidence and the delegated executor has the required tools.

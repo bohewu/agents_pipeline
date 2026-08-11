@@ -311,6 +311,13 @@ and practical impact are recorded; repair and recovery budgets are upper bounds,
 quotas. `required_followups` may contain only material blockers. `optional_notes`, P3
 findings, wording, style, and optional hardening never seed work.
 
+Classify every failed check as `product_failure`, `harness_failure`, or
+`operational_failure` before dispatching repair. A harness-only failure gets at most
+one smallest in-place correction to the existing canonical fixture/script/setup and
+one focused rerun inside the same task. It cannot create a Flow task, fresh run,
+refreeze, recertification, or reasoning/model recovery. Stop and report a blocker when
+the same harness or infrastructure signature occurs twice consecutively.
+
 Run reasoning-effort recovery before model capability recovery for every admitted
 material reasoning redispatch. Re-run `tools/reasoning-policy.js` with
 `prior_failure_type = reasoning_failure`; if it raises the class or gives a deep
@@ -415,10 +422,10 @@ Stage 3 — Dispatch & Execution
   - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
   - sequential_tasks (if ordering is required or the task is resource-heavy)
 - Default behavior is one orchestrator dispatch per task. Work inside that dispatch may use the separate operational and local-repair bounds below.
-- Tool/CLI/environment failures may retry up to `operational_retry_limit` without implementation/content changes or repair-budget use; if they persist, report a blocker. Deterministic verification failures caused by the implementation use a repair cycle.
+- Tool/CLI/environment failures may retry within the Materiality Gate's bounded operational handling without implementation/content changes or repair-budget use; if the same infrastructure signature occurs twice consecutively, report a blocker. Deterministic verification failures proven to be caused by the implementation use a repair cycle; harness failures do not.
 - A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done. The first implementation/content attempt is free; each later modify -> verify cycle consumes one unit.
-- Stop when the budget is exhausted, scope expands, or two repair attempts make no progress. A repeated signature is conclusive only after three attempts. Report retry/repair counters and the last signature.
-- If an executor returns `blocked` for a non-hard blocker after local handling, first apply `protocols/MATERIALITY_GATE.md`. Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and the admitted material evidence supports a changed handoff or strategy within the original scope. For repeated no-progress material reasoning failures, use the capability-recovery sequence above only for `executor` or `generalist`; otherwise do not pass a model. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
+- Stop when the budget is exhausted, scope expands, or two product repair attempts make no progress. A repeated `product_failure` signature is conclusive after three attempts; harness/infrastructure failures use the stricter two-failure stop above. Report retry/repair counters and the last signature.
+- If an executor returns `blocked` for a non-hard blocker after local handling, first apply `protocols/MATERIALITY_GATE.md`. Harness and operational blockers do not enter Flow recovery. Flow may re-dispatch the SAME task only when `flow_recovery_used < flow_recovery_limit` and the admitted material product evidence supports a changed handoff or strategy within the original scope. For repeated no-progress material reasoning failures, use the capability-recovery sequence above only for `executor` or `generalist`; otherwise do not pass a model. Increment and persist `flow_recovery_used` before re-dispatch. Strengthen `verification` and, when warranted, set `review_required = true`; if review was risk-derived rather than explicitly disabled, also set `review_mode = on`.
 - The Flow-level recovery is one total recovery across the run, not one recovery per task. Do not spend it on an identical retry, a transient operation, or a localized repair that belongs inside the executor task.
 - Flow still MUST NOT generate new user-visible tasks, delta tasks, or multi-round reviewer loops.
 - Classify each task conservatively as `light`, `process`, `server`, or `browser` using the Stage 2 task metadata.
@@ -500,7 +507,7 @@ If primary_output is implementation:
   - Do not demand broader verification after adequate targeted evidence unless a changed shared boundary or explicit requirement proves a concrete uncovered path.
   - Do NOT create new Flow tasks, delta tasks, or a planner/router retry path.
   - Perform at most ONE bounded repair cycle inside the same run.
-  - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures.
+  - Route the narrowest honest fix based on `required_followups`; prefer targeted artifact/evidence repair for `[artifact]` or `[evidence]` failures, and the smallest scoped implementation repair for `[logic]` failures. A harness-only evidence failure does not enter this reviewer repair cycle; use only its task-local in-place allowance, then block if it remains.
   - After that repair, re-run `@reviewer` once on the repaired targets.
   - If the second review still fails, emit final failed/blocked task and run outcomes, stop before terminal helpers that would finalize success, and report blockers and required followups.
 - The reviewer repair cycle is separate from execution `flow_recovery_used`, but it is still limited to one targeted repair and one re-review. Neither allowance may reset or multiply the other.

@@ -171,6 +171,9 @@ class CodexInstallExportTest(unittest.TestCase):
             "Use the smallest implementation and verification sufficient",
             managed_block,
         )
+        self.assertIn("Treat validation as bounded support", managed_block)
+        self.assertIn("validators for validators", managed_block)
+        self.assertIn("twice consecutively", managed_block)
         self.assertIn(
             "reasoning-effort recovery before model capability recovery",
             managed_block,
@@ -314,6 +317,8 @@ class CodexInstallExportTest(unittest.TestCase):
             "Use the smallest implementation and verification sufficient",
             managed_block,
         )
+        self.assertIn("Treat validation as bounded support", managed_block)
+        self.assertIn("validators for validators", managed_block)
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,

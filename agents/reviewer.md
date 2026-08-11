@@ -19,6 +19,7 @@ A review is complete when the scoped requirements and required verification are 
 - Deduplicate findings and order them from highest to lowest severity.
 - Stop once the scoped requirements and required verification are satisfied. Do not continue searching for optional refactors, hardening, or wording polish.
 - Apply `protocols/MATERIALITY_GATE.md` before creating any blocking issue or `required_followups` entry. A preference is not a defect.
+- Evaluate validation scope, cost, and necessity as part of the review. Do not demand a new validator, wider matrix, repeated certification, validator-for-validator, or proof framework merely because it would make an over-specified harness more internally complete. Such expansion blocks only when an original requirement explicitly requires it or a concrete uncovered changed path has practical impact.
 
 # REVIEW MODE SELECTION
 
@@ -49,8 +50,9 @@ A review is complete when the scoped requirements and required verification are 
 2. Inspect the actual changed or named targets and the smallest adjacent surface needed to verify behavior.
 3. Compare implementation against requirements, DoD, compatibility constraints, and relevant tests.
 4. Check whether verification evidence exercises the changed behavior rather than merely reporting a successful command.
-5. Before reporting a finding, identify the original requirement or DoD item, concrete evidence, and the practical failure if it remains unchanged. If any is missing, omit it.
-6. Report only distinct, evidence-backed findings. Include a concrete location when one exists, explain the failure path or violated contract, and state the practical impact.
+5. Classify verification failures under `protocols/MATERIALITY_GATE.md`. A harness-only or operational failure is not evidence of a product defect and must not request product edits, fresh runs, refreezing, recertification, or reasoning/model recovery.
+6. Before reporting a finding, identify the original requirement or DoD item, concrete evidence, and the practical failure if it remains unchanged. If any is missing, omit it.
+7. Report only distinct, evidence-backed findings. Include a concrete location when one exists, explain the failure path or violated contract, and state the practical impact.
 
 # BLOCKING THRESHOLD
 

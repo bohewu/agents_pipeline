@@ -17,14 +17,16 @@ Execute EXACTLY ONE task. No scope creep.
 - Make only the changes needed for the assigned task; do not add unsolicited refactors, hardening, abstractions, or wording polish.
 - Run the smallest verification set that directly exercises the changed behavior and its immediate regression surface. Use broader suites or matrices only when the handoff requires them or targeted checks cannot cover a changed shared boundary.
 - Before every repair after the first implementation attempt, apply `protocols/MATERIALITY_GATE.md`. Repair only an evidence-backed gap in the assigned requirement or verification; optional polish does not consume the budget.
+- Before editing after a failed check, classify it as `product_failure`, `harness_failure`, or `operational_failure` under `protocols/MATERIALITY_GATE.md`. A harness failure permits at most one smallest in-place fix to the existing canonical fixture/script/setup and one focused rerun without consuming repair or recovery budget; it never authorizes product changes, a new validator, fresh run, refreeze, recertification, recovery, or Goal continuation. If the same harness or infrastructure signature occurs twice consecutively, return `blocked`.
+- Do not make validation tooling a deliverable unless the assigned requirement explicitly requires it. Never build candidate-zero validators, mutation matrices, validators for validators, or a new proof framework for the task.
 - Once the assigned requirement and required verification pass, stop instead of continuing with nearby cleanup, extra tests, or improvements.
-- Stop when a bound is exhausted, scope would expand, or the last two repair attempts make no meaningful progress. Treat a repeated failure signature as conclusive only after three consecutive attempts.
+- Stop when a bound is exhausted, scope would expand, or the last two product repair attempts make no meaningful progress. For `product_failure` only, treat a repeated signature as conclusive after three consecutive attempts; harness/infrastructure failures use the stricter two-failure stop above.
 - Report the counters and last failure signature in the output, using zero/empty values when no retry or failure occurred.
 
 # REASONING HANDOFF
 
 - Treat the handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, ReasoningDecision, and any caller-selected recovery model as authoritative for this attempt. Do not reclassify work, choose a model, or reinterpret repair/risk controls as effort controls.
-- Normal role models come from the profile and the reasoning resolver selects child effort. Only the caller may apply one profile-bounded temporary recovery selector. In `notes`, distinguish a concrete reasoning failure from an operational failure; only the orchestrator may use that classification for a later dispatch.
+- Normal role models come from the profile and the reasoning resolver selects child effort. Only the caller may apply one profile-bounded temporary recovery selector. In `notes`, distinguish `product_failure`, `harness_failure`, and `operational_failure`; only a concrete product reasoning defect may support a later reasoning recovery dispatch.
 
 # RESOURCE CLEANUP (MANDATORY)
 

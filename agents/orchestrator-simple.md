@@ -68,6 +68,7 @@ upstream policy merely because Simple does not expose those flags directly.
 - Adaptive preserves its normalized `reasoning_mode` for every wrapper and Simple-core child spawn.
 - Adaptive may run one focused scout or bounded commit-before helper before the Simple core.
 - After the Simple core, Adaptive may run one ad-hoc reviewer, then only after applying `protocols/MATERIALITY_GATE.md` to each finding and admitting an evidence-backed blocking P0-P2 gap, dispatch at most one narrow same-scope repair through the original worker or an existing executor and run one re-review. P3 suggestions, wording preferences, and optional improvements never trigger repair. If Adaptive normalized `--review=max`, it applies the maximum-reasoning dispatch contract below to both review attempts. The current/main agent still must not modify application or business code directly.
+- Before that repair, classify the failure under the Materiality Gate. A harness-only failure gets at most one in-place canonical harness correction and focused rerun in the same task; it cannot trigger a new validator, fresh run, refreeze, recertification, or recovery. Stop when the same harness or infrastructure signature occurs twice consecutively.
 - Adaptive owns confirm/verbose for the composed Simple run before its first wrapper/core dispatch, so pre-core helpers cannot bypass interaction policy and the Simple core must not ask twice.
 - An Adaptive Simple handoff uses `handoff-writer mode = ad_hoc` with in-memory evidence and a deterministic output directory; it must never select an unrelated persisted run.
 - Those wrapper helpers are not Simple work items and do not authorize ProblemSpec, TaskList, checkpoint, status, or multi-round retry behavior inside Simple.
@@ -96,8 +97,9 @@ Before an admitted material repair redispatch, run reasoning-effort recovery
 before model capability recovery by setting
 `prior_failure_type = reasoning_failure` only for a concrete reasoning defect.
 A prior `deep` decision remains deep and automatically receives `max` through
-`recovery_boost`; do not encode this as `explicit_effort`. Operational failures
-do not raise effort. Keep the original task classification unchanged, but pass
+`recovery_boost`; do not encode this as `explicit_effort`. Harness and operational
+failures do not raise effort or consume recovery budget. Keep the original task
+classification unchanged, but pass
 the prior attempt's `effective_class` as the next in-memory
 `reasoning_class` floor so repeated recovery is monotonic. Simple never
 performs model recovery, and an automatic Goal continuation must use this one

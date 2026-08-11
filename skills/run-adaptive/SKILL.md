@@ -151,6 +151,9 @@ to `--resume` with its exact run directory. Keep its route, checkpoint, complete
 stages, outputs, and counters, and redispatch only the affected task. For an active
 Adaptive Simple wrapper, use its existing narrow same-scope repair path instead of
 re-entering `$run-adaptive` from the beginning.
+Harness-only and operational failures are not automatic Goal continuation or workflow
+promotion reasons. Handle them only within `protocols/MATERIALITY_GATE.md`; the same
+harness or infrastructure signature twice consecutively stops the run.
 
 When explicit or automatic `--resume` is effective, inspect checkpoints read-only
 before route selection. If
@@ -297,8 +300,8 @@ Flow and once from Flow to Pipeline. Finish the current workflow honestly, retai
 completed workspace changes and evidence, start a fresh higher workflow when needed,
 and reapply the same normalized preset plus explicit overrides. Do not treat one
 workflow's checkpoint as another's, do not nest primary orchestrators, and never
-downgrade after execution begins. Ordinary operational errors or localized repairable
-bugs are not promotion reasons.
+downgrade after execution begins. Ordinary operational errors, harness failures, and
+localized repairable product bugs are not promotion reasons.
 
 ## Goal continuation admission
 

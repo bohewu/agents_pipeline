@@ -44,6 +44,47 @@ Operational failures such as timeout, permission, network, dependency, browser,
 CLI, or tool errors use their own operational handling. They are not evidence
 for reasoning or model capability recovery.
 
+## Validation cost guardrails
+
+Validation supports the requested product change; it is not a second product or
+an independent workstream. During development, prefer the repository's existing
+focused test, build, lint, and smoke commands. Classify a failed check before
+editing anything:
+
+- `product_failure`: the changed product violates an original requirement. Repair
+  the smallest product surface and charge the normal repair budget.
+- `harness_failure`: a fixture, assertion wrapper, validation script, run-local
+  path, or harness setup fails without demonstrating a product defect. Make at
+  most one smallest in-place correction to the canonical harness seam, rerun only
+  the focused check, and do not charge repair, workflow retry/re-dispatch,
+  reasoning recovery, model recovery, or Goal continuation budget.
+- `operational_failure`: a command, permission, network, service, dependency,
+  browser startup, CLI syntax, or tool failure. Use bounded operational handling;
+  do not change product code, charge repair/recovery/continuation budget, or raise
+  reasoning/model capability because of it.
+
+A `harness_failure` or `operational_failure` must not create a fresh run, roadmap
+task, refreeze, or recertification. If the same harness or infrastructure failure
+signature occurs twice consecutively, stop and report the blocker instead of
+opening another repair or continuation round. A harness-only failure after product
+tests pass does not reopen the product unless concrete evidence proves a product
+defect.
+
+Create or expand validation tooling only when the original product contract
+explicitly requires that tooling or a concrete uncovered changed behavior cannot
+be verified with an existing command or a direct focused test. Keep it single
+purpose and use the existing project pattern. Do not build candidate-zero
+validators, mutation matrices, validators for validators, new proof frameworks,
+or OS/process proof machinery. Bounded cleanup evidence for a process, server, or
+browser actually started by the task remains required.
+
+Fresh immutable one-shot certification is allowed only when the user or original
+contract explicitly requires final certification and implementation, focused
+automated tests, and required integration checks already pass. Development
+verification must not repeatedly refreeze or recertify after local harness fixes.
+Verification scope and cost must stay proportional to the changed product surface
+and practical product risk; it must not grow merely to prove the harness itself.
+
 ## Admission decision
 
 Before admitting followup work, answer all three questions:

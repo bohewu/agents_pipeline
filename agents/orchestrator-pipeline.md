@@ -359,6 +359,13 @@ criterion, concrete evidence, and practical impact. Budgets are upper bounds, no
 quotas: `required_followups` contains material blockers only, while `optional_notes`,
 P3 findings, wording, style, and optional hardening never seed work.
 
+Classify every failed check as `product_failure`, `harness_failure`, or
+`operational_failure` before creating repair work. A harness-only failure gets at most
+one smallest in-place correction to the existing canonical fixture/script/setup and
+one focused rerun on the same task. It cannot create a DeltaTaskList, fresh run,
+refreeze, recertification, or reasoning/model recovery. If the same harness or
+infrastructure signature occurs twice consecutively, stop and report the blocker.
+
 Call `node tools/capability-recovery.js` only after the same concrete material
 `reasoning_failure` repeats for the same `executor` or `generalist` task and its
 effort-first sequence has reached `deep` plus `max` without meaningful progress and a
@@ -465,7 +472,7 @@ Stage 5: Execute batches + optional validation:
   - derive `resource_class` from the actual commands/tools and lifecycle needs (`light | process | server | browser`), not from risk alone
   - include task intent/baseline/source metadata, legacy class/signals, and the resolved per-attempt ReasoningDecision; the executor must not reinterpret risk as effort
   - include the current scope boundary, explicit non-goals or out-of-scope constraints when supplied, exact Definition of Done, and required verification; instruct the worker to use the smallest sufficient implementation and verification
-  - tool calls and operational failures never consume `repair_budget`; they use a separate bounded operational retry and become blockers when permission, network, service, dependency, CLI, browser, or tool problems persist
+  - tool calls and operational failures never consume `repair_budget`; harness failures likewise consume neither repair nor recovery budget. Use only the Materiality Gate's bounded in-place handling and stop when the same harness/infrastructure signature occurs twice consecutively
 - Honor `max_parallelism` from `dispatch-plan.json`; `parallel = true` never permits exceeding that cap.
 - Treat `resource_class = browser` and `resource_class = server` batches as exclusive by default: do not run more than one such batch at a time.
 - Include cleanup expectations in every `process`, `server`, or `browser` handoff, especially for Node.js, Playwright, Chromium, test harnesses, or temporary local servers that may leave child processes behind.
@@ -478,7 +485,7 @@ Stage 5: Execute batches + optional validation:
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
 Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, optional DevSpec, explicit non-goals or out-of-scope constraints when supplied, and the required verification. Review the complete run and prioritize high-risk or L-complexity TaskList entries. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, optional improvements, and alternative designs that already satisfy the contract never enter `required_followups`. Adequate targeted evidence is sufficient unless a changed shared boundary or explicit requirement proves a wider gap. Ordinary review uses the profile's strong tier with `xhigh` effort; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
-Stage 7: If fail and `test_only = false` -> treat the review result as input and apply `protocols/MATERIALITY_GATE.md` to each finding before creating work. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix. Before each affected task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, prefer a narrow repair pass that re-dispatches only the affected producing task(s) or validation/evidence task(s) instead of regenerating a broad delta plan. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
+Stage 7: If fail and `test_only = false` -> treat the review result as input and apply `protocols/MATERIALITY_GATE.md` to each finding before creating work. Harness and operational failures do not enter Stage 7; use only their bounded task-local handling and report a blocker when that is unavailable or exhausted. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix. Before each affected product task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, first exclude harness and operational failures, then prefer a narrow repair pass that re-dispatches only the affected producing task. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 
 - Treat the run as trivial only when all of these are true:
@@ -537,6 +544,7 @@ If `decision_only = true`:
 
 - Applies when a task/executor returns `status = blocked` and the blocker is NOT a hard blocker.
 - Before every recovery action, apply `protocols/MATERIALITY_GATE.md`; without an unmet original condition, evidence, and impact, record an optional note and create no recovery work.
+- Harness and operational blockers use only the Materiality Gate's bounded handling and never enter this blocker-recovery policy.
 - Do NOT stop the pipeline immediately for a recoverable blocker. First:
   1) continue remaining runnable tasks in the current batch or round
   2) collect blocked tasks and blocker reasons
@@ -573,7 +581,7 @@ If `decision_only = true`:
 - Self-iteration is task-local only (e.g., run tests -> fix -> rerun) and does not count as a retry round, but executors MUST NOT expand scope or create new tasks; if additional scope is required, stop and report BLOCKED.
 - Retry classification rules:
   - `[artifact]`: prefer narrow repair of output formatting, filenames, missing artifact blocks, or other contract-shape gaps in the already-assigned task output.
-  - `[evidence]`: prefer narrow repair of missing verification, cleanup proof, or unsupported claims by re-running the smallest task or validation step that can produce the missing evidence.
+  - `[evidence]`: prefer narrow repair of missing verification, cleanup proof, or unsupported claims by re-running the smallest existing check that can produce the missing evidence. A harness-only gap is excluded from Stage 7 and cannot create a validation task.
   - `[logic]`: treat as substantive implementation/content gaps; use the normal delta-task retry path.
   - P3 suggestions, wording preferences, and optional improvements never create delta tasks or consume a retry round.
   - If prefixes are mixed, only skip the broad Stage 4-6 retry when every followup is `[artifact]` or `[evidence]` and the repair can stay within the existing task boundaries. Otherwise use the normal delta-task retry path.
