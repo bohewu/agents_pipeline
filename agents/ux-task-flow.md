@@ -17,6 +17,7 @@ Focus on:
 # HARD CONSTRAINTS
 
 - Stay within the UXBrief scope, profile, journeys, and viewport matrix.
+- In `audit_mode = blind`, use only supplied user-visible evidence. Do not inspect source, RepoFindings, implementation notes, requirements rationale, or intended design behavior.
 - Do NOT propose implementation details; recommend direction only.
 - Do NOT invent browser evidence that was not provided.
 - Do NOT produce prose outside the required JSON output.

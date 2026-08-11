@@ -226,7 +226,7 @@ The primary Codex entry points are formal skills installed globally under `~/.ag
 
 | Primary skill | Compatibility alias | Typical use |
 |---|---|---|
-| `$run-adaptive` | — | Flow-biased engineering router with route-independent presets and prompt-only preparation |
+| `$run-adaptive` | — | Flow-biased engineering router with route-independent presets, prompt-only preparation, and an optional terminal blind UX gate |
 | `$run-simple` | `use simple` | One small, clear delivery with minimal ceremony |
 | `$run-flow` | `use flow` | Daily engineering, at most five bounded tasks |
 | `$run-pipeline` | `use pipeline` | High-risk or multi-module work with reviewer/retry gates |
@@ -235,7 +235,7 @@ The primary Codex entry points are formal skills installed globally under `~/.ag
 | `$run-ci` | `use ci` | CI/CD planning and optional generation |
 | `$run-modernize` | `use modernize` | Modernization planning and bounded in-place Pipeline execution |
 | `$run-analysis` | `use analysis` | Post-hoc correctness/complexity/robustness analysis |
-| `$run-ux` | `use ux` | Profile-aware UX audit |
+| `$run-ux` | `use ux` | Profile-aware UX audit with optional blind score gate |
 | `$run-committee` | `use committee` | Multi-perspective decision support |
 
 Examples:
@@ -243,9 +243,11 @@ Examples:
 ```text
 $run-adaptive Fix the parser bug and add focused tests
 $run-adaptive Fix and locally finalize this task --preset=delivery
+$run-adaptive Implement checkout and run one final blind UX gate --ux-gate=90
 $run-adaptive Plan the next workflow without executing it --preset=autonomous --prompt=on
 $run-flow Fix the parser bug and add focused tests
 $run-pipeline 實作跨模組權限變更
+$run-ux Blind-test checkout --blind --gate=90 --journey=complete-purchase
 $run-committee Compare the two migration designs
 ```
 
@@ -263,6 +265,8 @@ Common controls include:
 - `--route=auto|simple|flow|pipeline`: Adaptive route selection; `auto` is Flow-biased.
 - `--preset=balanced|autonomous|careful|delivery|interactive`: Adaptive run policy; presets do not select the route.
 - `--prompt=off|on`: Adaptive prompt-only preparation. `on` performs read-only classification and emits a pinned `$run-adaptive --route=<selected>` prompt without execution or artifacts.
+- `--ux-gate=off|<1..100>`: optional `$run-adaptive` terminal blind UX audit after implementation, required product verification/review, cleanup, and terminal helpers complete. It runs once, treats incomplete primary browser evidence as `not_evaluable`, and reports failure reasons without automatically repairing or replaying the engineering workflow.
+- `$run-ux --audit-mode=blind|informed`, `--blind`, and `--gate=off|<1..100>`: isolate UX evaluators from source/implementation intent and optionally compare the final 0-100 score against a requested threshold. A gate needs complete primary browser-journey evidence; pass/fail is a UX review result, not release certification.
 - `--resume`: resume from a compatible checkpoint.
 - `--reasoning=inherit|shadow|adaptive`: child-spawn effort policy for Adaptive, Simple, Flow, and Pipeline. Fresh `$run-adaptive` execution defaults to `adaptive`; direct Simple/Flow/Pipeline entry points and the underlying policy default remain `inherit`. Explicit flags and persisted resume state win. `inherit` retains classification metadata but never applies a selector, so exact overrides and strict assurance conflict. `shadow` computes requested effort without applying it; strict assurance conflicts, while an ordinary shadowed review-max request remains unenforced until runtime evidence exists and conflicts if that evidence mismatches. `adaptive` requests the selector and verifies local Codex child traces before claiming the effective-effort contract was enforced. A matching child effort may still be observationally indistinguishable from parent inheritance when both values are equal; the helper reports that as `selector_evidence=matches_parent`, not selector causality. A non-strict, non-exact unavailable selector may be `degraded`; strict/exact requests conflict. Observed effort above the workspace ceiling conflicts in every mode; adaptive effort below dispatch also conflicts, while within-ceiling overprovisioning is explicitly degraded. See the central policy for capability rows and the deliberate deep compatibility exception.
 - `--capability-recovery=off|shadow|auto`: one task-scoped model-tier recovery for `executor` or `generalist` after the same material reasoning failure repeats without progress. Direct Simple/Flow/Pipeline default to `off`; fresh Adaptive `autonomous` and `delivery` default to `auto`, while the other presets default to `off`. The uplift is one tier step within the active profile ceiling, consumes an existing recovery opportunity, and requires native model/effort trace verification in `auto`. Operational failures never trigger it or consume repair budget.

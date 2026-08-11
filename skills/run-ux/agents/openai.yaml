@@ -1,6 +1,6 @@
 interface:
   display_name: "Run UX"
-  short_description: "Run a profile-aware product UX audit"
-  default_prompt: "Use $run-ux to audit this product experience."
+  short_description: "Run a scored UX audit with optional blind gate"
+  default_prompt: "Use $run-ux to audit this product experience, using --blind and --gate when a terminal score threshold is required."
 policy:
   allow_implicit_invocation: false

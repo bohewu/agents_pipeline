@@ -15,6 +15,20 @@ The workflow is designed to support:
 
 It is **not** the right fit for native desktop UI frameworks that do not expose browser tooling.
 
+## Blind Audit Isolation
+
+When the caller requests a blind audit or score gate, evaluate the product as a
+normal user from user-visible browser evidence only.
+
+- Source inspection may be used by the controller to locate a route, preview command,
+  or test account, but source code, RepoFindings, implementation notes, requirements
+  rationale, and intended design behavior must not be passed to UX evaluators.
+- Evaluators receive the declared journey/profile/viewports plus snapshots,
+  interactions, screenshots, and relevant console/network outcomes.
+- Do not use hidden implementation knowledge to explain away confusing behavior or to
+  infer an action a normal user could not discover.
+- If isolation cannot be preserved, label the audit informed rather than blind.
+
 ## Local Preview Boundaries
 
 When the audit target is a local preview or dev server, pair this workflow with an equivalent local-server lifecycle workflow before starting browser automation.
@@ -83,6 +97,10 @@ After the target URL is confirmed reachable, for each viewport in the selected p
    - screenshot if the issue is visual/layout related
 7. Summarize the viewport outcome before moving to the next viewport.
 
+For a requested score gate, complete every declared primary journey at every primary
+viewport. Missing browser capability, reachability, authentication, test data, or
+journey coverage makes the gate `not_evaluable`; a source-only score cannot pass it.
+
 ## Suggested Tool Flow
 
 When Chrome DevTools tools are available, a typical sequence once the target URL is reachable is:
@@ -127,3 +145,6 @@ If the runtime writes audit artifacts, a useful bundle layout is:
 - If the app cannot be opened, the journey cannot be executed, or browser tooling is unavailable, report the audit as evidence-limited.
 - Lower confidence instead of inventing coverage.
 - Recommend either rerunning with browser access or narrowing the audit to repo/screenshot evidence.
+- A failed or unevaluable score gate is terminal evidence. Report the score gap,
+  concrete reasons, and correction directions, but do not edit the product or rerun
+  until it passes.

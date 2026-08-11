@@ -10,6 +10,11 @@ Collect browser evidence for one bounded user journey. This is the evidence laye
 
 Do not use it as the primary workflow for native interfaces that cannot be exercised through a browser.
 
+For a blind audit, keep source code, RepoFindings, implementation intent, and design
+rationale out of the evaluator handoff. The controller may use them only to locate or
+start the target. A requested score gate requires complete browser coverage of every
+declared primary journey and primary viewport; otherwise report `not_evaluable`.
+
 ## Capability Preflight
 
 Before auditing:
@@ -96,5 +101,7 @@ Do not claim a console, network, accessibility, or responsive result that was no
 - Separate observed evidence from inference.
 - When navigation, authentication, test data, browser tooling, or a local preview blocks part of the journey, report reduced coverage and confidence.
 - Include cleanup evidence for resources started by this task.
+- Do not repair the product or repeat an audit to chase a requested score. Return the
+  observed evidence once; `$run-ux` owns the terminal gate decision.
 
 The repo-level protocol contains the durable audit contract: `../../protocols/UX_DEVTOOLS_WORKFLOW.md`.

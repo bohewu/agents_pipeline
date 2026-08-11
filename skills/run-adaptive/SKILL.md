@@ -47,6 +47,7 @@ Accepted policy overrides:
 - `--review=off|on|max`
 - `--reasoning=inherit|shadow|adaptive`
 - `--capability-recovery=off|shadow|auto`
+- `--ux-gate=off|<integer 1..100>`
 - `--handoff`
 - `--kanban=off|manual|auto`
 - `--output-dir=<path>`
@@ -120,6 +121,13 @@ fall back to the applicable default. This policy never changes route selection a
 never authorizes a main/orchestrator model change; it only controls the bounded
 child recovery defined in `protocols/CAPABILITY_RECOVERY.md`.
 
+Normalize `ux_gate_threshold` independently from route, preset, review, and reasoning.
+It defaults to null/off. `--ux-gate=off` disables it; a numeric value must be an
+integer from 1 through 100 or the invocation stops before execution. A numeric gate
+retains one terminal blind `$run-ux --gate=<value>` audit in the Adaptive controller
+and does not by itself raise the selected engineering route. Before execution, require
+the installed `orchestrator-ux.toml` definition when this gate is enabled.
+
 Precedence is deterministic:
 
 1. Selected workflow hard safety constraints.
@@ -136,6 +144,7 @@ corresponding preset value. Resolve autonomy versus interaction by provenance:
 - Explicit `--review=off` sets `review_mode = off` and `review_reasoning_effort = inherit`.
 - Explicit `--reasoning=*` replaces the selected workflow default without changing route selection.
 - Explicit `--capability-recovery=*` replaces the preset/default recovery mode without changing route selection.
+- Explicit `--ux-gate=*` replaces the terminal UX gate without changing route selection.
 - Explicit `--confirm` or `--verbose` clears preset-derived `autopilot_mode` and `full_auto_mode` before mapping.
 - Explicit `--autopilot` or `--full-auto` clears preset-derived `confirm_mode` and `verbose_mode`.
 - If autonomy and interaction controls are both explicit, autopilot/full-auto wins with one warning, matching the native workflow safety rule.
@@ -194,6 +203,11 @@ Current explicit `--capability-recovery=*` replaces persisted
 legacy checkpoint without that field uses `off` unless the current invocation
 explicitly supplies the flag. Persist the normalized mode before the next Flow or
 Pipeline spawn.
+Current explicit `--ux-gate=*` replaces persisted `ux_gate_threshold`; when omitted,
+the persisted value remains. A legacy checkpoint without that field uses null/off.
+Persist the normalized threshold with Flow/Pipeline effective flags before task
+execution. Simple keeps it only in the current Adaptive wrapper because Simple has no
+checkpoint.
 This needs no persisted field-level provenance. A legacy checkpoint without
 `preset_mode` is treated as a locked `balanced` run while retaining its persisted
 expanded flags.
@@ -206,10 +220,10 @@ expanded flags.
 - Select Flow by default for normal engineering work that fits at most five bounded tasks. A behavioral bug fix, any request that changes or adds tests, or work requiring implementation plus verification defaults to Flow even when localized.
 - Select Pipeline when the request is likely to need more than five tasks, crosses broad module or system boundaries, changes security-sensitive behavior or persistent-data migration/destructive behavior, needs multi-round repair or strong traceability, or otherwise cannot honestly satisfy Flow's fixed limits.
 
-Review, scout, kanban, commit, handoff, interaction, or autonomous policy does not by
-itself raise the route. Adaptive applies those concerns around a Simple core or through
-native Flow/Pipeline controls. `--resume` is the exception because it must select the
-persisted Flow or Pipeline workflow.
+Review, scout, kanban, commit, handoff, terminal UX gate, interaction, or autonomous policy does not by
+itself raise the route. Adaptive applies those concerns around the selected core.
+`--resume` is the exception because it must select the persisted Flow or Pipeline
+workflow.
 
 An explicit `--route=simple|flow|pipeline` pins the route. If the pinned workflow
 cannot safely complete the task, stop and report the required route rather than
@@ -240,24 +254,28 @@ Optional handoff output may use `output_dir`, but the Simple core still writes n
 checkpoint, status, task-list, or planning artifacts. Without an enabled helper that
 writes output, `output_dir` is retained as policy metadata but reported as not
 applicable rather than forcing a higher route.
+Strip `--ux-gate=*` before the Simple definition parses raw input; the Adaptive
+controller retains it for the terminal audit below.
 
 ### Flow
 
 Translate the normalized policy into Flow's native flags and remove `--preset` and
-`--route` before adoption. Flow supports the scout, commit, review (including `--review=max`), handoff, kanban,
+`--route` before adoption. Also strip `--ux-gate=*`; Adaptive retains the gate outside
+the Flow core. Flow supports the scout, commit, review (including `--review=max`), handoff, kanban,
 reasoning, output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
 Forward normalized `--capability-recovery=off|shadow|auto` and persist it with
-`preset_mode` beside the expanded effective flags in the Flow checkpoint.
+`preset_mode` and `ux_gate_threshold` beside the expanded effective flags in the Flow checkpoint.
 
 ### Pipeline
 
 Translate the normalized policy into Pipeline's native flags and remove `--preset`
-and `--route` before adoption. `review_mode = on` with inherited effort is redundant
+and `--route` before adoption. Also strip `--ux-gate=*`; Adaptive retains the gate
+outside the Pipeline core. `review_mode = on` with inherited effort is redundant
 because Pipeline review is mandatory; omit that flag and report the normalization.
 Preserve `--review=max` so Pipeline can enforce the reviewer-only spawn override.
-`review_mode = off` conflicts with Pipeline's hard gate, so stop rather than weaken review. Persist `preset_mode`
-and `capability_recovery_mode` beside the expanded effective flags in the Pipeline
-checkpoint.
+`review_mode = off` conflicts with Pipeline's hard gate, so stop rather than weaken review. Persist `preset_mode`,
+`capability_recovery_mode`, and `ux_gate_threshold` beside the expanded effective
+flags in the Pipeline checkpoint.
 
 ## Prompt-only mode
 
@@ -266,6 +284,7 @@ When `prompt_mode = on`, classify and normalize but do not execute:
 - Do not modify files or git state.
 - Do not dispatch subagents.
 - Do not run tests, reviewers, commit helpers, handoff helpers, or kanban helpers.
+- Do not run the terminal UX gate.
 - Do not create checkpoints, status files, or `.pipeline-output` artifacts.
 - A small amount of direct read-only repository inspection is allowed when needed to classify honestly.
 
@@ -294,6 +313,30 @@ When `prompt_mode = off`:
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
 4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent or dynamically route a model. The sole exception is a Flow/Pipeline child recovery that fully satisfies `protocols/CAPABILITY_RECOVERY.md`: on Codex only, its one recovery spawn may pass the profile-resolved raw model and must verify that model and effort by child trace before acceptance. Other runtime exports conflict rather than inventing model routing; shadow may only compute a proven tier policy without spawning. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
+
+## Terminal UX gate
+
+When `ux_gate_threshold` is non-null, treat the blind UX audit as the last requested
+quality todo for the Adaptive invocation:
+
+1. Run it only after the selected engineering workflow has completed the requested
+   implementation, focused automated tests, required integration/review, cleanup, and
+   requested terminal helpers. If the engineering workflow is blocked, partial, or
+   failed, skip the UX audit and report that it was not reached.
+2. Sequentially read and adopt the installed `orchestrator-ux` definition in the
+   current/main agent; do not spawn a primary orchestrator and do not nest workflows.
+   Invoke its behavior with the product target and declared journeys from the original
+   request plus `--audit-mode=blind --gate=<ux_gate_threshold>`.
+3. Require the UX workflow's complete primary browser-journey evidence. `fail` and
+   `not_evaluable` both mean the terminal UX gate did not pass. Report the overall
+   score, threshold, score gap, concrete reasons, and smallest recommended directions.
+4. Stop after this one audit. Do not edit the product, create a repair task, consume
+   repair/recovery budget, start Goal work, replay the engineering workflow, or rerun
+   UX until it passes. Passing audits may include non-blocking improvements without
+   turning them into remaining work.
+
+This score threshold is an ordinary deep UX review result, not release certification
+or ReasoningPolicy formal assurance.
 
 For `route_mode = auto`, materially underestimated work may promote once from Simple to
 Flow and once from Flow to Pipeline. Finish the current workflow honestly, retain

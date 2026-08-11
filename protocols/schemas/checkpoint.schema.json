@@ -118,6 +118,22 @@
           "enum": ["off", "shadow", "auto"],
           "default": "off"
         },
+        "ux_gate_threshold": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 100,
+          "default": null
+        },
+        "audit_mode": {
+          "type": "string",
+          "enum": ["blind", "informed"]
+        },
+        "gate_threshold": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 100,
+          "default": null
+        },
         "handoff_mode": { "type": "boolean", "default": false },
         "kanban_mode": {
           "type": "string",

@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ### Changed
 
+- Added one-shot blind UX score gates to `$run-ux` and an opt-in `$run-adaptive --ux-gate=<1..100>` terminal audit; incomplete primary browser coverage is `not_evaluable`, while failures report concrete reasons and recommendations without automatic repair or workflow replay.
 - Added validation-cost guardrails that separate product, harness, and operational failures; validation helpers now stay KISS, repeated harness/infrastructure failures stop after the second matching signature, and development checks cannot trigger fresh runs, recertification, or reasoning/model recovery.
 - Made final immutable certification explicitly opt-in after focused product and required integration checks pass, and made Goal mode opt-in for work inside this repository.
 
