@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.6] - 2026-08-11
+
 ### Changed
 
 - Added one-shot blind UX score gates to `$run-ux` and an opt-in `$run-adaptive --ux-gate=<1..100>` terminal audit; incomplete primary browser coverage is `not_evaluable`, while failures report concrete reasons and recommendations without automatic repair or workflow replay.
