@@ -180,7 +180,7 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 ## Profile and model-set inputs
 
 - `tools/agent-profiles/*.json` maps agent names to `mini`, `standard`, and `strong`, plus optional `recovery_ceiling_tiers` for `executor` and `generalist`.
-- `runtimes/codex/model-sets/*.json` maps tiers to Codex `model` and optional `model_provider` values.
+- `runtimes/codex/model-sets/*.json` maps tiers to Codex `model` values plus optional `model_provider` metadata describing the expected parent provider. Codex roles inherit that parent provider; the metadata is not emitted as a role override.
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
@@ -202,7 +202,7 @@ On Codex, the reasoning resolver still applies class-specific effort. Moving a f
 
 | Runtime | Generated model fields | Limits |
 |---|---|---|
-| Codex workspace | `model`, optional `model_provider` in role TOML | Workspace-only; no reasoning-effort fields |
+| Codex workspace | `model` in role TOML; optional provider metadata stays in the model set | Workspace-only; provider is parent-owned; no reasoning-effort fields |
 | Claude Code | `model` alias in agent frontmatter | `inherit`, `sonnet`, `opus`, or `haiku` |
 | Copilot | `model` scalar or prioritized list | Values must match the host model picker |
 

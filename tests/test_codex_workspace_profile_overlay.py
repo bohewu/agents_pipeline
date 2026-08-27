@@ -268,6 +268,8 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 self.assertEqual(config_file.parent.resolve(), expected_roles)
                 self.assertTrue(config_file.is_relative_to(workspace.resolve()))
                 self.assertFalse(config_file.is_relative_to(codex_home.resolve()))
+                role = tomllib.loads(config_file.read_text(encoding="utf-8"))
+                self.assertNotIn("model_provider", role)
         self.assertEqual(
             {path.name for path in expected_roles.glob("*.toml")},
             {f"{name}.toml" for name in agent_files},
@@ -337,7 +339,6 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                     self.assertEqual(role_config["name"], role_name)
                     self.assertTrue(role_config["description"])
                     self.assertEqual(role_config["model"], expected_model)
-                    self.assertEqual(role_config["model_provider"], "openai")
             self.assertEqual(status["managed_generated_count"], len(local_agent_files))
             self.assertEqual(
                 set(status["managed_generated_files"]),
@@ -610,7 +611,6 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             )
             peon = tomllib.loads(local_roles["peon"].read_text(encoding="utf-8"))
             self.assertEqual(peon["model"], "gpt-5.6-luna")
-            self.assertEqual(peon["model_provider"], "openai")
 
     def test_codex_status_and_workspace_preflight_require_capability_protocols(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

@@ -126,6 +126,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
             resolved = CODEX.resolve_runtime_model_settings(
                 ["executor"], args_for(profile_dir, model_set_dir), runtime="codex"
             )
+            self.assertEqual(resolved["executor"]["model_provider"], "openai")
             role_content = CODEX.build_role_config(
                 agent, "Do work.\n", resolved["executor"]
             )
@@ -136,7 +137,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
             )
 
             self.assertIn('description = "Execute one task."\nmodel = "gpt-5.6-sol"', role_content)
-            self.assertIn('model_provider = "openai"', role_content)
+            self.assertNotIn("model_provider", role_content)
             self.assertNotIn("reasoning", role_content)
             self.assertNotIn("model =", root_config)
             self.assertNotIn("model_provider", root_config)

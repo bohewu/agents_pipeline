@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.7] - 2026-08-27
+
+### Changed
+
+- Aligned Codex workspace role exports with Codex 0.149+ bounded role overrides: profiles still select child models and retain parent-provider compatibility metadata, but generated roles no longer claim a provider override that the runtime ignores.
+
 ## [0.35.6] - 2026-08-11
 
 ### Changed

@@ -74,13 +74,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.6"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.35.7"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.6" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.35.7" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -88,13 +88,13 @@ tag="v0.35.6" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.6"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.35.7"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.6" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.35.7" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -102,16 +102,16 @@ tag="v0.35.6" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.35.6"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.35.7"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.35.6" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.35.7" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.35.6` must release as `v0.35.6`.
+Release invariant: `VERSION=0.35.7` must release as `v0.35.7`.
 
 <!-- END current-release -->
 
@@ -255,7 +255,7 @@ The managed AGENTS note retains `use <mode>` and the documented Chinese leading 
 
 ## Workflow controls
 
-Workflow rigor remains risk-derived. Policy v2 classifies each child as `task_intent -> reasoning class -> selected model capability -> effort`; model/provider selection remains profile/runtime-owned.
+Workflow rigor remains risk-derived. Policy v2 classifies each child as `task_intent -> reasoning class -> selected model capability -> effort`; child-model selection remains profile-owned, while the Codex runtime keeps the provider inherited from the parent session.
 TaskList, FlowTaskList, DispatchPlan, and TaskStatus intent fields plus checkpoint reasoning-policy flags are backward-compatible extensions, not a protocol-version bump; the status runtime remains `PROTOCOL_VERSION = 1.0`. Policy/schema 2 / 2.0 applies to ReasoningPolicy, ReasoningDecision, and ReasoningObservation. Intent-less legacy records keep the v1 `cross_module -> deliberative` floor; current intent-bearing records use the v2 `cross_module -> deep` floor.
 Policy-v2 role/context objects are canonical managed snapshots. The resolver may use the default adaptive policy for an unlisted role in memory, but AgentStatus reasoning accepts only registered managed roles and binds `agent` to `reasoning.role`. Legacy TaskStatus provenance requires the class/signals pair it describes.
 Only `formal_accept_reject` may carry an assurance signal floor, and policy-v2 dispatch contexts are limited to `ad-hoc-review`, `pipeline-review`, and `formal-assurance`; ordinary signals and custom context labels cannot create certification semantics.

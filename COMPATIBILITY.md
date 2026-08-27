@@ -52,7 +52,7 @@ For the default global Codex target (`~/.codex`), the installer publishes 16 man
 
 The support-tree update is rollback-capable and uses atomic renames for its individual moves; every installer-managed file is written with an atomic same-directory replacement. The two-move tree update and complete multi-file install are not single filesystem transactions, so an interruption can temporarily leave a backup or mixed generated versions; rerunning the same installer is the supported idempotent recovery path.
 
-Global Codex roles never contain generated model or provider overrides; they inherit model and reasoning selection from the parent Codex session. Codex model profiles are workspace-only, and workflow flags do not emulate Codex reasoning controls.
+Global Codex roles never contain generated model or provider overrides; they inherit model and reasoning selection from the parent Codex session. Workspace profiles may select the child model, but Codex 0.149+ keeps the provider and endpoints parent-owned. Codex model profiles are workspace-only, and workflow flags do not emulate Codex reasoning controls.
 
 ## Runtime profile-manager compatibility
 

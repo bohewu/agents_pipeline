@@ -225,8 +225,9 @@ qualifies an existing retry.
 Direct Simple, Flow, and Pipeline use `off` by default. Adaptive `delivery` and
 `autonomous` use `auto`; other presets use `off`. `shadow` computes the same
 decision without dispatch. The policy is deterministic, chooses only one
-profile-approved tier step, leaves raw model/provider mapping to the workspace
-profile, and fails closed when selector or trace evidence is missing.
+profile-approved tier step, leaves raw model mapping to the workspace profile
+and provider ownership to the parent Codex session, and fails closed when
+selector or trace evidence is missing.
 
 This is recovery, not general optimization: it cannot pre-route an ordinary
 task to a different model, recursively promote, lower cost by downgrade, or

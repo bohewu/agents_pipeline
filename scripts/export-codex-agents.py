@@ -699,10 +699,11 @@ def build_role_config(
             raise ValueError(
                 f"{agent.name}: Codex model setting must be an object with 'model' and optional 'model_provider'"
             )
-        for key in ("model", "model_provider"):
-            value = model_setting.get(key)
-            if value is not None:
-                lines.append(f"{key} = {toml_quote(value)}")
+        model = model_setting.get("model")
+        if model is not None:
+            lines.append(f"model = {toml_quote(model)}")
+        # Codex 0.149+ keeps the provider parent-owned even when a role selects a model.
+        # Preserve model_provider in model-set metadata, but never serialize it as a role override.
     lines.append(f"developer_instructions = {toml_multiline_string(body)}")
     lines.append("")
     return "\n".join(lines)
