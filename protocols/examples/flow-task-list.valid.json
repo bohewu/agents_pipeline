@@ -23,30 +23,12 @@
         "Validation handles the approved edge case.",
         "Evidence includes the changed path and verification command."
       ],
-      "atomic": true
-    },
-    {
-      "id": "f2",
-      "summary": "Write the follow-up handoff note",
-      "description": "Capture the remaining callback verification work in a human-readable artifact.",
-      "primary_output": "analysis",
-      "assigned_agent": "doc-writer",
-      "risk": "low",
-      "task_intent": "inspect",
-      "intent_baseline_class": "routine",
-      "classification_source": "task_intent",
-      "reasoning_class": "routine",
-      "reasoning_signals": [
-        "fully_specified"
+      "trace_ids": [
+        "ac-login-edge-case"
       ],
-      "verification": "none",
-      "review_required": false,
-      "repair_budget": 0,
-      "resource_class": "light",
-      "definition_of_done": [
-        "Artifact references the canonical run-local output paths.",
-        "Next-step guidance is explicit and in scope."
-      ],
+      "validation_infrastructure": {
+        "authorized": false
+      },
       "atomic": true
     }
   ]

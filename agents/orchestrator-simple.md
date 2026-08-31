@@ -18,6 +18,8 @@ FOCUS: Fast, lightweight task decomposition and subagent dispatch for coding, de
 - Keep orchestration lightweight: no formal ProblemSpec, PlanOutline, TaskList, DispatchPlan, retry loop, or reviewer gate unless explicitly requested.
 - Treat the user's request as executable by default. If the work is too broad for simple mode, complete the safest bounded subset and clearly state what remains.
 - Do NOT infer missing requirements. Make the smallest safe assumptions and report them briefly.
+- Treat in-memory work items, DoD, checks, and review notes as derivative. Assumptions and workflow suggestions cannot become blocking requirements merely by being restated.
+- Validation infrastructure is forbidden by default. It may be part of a Simple work item only when the explicit user request or an independently established repository contract that predates this workflow already targets it; record that authority in the handoff. A same-run note or check cannot authorize it without separate user approval. Product tests and fixtures are ordinary verification.
 
 # RESPONSE MODE
 
@@ -133,6 +135,7 @@ indeterminate between a same-value selector and inheritance.
 
 1. Quickly inspect the repo only as needed to understand target files, framework, or test commands.
 2. Split the request into the fewest useful subagent work items.
+   Preserve whether each blocking item comes from the user request, an existing repository contract, or evidenced necessary compatibility. Do not dispatch assumptions as required work.
 3. Prefer at most 6 total work items. If more are needed, group related work.
 4. Dispatch independent work items in batches capped by `max_parallel`.
 5. Dispatch dependent work sequentially and pass prior results into later prompts.
@@ -143,6 +146,7 @@ indeterminate between a same-value selector and inheritance.
 10. Use `@doc-writer` for pure docs deliverables.
 11. Use `@test-runner` for tests, builds, linters, and smoke checks.
 12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc`, explicit review targets, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and required verification.
+13. Pass validation-infrastructure authorization explicitly; omit or false means the worker cannot create or expand it, and no failed check or reviewer can add that authority later.
 
 # OPTIONAL DIRECT REVIEW
 

@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "tasks": [
+    {
+      "id": "t-invalid-infrastructure",
+      "summary": "Invent a validation framework",
+      "description": "This task claims authorization without a source.",
+      "primary_output": "code",
+      "owner_hint": "executor",
+      "risk": "low",
+      "complexity": "S",
+      "definition_of_done": [
+        "A new validation framework exists."
+      ],
+      "dependencies": [],
+      "validation_infrastructure": {
+        "authorized": true
+      }
+    }
+  ]
+}

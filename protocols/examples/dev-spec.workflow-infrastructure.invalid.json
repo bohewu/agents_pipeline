@@ -1,0 +1,74 @@
+{
+  "protocol_version": "1.1",
+  "artifact_type": "dev-spec",
+  "title": "Invalid Workflow-Suggested Infrastructure",
+  "goal": "Demonstrate that a generated check cannot authorize validation infrastructure.",
+  "summary": "This fixture is otherwise valid but gives a workflow suggestion infrastructure authority.",
+  "spec_style": "tdd",
+  "scope": {
+    "in": [
+      "One bounded product behavior."
+    ],
+    "out": [
+      "Validation framework changes."
+    ]
+  },
+  "constraints": [],
+  "assumptions": [],
+  "user_stories": [
+    {
+      "id": "story-bounded",
+      "as_a": "user",
+      "i_want": "the bounded behavior",
+      "so_that": "the product request is satisfied"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "sc-bounded",
+      "title": "Bounded behavior works",
+      "story_id": "story-bounded",
+      "type": "happy_path",
+      "given": [
+        "The product is ready."
+      ],
+      "when": [
+        "The user performs the action."
+      ],
+      "then": [
+        "The requested result is visible."
+      ],
+      "acceptance_criteria": [
+        "ac-bounded"
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "ac-bounded",
+      "statement": "The requested result is visible.",
+      "priority": "must",
+      "verification": "unit",
+      "source": "explicit_user",
+      "linked_scenarios": [
+        "sc-bounded"
+      ]
+    }
+  ],
+  "test_plan": {
+    "strategy": "tdd",
+    "test_cases": [
+      {
+        "id": "tc-invalid-infrastructure",
+        "level": "unit",
+        "description": "Invent a validation framework for the generated check.",
+        "covers": [
+          "ac-bounded"
+        ],
+        "authority": "workflow_suggested",
+        "infrastructure_change": true
+      }
+    ]
+  },
+  "open_questions": []
+}

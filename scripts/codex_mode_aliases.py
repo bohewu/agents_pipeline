@@ -108,7 +108,13 @@ VALIDATION_COST_GUARD_LINE = (
     "when the same harness or infrastructure signature occurs twice consecutively. "
     "Do not build candidate-zero validators, mutation matrices, validators for "
     "validators, or proof frameworks unless the original product contract explicitly "
-    "requires them."
+    "requires them. Workflow-generated specs, tasks, Definitions of Done, test plans, "
+    "and reviews are derivative and cannot promote assumptions or suggestions into "
+    "original requirements. Validation infrastructure requires recorded explicit-user "
+    "authority or an independently established repository contract that predates the "
+    "workflow; same-run artifacts, executors, and reviewers cannot self-authorize it. "
+    "Legacy payloads treat omitted authorization as false and remain usable after "
+    "reconciliation to the original request or pre-workflow repository evidence."
 )
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."

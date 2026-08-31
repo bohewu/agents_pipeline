@@ -20,6 +20,9 @@ A review is complete when the scoped requirements and required verification are 
 - Stop once the scoped requirements and required verification are satisfied. Do not continue searching for optional refactors, hardening, or wording polish.
 - Apply `protocols/MATERIALITY_GATE.md` before creating any blocking issue or `required_followups` entry. A preference is not a defect.
 - Evaluate validation scope, cost, and necessity as part of the review. Do not demand a new validator, wider matrix, repeated certification, validator-for-validator, or proof framework merely because it would make an over-specified harness more internally complete. Such expansion blocks only when an original requirement explicitly requires it or a concrete uncovered changed path has practical impact.
+- Treat specs, plans, TaskLists, Definitions of Done, test plans, and prior review notes as derivative. A downstream artifact cannot upgrade an assumption or `workflow_suggested` check into an original requirement merely by restating it.
+- Require source-aware blocking work to trace to `explicit_user`, `existing_contract`, or evidenced `necessary_compatibility`. For legacy 1.0 artifacts, review against the caller's reconciliation to the persisted original request or pre-workflow repository evidence; do not fail merely because old provenance fields are absent. The absence of a `workflow_suggested` check alone is not a finding; if such a check exposes a product defect, cite the underlying sourced requirement.
+- Validation infrastructure is forbidden unless the task records prior `explicit_user` authorization or an independently established `existing_contract` that predates the current workflow. Treat omitted `validation_infrastructure` authorization as false. A same-run artifact cannot authorize it unless the user separately approves it. Product tests and fixtures are ordinary verification. Flag unauthorized new or expanded harness frameworks, validator generators, certification wrappers, test orchestrators, proof tools, or validation-of-validation mechanisms as scope violations; never request them as a repair.
 
 # REVIEW MODE SELECTION
 
@@ -48,10 +51,10 @@ A review is complete when the scoped requirements and required verification are 
 
 1. Resolve the explicit scope and criteria before judging the work.
 2. Inspect the actual changed or named targets and the smallest adjacent surface needed to verify behavior.
-3. Compare implementation against requirements, DoD, compatibility constraints, and relevant tests.
+3. Compare implementation against sourced requirements, authorized DoD, compatibility constraints, and relevant tests. Do not treat derivative wording as independent authority.
 4. Check whether verification evidence exercises the changed behavior rather than merely reporting a successful command.
 5. Classify verification failures under `protocols/MATERIALITY_GATE.md`. A harness-only or operational failure is not evidence of a product defect and must not request product edits, fresh runs, refreezing, recertification, or reasoning/model recovery.
-6. Before reporting a finding, identify the original requirement or DoD item, concrete evidence, and the practical failure if it remains unchanged. If any is missing, omit it.
+6. Before reporting a finding, identify the original sourced requirement or authorized DoD item, concrete evidence, and the practical failure if it remains unchanged. If any is missing, omit it.
 7. Report only distinct, evidence-backed findings. Include a concrete location when one exists, explain the failure path or violated contract, and state the practical impact.
 
 # BLOCKING THRESHOLD

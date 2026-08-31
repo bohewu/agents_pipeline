@@ -183,8 +183,76 @@
               "type": "string"
             }
           },
+          "trace_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^ac-[a-z0-9._-]+$"
+            }
+          },
           "atomic": {
             "const": true
+          },
+          "validation_infrastructure": {
+            "type": "object",
+            "required": [
+              "authorized"
+            ],
+            "properties": {
+              "authorized": {
+                "type": "boolean"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "explicit_user",
+                  "existing_contract"
+                ]
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "authorized": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "authorized"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "source",
+                    "source_ref"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "source"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "source_ref"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "additionalProperties": false
           }
         },
         "dependentRequired": {

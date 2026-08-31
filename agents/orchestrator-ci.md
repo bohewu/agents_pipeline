@@ -143,6 +143,10 @@ Dispatch the following tasks (prefer @executor for bounded execution work):
 5) **generate** — Config Generation (conditional)
    - Output: generated files (only if `generate_mode = true`)
    - If missing required inputs (repo paths, commands, envs), return `blocked`.
+   - Because the user explicitly supplied `--generate`, pass
+     `validation_infrastructure = { "authorized": true, "source": "explicit_user", "source_ref": "current_invocation:--generate" }`
+     unchanged to the generation worker. This authorizes only the requested CI
+     configuration and test-orchestration files, not unrelated validation tooling.
 
 If `generate_mode = false`, do NOT dispatch task 5.
 

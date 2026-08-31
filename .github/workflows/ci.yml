@@ -147,12 +147,14 @@ jobs:
               ("codex-child-trace.schema.json", "codex-child-trace.causal-overclaim.invalid.json"),
               ("codex-child-trace.schema.json", "codex-child-trace.known-efforts-null-comparison.invalid.json"),
               ("dev-spec.schema.json", "dev-spec.invalid.json"),
+              ("dev-spec.schema.json", "dev-spec.workflow-infrastructure.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.resource.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.browser-unsafe.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.process-unsafe.invalid.json"),
               ("dispatch-plan.schema.json", "dispatch-plan.server-no-teardown.invalid.json"),
               ("flow-task-list.schema.json", "flow-task-list.high-risk-weak-controls.invalid.json"),
               ("flow-task-list.schema.json", "flow-task-list.excessive-repair.invalid.json"),
+              ("flow-task-list.schema.json", "flow-task-list.validation-infrastructure.invalid.json"),
               ("modernize-exec-handoff.schema.json", "modernize-exec-handoff.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.alias.invalid.json"),
               ("reasoning-decision.schema.json", "reasoning-decision.deep-mini-minimum-forged.invalid.json"),
@@ -182,6 +184,8 @@ jobs:
               ("task-list.schema.json", "task-list.intent-baseline.invalid.json"),
               ("task-list.schema.json", "task-list.intent-unsupported.invalid.json"),
               ("task-list.schema.json", "task-list.trace.invalid.json"),
+              ("task-list.schema.json", "task-list.validation-infrastructure.invalid.json"),
+              ("problem-spec.schema.json", "problem-spec.authority.invalid.json"),
           ]
           for schema, fixture in positive:
               subprocess.run(tool + ["--schema", f"protocols/schemas/{schema}", "--input", f"protocols/examples/{fixture}"], check=True)

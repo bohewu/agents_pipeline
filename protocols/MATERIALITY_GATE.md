@@ -44,6 +44,49 @@ Operational failures such as timeout, permission, network, dependency, browser,
 CLI, or tool errors use their own operational handling. They are not evidence
 for reasoning or model capability recovery.
 
+## Requirement authority
+
+Workflow artifacts are derivative contracts, not independent sources of scope.
+A `ProblemSpec`, `DevSpec`, plan, TaskList, Definition of Done, test plan, or
+review finding must preserve where each blocking requirement came from; merely
+restating an item downstream does not increase its authority.
+
+Use these requirement sources:
+
+- `explicit_user`: directly requested by the user;
+- `existing_contract`: required by an independently established repository,
+  API, schema, CI, or compatibility contract that existed before the current
+  workflow invocation, with a concrete source reference;
+- `necessary_compatibility`: the smallest behavior needed to preserve a proven
+  existing consumer or invariant, with concrete evidence;
+- `assumption`: an explicitly labeled interpretation used to continue safely.
+
+Only the first three may seed a blocking acceptance criterion or implementation
+task. An assumption stays advisory until the user approves it or repository
+evidence upgrades it to an existing or necessary compatibility contract. A
+workflow-generated acceptance criterion, Definition of Done item, or test plan
+cannot turn an assumption, preference, or suggested check into an original
+requirement.
+
+A file or artifact created earlier in the same workflow is still derivative and
+does not become an `existing_contract` merely because it now exists. It may gain
+authority only through separate user approval; record that approval as
+`explicit_user`, not `existing_contract`.
+
+Legacy 1.0 artifacts remain valid when source or validation-infrastructure fields
+are absent. Before handoff, the orchestrator reconciles their blocking criteria
+against the persisted original user request or concrete repository evidence that
+predates the current workflow, without requiring the old artifact to acquire 1.1
+fields. Treat an omitted `validation_infrastructure` value as
+`{ "authorized": false }`; field absence alone is not a handoff conflict.
+
+For validation plans, use `user_required`, `repository_required`, or
+`workflow_suggested`. A `workflow_suggested` check may provide useful evidence,
+but its absence alone cannot block completion, authorize broader verification,
+or create a validation-infrastructure task. If it exposes a real product defect,
+the defect is material because of the underlying sourced requirement, not
+because the workflow suggested the check.
+
 ## Validation cost guardrails
 
 Validation supports the requested product change; it is not a second product or
@@ -70,10 +113,20 @@ opening another repair or continuation round. A harness-only failure after produ
 tests pass does not reopen the product unless concrete evidence proves a product
 defect.
 
-Create or expand validation tooling only when the original product contract
-explicitly requires that tooling or a concrete uncovered changed behavior cannot
-be verified with an existing command or a direct focused test. Keep it single
-purpose and use the existing project pattern. Do not build candidate-zero
+Product tests and fixtures that directly exercise changed behavior are ordinary
+product verification. Validation infrastructure means harness frameworks,
+validator generators, certification wrappers, test-run orchestrators, proof
+machinery, or tooling whose primary subject is the verification system itself.
+A file's name does not decide the category: when the original request or an
+existing product contract explicitly targets a validator, that validator is the
+product surface for that task.
+
+Create or expand validation infrastructure only when an `explicit_user` or
+`existing_contract` requirement authorizes it and existing commands or a direct
+focused product test cannot satisfy that requirement. The orchestrator must
+record that authorization before dispatch; a same-run artifact, executor, failed
+harness, reviewer, or generated test plan cannot self-authorize it. Keep any
+authorized change single purpose and use the existing project pattern. Do not build candidate-zero
 validators, mutation matrices, validators for validators, new proof frameworks,
 or OS/process proof machinery. Bounded cleanup evidence for a process, server, or
 browser actually started by the task remains required.
@@ -87,7 +140,7 @@ and practical product risk; it must not grow merely to prove the harness itself.
 
 ## Admission decision
 
-Before admitting followup work, answer all three questions:
+Before admitting followup work, answer all four questions:
 
 1. Which original goal condition or explicit acceptance criterion remains
    unmet?

@@ -163,6 +163,10 @@ re-entering `$run-adaptive` from the beginning.
 Harness-only and operational failures are not automatic Goal continuation or workflow
 promotion reasons. Handle them only within `protocols/MATERIALITY_GATE.md`; the same
 harness or infrastructure signature twice consecutively stops the run.
+Generated specs, tasks, DoD, test plans, and reviewer findings are derivative and
+cannot promote assumptions or `workflow_suggested` validation into original scope.
+Validation infrastructure requires prior explicit-user or existing-repository-contract
+authority on every route; route promotion, retry, recovery, or review cannot add it.
 
 When explicit or automatic `--resume` is effective, inspect checkpoints read-only
 before route selection. If

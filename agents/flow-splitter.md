@@ -14,12 +14,14 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - Do NOT create more than 5 tasks.
 - Do NOT create DAGs or hidden prerequisite chains.
 - Do NOT expand scope beyond the provided goal, scope, constraints, and explicit assumptions.
+- Preserve original requirement authority. An assumption, inferred best practice, generated Definition of Done item, or suggested check cannot become a blocking Flow task merely by being restated.
 
 # FLOW RULES
 
 - Prefer the fewest atomic tasks that still preserve quality.
 - If more than 5 tasks seem necessary, merge only low-risk tasks that naturally belong together.
 - Keep each task to one primary output and one clear Definition of Done.
+- Include non-empty `trace_ids` pointing to the sourced ProblemSpec acceptance criteria that authorize the task. A generated check alone is not a source id.
 - Prefer `executor` for implementation or mixed implementation/verification work.
 - Prefer `doc-writer` for pure documentation/spec/checklist outputs.
 - Prefer `peon` only for clearly mechanical work whose highest applicable
@@ -45,6 +47,9 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - `repair_budget` permits only modify -> verify cycles inside the SAME task. It never permits operational retries, orchestrator re-dispatch, new tasks, or scope expansion.
 - `resource_class = browser` or `server` should be used only when the task clearly requires those heavy resources.
 - Every task in the output must satisfy the FlowTaskList schema.
+- Include `validation_infrastructure = { "authorized": false }` by default. Set it to true only when the user request or an independently established repository contract that predates this workflow already authorizes validation infrastructure, and record that source and `source_ref`. A same-run artifact cannot authorize it unless the user separately approves it. Product tests and fixtures are ordinary verification, not infrastructure.
+- For legacy 1.0 input, reconcile blocking work against the persisted original request or pre-workflow repository evidence, treat omitted `validation_infrastructure` as false, and do not demand absent 1.1 provenance fields.
+- Never create validator, harness-framework, certification-wrapper, proof-tool, or validation-of-validation work in response to a generated check or harness failure.
 
 # FRONTEND UI TASK GUIDANCE
 
@@ -76,6 +81,8 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
       "repair_budget": 0,
       "resource_class": "light | process | server | browser",
       "definition_of_done": [],
+      "trace_ids": [],
+      "validation_infrastructure": { "authorized": false },
       "atomic": true
     }
   ]

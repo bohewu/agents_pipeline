@@ -86,6 +86,10 @@ These gates define minimal acceptance for each stage output.
 ## Materiality Gate
 
 - Before repair, reviewer followup, capability recovery, or Goal continuation, apply `./protocols/MATERIALITY_GATE.md`.
+- Workflow artifacts are derivative: a ProblemSpec, DevSpec, TaskList, Definition of Done, test plan, or review finding cannot upgrade an assumption or workflow suggestion into an original blocking requirement merely by restating it.
+- Blocking work must preserve an `explicit_user`, `existing_contract`, or evidenced `necessary_compatibility` source. Assumptions remain advisory.
+- `workflow_suggested` validation may supply evidence but cannot block by absence or authorize validation-infrastructure work. Product tests and fixtures remain ordinary verification; harness frameworks, validator generators, certification wrappers, and proof machinery are validation infrastructure.
+- Validation infrastructure is forbidden by default and must be authorized before dispatch by an `explicit_user` source or an independently established `existing_contract` that predates the workflow. Same-run artifacts, executors, and reviewers cannot self-authorize it after a check fails. Legacy 1.0 payloads normalize omitted authorization to false and are reconciled against the original request or pre-workflow repository evidence without requiring new fields.
 - Required work must identify the unmet original goal condition or explicit criterion, concrete evidence, practical impact, and the smallest change or verification step that closes the gap. A failed review alone does not authorize edits.
 - P3 findings, wording/style preferences, optional refactors, speculative unreachable cases, unmeasured performance ideas, and extra tests without a concrete gap never consume repair/retry/recovery budget.
 - New dependencies, abstractions, schemas, services, migrations, broad refactors, and wider test matrices require evidence that no smaller implementation or targeted verification can satisfy the original requirement safely.

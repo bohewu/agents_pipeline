@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.8] - 2026-09-01
+
+### Changed
+
+- Added source-aware ProblemSpec/DevSpec 1.1 contracts and derivative-authority rules so generated assumptions, DoD items, test plans, and review notes cannot become blocking product scope merely by being restated. Independently established contracts must predate the workflow; same-run artifacts need separate user approval.
+- Made validation infrastructure opt-in at TaskList/FlowTaskList dispatch boundaries. Product tests and fixtures remain normal verification, while new harness frameworks, validator generators, certification wrappers, test orchestrators, and proof machinery require prior user or pre-workflow repository-contract authorization. Legacy 1.0 payloads remain valid, normalize omitted authorization to false, and are reconciled without demanding new fields.
+- Made `$run-ci --generate` carry bounded explicit-user authorization for the requested CI configuration and test-orchestration files without authorizing unrelated validation tooling.
+
 ## [0.35.7] - 2026-08-27
 
 ### Changed

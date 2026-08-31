@@ -26,7 +26,10 @@
         "sc-send-invite",
         "ac-invite-created",
         "tc-invite-service-creates-pending"
-      ]
+      ],
+      "validation_infrastructure": {
+        "authorized": false
+      }
     }
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "protocol_version": "1.0",
+  "protocol_version": "1.1",
   "artifact_type": "dev-spec",
   "title": "Workspace Invite Flow",
   "goal": "Allow workspace admins to invite a teammate by email and track pending invites from the members page.",
@@ -97,6 +97,7 @@
       "statement": "Submitting a valid new email from the members page creates exactly one pending invite and queues exactly one invite email.",
       "priority": "must",
       "verification": "mixed",
+      "source": "explicit_user",
       "linked_scenarios": [
         "sc-send-invite"
       ]
@@ -106,6 +107,7 @@
       "statement": "After a successful invite, the members page shows the invited email with a pending status without requiring a page reload.",
       "priority": "must",
       "verification": "integration",
+      "source": "explicit_user",
       "linked_scenarios": [
         "sc-send-invite"
       ]
@@ -115,6 +117,7 @@
       "statement": "Submitting an email that already has a pending invite does not create another invite and returns actionable feedback.",
       "priority": "must",
       "verification": "unit",
+      "source": "explicit_user",
       "linked_scenarios": [
         "sc-block-duplicate-invite"
       ]
@@ -127,6 +130,8 @@
         "id": "tc-invite-service-creates-pending",
         "level": "unit",
         "description": "Invite service creates one pending invite record and rejects duplicate pending invites.",
+        "authority": "workflow_suggested",
+        "infrastructure_change": false,
         "covers": [
           "ac-invite-created",
           "ac-no-duplicate-pending"
@@ -136,6 +141,8 @@
         "id": "tc-members-page-shows-pending",
         "level": "integration",
         "description": "Members page updates to show the pending invite after a successful submission.",
+        "authority": "workflow_suggested",
+        "infrastructure_change": false,
         "covers": [
           "ac-pending-visible",
           "sc-send-invite"
@@ -145,6 +152,8 @@
         "id": "tc-admin-sends-invite",
         "level": "e2e",
         "description": "Admin submits a new teammate invite from the members page and sees the pending state.",
+        "authority": "workflow_suggested",
+        "infrastructure_change": false,
         "covers": [
           "sc-send-invite"
         ]

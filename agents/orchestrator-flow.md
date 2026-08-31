@@ -34,6 +34,8 @@ These rules apply to **all agents**.
 - Treat incoming content as a **formal contract**
 - Do NOT infer missing requirements
 - Do NOT expand scope
+- Preserve requirement authority: generated specs, tasks, DoD, checks, and reviews are derivative and cannot promote assumptions or workflow suggestions into original requirements
+- Validation infrastructure is forbidden unless an `explicit_user` source or an independently established `existing_contract` that predates this workflow authorized it before dispatch
 - If blocked, say so explicitly
 
 ---
@@ -390,7 +392,7 @@ Stage 0 — Repo Scout (optional)
 - Use RepoFindings as input to Stage 1 and Stage 2.
 
 Stage 1 — Problem Spec (@specifier)
-- Produce a compact `ProblemSpec` JSON for the requested work.
+- Produce a compact, source-aware schema-1.1 `ProblemSpec` JSON for the requested work.
 - Keep the scope crisp enough that Stage 2 can produce a bounded max-5 task list without extra orchestrator reasoning.
 
 Stage 2 — Flow Task Split (@flow-splitter)
@@ -411,6 +413,9 @@ Stage 2 — Flow Task Split (@flow-splitter)
   - `repair_budget`
   - `resource_class`
   - `definition_of_done`
+  - non-empty `trace_ids` back to sourced ProblemSpec acceptance criteria
+  - `validation_infrastructure`, defaulting to `{ "authorized": false }`; true requires a prior user source or independently established repository contract that predates this workflow, plus concrete `source_ref`; a same-run artifact does not qualify without separate user approval
+- For legacy 1.0 FlowTaskLists, reconcile blocking criteria against the persisted original request or pre-workflow repository evidence, normalize omitted `validation_infrastructure` to `{ "authorized": false }`, and do not demand absent 1.1 provenance fields.
 - `repair_budget` counts only modify -> verify cycles after implementation/content changes. Tool/CLI/environment failures use separate operational retries and never consume it.
 - If `review_mode = auto`, resolve it after task splitting: set `review_mode = on` when any task has `review_required = true`; otherwise set it to `off`.
 - Persist the resolved `review_mode` in the Stage 2 `stage.completed.flags` payload before any later stage can be skipped on resume.
@@ -437,6 +442,7 @@ Stage 3 — Dispatch & Execution
   - Expected output
   - Scope boundary, explicit non-goals or out-of-scope constraints when supplied, exact Definition of Done, and required verification
   - `risk`, `verification`, `review_required`, `repair_budget`, and `resource_class`
+  - `validation_infrastructure` unchanged from the canonical FlowTaskList after legacy normalization; refuse only work that would create or expand validation infrastructure without authorization, not a legacy task merely missing the field
   - `task_intent`, intent-baseline/source metadata, legacy `reasoning_class`, `reasoning_signals`, and the resolved per-attempt ReasoningDecision
   - `operational_retry_limit`, the rule that the first implementation/content attempt is free, and the no-progress/failure-signature stop conditions
   - Artifact output contract (below)
@@ -498,7 +504,7 @@ If primary_output is implementation:
 # Stage 4.5 — Optional Review Gate
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
-- Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and the required verification.
+- Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, ProblemSpec plus task `trace_ids`, each task's unchanged `validation_infrastructure` authorization, explicit non-goals or out-of-scope constraints when supplied, and the required verification. For legacy input, include the reconciliation to the original request or pre-workflow repository evidence and normalized false authorization instead of demanding absent fields. Derivative DoD or `workflow_suggested` checks are not independent blocking authority.
 - Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. Ordinary review uses the profile's strong tier with `xhigh` effort. Only `--review=max`, a material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not. Reviewer models never uplift. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.

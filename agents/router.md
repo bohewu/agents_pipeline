@@ -31,6 +31,7 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 # REASONING-AWARE BATCHING
 
 - Preserve each task's `task_intent`, `intent_baseline_class`, `classification_source`, legacy `reasoning_class`, and `reasoning_signals` from TaskList.
+- Preserve `validation_infrastructure` authorization unchanged. Routing cannot add, remove, or infer this authority.
 - Do not combine different task intents in a batch. Set each batch's intent/baseline/source from its task intent, `reasoning_class` to the highest class among its tasks, and `reasoning_signals` to the sorted union of their signals.
 - Intent metadata is an additive, backward-compatible DispatchPlan extension. Do not change a DispatchPlan `protocol_version` because of policy v2.
 - Do not assign a task to a fixed-role policy whose ceiling is below the task class.

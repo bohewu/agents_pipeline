@@ -7,6 +7,9 @@ All JSON outputs MUST conform to the schemas in `./protocols/schemas/` (relative
 
 - Handoff content is a formal contract. Do not infer missing requirements.
 - Scope must not expand beyond the ProblemSpec and Acceptance Criteria.
+- ProblemSpec/DevSpec 1.1 acceptance criteria preserve `explicit_user`, `existing_contract`, or evidenced `necessary_compatibility` authority. Assumptions remain advisory.
+- Plans, TaskLists, Definitions of Done, generated test plans, and review findings are derivative; restating an item cannot increase its authority.
+- Validation infrastructure is forbidden by default. TaskList/FlowTaskList may authorize it only from a prior explicit user source or an independently established repository contract that predates the workflow; same-run artifacts, execution, and review cannot add that authority without separate user approval. Legacy 1.0 payloads remain valid: omitted authorization normalizes to false and the orchestrator reconciles missing provenance against the original request or pre-workflow repository evidence.
 - Evidence is required for implementation tasks unless explicitly skipped by flags.
 - TaskList is the single source of truth for execution scope.
 - Executors must not perform work outside their assigned task.
@@ -84,7 +87,7 @@ Input: `ProblemSpec`, original user task prompt, and any approved clarifications
 Output: `DevSpec` JSON and optional human-readable Markdown artifact
 Schema: `./protocols/schemas/dev-spec.schema.json`
 
-Use this optional contract when the workflow needs a human-readable development spec that still remains structured enough for planning, atomic task generation, and test traceability. The `DevSpec` should preserve the original scope while adding stable ids for stories, scenarios, acceptance criteria, and planned verification.
+Use this optional contract when the workflow needs a human-readable development spec that still remains structured enough for planning, atomic task generation, and test traceability. New output uses schema 1.1: the `DevSpec` preserves acceptance-criterion sources, labels each planned check as `user_required`, `repository_required`, or `workflow_suggested`, and distinguishes product verification from validation-infrastructure changes. Legacy 1.0 payloads remain valid.
 
 Canonical pipeline paths when this stage is used:
 
@@ -111,7 +114,7 @@ Input: PlanOutline, optional RepoFindings, optional DevSpec
 Output: `TaskList` JSON
 Schema: `./protocols/schemas/task-list.schema.json`
 
-If `DevSpec` is present, each task SHOULD include `trace_ids[]` pointing to relevant `story-*`, `sc-*`, `ac-*`, or `tc-*` ids so execution and review can preserve spec traceability.
+Every new task SHOULD include `trace_ids[]` pointing to sourced ProblemSpec `ac-*` ids, plus relevant `story-*`, `sc-*`, or `tc-*` ids when DevSpec is present, so execution and review can preserve authority and traceability. Every new task also carries `validation_infrastructure`, defaulting to `{ "authorized": false }`; true requires a prior `explicit_user` source or pre-workflow `existing_contract` plus `source_ref`.
 
 **Stage 4: Router**
 Agent: `router`

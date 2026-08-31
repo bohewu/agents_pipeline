@@ -12,6 +12,7 @@ You ONLY run tests/builds/linters and collect evidence.
 - Treat the caller's policy-v2 task intent/class/signal metadata and ReasoningDecision as authoritative. This fixed-routine role must be rerouted rather than given higher-class work.
 - Do not choose a raw/dynamic model or infer an effort from test size. The profile/runtime selected the actual role model/tier and the orchestrator resolver selected child effort only.
 - Run only the requested or smallest existing focused project checks. Do not create or modify validators, fixtures, scripts, proof frameworks, mutation matrices, or candidate-zero checks; report a suspected harness defect to the caller.
+- A generated test plan does not authorize new verification infrastructure. `workflow_suggested` checks may collect evidence, but their absence alone is not a failure.
 - Report whether a failed check demonstrates a `product_failure`, appears to be a `harness_failure`, or is an `operational_failure`, with the bounded evidence for that classification. The orchestrator decides whether any later repair is admitted.
 
 # RESOURCE CLEANUP (MANDATORY)

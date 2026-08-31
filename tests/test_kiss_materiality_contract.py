@@ -52,6 +52,97 @@ class KissMaterialityContractTest(unittest.TestCase):
         )
         self.assertIn("Adequate targeted evidence is sufficient", materiality)
 
+    def test_requirement_authority_cannot_be_laundered_by_workflow_artifacts(self) -> None:
+        materiality = read("protocols/MATERIALITY_GATE.md")
+
+        self.assertIn("Workflow artifacts are derivative contracts", materiality)
+        self.assertIn("restating an item downstream does not increase its authority", materiality)
+        self.assertIn("Only the first three may seed a blocking acceptance criterion", materiality)
+        self.assertIn("workflow_suggested", materiality)
+        self.assertIn("its absence alone cannot block completion", materiality)
+        self.assertIn("existed before the current", materiality)
+        self.assertIn("created earlier in the same workflow", materiality)
+        self.assertIn("record that approval as", materiality)
+
+        for relative_path in (
+            "agents/specifier.md",
+            "agents/planner.md",
+            "agents/atomizer.md",
+            "agents/flow-splitter.md",
+            "agents/reviewer.md",
+        ):
+            text = read(relative_path)
+            with self.subTest(relative_path=relative_path):
+                self.assertRegex(text.lower(), r"derivative|merely by (being )?restated")
+
+    def test_validation_infrastructure_requires_prior_authority(self) -> None:
+        materiality = read("protocols/MATERIALITY_GATE.md")
+
+        self.assertIn("Product tests and fixtures", materiality)
+        self.assertIn("The orchestrator must", materiality)
+        self.assertIn("record that authorization before dispatch", materiality)
+        self.assertIn("cannot self-authorize it", materiality)
+        self.assertIn("Legacy 1.0 artifacts remain valid", materiality)
+        self.assertIn('`{ "authorized": false }`', materiality)
+
+        for relative_path in (
+            "agents/executor.md",
+            "agents/generalist.md",
+            "agents/reviewer.md",
+            "agents/atomizer.md",
+            "agents/flow-splitter.md",
+            "agents/orchestrator-simple.md",
+            "agents/orchestrator-flow.md",
+            "agents/orchestrator-pipeline.md",
+            "agents/orchestrator-general.md",
+            "agents/orchestrator-modernize.md",
+            "skills/run-adaptive/SKILL.md",
+        ):
+            text = read(relative_path)
+            with self.subTest(relative_path=relative_path):
+                self.assertIn("validation infrastructure", text.lower())
+
+    def test_legacy_handoffs_and_ci_generation_have_explicit_admission_rules(self) -> None:
+        pipeline = read("agents/orchestrator-pipeline.md")
+        executor = read("agents/executor.md")
+        reviewer = read("agents/reviewer.md")
+        ci = read("agents/orchestrator-ci.md")
+
+        for target, text in (
+            ("pipeline", pipeline),
+            ("executor", executor),
+            ("reviewer", reviewer),
+        ):
+            with self.subTest(target=target):
+                self.assertIn("legacy 1.0", text.lower())
+                self.assertIn("pre-workflow repository evidence", text)
+                self.assertRegex(
+                    text,
+                    r"`validation_infrastructure\.authorized` as false when omitted|"
+                    r"omitted `validation_infrastructure`|missing the field|normalized false",
+                )
+
+        self.assertIn('"authorized": true', ci)
+        self.assertIn('"source": "explicit_user"', ci)
+        self.assertIn('"source_ref": "current_invocation:--generate"', ci)
+
+    def test_source_aware_schema_contracts_remain_backward_compatible(self) -> None:
+        problem_schema = read("protocols/schemas/problem-spec.schema.json")
+        dev_schema = read("protocols/schemas/dev-spec.schema.json")
+        task_schema = read("protocols/schemas/task-list.schema.json")
+        flow_schema = read("protocols/schemas/flow-task-list.schema.json")
+
+        self.assertIn('"const": "1.1"', problem_schema)
+        self.assertIn('"explicit_user"', problem_schema)
+        self.assertIn('"const": "1.1"', dev_schema)
+        self.assertIn('"workflow_suggested"', dev_schema)
+        self.assertIn('"infrastructure_change"', dev_schema)
+        self.assertIn('"validation_infrastructure"', task_schema)
+        self.assertIn('"validation_infrastructure"', flow_schema)
+
+        legacy = read("protocols/examples/task-list.trace.valid.json")
+        self.assertIn('"protocol_version": "1.0"', legacy)
+
     def test_workflows_admit_review_findings_instead_of_obeying_them(self) -> None:
         for relative_path in (
             "agents/orchestrator-simple.md",
@@ -78,6 +169,8 @@ class KissMaterialityContractTest(unittest.TestCase):
             with self.subTest(relative_path=relative_path):
                 self.assertIn("adequate targeted evidence is sufficient", text)
                 self.assertIn("not automatic edit authorization", text)
+                self.assertIn("derivative DoD or test-plan wording cannot add authority", text)
+                self.assertIn("workflow-suggested checks do not block by absence", text)
                 self.assertNotIn("reviewer decisions are final", text)
 
 

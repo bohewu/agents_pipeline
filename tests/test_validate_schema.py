@@ -178,6 +178,136 @@ class ValidateSchemaFormatTest(unittest.TestCase):
         invalid["task_intent"] = "research"
         self.assertNotEqual(list(validator.iter_errors(invalid)), [])
 
+    def test_scope_and_validation_authority_fixtures(self) -> None:
+        cases = (
+            ("problem-spec.schema.json", "spec-to-pipeline/problem-spec.json", 0),
+            ("dev-spec.schema.json", "dev-spec.valid.json", 0),
+            ("task-list.schema.json", "task-list.trace.valid.json", 0),
+            ("flow-task-list.schema.json", "flow-task-list.valid.json", 0),
+            ("problem-spec.schema.json", "problem-spec.authority.invalid.json", 1),
+            (
+                "dev-spec.schema.json",
+                "dev-spec.workflow-infrastructure.invalid.json",
+                1,
+            ),
+            (
+                "task-list.schema.json",
+                "task-list.validation-infrastructure.invalid.json",
+                1,
+            ),
+            (
+                "flow-task-list.schema.json",
+                "flow-task-list.validation-infrastructure.invalid.json",
+                1,
+            ),
+        )
+        for schema_name, fixture_name, expected in cases:
+            with self.subTest(fixture=fixture_name):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        VALIDATOR.as_posix(),
+                        "--schema",
+                        (
+                            REPO_ROOT / "protocols" / "schemas" / schema_name
+                        ).as_posix(),
+                        "--input",
+                        (
+                            REPO_ROOT / "protocols" / "examples" / fixture_name
+                        ).as_posix(),
+                        "--require-jsonschema",
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+
+        legacy_problem = json.loads(
+            (
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "problem-spec.authority.invalid.json"
+            ).read_text(encoding="utf-8")
+        )
+        legacy_problem["protocol_version"] = "1.0"
+        legacy_dev = json.loads(
+            (
+                REPO_ROOT / "protocols" / "examples" / "dev-spec.valid.json"
+            ).read_text(encoding="utf-8")
+        )
+        legacy_dev["protocol_version"] = "1.0"
+        for criterion in legacy_dev["acceptance_criteria"]:
+            criterion.pop("source", None)
+            criterion.pop("source_ref", None)
+        for test_case in legacy_dev["test_plan"]["test_cases"]:
+            test_case.pop("authority", None)
+            test_case.pop("infrastructure_change", None)
+        authorized_task = json.loads(
+            (
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "task-list.validation-infrastructure.invalid.json"
+            ).read_text(encoding="utf-8")
+        )
+        authorized_task["tasks"][0]["validation_infrastructure"].update(
+            {
+                "source": "explicit_user",
+                "source_ref": "user_prompt",
+            }
+        )
+        authorized_flow = json.loads(
+            (
+                REPO_ROOT
+                / "protocols"
+                / "examples"
+                / "flow-task-list.validation-infrastructure.invalid.json"
+            ).read_text(encoding="utf-8")
+        )
+        authorized_flow["tasks"][0]["validation_infrastructure"].update(
+            {
+                "source": "existing_contract",
+                "source_ref": "repository-ci-contract",
+            }
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            for name, schema_name, payload in (
+                ("legacy-problem.json", "problem-spec.schema.json", legacy_problem),
+                ("legacy-dev.json", "dev-spec.schema.json", legacy_dev),
+                (
+                    "authorized-task.json",
+                    "task-list.schema.json",
+                    authorized_task,
+                ),
+                (
+                    "authorized-flow.json",
+                    "flow-task-list.schema.json",
+                    authorized_flow,
+                ),
+            ):
+                payload_path = Path(temp_dir_name) / name
+                payload_path.write_text(json.dumps(payload), encoding="utf-8")
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        VALIDATOR.as_posix(),
+                        "--schema",
+                        (
+                            REPO_ROOT / "protocols" / "schemas" / schema_name
+                        ).as_posix(),
+                        "--input",
+                        payload_path.as_posix(),
+                        "--require-jsonschema",
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_reasoning_observation_schema_rejects_content_bearing_fields(self) -> None:
         observation = json.loads(
             (

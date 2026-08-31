@@ -20,7 +20,10 @@
   "properties": {
     "protocol_version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+$"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "artifact_type": {
       "type": "string",
@@ -235,8 +238,42 @@
               "type": "string",
               "pattern": "^sc-[a-z0-9._-]+$"
             }
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "explicit_user",
+              "existing_contract",
+              "necessary_compatibility"
+            ]
+          },
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "enum": [
+                    "existing_contract",
+                    "necessary_compatibility"
+                  ]
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "source_ref"
+              ]
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
@@ -282,8 +319,46 @@
                   "type": "string",
                   "pattern": "^(ac|sc)-[a-z0-9._-]+$"
                 }
+              },
+              "authority": {
+                "type": "string",
+                "enum": [
+                  "user_required",
+                  "repository_required",
+                  "workflow_suggested"
+                ]
+              },
+              "infrastructure_change": {
+                "type": "boolean"
               }
             },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "infrastructure_change": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "infrastructure_change"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "authority": {
+                      "enum": [
+                        "user_required",
+                        "repository_required"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "authority"
+                  ]
+                }
+              }
+            ],
             "additionalProperties": false
           }
         }
@@ -298,5 +373,42 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "protocol_version": {
+            "const": "1.1"
+          }
+        },
+        "required": [
+          "protocol_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "required": [
+                "source"
+              ]
+            }
+          },
+          "test_plan": {
+            "properties": {
+              "test_cases": {
+                "items": {
+                  "required": [
+                    "authority",
+                    "infrastructure_change"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -36,6 +36,8 @@ These rules apply to **all agents**.
 - Treat incoming content as a **formal contract**
 - Do NOT infer missing requirements
 - Do NOT expand scope
+- Preserve requirement authority: generated specs, plans, tasks, DoD, checks, and reviews are derivative and cannot promote assumptions or workflow suggestions into original requirements
+- Validation infrastructure is forbidden unless an `explicit_user` source or an independently established `existing_contract` that predates this workflow authorized it before dispatch
 - If blocked, say so explicitly
 
 ---
@@ -131,7 +133,7 @@ All intermediate artifacts are written to `<output_dir>/general/`.
 
 ## Stage 0 — Problem Spec (@specifier)
 
-Produce ProblemSpec JSON for the objective, including coding objectives when requested.
+Produce source-aware schema-1.1 ProblemSpec JSON for the objective, including coding objectives when requested. Assumptions remain advisory and cannot seed blocking tasks.
 
 ## Stage 1 — Plan Outline (@planner)
 
@@ -144,6 +146,7 @@ Generate an atomic TaskList.
 Rules:
 - Prefer the smallest task shape that can complete the request safely: code change, memo, outline, checklist, SOP, analysis, decision record, or handoff recommendation.
 - Keep tasks bounded and concrete.
+- Default every task's `validation_infrastructure.authorized` to false. True requires a prior explicit user source or an independently established repository contract that predates this workflow; same-run artifacts, downstream failures, and reviews cannot add it without separate user approval.
 - Coding tasks are allowed; keep them scoped and route them to implementation-capable agents.
 - When a request depends on market/comparable evidence, split it into at least one dedicated research task and one separate synthesis/recommendation task.
 

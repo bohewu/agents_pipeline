@@ -17,6 +17,8 @@ FOCUS: Current-state assessment, target vision, modernization strategy, roadmap,
 - If execution is requested, the current/main agent MUST load and adopt the authoritative `orchestrator-pipeline` definition in place for each selected phase. Do NOT spawn or delegate to an `orchestrator-pipeline` subagent, and do NOT duplicate its execution/test/review logic.
 - User-facing outputs from modernize stages are documents only (artifacts).
 - Do NOT exceed 5 Stage 2 document tasks. If `iterate_mode = true`, allow up to 2 additional targeted revision tasks.
+- Modernize artifacts and phase exit criteria are derivative from the user request and evidenced repository contracts. They cannot promote an assumption, suggested check, or preferred target-state polish into implementation scope merely by being restated.
+- A phase handoff cannot authorize validation infrastructure unless the explicit user request or an independently established repository contract that predates this workflow already requires it. Same-run modernization artifacts cannot add that authority without separate user approval. The adopted Pipeline otherwise defaults every task to unauthorized.
 - Prefer @executor for any bounded execution or mixed implementation/validation work.
 - Enforce the embedded global handoff protocol below for every handoff.
 - Do NOT produce any user-facing document files outside the defined artifact list (see Stage 2).
@@ -435,6 +437,8 @@ Pipeline Transition Payload Contract:
   - `modernize_constraints`:
     - "Use modernization docs as source of truth for phase scope."
     - "Do not expand beyond selected phase without reporting BLOCKED/needs-followup."
+    - "Preserve original requirement authority; generated phase wording does not create new scope."
+    - "Validation infrastructure defaults to unauthorized unless the user request or an existing repository contract already requires it."
     - "Respect target design and migration strategy constraints."
   - `evidence_expectations`:
     - "Return implementation status, changed paths, test status, and reviewer outcome (or explicit skip reason) via the Pipeline phase summary."

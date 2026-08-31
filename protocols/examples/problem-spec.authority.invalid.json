@@ -1,0 +1,17 @@
+{
+  "protocol_version": "1.1",
+  "goal": "Demonstrate that new ProblemSpec output must preserve requirement authority.",
+  "scope": {
+    "in": [
+      "One bounded behavior change."
+    ],
+    "out": [
+      "Unrelated changes."
+    ]
+  },
+  "constraints": [],
+  "acceptance_criteria": [
+    "This legacy string shape is not valid for a new 1.1 ProblemSpec."
+  ],
+  "assumptions": []
+}

@@ -33,6 +33,8 @@ These rules apply to **all agents**.
 - Treat incoming content as a **formal contract**
 - Do NOT infer missing requirements
 - Do NOT expand scope
+- Preserve requirement authority: generated spec and plan wording is derivative and cannot promote assumptions or workflow suggestions into original requirements
+- Validation infrastructure is forbidden unless an `explicit_user` or `existing_contract` source already authorizes it
 - If blocked, say so explicitly
 
 ---
@@ -132,7 +134,7 @@ All intermediate artifacts are written to `<run_output_dir>/spec/`.
 
 ## Stage 0 — Problem Spec (@specifier)
 
-Produce `problem-spec.json` as the minimal scope contract.
+Produce source-aware schema-1.1 `problem-spec.json` as the minimal scope contract. Assumptions remain advisory and cannot become blocking acceptance criteria.
 
 ## Stage 0.5 — Dev Spec (@specifier)
 
@@ -142,6 +144,8 @@ Rules:
 - Output a structured development spec aligned to `protocols/schemas/dev-spec.schema.json`.
 - Prefer BDD-friendly scenarios and explicit verification intent.
 - Preserve strict scope boundaries from Stage 0.
+- Preserve acceptance-criterion sources and label test cases `user_required`, `repository_required`, or `workflow_suggested`; generated checks default to suggested.
+- Default `infrastructure_change` to false. Do not invent validation infrastructure to make the spec look complete.
 
 ## Stage 1 — Plan Outline (@planner)
 

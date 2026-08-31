@@ -12,7 +12,10 @@
   "properties": {
     "protocol_version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+$"
+      "enum": [
+        "1.0",
+        "1.1"
+      ]
     },
     "goal": {
       "type": "string",
@@ -49,7 +52,14 @@
     "acceptance_criteria": {
       "type": "array",
       "items": {
-        "type": "string"
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/sourced_acceptance_criterion"
+          }
+        ]
       }
     },
     "assumptions": {
@@ -59,5 +69,83 @@
       }
     }
   },
+  "$defs": {
+    "sourced_acceptance_criterion": {
+      "type": "object",
+      "required": [
+        "id",
+        "statement",
+        "source"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^ac-[a-z0-9._-]+$"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "explicit_user",
+            "existing_contract",
+            "necessary_compatibility"
+          ]
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "enum": [
+                  "existing_contract",
+                  "necessary_compatibility"
+                ]
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "required": [
+              "source_ref"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "protocol_version": {
+            "const": "1.1"
+          }
+        },
+        "required": [
+          "protocol_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "$ref": "#/$defs/sourced_acceptance_criterion"
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

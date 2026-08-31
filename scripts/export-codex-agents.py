@@ -349,12 +349,12 @@ def minify_handoff_protocol(text: str) -> str:
     lines = ["# HANDOFF PROTOCOL (GLOBAL)", ""]
     lines.extend(line.rstrip() for line in general_match.group("bullets").strip().splitlines())
     lines.append(
-        "- Orchestrator -> subagent: selected for specialization; stay within scope; satisfy the provided Definition of Done exactly."
+        "- Orchestrator -> subagent: selected for specialization; stay within sourced scope; derivative DoD or test-plan wording cannot add authority, and validation infrastructure requires explicit-user or pre-workflow contract authorization."
     )
 
     if "## EXECUTOR -> REVIEWER HANDOFF" in section:
         lines.append(
-            "- Executor -> reviewer: only the scoped DoD and required evidence count; adequate targeted evidence is sufficient, and broader proof needs a concrete uncovered path."
+            "- Executor -> reviewer: only sourced scope and required evidence count; adequate targeted evidence is sufficient, broader proof needs a concrete uncovered path, and workflow-suggested checks do not block by absence."
         )
     if "## REVIEWER -> ORCHESTRATOR HANDOFF" in section:
         lines.append(
