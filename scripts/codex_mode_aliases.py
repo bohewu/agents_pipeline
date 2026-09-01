@@ -67,6 +67,32 @@ CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "reasoning policy protocol, use its shared resolver for child effort and never "
     "infer effort from workflow risk or apply a child selector to the current/main agent."
 )
+AD_HOC_MANAGED_ROLE_DISPATCH_LINES = (
+    "Ad-hoc managed-role dispatch:",
+    "When the user explicitly requests a registered managed role outside a `$run-*` "
+    "workflow, do not adopt or simulate a workflow. Before spawning:",
+    "1. Query the current-workspace profile status in JSON. If status cannot be "
+    "verified or a configured profile's health is not `ok`, stop before dispatch.",
+    "2. If the workspace profile is configured, healthy, and eligible, keep its "
+    "registered role routing. Use its logical model tier only when the profile/runtime "
+    "proves that tier; a uniform raw-model profile or any other unprovable mapping "
+    "passes tier `unknown` without guessing from the model slug. A normal workspace "
+    "without a profile may continue through global role routing with tier `unknown`; "
+    "if a configured profile is ineligible, warn and use that same global/unknown-tier path.",
+    "3. Classify the bounded task intent and reasoning signals, then call the installed "
+    "reasoning-policy resolver with `mode = adaptive`, the registered role, the proven "
+    "tier or `unknown`, and selector availability. If the task exceeds a fixed role or "
+    "role ceiling, report the conflict; do not lower the class or silently reassign it.",
+    "4. Pass the resolver's non-null `dispatch_effort` as `reasoning_effort`. Never "
+    "select effort directly from the role name or perceived task simplicity. If the "
+    "resolver conflicts or the required selector is unavailable, stop before spawning.",
+    "5. Spawn with `agent_type = <role>`, omit `model`, and use `fork_turns = \"none\"`.",
+    "6. Verify the observed role and effective effort with `codex-child-trace.js`. "
+    "Verify an expected model only when the eligible workspace profile proves one; "
+    "otherwise report the bounded observed model without claiming profile routing.",
+    "This is a lightweight dispatch preflight only. It must not create workflow "
+    "artifacts, manifests, task decomposition, retry loops, or other `$run-*` behavior.",
+)
 MATERIALITY_AND_GOAL_LINE = (
     "Before any repair, reviewer followup, capability recovery, or new Goal "
     "continuation round, apply the installed `protocols/MATERIALITY_GATE.md`. "
@@ -335,6 +361,7 @@ def build_mode_summary_lines() -> List[str]:
         WORKSPACE_PROFILE_PREFLIGHT_LINE,
         MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
         CUSTOM_ROLE_FORK_ISOLATION_LINE,
+        *AD_HOC_MANAGED_ROLE_DISPATCH_LINES,
         CHILD_RESULT_SELECTION_LABEL_LINE,
         MINIMAL_DELIVERY_LINE,
         VALIDATION_COST_GUARD_LINE,

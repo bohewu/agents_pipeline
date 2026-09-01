@@ -378,6 +378,30 @@ equivalent no-history `fork_context = false`. Include the complete
 ReasoningDecision in Flow/Pipeline agent lifecycle status. Selector presence
 and a successful spawn prove only `requested`, not `enforced`.
 
+### Ad-hoc managed-role dispatch
+
+When the user explicitly requests a registered managed role outside a
+`$run-*` workflow, use this policy as a lightweight spawn preflight rather than
+adopting a workflow. Query current-workspace profile status first. A configured,
+healthy, eligible profile keeps its registered role routing, but supplies a logical
+model tier only when the profile/runtime proves that tier. A uniform raw-model
+profile or any other unprovable mapping keeps eligible workspace role routing and
+passes tier `unknown`; never infer a tier from the model slug. An unconfigured
+workspace or an ineligible profile uses global role routing with tier `unknown`,
+with a warning for the ineligible case. Unverifiable or unhealthy status stops
+the dispatch.
+
+Classify only the bounded requested task, resolve it with `mode = adaptive`, and
+pass the non-null `dispatch_effort` as `reasoning_effort`. Never choose effort
+directly from the role name or perceived simplicity. A role ceiling, capability,
+workspace ceiling, or selector conflict stops the spawn; do not weaken the class
+or silently reassign an explicitly requested role. Spawn with `agent_type`, no
+`model`, and `fork_turns = "none"`, then verify the role and effective effort.
+Pass an expected model to the trace helper only when the eligible workspace
+profile proves it; otherwise expose only the helper's bounded observed model and
+do not claim profile routing. This preflight creates no workflow artifacts,
+decomposition, status records, retry loop, or recovery behavior.
+
 On local Codex, before accepting the terminal child result, inspect the child
 trace using the identifier returned by the active spawn surface. V2 returns a
 task path:

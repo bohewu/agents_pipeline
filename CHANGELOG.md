@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.35.9] - 2026-09-02
+
+### Changed
+
+- Added a lightweight adaptive reasoning preflight for explicit ad-hoc managed-role requests, so direct role spawns use workspace profile capability, resolver-selected effort, isolated native selectors, and trace verification without adopting a `$run-*` workflow.
+
 ## [0.35.8] - 2026-09-01
 
 ### Changed

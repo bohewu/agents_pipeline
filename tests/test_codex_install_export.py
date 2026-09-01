@@ -159,6 +159,14 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, managed_block)
+        self.assertIn("Ad-hoc managed-role dispatch:", managed_block)
+        self.assertIn("outside a `$run-*` workflow", managed_block)
+        self.assertIn("reasoning-policy resolver with `mode = adaptive`", managed_block)
+        self.assertIn("global role routing with tier `unknown`", managed_block)
+        self.assertIn("uniform raw-model profile", managed_block)
+        self.assertIn("without guessing from the model slug", managed_block)
+        self.assertIn("do not lower the class or silently reassign it", managed_block)
+        self.assertIn("It must not create workflow artifacts", managed_block)
         self.assertIn(
             "Whenever a child returns user-visible output", managed_block
         )
@@ -275,6 +283,40 @@ class CodexInstallExportTest(unittest.TestCase):
             with self.subTest(generated=label):
                 self.assertIn(v2_spawn_key, text)
                 self.assertIn("fork_context", text)
+
+    def test_ad_hoc_managed_role_dispatch_stays_lightweight_and_policy_owned(self) -> None:
+        targets = {
+            "catalog": REPO_ROOT / "AGENTS.md",
+            "readme": REPO_ROOT / "README.md",
+            "reasoning policy": REPO_ROOT / "protocols" / "REASONING_POLICY.md",
+        }
+
+        for label, path in targets.items():
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(target=label):
+                self.assertIn("ad-hoc", text.lower())
+                self.assertIn("adaptive", text)
+                self.assertIn("unknown", text)
+                self.assertRegex(
+                    text.lower(),
+                    r"no workflow artifacts|creates no workflow artifacts|does not .*create .*manifests",
+                )
+
+        policy_text = targets["reasoning policy"].read_text(encoding="utf-8")
+        self.assertIn("mode = adaptive", policy_text)
+        self.assertIn('fork_turns = "none"', policy_text)
+
+    def test_ad_hoc_dispatch_does_not_treat_profile_eligibility_as_tier_proof(self) -> None:
+        managed_block = INSTALL_MODULE.build_global_agents_managed_block(MODES_PATH)
+
+        self.assertIn("keep its registered role routing", managed_block)
+        self.assertIn("uniform raw-model profile", managed_block)
+        self.assertIn("passes tier `unknown`", managed_block)
+        self.assertIn("without guessing from the model slug", managed_block)
+        self.assertNotIn(
+            "configured, healthy, and eligible, use its registered role and proven model tier",
+            managed_block,
+        )
 
     def test_build_workspace_agents_managed_block_uses_workspace_definition_path(
         self,
