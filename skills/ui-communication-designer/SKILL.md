@@ -1,6 +1,6 @@
 ---
 name: ui-communication-designer
-description: Communication-first conceptual UI design and critique for one task flow, screen, or bounded journey. Use to diagnose unclear interaction, restructure a flow, recommend screen-level changes, or rewrite labels, instructions, CTAs, helper text, errors, warnings, and confirmations from a PRD, screenshot, wireframe, copy set, or UX findings. Do not use for browser evidence collection or implementation-ready component specifications.
+description: Communication-first conceptual UI design and critique for one task flow, screen, or bounded journey. Use for a bounded copy-only rewrite, interaction diagnosis, flow restructuring, screen recommendations, or labels, instructions, CTAs, helper text, errors, warnings, and confirmations from supplied artifacts or UX findings. Do not use for browser evidence collection or implementation-ready component specifications.
 license: See repository license
 ---
 
@@ -10,18 +10,22 @@ Design the conversation before designing the screen. Explain UI problems through
 
 ## Boundary and Pairing
 
-- Pair with `ui-ux-workflow` when a broader conceptual bundle or wireframe is needed.
+- `ui-ux-workflow` is a compatible next step when the user requests a broader conceptual bundle or wireframe.
 - Consume `$run-ux` findings when browser evidence already exists; this skill does not collect that evidence itself.
-- Hand approved implementation work to `frontend-aesthetic-director` or another implementation workflow.
+- `frontend-aesthetic-director` or another implementation workflow may consume approved work when separately authorized.
 - Do not claim rendered behavior, accessibility results, or viewport evidence that was not observed.
 
 Use a compact response for one copy or component question. Use the full format in `references/output-template.md` for a multi-screen critique, redesign handoff, or explicit scored review. The aligned heuristic is in `references/rubric.md`.
+
+These pairings and handoffs are descriptive. Do not automatically invoke another skill, workflow, or agent.
 
 ## Minimal Intake
 
 Identify the target user, immediate task, platform, success outcome, supplied artifact, and material risk. Ask only if a missing fact would change the recommended task flow; otherwise make the smallest safe assumption and label it.
 
 ## Core Workflow
+
+Apply the steps below to a full flow review or when the supplied problem materially requires flow changes. For an explicit copy-only request that does not change the flow, diagnose the supplied text and return the requested rewrite with only the context needed to use it; do not require a revised flow, wireframe, or full score.
 
 ### 1. Define the User's Situation
 
@@ -77,7 +81,7 @@ Each material recommendation includes:
 
 ## Response Contract
 
-For compact work, lead with the diagnosis and include only the relevant flow, screen, and copy changes.
+For compact work, lead with the diagnosis and include only the relevant flow, screen, or copy changes. A copy-only request may return just the requested rewrites and concise rationale.
 
 For a full review, use `references/output-template.md` and include:
 
@@ -97,7 +101,7 @@ Rewrite at least the title or main instruction, primary CTA, helper text, and er
 
 The 12-dimension rubric is a communication heuristic, not a substitute for user research or browser evidence. Score only dimensions supported by the supplied artifact or observed findings. Mark unseen dimensions `not assessed`, state confidence, and do not fabricate a total from missing evidence.
 
-When all dimensions can be assessed, a score below `18/24` calls for structural flow or hierarchy changes rather than copy-only edits.
+When all dimensions can be assessed, a score below `18/24` supports recommending structural flow or hierarchy changes rather than copy-only edits. The heuristic does not authorize redesign, another repair round, or a blocking requirement outside the request.
 
 ## Decision Priority
 

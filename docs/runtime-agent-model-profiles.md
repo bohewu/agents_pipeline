@@ -24,7 +24,7 @@ Profile status and workflow status are different surfaces:
 | Claude Code | `~/.claude/agents/`, `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. For Codex, `set` is workspace-only; global `status` and `clear` are diagnostic/legacy-cleanup operations. `install` is accepted only as a deprecated compatibility alias for `set` where `set` is supported. An existing real, unmarked or unreadable `~/.codex/agents-pipeline/` support target is transactionally replaced. Its sibling backup is deleted after commit; only a cleanup failure leaves it in place, and the installer reports its path. Links, junctions/reparse points, and non-directories are refused.
+Each support tree contains `AGENTS.md`, `agents/`, `modes.json`, `protocols/`, `runtimes/`, `scripts/`, `skills/`, and `tools/`. The installed wrapper therefore supports `set`, `status`, `clear`, and `list` without the source clone. Applicable Codex actions default to the current workspace; use explicit global scope for installation diagnostics or legacy cleanup. Codex `set` remains workspace-only. `install` is accepted only as a deprecated compatibility alias for `set` where `set` is supported. An existing real, unmarked or unreadable `~/.codex/agents-pipeline/` support target is transactionally replaced. Its sibling backup is deleted after commit; only a cleanup failure leaves it in place, and the installer reports its path. Links, junctions/reparse points, and non-directories are refused.
 
 The default Codex global installer additionally publishes all 16 managed discovery skills to the official Codex user-skills root, `~/.agents/skills/`: eleven formal workflow skills and five capability skills. Each carries `.agents-pipeline-skill.json` with a content digest; updates are rollback-capable and use an atomic rename per skill directory. For the 16 managed names, every existing real `run-*` or capability directory, including unmarked or corrupt-marker directories, is treated as opaque stale state, automatically replaced, and preserved in the sibling backup area. Links, junctions/reparse points, and non-directories are refused. The workflow skills stay global and adopt global workflow definitions. `$run-adaptive` selects among the existing Simple, Flow, and Pipeline definitions without adding a role, while keeping its execution preset independent from model/profile routing. Their workspace preflight stops on unverifiable or unhealthy local role state before execution; only a healthy, eligible profile proceeds to workspace-specific routing.
 
@@ -48,12 +48,12 @@ When stdin and stdout are terminals, the manager displays numbered choices in th
 
 1. action: `set`, `status`, `clear`, or `list`
 2. runtime: Codex (recommended), Claude Code, or GitHub Copilot
-3. scope when applicable: Codex workspace for profile `set`; workspace or global diagnostics/legacy cleanup for Codex `status` and `clear`; global for Claude Code and Copilot
+3. scope when applicable: Codex workspace as option 1 and the default, or global diagnostics/legacy cleanup as option 2; global for Claude Code and Copilot
 4. workspace path when Codex workspace scope is selected
 5. profile: `balanced` first, another neutral profile, or `uniform`
 6. runtime-specific model set for a named profile
 
-Claude Code and Copilot expose only global scope in this menu. Codex does not offer global profile `set`. The menu is enabled only when both input and output are TTYs. CI, pipes, command substitution, and redirected input must pass every choice explicitly.
+Claude Code and Copilot expose only global scope in this menu. Codex does not offer global profile `set`. For non-interactive Codex `set`, `status`, `clear`, and `list`, omitted `--scope` also defaults to `workspace`; pass `--scope global` explicitly for global diagnostics or cleanup. The menu is enabled only when both input and output are TTYs. CI, pipes, command substitution, and redirected input must pass the action and runtime explicitly, plus the profile and model set required by `set`.
 
 ## Codex workspace profile
 
@@ -191,7 +191,7 @@ profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 
 bash "$profile_tool" status --runtime codex --scope global --json
 bash "$profile_tool" clear --runtime codex --scope global
-bash "$profile_tool" list --runtime codex
+bash "$profile_tool" list --runtime codex --scope global
 ```
 
 Global `status` validates the installer manifest, role registrations, generated role files, mode guidance, critical support assets, and marker/content integrity for all recorded discovery skills. Global `clear` regenerates the global roles without `model` or `model_provider`, returning them to parent-session inheritance; it is not an uninstall and does not select a profile. A normal global install already has this model-free state.

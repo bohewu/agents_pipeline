@@ -493,8 +493,8 @@ def resolve_request(
     workspace = _canonical(args.workspace or Path.cwd())
     scope_choices = (
         [
+            ("workspace", "workspace profile (default)"),
             ("global", "global install diagnostics / legacy cleanup"),
-            ("workspace", "workspace profile"),
         ]
         if runtime == "codex"
         else [("global", "global (recommended)")]
@@ -504,8 +504,6 @@ def resolve_request(
         if args.target is None:
             raise ProfileError("record requires --target.")
         scope = args.scope or "workspace"
-    elif action == "list":
-        scope = args.scope or "global"
     elif runtime == "codex" and action in ("set", "resolve-recovery"):
         # Codex global roles are always model-free and inherit the parent
         # session. Resource-tier profiles belong only to project-local roles.
@@ -513,52 +511,14 @@ def resolve_request(
     elif args.target:
         if args.scope:
             scope = args.scope
-        elif runtime == "codex" and action == "status":
-            # A read-only explicit target historically means a native/global
-            # installer target. Workspace status has the unambiguous
-            # --scope workspace --workspace surface.
-            scope = "global"
-        elif runtime == "codex" and action == "clear":
-            explicit_target = _canonical(resolve_target(
-                runtime,
-                "workspace",
-                workspace=workspace,
-                explicit_target=args.target,
-                home=home,
-                asset_root=asset_root,
-            ))
-            workspace_target = _canonical(resolve_target(
-                runtime,
-                "workspace",
-                workspace=workspace,
-                explicit_target=None,
-                home=home,
-                asset_root=asset_root,
-            ))
-            global_target = _canonical(resolve_target(
-                runtime,
-                "global",
-                workspace=workspace,
-                explicit_target=None,
-                home=home,
-                asset_root=asset_root,
-            ))
-            if explicit_target == workspace_target:
-                scope = "workspace"
-            elif explicit_target == global_target:
-                scope = "global"
-            else:
-                scope = require_or_choose(
-                    None,
-                    name="scope",
-                    title="Choose how this custom Codex target should behave",
-                    choices=scope_choices,
-                    interactive=interactive,
-                    stdin=stdin,
-                    stdout=stdout,
-                )
+        elif runtime == "codex" and action in ("status", "clear"):
+            scope = "workspace"
         else:
             scope = "workspace"
+    elif runtime == "codex" and not interactive:
+        scope = args.scope or "workspace"
+    elif action == "list" and runtime != "codex":
+        scope = args.scope or "global"
     else:
         scope = require_or_choose(
             args.scope,

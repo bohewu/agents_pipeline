@@ -30,9 +30,9 @@ Treat these as default warnings. Override only when the brief clearly asks for t
 - Do not add motion that does not explain state, hierarchy, or feedback.
 - Do not make dark mode, glass, or "premium" styling the default answer to weak UX.
 
-## 3. State Coverage Audit
+## 3. Relevant State Coverage
 
-For the primary flow, confirm which of these exist and whether they need UI treatment:
+For the affected surface, identify which of these states already exist, are required by the product contract, or are demonstrably affected. Listing them does not require creating every state for a local change:
 
 - empty
 - loading
@@ -44,14 +44,15 @@ For the primary flow, confirm which of these exist and whether they need UI trea
 - destructive confirmation
 
 Rules:
-- A polished surface is not happy-path only.
+- Do not use an unrelated state checklist to expand the authorized change.
+- A changed core flow is not complete when a relevant non-happy-path state is broken.
 - Error and empty states should explain what happened and what the user can do next.
 - Disabled states should still make the intended action understandable.
 - Loading indicators should match layout shape when possible instead of default spinners.
 
 ## 4. Responsive Audit
 
-Check at least one desktop, one tablet, and one mobile width when possible.
+Check the affected widths and every viewport required by the request or existing product support. A desktop-only local change does not create a mobile design requirement. Changes to shared components, layout, tokens, or breakpoints expand checks to representative affected devices. For an explicit full-responsive change, check every requested device and relevant state.
 
 Look for:
 - horizontal overflow
@@ -83,7 +84,9 @@ If a button, link, field, or tab looks decorative instead of actionable, it need
 
 ## 6. Pre-Flight Review
 
-Do not ship without checking:
+Apply these checks to the affected surface and existing product contract. Mark a check as not applicable only when it is outside the demonstrated impact; report unavailable evidence as unverified rather than passing it through self-assessment.
+
+Do not ship without checking the relevant items:
 
 - the primary task is obvious within 3-5 seconds
 - the main CTA appears near the context that justifies it

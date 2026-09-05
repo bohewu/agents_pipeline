@@ -1,12 +1,14 @@
 ---
 name: devtools-ux-audit
-description: Browser-evidence workflow for auditing a normal user's experience across desktop-first, responsive, and mobile web interfaces. Use when a UX review needs viewport-specific navigation, interaction, snapshot, console, network, or screenshot evidence; prefer Chrome DevTools and allow an equivalent browser tool only when it preserves the evidence contract.
+description: Browser-evidence workflow for a normal-user journey audit or formal UX score gate across desktop-first, responsive, and mobile web interfaces. Use when the review needs declared viewport and journey coverage with navigation, interaction, snapshot, console, network, or screenshot evidence. A bounded frontend check may use ordinary browser tooling without invoking this formal audit workflow.
 license: See repository license
 ---
 
 # DevTools UX Audit
 
 Collect browser evidence for one bounded user journey. This is the evidence layer; pair it with `$run-ux` when the user wants a formal multi-perspective scorecard and synthesized report.
+
+Ordinary verification of an affected component or state may use available browser tooling at that smaller scope. That does not start this journey-audit contract or a `$run-ux` score gate. When the user requests this audit or a formal gate, preserve the complete declared product profile, journey, viewport, evidence, and `not_evaluable` requirements below.
 
 Do not use it as the primary workflow for native interfaces that cannot be exercised through a browser.
 

@@ -20,9 +20,27 @@ MATERIALITY = REPO_ROOT / "protocols" / "MATERIALITY_GATE.md"
 SPLITTER = REPO_ROOT / "agents" / "flow-splitter.md"
 FLOW_WORKERS = ("executor", "peon", "generalist", "doc-writer")
 DIRECT_RUN_SKILLS = ("run-simple", "run-flow", "run-pipeline")
+RUN_SKILLS = tuple(sorted((REPO_ROOT / "skills").glob("run-*/SKILL.md")))
 
 
 class RunAdaptiveSkillContractTest(unittest.TestCase):
+    def test_every_run_entry_uses_saved_versioned_configuration_and_formal_resolver(self) -> None:
+        self.assertEqual(len(RUN_SKILLS), 11)
+        for skill in RUN_SKILLS:
+            text = skill.read_text(encoding="utf-8")
+            with self.subTest(skill=skill.parent.name):
+                self.assertIn("resolved_configuration", text)
+                self.assertIn("selected versioned model set", text)
+                self.assertIn("registered reasoning projection", text)
+                self.assertIn("configuration identity", text)
+                self.assertIn("version", text)
+                self.assertIn("digest", text)
+                self.assertIn("formal shared resolver", text)
+                self.assertIn("trace expectations", text)
+                self.assertIn("normal dispatch omits a raw model", text)
+                self.assertIn("`openai-legacy`", text)
+                self.assertIn("v2", text)
+
     def test_adaptive_is_skill_only_and_routes_to_existing_workflows(self) -> None:
         text = SKILL.read_text(encoding="utf-8")
         modes = json.loads((REPO_ROOT / "modes.json").read_text(encoding="utf-8"))

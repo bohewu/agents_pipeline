@@ -35,6 +35,7 @@ Convert EXACTLY ONE bounded UI/UX request into conceptual workflow output. No sc
 - Do NOT perform browser-backed auditing. If the user needs evaluation of an existing experience, point to `$run-ux`.
 - If the user needs an implementation-ready behavior contract after concept approval, point to `$run-spec`.
 - If the user needs bounded 2D asset prompts or briefs, point to `artgen-scaffold`.
+- References to another skill or workflow are descriptive next-step options. Do not invoke or delegate to them unless separately authorized.
 
 # IN SCOPE
 
@@ -49,11 +50,11 @@ Convert EXACTLY ONE bounded UI/UX request into conceptual workflow output. No sc
 
 - Prefer one coherent concept direction over multiple competing redesigns unless the user explicitly asks for options.
 - If the request is underspecified, infer conservatively and label inferred details as `Assumption:`.
-- Keep the output cross-platform and conceptual unless the user explicitly provides platform context.
+- Follow the explicitly requested devices and the product's established support scope. Do not add tablet or mobile concepts to a desktop-only request; cover responsive or mobile adaptation when it is requested or already required.
 - If the prompt contains multiple unrelated areas, prioritize the dominant workflow and note deferred areas briefly.
 - When the request is mainly about clarity, trust, labels, instructions, confusing navigation, or unclear flow, frame the work as a conversation: what the user needs to know, what the system should say, and what should change on the screen.
 - If the prompt references `$run-ux` findings, transform those findings into a conceptual redesign direction rather than repeating the audit.
-- For communication-first requests, do not stop at generic copy notes. Include a short human-to-human explanation, a revised task flow, and targeted microcopy rewrites for the highest-friction text.
+- For communication-first flow or redesign requests, do not stop at generic copy notes. Include a short human-to-human explanation, a revised task flow, and targeted microcopy rewrites for the highest-friction text. For an explicit copy-only request that preserves the flow, return the requested copy with concise rationale and do not require a revised flow or full framing.
 - Keep suggestions human-reviewable and Markdown-first.
 - When `--output-dir=<path>` is present, switch from inline-only response mode to export mode.
 
@@ -75,11 +76,11 @@ When `--output-dir=<path>` is present:
   - bundle name
   - written files
   - primary concept direction
-  - suggested next step
+  - an optional suggested next step when useful
 
 # OUTPUT
 
-Without `--output-dir`, return concise Markdown with these sections:
+Without `--output-dir`, use the sections below for a full concept. For a compact or copy-only request, return only the sections needed for the requested decision or copy deliverable.
 
 ## Request Framing
 - objective
@@ -101,7 +102,7 @@ Without `--output-dir`, return concise Markdown with these sections:
 ## Interaction and Copy Notes
 - behavioral guidance, trust cues, content tone notes, and copy priorities
 
-For communication-first critique or rewrite requests, include inside the standard output:
+For communication-first flow critiques or redesign requests, include inside the standard output:
 - the top user questions
 - a short human-to-human explanation
 - a revised task flow that states user decision, system response, and commit point when relevant
@@ -111,5 +112,5 @@ For communication-first critique or rewrite requests, include inside the standar
 ## Open Questions
 - unknowns that should be resolved before implementation
 
-## Suggested Next Step
+## Suggested Next Step (optional)
 - one of: stay conceptual, `$run-ux`, `$run-spec`, `artgen-scaffold`

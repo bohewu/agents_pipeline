@@ -75,13 +75,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.36.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.36.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.36.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.36.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -89,13 +89,13 @@ tag="v0.36.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.36.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.36.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.36.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.36.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -103,16 +103,16 @@ tag="v0.36.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.36.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.36.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.36.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.36.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.36.0` must release as `v0.36.0`.
+Release invariant: `VERSION=0.36.1` must release as `v0.36.1`.
 
 <!-- END current-release -->
 
@@ -144,6 +144,10 @@ Workflow entry skills are documented under [Modes](#modes). The additional globa
 
 All 16 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
 
+Capability skills are selected for the requested deliverable and scope; referencing one does not authorize another workflow or downstream implementation. Bounded frontend work can proceed from an approved design and verifies the affected surfaces, while an explicit full-responsive request retains its complete device and state coverage. Art-generation scaffolding remains docs-only: an explicit prompt-only request returns one usable prompt, while the default full handoff keeps its seven-section versioned contract. Compact UI/copy guidance, durable UI/UX bundles, and formal browser-backed UX audits are distinct delivery depths; durable schema and formal evidence/gate requirements remain unchanged.
+
+Repository source edits do not update installed discovery skills, the installed support tree, or generated role projections automatically. Use the existing installer or managed skill/support sync flow to refresh installed copies, and use the exporter/install flow after paired role sources change. Workspace profiles may require `status` followed by `set` to refresh local role materialization, but this does not select a new model set or change reasoning policy. Start a new Codex session when checking refreshed skill discovery because an existing session may retain previously loaded instructions. See [the manual smoke cases](docs/non-orchestrator-skill-smoke-tests.md). These contract changes do not promise a fixed token or latency reduction.
+
 Direct workspace targets remain available only as explicit materialization compatibility. They copy complete generated agents and support assets into a project; they are not the normal profile workflow. See [developer install](docs/developer-install.md#explicit-workspace-materialization-compatibility).
 
 ## Developer install from a clone
@@ -169,6 +173,8 @@ After the one-time global Codex install, use the installed profile manager from 
 ```bash
 bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
 ```
+
+For Codex, applicable actions and blank interactive scope selection default to the current workspace. Use explicit `--scope global` for global installation diagnostics or legacy cleanup. Claude Code and Copilot keep their global-only profile behavior.
 
 ```powershell
 pwsh -File "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
@@ -223,7 +229,7 @@ Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map tho
 
 ## Modes
 
-The primary Codex entry points are formal skills installed globally under `~/.agents/skills/`. Manifest-backed mode skills adopt the globally installed orchestrator workflow in the current/main agent and never manually load a raw repository role. `$run-adaptive` is a thin skill-only router that selects and adopts the installed Simple, Flow, or Pipeline definition; it does not create an Adaptive role. Every invocation checks current-workspace profile status: a normal unconfigured workspace uses model-free global roles that inherit the parent session, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. Rerun workspace `set` to repair it or `clear` to return to model-free global roles. A healthy but ineligible profile warns and uses global routing. Only a healthy, eligible profile lets Codex's effective trusted project configuration apply workspace-specific models to dispatched role names. Invoking a skill does not spawn the same-named orchestrator merely to enter the workflow.
+The primary Codex entry points are formal skills installed globally under `~/.agents/skills/`. Manifest-backed mode skills adopt the globally installed orchestrator workflow in the current/main agent and never manually load a raw repository role. `$run-adaptive` is a thin skill-only router that selects and adopts the installed Simple, Flow, or Pipeline definition; it does not create an Adaptive role. Every invocation checks current-workspace profile status: a normal unconfigured workspace uses model-free global roles that inherit the parent session, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch. Rerun workspace `set` to repair it or `clear` to return to model-free global roles. A healthy but ineligible profile warns and uses global routing. For a healthy eligible profile, every run entry retains each role's exact saved `resolved_configuration` from the selected versioned model set and registered reasoning projection, including configuration identity, version, and digest, and passes that same envelope to the formal shared resolver and trace expectations. The resolver selects effort only, so normal dispatch does not route a raw model; `openai-legacy` keeps its registered v2 projection. Invoking a skill does not spawn the same-named orchestrator merely to enter the workflow.
 
 | Primary skill | Compatibility alias | Typical use |
 |---|---|---|

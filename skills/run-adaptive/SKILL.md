@@ -234,11 +234,15 @@ cannot safely complete the task, stop and report the required route rather than
 silently overriding it.
 
 Before any managed wrapper or core child spawn, query the workspace profile. For
-an eligible profile, retain the exact selected-role `resolved_configuration` and
-configuration identity, pass that envelope to the resolver and trace, persist it
-with Flow/Pipeline run state, and require the same lock on resume. Simple retains
-the preflight only in memory; adaptive evidence is applied only when role, model,
-and effort match, while shadow and inherit remain unapplied.
+an eligible profile, retain the exact selected-role `resolved_configuration` from
+the selected versioned model set and registered reasoning projection, including
+its configuration identity, version, and digest. Pass that same envelope to the
+formal shared resolver and trace expectations, persist it with Flow/Pipeline run
+state, and require the same lock on resume. The resolver selects effort only, so
+normal dispatch omits a raw model; `openai-legacy` retains its registered v2
+projection and behavior. Simple retains the preflight only in memory; adaptive
+evidence is applied only when role, model, and effort match, while shadow and
+inherit remain unapplied.
 
 ## Route policy mapping
 
@@ -323,7 +327,7 @@ When `prompt_mode = off`:
 1. Read the selected installed TOML definition.
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
-4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through policy v2 as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent or dynamically route a model. The sole exception is a Flow/Pipeline child recovery that fully satisfies `protocols/CAPABILITY_RECOVERY.md`: on Codex only, its one recovery spawn may pass the profile-resolved raw model and must verify that model and effort by child trace before acceptance. Other runtime exports conflict rather than inventing model routing; shadow may only compute a proven tier policy without spawning. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
+4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through the formal shared resolver as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent or dynamically route a model. The sole exception is a Flow/Pipeline child recovery that fully satisfies `protocols/CAPABILITY_RECOVERY.md`: on Codex only, its one recovery spawn may pass the profile-resolved raw model and must verify that model and effort by child trace before acceptance. Other runtime exports conflict rather than inventing model routing; shadow may only compute a proven tier policy without spawning. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
 
 ## Terminal UX gate
 

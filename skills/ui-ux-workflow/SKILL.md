@@ -1,16 +1,16 @@
 ---
 name: ui-ux-workflow
-description: Docs-only conceptual UI/UX workflow for one bounded experience, surface, or journey. Use to produce an assessment, low-fi wireframe, mid-fi direction, user/data/operation flows, state transitions, a reusable downstream prompt, and a thin read-only preview handoff. Do not use for implementation-ready component contracts, code generation, browser-backed audit evidence, or a full interactive prototype.
+description: Docs-only conceptual UI/UX workflow for one bounded experience, surface, or journey, from a compact concept through a requested durable handoff. Use for conceptual assessment, wireframes, flows, states, prompts, and thin preview guidance. Do not use for implementation-ready component contracts, code generation, browser-backed audit evidence, or a full interactive prototype.
 license: See repository license
 ---
 
 # UI/UX Workflow
 
-Produce an approval-oriented concept for one bounded experience. Keep the output useful for review without drifting into engineering specifications or implementation.
+Produce a human-reviewable concept for one bounded experience. Approval-oriented describes the artifact's purpose; it does not require a new approval when the requested direction is already approved. Keep the output useful for review without drifting into engineering specifications or implementation.
 
 Read the durable protocol when exact bundle mapping, schema pairing, or the full template catalog is needed: `../../protocols/UI_UX_WORKFLOW.md`.
 
-For communication-first diagnosis or microcopy, pair with `../ui-communication-designer/SKILL.md`. For implementation after approval, use `../frontend-aesthetic-director/SKILL.md`. For browser evidence and scoring, use `$run-ux` with suitable browser tooling.
+For communication-first diagnosis or microcopy, `../ui-communication-designer/SKILL.md` is a compatible lens. For implementation after approval, `../frontend-aesthetic-director/SKILL.md` may be a useful next step. For browser evidence and scoring, `$run-ux` with suitable browser tooling may be appropriate. These references are descriptive; they do not authorize or automatically start another skill, workflow, or agent.
 
 ## Boundary
 
@@ -28,7 +28,7 @@ Redirect implementation-ready layouts, component/API contracts, acceptance crite
 
 ## Choose the Output Depth
 
-Use a compact concept when the user asks one bounded question, such as choosing a layout, clarifying a state, or sketching a short flow. Include only the sections necessary to decide that question and state the next handoff.
+Use a compact concept when the user asks one bounded question, such as choosing a layout, clarifying a state, or sketching a short flow. Include only the sections necessary to decide that question. Mention a possible handoff only when it helps the user; do not make it a required next stage.
 
 Use the durable v1 bundle when the user asks for a complete conceptual handoff, a versioned artifact, or all flows/states. In that case use these exact headings in order:
 
@@ -52,7 +52,7 @@ Determine:
 - primary user and device priority
 - the most important non-happy-path state
 - terminology, navigation, trust, compliance, or content constraints
-- expected next step after review
+- expected next step after review, when the user has one
 
 Ask only when an answer would materially change the concept. Otherwise use a conservative, visible assumption.
 
@@ -64,7 +64,7 @@ Ask only when an answer would materially change the concept. Otherwise use a con
 - Prefer the smallest layout template that supports the task and use progressive disclosure for secondary detail.
 - Keep critical information inline rather than tooltip-only.
 - Cover empty, loading, error/recovery, confirmation, and success when relevant. State why each exists, what remains visible, and what the user can do next.
-- Describe desktop, tablet, and mobile adaptation. Desktop may preserve parallel context; tablet may collapse one supporting region; mobile should keep one dominant task region and inline critical information.
+- Cover the devices explicitly requested and those required by the product's established support scope. A desktop-only concept does not need a new tablet or mobile design; responsive or mobile work should describe the requested adaptation in enough detail for review.
 - Describe theme posture—such as neutral/utilitarian, calm/trust-oriented, or signal-forward—without final brand colors or marketing-grade polish.
 
 Use the protocol's bounded template catalog when helpful: app shell, dashboard, list/filter, detail/primary action, form/create-edit, wizard, settings, and common system states. Explain the selection in conceptual terms.
@@ -114,9 +114,9 @@ Before handing off, confirm that the concept:
 - stays within one bounded journey or surface
 - communicates a primary task and hierarchy
 - covers relevant system and recovery states
-- describes device adaptation and progressive disclosure
+- covers the requested and established device scope, including adaptation when relevant
 - minimizes non-essential copy and keeps essential context visible
 - remains approval-oriented rather than implementation-ready
-- names exactly one sensible next step
+- distinguishes optional recommendations from authorized follow-on work
 
 For a durable JSON/Markdown pair, map the nine headings to the protocol's five artifact classes: `assessment_summary`, `wireframe_selection`, `flow_summaries`, `prompt_export`, and `thin_preview_handoff`. Write repo-owned artifacts only when the user asks for files; otherwise return the conceptual handoff inline.

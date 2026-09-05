@@ -1,6 +1,6 @@
 # Full Review Output Template
 
-Use this shape for a multi-screen critique, redesign handoff, or explicit scored review. Omit a field only when it is clearly outside scope.
+Use this shape for a multi-screen critique, redesign handoff, or explicit scored review. It is not required for a compact or copy-only response. Omit a field only when it is clearly outside scope.
 
 ## 1. Task Summary
 

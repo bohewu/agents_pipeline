@@ -8,6 +8,8 @@ The same workflow is packaged as the repo-managed `devtools-ux-audit` skill unde
 
 Collect browser evidence for UX audits without assuming every product is mobile-first.
 
+This formal journey-audit workflow is distinct from ordinary browser verification of an affected frontend component or state. A bounded implementation check does not by itself invoke the profile, multi-viewport journey, or score-gate contract below; an explicitly requested audit or score gate retains every declared coverage and evidence requirement.
+
 The workflow is designed to support:
 - responsive web apps
 - desktop-first web apps

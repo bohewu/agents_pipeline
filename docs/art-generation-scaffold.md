@@ -2,7 +2,7 @@
 
 ## What It Does
 
-This scaffold standardizes how this repo captures a bounded 2D asset request as reusable documentation and packages it for external handoff on the normal `artgen-scaffold` surface:
+This scaffold standardizes two docs-only delivery depths for a bounded 2D asset request: one directly usable prompt when explicitly requested, or a complete reusable package for external handoff by default. The default full handoff retains these seven sections:
 - request record
 - asset brief
 - reusable prompt
@@ -15,21 +15,32 @@ Pixel art remains the canonical example profile, but the scaffold also covers ad
 
 ## Boundary
 
-This scaffold remains the default spec/prompt generation plus formatting-oriented handoff packaging layer.
-It does not render images, create raster files, store raw assets, call provider tools, or run downstream pipeline steps in this repo. A runtime-native image-generation capability may consume the final Direct Use Prompt separately.
-The output additions are a standardized External Handoff Package plus a final Direct Use Prompt rendered as normal `artgen-scaffold` output.
-The package stays descriptive, copy-ready, and non-operative.
-The Direct Use Prompt stays provider-agnostic, paste-ready, and suitable for direct use with external image-generation tools.
+This scaffold is an asset brief, generation prompt, production specification, and external-handoff layer.
+It does not render or edit images, create raster files, store raw assets, call provider tools, create a provider bridge, start another agent, or run downstream pipeline steps in this repo. An ordinary request for an image itself should not be intercepted by this scaffold merely because it mentions a supported asset type. When the scaffold is explicitly invoked for actual image delivery, it must say that the image remains undelivered without forcing a complete handoff first. A host may separately use an image-generation capability only when its capabilities, authorization, and higher-priority rules permit it.
 
-## Canonical Workflow
+When editing requires a source image that is not accessible, obtain that source rather than claiming it was inspected or that identity or composition was preserved.
+
+Both delivery depths stay descriptive, provider-agnostic, copy-ready, and non-operative.
+
+## Delivery Depth
+
+Prompt-only is an explicit exception. Use it only when the user asks for only a prompt, one paste-ready prompt, or no brief or handoff package, without also requiring an incompatible structured package. Return exactly one fenced `text` block containing one self-contained prompt. The prompt must include asset type, style, dimensions, subject, viewpoint, palette, background, and necessary consistency constraints. Put every necessary inference, especially missing size or style, in the same block as `Assumption: ...`.
+
+Prompt-only does not require IDs, version packaging, naming directories, atlas planning, or manual checks, though it retains identifiers, naming, and version constraints supplied by the user. It creates no files and makes no generation claim.
+
+If prompt-only conflicts with an explicit full machine-readable or structured handoff, clarify only that delivery ambiguity. Existing exports and consumers keep the full contract.
+
+The complete seven-section handoff remains the default. Use it for a complete asset brief, a versioned asset family, or whenever a downstream consumer requests the complete package.
+
+## Default Full-Handoff Workflow
 
 `request -> request record -> asset brief -> reusable prompt -> suggested outputs -> manual checks -> External Handoff Package -> Direct Use Prompt`
 
 Any later image generation stays outside this scaffold and its External Handoff Package.
 
-## Shared Brief Model
+## Full-Handoff Shared Brief Model
 
-All scaffold outputs should make these fields visible:
+All full-handoff outputs must make these fields visible:
 - asset slug
 - asset type
 - style
@@ -43,7 +54,7 @@ All scaffold outputs should make these fields visible:
 
 ## Style and Size Parameterization
 
-Style and size must always be explicit.
+In a full handoff, style and size must always be explicit fields or assumptions. In prompt-only output, both must be explicit within the prompt, using visible `Assumption: ...` text when inferred.
 If either is omitted in the request, surface a visible assumption instead of implying a hidden default.
 If a request says `sprite` and does not explicitly mention animation, frames, loop, cycle, or sequence, treat it as a single sprite rather than an animation.
 
@@ -55,7 +66,7 @@ If a request says `sprite` and does not explicitly mention animation, frames, lo
 | Icon | Flat or pixel-art inventory item | Output dimensions |
 | UI element / simple prop | HUD panel, button, pickup, or small world prop | Output dimensions or state/layout size |
 
-## Version-Marker Discipline
+## Full-Handoff Version-Marker Discipline
 
 Keep request, brief, prompt, and suggested-output identifiers aligned on one visible version marker.
 Default to `v001` unless the request or project explicitly supplies an existing version family.
@@ -71,7 +82,7 @@ Do not shorten, restyle, or partially omit these identifier templates.
 Render `output folder structure` as a relative folder path or short directory tree rooted at the consuming project. Do not prefix it with `/` and do not collapse folder structure and filenames into one opaque line.
 If style, size, subject scope, palette target, or other material assumptions change, bump the version marker instead of silently reusing it.
 
-## Suggested Outputs
+## Full-Handoff Suggested Outputs
 
 Suggested outputs stay documentation-only.
 They should capture:
@@ -88,7 +99,7 @@ Do not introduce packed atlas outputs here.
 
 Raw candidates and approved exports stay outside this repo.
 
-## Manual Checks
+## Full-Handoff Manual Checks
 
 Before reusing the scaffold output, a human should confirm:
 - style matches the request or clearly labeled assumption
@@ -96,7 +107,7 @@ Before reusing the scaffold output, a human should confirm:
 - palette, background, and viewpoint/screen role are still correct
 - naming and version markers remain aligned
 
-## External Handoff Package
+## Full-Handoff External Handoff Package
 
 This package is the standardized handoff surface.
 It should bundle the request record, asset brief, reusable prompt, suggested outputs, and manual checks into normal `artgen-scaffold` output.
@@ -108,9 +119,9 @@ The default package must be:
 - aligned to the exact field labels and shared identifiers already established in the scaffold
 - suitable for future external generation or review reference without adding execution behavior
 
-## Direct Use Prompt
+## Full-Handoff Direct Use Prompt
 
-The normal `artgen-scaffold` output should end with a final `Direct Use Prompt` section.
+The default full `artgen-scaffold` output must end with a final `Direct Use Prompt` section.
 That section should contain the same reusable prompt in a paste-ready fenced text block so the user does not need to extract it manually from the handoff package.
 
 The Direct Use Prompt must be:
@@ -139,5 +150,4 @@ The following remain outside this scaffold after the current packaging addition:
 
 ## Summary
 
-This scaffold keeps the repo focused on a thin, reviewable art-generation workflow.
-It turns a raw 2D asset request into a bounded brief/prompt package plus a standardized External Handoff Package and a final Direct Use Prompt.
+This scaffold keeps the repo focused on thin, reviewable art-generation documentation. It returns one directly usable prompt when explicitly requested and otherwise turns a raw 2D asset request into the unchanged seven-section brief and handoff package ending in a Direct Use Prompt.

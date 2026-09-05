@@ -24,8 +24,8 @@ Dimensions:
 
 When all dimensions are scored:
 
-- `0–11`: redesign the flow or information architecture
-- `12–17`: fix major structural issues; copy alone is insufficient
+- `0–11`: recommend redesigning the flow or information architecture when that work is in scope or separately authorized
+- `12–17`: recommend fixing major structural issues; copy alone may be insufficient, but the score does not authorize broader work
 - `18–21`: structure is usable but needs targeted fixes
 - `22–24`: focus on refinement
 

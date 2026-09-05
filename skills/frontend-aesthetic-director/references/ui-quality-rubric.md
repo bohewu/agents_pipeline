@@ -1,6 +1,6 @@
 # UI Quality Rubric
 
-Use this rubric before finalizing frontend UI work. A score below 4 in any critical category requires another iteration unless the user explicitly asked for a rough draft.
+Use this rubric as a scoped review aid before finalizing frontend UI work. Assess categories that the change or an existing product contract affects; distinguish not applicable from unverified. The rubric does not authorize a redesign, new states, broader device support, or additional polish. A score below 4 requires another iteration only when concrete evidence shows that an affected critical category is broken by the change or blocks the requested result.
 
 Scoring:
 - 5: strong, intentional, production-ready
@@ -48,7 +48,7 @@ Common failures:
 - inconsistent margins
 - dense UI inside huge containers
 - overuse of borders/shadows instead of whitespace
-- horizontal overflow on mobile
+- horizontal overflow in an affected viewport
 
 ## 4. Typography
 
@@ -95,13 +95,13 @@ Common failures:
 ## 7. Responsiveness
 
 Questions:
-- Does the layout work at mobile, tablet, and desktop widths?
+- Does the layout work at the affected widths and every viewport required by the request or existing support contract?
 - Do sidebars, tables, grids, and hero media collapse intentionally?
 - Are touch targets practical?
 - Are fixed/floating elements safe on small screens?
 
 Common failures:
-- desktop-only grid
+- grid that fails in a required narrower viewport
 - overflowing tables
 - fixed headers covering content
 - CTA buttons wrapping awkwardly
@@ -150,10 +150,12 @@ Common failures:
 ## Critical Fail Conditions
 
 Do not ship without fixing or explicitly reporting these:
-- mobile horizontal overflow
+- horizontal overflow in an affected or contract-required viewport
 - primary action unclear or missing
 - text contrast obviously insufficient
 - keyboard focus invisible
 - important state communicated only by color
 - broken loading/error/empty states in the core flow
 - UI cannot be built or rendered
+
+Static rubric review is not rendered evidence. When rendered QA is unavailable, report the affected visual claims and interactions that remain unverified.

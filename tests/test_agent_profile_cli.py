@@ -240,6 +240,54 @@ class AgentProfileInteractionTests(unittest.TestCase):
             self.assertEqual(request.scope, "workspace")
             self.assertEqual(request.target, (workspace / ".codex").resolve())
 
+    def test_non_tty_codex_workspace_actions_default_to_workspace_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name) / "project"
+            for action in ("status", "clear", "list"):
+                with self.subTest(action=action):
+                    request = PROFILE.resolve_request(
+                        parse(
+                            action,
+                            "--runtime",
+                            "codex",
+                            "--workspace",
+                            str(workspace),
+                            "--asset-root",
+                            str(REPO_ROOT),
+                        ),
+                        stdin=NonTtyStringIO(),
+                        stdout=NonTtyStringIO(),
+                    )
+                    self.assertEqual(request.scope, "workspace")
+                    self.assertEqual(request.target, (workspace / ".codex").resolve())
+
+    def test_interactive_codex_scope_menu_defaults_to_workspace_first(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name) / "project"
+            for action in ("status", "clear", "list"):
+                with self.subTest(action=action):
+                    output = TtyStringIO()
+                    request = PROFILE.resolve_request(
+                        parse(
+                            action,
+                            "--runtime",
+                            "codex",
+                            "--workspace",
+                            str(workspace),
+                            "--asset-root",
+                            str(REPO_ROOT),
+                        ),
+                        stdin=TtyStringIO("\n"),
+                        stdout=output,
+                    )
+                    self.assertEqual(request.scope, "workspace")
+                    menu = output.getvalue()
+                    self.assertIn("Choose a profile scope", menu)
+                    self.assertLess(
+                        menu.index("1) workspace profile (default)"),
+                        menu.index("2) global install diagnostics / legacy cleanup"),
+                    )
+
     def test_interactive_defaults_choose_codex_workspace_balanced_openai(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             workspace = Path(temp_name) / "project"
@@ -401,24 +449,51 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 )
             self.assertEqual(request.target, custom_home.resolve())
 
-    def test_codex_status_explicit_target_defaults_to_global_scope(self) -> None:
+    def test_codex_workspace_actions_preserve_explicit_global_scope(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
-            target = Path(temp_name) / "custom-codex"
-            request = PROFILE.resolve_request(
-                parse(
-                    "status",
-                    "--runtime",
-                    "codex",
-                    "--target",
-                    str(target),
-                    "--asset-root",
-                    str(REPO_ROOT),
-                ),
-                stdin=NonTtyStringIO(),
-                stdout=NonTtyStringIO(),
-            )
-            self.assertEqual(request.scope, "global")
-            self.assertEqual(request.target, target.resolve())
+            home = Path(temp_name) / "home"
+            for action in ("status", "clear", "list"):
+                with self.subTest(action=action):
+                    request = PROFILE.resolve_request(
+                        parse(
+                            action,
+                            "--runtime",
+                            "codex",
+                            "--scope",
+                            "global",
+                            "--asset-root",
+                            str(REPO_ROOT),
+                        ),
+                        stdin=NonTtyStringIO(),
+                        stdout=NonTtyStringIO(),
+                        home=home,
+                    )
+                    self.assertEqual(request.scope, "global")
+                    self.assertEqual(request.target, (home / ".codex").resolve())
+
+    def test_codex_status_and_clear_explicit_target_default_to_workspace_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            workspace = Path(temp_name) / "project"
+            target = workspace / ".codex"
+            for action in ("status", "clear"):
+                with self.subTest(action=action):
+                    request = PROFILE.resolve_request(
+                        parse(
+                            action,
+                            "--runtime",
+                            "codex",
+                            "--workspace",
+                            str(workspace),
+                            "--target",
+                            str(target),
+                            "--asset-root",
+                            str(REPO_ROOT),
+                        ),
+                        stdin=NonTtyStringIO(),
+                        stdout=NonTtyStringIO(),
+                    )
+                    self.assertEqual(request.scope, "workspace")
+                    self.assertEqual(request.target, target.resolve())
 
     def test_installed_wrapper_owner_precedes_ambient_codex_home(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -437,15 +512,17 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 )
             self.assertEqual(resolved, installed_home.resolve())
 
-    def test_list_needs_no_scope_in_non_interactive_mode(self) -> None:
-        request = PROFILE.resolve_request(
-            parse("list", "--runtime", "claude", "--asset-root", str(REPO_ROOT)),
-            stdin=NonTtyStringIO(),
-            stdout=NonTtyStringIO(),
-        )
-        self.assertEqual(request.action, "list")
-        self.assertEqual(request.scope, "global")
-        self.assertEqual(request.runtime, "claude")
+    def test_adapter_list_defaults_remain_global(self) -> None:
+        for runtime in ("claude", "copilot"):
+            with self.subTest(runtime=runtime):
+                request = PROFILE.resolve_request(
+                    parse("list", "--runtime", runtime, "--asset-root", str(REPO_ROOT)),
+                    stdin=NonTtyStringIO(),
+                    stdout=NonTtyStringIO(),
+                )
+                self.assertEqual(request.action, "list")
+                self.assertEqual(request.scope, "global")
+                self.assertEqual(request.runtime, runtime)
 
 
 class AgentProfileCommandTests(unittest.TestCase):
@@ -871,6 +948,8 @@ class AgentProfileManifestTests(unittest.TestCase):
                 "status",
                 "--runtime",
                 "codex",
+                "--scope",
+                "global",
                 "--target",
                 str(target),
                 "--asset-root",
@@ -929,6 +1008,8 @@ class AgentProfileManifestTests(unittest.TestCase):
                 "status",
                 "--runtime",
                 "codex",
+                "--scope",
+                "global",
                 "--target",
                 str(target),
                 "--asset-root",

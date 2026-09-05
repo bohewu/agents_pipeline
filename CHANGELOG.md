@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-09-05
+
+### Added
+
+- Added an explicit prompt-only art scaffold branch and reusable S01-S15 manual smoke records for bounded frontend, copy, art, concept, durable-bundle, and formal-audit behavior.
+
+### Changed
+
+- Calibrated non-orchestrator capability skills so approved or bounded frontend work uses affected-surface verification without a mandatory conceptual phase or minimum polish quota; compact copy and desktop-only concepts retain their requested depth, while full responsive work, durable UI/UX bundles, formal UX gates, accessibility, evidence, and resource-ownership contracts remain intact.
+- Kept the seven-section versioned art handoff as the default while preventing the docs-only scaffold from intercepting actual image generation or edit requests.
+- Aligned every `run-*` entry with exact saved versioned `resolved_configuration` envelopes and the formal effort-only resolver/trace path, preserving global inheritance, `openai-legacy` v2 compatibility, inherit/shadow/adaptive behavior, reviewer overrides, bounded recovery, lifecycle stops, cleanup, and resume locks.
+- Made applicable Codex profile-manager actions and the blank interactive scope choice default to workspace, including `status --target` and `clear --target` when scope is omitted; explicit global diagnostics and cleanup plus Claude/Copilot global compatibility remain available.
+- Documented that repository skill and paired-role source changes require the existing managed sync/export/install flow and a new session for load verification; no installed global copy or selected model/effort policy is changed automatically.
+
 ## [0.36.0] - 2026-09-05
 
 ### Added

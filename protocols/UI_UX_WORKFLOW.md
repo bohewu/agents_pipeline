@@ -8,12 +8,13 @@ It exists to give the repo a bounded place for early UI/UX framing without intro
 
 - Use this workflow when the user needs conceptual UI/UX direction for one bounded experience, workflow, or surface.
 - Use the same workflow when the request is mainly a communication-first redesign or critique about task clarity, labels, instructions, trust, or confusing next steps.
-- The workflow sits between raw product intent and later execution-oriented paths:
+- The workflow can provide input to later execution-oriented paths when separately authorized:
   - before `$run-spec` when concepts need approval before implementation-ready specs
   - after `$run-ux` when audit findings need conceptual follow-up
   - adjacent to `artgen-scaffold` when a concept also needs bounded 2D asset briefs or prompts
 - The canonical entry surface is the repo-managed `ui-ux-workflow` skill, with `@ui-ux-designer` as the matching execution specialist when agent delegation is available.
 - Do not add a new primary orchestrator for this layer.
+- References to later skills, agents, or workflows are descriptive compatibility and handoff guidance; they do not authorize or start another phase.
 
 ## Workflow Boundaries
 
@@ -44,13 +45,15 @@ Use this overlay when the request is mostly about:
 - trust-sensitive task framing
 - rewriting existing audit findings into a clearer conceptual flow
 
-For these requests, keep the work inside `ui-ux-workflow` and frame the concept as a conversation between the system and the user. The output should explicitly cover:
+For flow critiques and redesign requests, keep the work inside `ui-ux-workflow` and frame the concept as a conversation between the system and the user. The output should explicitly cover:
 
 - the top user questions the interface must answer
 - a short human-to-human explanation of the task
 - a revised task flow that captures what the user decides and what the system needs to say or show
 - a targeted microcopy rewrite set for the highest-risk or highest-friction text
 - communication priorities for screens, sections, and microcopy
+
+For an explicit copy-only request that preserves the flow, return the requested copy and only the context needed to use it. Do not require the full framing above, a revised task flow, a wireframe, or scoring. Structural concerns outside the request may be non-blocking recommendations unless they make the requested copy unusable.
 
 Do not create a second UI/UX command or a new orchestrator for this overlay.
 
@@ -81,10 +84,10 @@ Do not create a second UI/UX command or a new orchestrator for this overlay.
 
 1. User enters a conceptual UI/UX request through `ui-ux-workflow`.
 2. `@ui-ux-designer` returns a bounded concept brief for the primary workflow or surface.
-3. For communication-first requests, the concept brief also calls out top user questions, a short human-to-human explanation, and the revised task flow and screen messaging implications.
-4. If the user really needs evaluation of an existing experience, redirect or hand off to `$run-ux`.
-5. If the concept is approved and needs implementation-ready specification, hand off to `$run-spec`.
-6. If supporting 2D assets are needed, use `artgen-scaffold` separately for those asset briefs.
+3. For communication-first flow or redesign requests, the concept brief also calls out top user questions, a short human-to-human explanation, and the revised task flow and screen messaging implications. Copy-only requests may stay limited to the requested copy.
+4. If the user needs evaluation of an existing experience, `$run-ux` is an optional separately authorized route.
+5. If an approved concept needs an implementation-ready specification, `$run-spec` is an optional separately authorized route.
+6. If supporting 2D assets are requested, `artgen-scaffold` may separately supply those asset briefs.
 
 ## Versioned Artifact Contract Bundle
 
@@ -175,7 +178,7 @@ The current schema-lite bundle groups the nine v1 outputs into these five top-le
 - Prompt export content may appear verbatim in Markdown for easy reuse, but the structured JSON payload remains the canonical contract.
 - Prompt export must never be treated as an appendix or optional note; it is a required handoff artifact.
 - Thin preview handoff prose must state `external or thin, read-only` intent explicitly and must preserve non-goals that keep preview/editor scope thin.
-- For communication-first requests, recommended additional Markdown subsections are:
+- For communication-first flow or redesign requests, recommended additional Markdown subsections are:
   - `Top User Questions`
   - `Human-to-Human Explanation`
   - `Communication Notes`
@@ -213,6 +216,7 @@ Use the v1 catalog as a bounded vocabulary for `low_fi_wireframes` and `mid_fi_d
 - For low-fi outputs, prefer quick structure-first sketches when helpful. Simple ASCII diagrams are valid and often preferable to verbose prose.
 - Record why the chosen template fits and which nearby alternative was rejected.
 - If no template fits cleanly, name the closest fit and the mismatch instead of inventing a detailed custom layout system.
+- Apply each template's cross-platform adaptation guidance only to devices in the explicit request or the product's established support scope. A desktop-only concept does not acquire tablet or mobile deliverables from the catalog.
 
 ### v1 template catalog
 
@@ -641,13 +645,15 @@ Choose one default density per surface and explain why it fits the task.
 
 ### Cross-platform adaptation rules
 
+Apply these rules to the viewports required by the request and established product support. They do not require a desktop-only concept to add tablet or mobile designs.
+
 | Viewport | Explicit rule |
 |---|---|
 | desktop | Multiple regions may remain visible only when simultaneous visibility improves orientation, comparison, or action confidence. Keep one primary task per screen even when support regions stay open. |
 | tablet | Preserve the desktop concept, but collapse one supporting region, bias toward stacked sections, and keep touch-safe spacing. Do not depend on three or more equally important visible columns. |
 | mobile | Reduce to one dominant column or one dominant task region, move secondary context behind expansion or secondary screens, keep actions obvious, and assume no hover affordance. Critical information must stay inline because tooltip-only disclosure is not reliable. |
 
-- One primary task per screen remains the default across desktop, tablet, and mobile.
+- One primary task per screen remains the default across each in-scope device.
 - Progressive disclosure should remove noise, not hide essential decision context.
 - Minimal non-essential copy is the default on every viewport; smaller screens should lose optional prose before they lose core instructions.
 
@@ -655,7 +661,7 @@ Choose one default density per surface and explain why it fits the task.
 
 ### Minimal intake question set
 
-Use a small number of high-value intake questions before drafting. These five questions are the default set.
+Ask only the high-value intake questions whose answers would materially change the requested concept. The five questions below are a reference set, not a mandatory questionnaire for compact work.
 
 | Intake question | Why it matters |
 |---|---|
@@ -672,11 +678,11 @@ Review with a short set of high-value questions and route changes based on the r
 | Review question | Why it matters | Recommendation if the answer is no |
 |---|---|---|
 | Is the concept clearly bounded to one primary workflow or surface, with one primary task per screen? | A bounded concept is easier to review, compare, and hand off without accidental product redesign. | Narrow the scope, split extra flows into follow-up work, or restate the one task the screen exists to support. |
-| Do the low-fi and mid-fi outputs describe theme posture, spacing scale, density, hierarchy, layout/navigation, and desktop/tablet/mobile adaptation at a conceptual level? | These are the minimum signals reviewers need to judge usability direction without demanding implementation detail. | Add short conceptual annotations for the missing design signals; do not add pixel specs, components, or breakpoints. |
-| Are empty, loading, error, and confirmation states explicit, with clear next steps and preserved context where needed? | Happy-path-only concepts create false confidence and hide recovery or reassurance gaps. | Add the missing states before approval, keeping each one tied to trigger, message, and next action. |
+| Do the low-fi and mid-fi outputs describe theme posture, spacing scale, density, hierarchy, layout/navigation, and adaptation for every in-scope device at a conceptual level? | These are the minimum signals reviewers need to judge the requested usability direction without demanding implementation detail. | Add short conceptual annotations for missing in-scope design signals; do not add devices, pixel specs, components, or breakpoints outside the request. |
+| Are relevant empty, loading, error, and confirmation states explicit, with clear next steps and preserved context where needed? | Omitting states that affect the primary workflow can hide recovery or reassurance gaps. | Add only the missing states that materially affect the requested concept, keeping each one tied to trigger, message, and next action. |
 | Does the concept use progressive disclosure appropriately, keep non-essential copy minimal, and avoid tooltip-only critical information? | Good conceptual UI/UX reduces noise without hiding the information users need to act safely. | Inline essential warnings or prerequisites, trim repetitive prose, and move secondary detail behind expansion or separate surfaces. |
 | Does the bundle stay approval-oriented rather than implementation-ready? | This layer exists to align on concept before specification or execution. | Remove engineering-ready detail and redirect implementation asks to `$run-spec` after concept approval. |
-| Is the next handoff path explicit and appropriate? | Clear routing prevents the conceptual layer from turning into an audit, build plan, or asset-generation task. | Choose exactly one next step: stay conceptual, `$run-ux`, `$run-spec`, or `artgen-scaffold`. |
+| Is any suggested handoff clearly optional and appropriate? | Clear routing prevents a recommendation from becoming an unauthorized audit, build plan, or asset-generation task. | Label a useful next step as descriptive, or omit it when the requested conceptual deliverable is complete. |
 
 Automatic rejection conditions for this workflow:
 
