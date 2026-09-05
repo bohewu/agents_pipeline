@@ -1,0 +1,28 @@
+{
+  "name": "openai-legacy",
+  "version": "2",
+  "runtime": "codex",
+  "description": "Legacy Luna/Terra/Sol model set with the v2 effort projection.",
+  "mapping_digest": "sha256:fa0bd154138c11c5425b72401f256f92004d0b146f655044c9284bbb38782d75",
+  "reasoning_projection": {
+    "id": "legacy-v2",
+    "version": "2",
+    "policy_version": "2",
+    "digest": "sha256:1340af9f44d75abe6311da36c7aa5b22b27b713c5b4706ec0ea720810d604279"
+  },
+  "tiers": {
+    "mini": {
+      "model": "gpt-5.6-luna",
+      "model_provider": "openai"
+    },
+    "standard": {
+      "model": "gpt-5.6-terra",
+      "model_provider": "openai"
+    },
+    "strong": {
+      "model": "gpt-5.6-sol",
+      "model_provider": "openai"
+    }
+  },
+  "role_overrides": {}
+}

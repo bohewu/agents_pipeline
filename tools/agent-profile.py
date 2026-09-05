@@ -87,6 +87,7 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "protocols/UI_UX_WORKFLOW.md",
     "protocols/UX_DEVTOOLS_WORKFLOW.md",
     "protocols/capability-recovery-policy.json",
+    "protocols/reasoning-projections.json",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
@@ -395,7 +396,13 @@ def list_model_sets(runtime: str, model_set_dir: Path) -> list[dict[str, Any]]:
                 "path": path.as_posix(),
             }
         )
-    return model_sets
+    return sorted(
+        model_sets,
+        key=lambda value: (
+            runtime == "codex" and value["name"] != "openai",
+            value["name"],
+        ),
+    )
 
 
 def _profile_choices(profiles: Sequence[Mapping[str, Any]]) -> list[tuple[str, str]]:

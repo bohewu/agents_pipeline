@@ -1,8 +1,9 @@
 const crypto = require("crypto");
 const path = require("path");
+const { isDeepStrictEqual } = require("util");
 
 const { PROTOCOL_VERSION, TASK_COUNT_ORDER } = require("./constants");
-const { canonicalizeTaskCounts } = require("./schema-lite");
+const { canonicalizeRunConfiguration, canonicalizeTaskCounts } = require("./schema-lite");
 const { assert, cloneJson, isObject, nowIso, toRelativeStatusPath } = require("./utils");
 
 function mergeFlags(currentFlags, incomingFlags) {
@@ -70,6 +71,7 @@ class StatusProjector {
       updated_at: timestamp,
       output_dir: state.runDir,
       checkpoint_path: path.join(state.runDir, "checkpoint.json"),
+      configuration: cloneJson(payload.configuration),
       user_prompt: payload.user_prompt,
       current_stage: -1,
       completed_stages: [],
@@ -87,6 +89,7 @@ class StatusProjector {
       pipeline_id: payload.run_id,
       orchestrator: payload.orchestrator,
       user_prompt: payload.user_prompt,
+      configuration: cloneJson(payload.configuration),
       flags: isObject(payload.flags) ? cloneJson(payload.flags) : {},
       current_stage: -1,
       completed_stages: [],
@@ -103,6 +106,7 @@ class StatusProjector {
   onRunResumed(state, payload, timestamp) {
     assert(state.runStatus, "Cannot resume without an existing run-status.json");
     assert(state.checkpoint, "Cannot resume without an existing checkpoint.json");
+    this.assertResumeConfiguration(state, payload.configuration);
 
     state.runStatus.resume_from_checkpoint = true;
     state.runStatus.status = payload.status || "running";
@@ -245,6 +249,7 @@ class StatusProjector {
           input.capability_recovery_used ?? existing?.capability_recovery_used,
         reasoning_class: input.reasoning_class,
         reasoning_signals: input.reasoning_signals,
+        configuration_identity: state.runStatus.configuration?.configuration_identity,
         batch_id: input.batch_id,
         depends_on: input.depends_on,
         assigned_agent_id: input.assigned_agent_id,
@@ -350,6 +355,7 @@ class StatusProjector {
       teardown_required: payload.teardown_required,
       resource_handles: cloneJson(payload.resource_handles),
       cleanup_status: payload.cleanup_status || defaultCleanupStatus(payload.resource_class),
+      resolved_configuration: cloneJson(payload.resolved_configuration),
       reasoning: cloneJson(payload.reasoning)
     };
     state.agents.set(agentId, { ...existing, ...agent });
@@ -442,6 +448,37 @@ class StatusProjector {
     }
 
     return this.recompute(state, timestamp);
+  }
+
+  assertResumeConfiguration(state, incomingConfiguration) {
+    const savedRunConfiguration = state.runStatus.configuration;
+    const savedCheckpointConfiguration = state.checkpoint.configuration;
+    if (savedRunConfiguration === undefined && savedCheckpointConfiguration === undefined) {
+      assert(
+        incomingConfiguration === undefined,
+        "Legacy run cannot resume with a newly selected configuration; start a new run"
+      );
+      return;
+    }
+    assert(
+      savedRunConfiguration !== undefined && savedCheckpointConfiguration !== undefined,
+      "Run and checkpoint configuration must be present together"
+    );
+    const savedRun = canonicalizeRunConfiguration(savedRunConfiguration);
+    const savedCheckpoint = canonicalizeRunConfiguration(savedCheckpointConfiguration);
+    assert(
+      isDeepStrictEqual(savedRun, savedCheckpoint),
+      "Run and checkpoint configuration do not match"
+    );
+    assert(
+      incomingConfiguration !== undefined,
+      "Configured run resume requires the current preflight configuration"
+    );
+    const incoming = canonicalizeRunConfiguration(incomingConfiguration);
+    assert(
+      isDeepStrictEqual(configurationLock(savedRun), configurationLock(incoming)),
+      "Current workspace configuration is incompatible with the saved run configuration"
+    );
   }
 
   allocateAgentId(state, payload) {
@@ -615,6 +652,15 @@ class StatusProjector {
   emptyTaskCounts() {
     return canonicalizeTaskCounts({});
   }
+}
+
+function configurationLock(configuration) {
+  return {
+    profile: configuration.profile,
+    model_mapping: configuration.model_mapping,
+    configuration_identity: configuration.configuration_identity,
+    resolved_configurations: configuration.resolved_configurations
+  };
 }
 
 module.exports = { StatusProjector };

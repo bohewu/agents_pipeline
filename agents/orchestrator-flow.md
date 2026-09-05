@@ -265,6 +265,12 @@ For task attempts, pass `task_intent`, `intent_baseline_class`,
 actual role model/tier; the resolver validates that capability and selects only
 child effort. Never pass a raw model or attempt dynamic model routing except for the
 one trace-verified child recovery permitted below.
+For a healthy eligible workspace profile, freeze the current profile identity,
+model mapping, projection identity, and exact per-role `resolved_configuration`
+at run start. Include that saved configuration in each resolver call, every
+agent lifecycle payload, and `run.resumed`; reject a changed configuration before
+later dispatch. The recovery envelope may differ only through the approved
+capability-recovery override returned by the profile.
 Before resolution, verify that the assigned role policy ceiling accepts the
 task class. `peon` is fixed-routine and may receive only `routine` tasks;
 reroute a higher-class task to `executor`, `generalist`, `doc-writer`, or
@@ -289,8 +295,8 @@ applies a selector, so exact overrides and strict assurance conflict. `shadow`
 fully computes requested effort but omits the selector; strict assurance
 conflicts. An ordinary review-max request remains deep and does not certify or
 change the selected model.
-Before a spawn, include the complete decision in the `agent.started` status
-payload as `reasoning`. On local Codex, after every spawn returns its identifier,
+Before a spawn, include the complete decision and exact saved
+`resolved_configuration` in the `agent.started` status payload. On local Codex, after every spawn returns its identifier,
 run `node tools/codex-child-trace.js` with V2 `--task-name` or legacy
 `--agent-id`, the expected role and, when non-null, expected `dispatch_effort`;
 rerun the resolver with the reported
@@ -304,6 +310,8 @@ causality. Conflicts block the spawn. Deep
 `mini`/`unknown` work conflicts by default; only an explicitly supplied
 `allow_degraded_deep` compatibility input may continue as degraded deep `max`.
 It never permits assurance or changes the model outside capability recovery.
+Only matching adaptive role, model, and effort trace evidence permits an
+`enforced` result; `shadow` and `inherit` observations remain unapplied.
 
 ## MATERIALITY AND CAPABILITY RECOVERY
 
@@ -505,7 +513,7 @@ If primary_output is implementation:
 
 - If `review_mode = on`, dispatch `@reviewer` after Stage 4 synthesis and before any handoff/kanban/commit helpers.
 - Reviewer handoff MUST use `mode = ad_hoc` and include explicit review targets: changed files/artifacts, task outputs/evidence, ProblemSpec plus task `trace_ids`, each task's unchanged `validation_infrastructure` authorization, explicit non-goals or out-of-scope constraints when supplied, and the required verification. For legacy input, include the reconciliation to the original request or pre-workflow repository evidence and normalized false authorization instead of demanding absent fields. Derivative DoD or `workflow_suggested` checks are not independent blocking authority.
-- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. Ordinary review uses the profile's strong tier with `xhigh` effort. Only `--review=max`, a material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not. Reviewer models never uplift. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
+- Resolve the initial reviewer and single re-review independently through the reasoning dispatch protocol. Ordinary review uses the centrally projected effort for the saved reviewer configuration. Only `--review=max`, a material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`; generic risk alone does not. Reviewer models never uplift. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains ordinary deep review, not certification. No non-review role receives this override.
 - Persist the reviewer result to `<run_output_dir>/flow/review-report.json`.
 - If reviewer returns `overall_status = pass`, continue normally.
 - If reviewer returns `overall_status = fail`:

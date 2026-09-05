@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 const {
   CLASSIFICATION_SOURCES,
@@ -18,6 +19,7 @@ const {
   SAFE_POLICY_VERSION,
   SAFE_REASONING_IDENTIFIER,
   TASK_INTENTS,
+  V3_EFFORTS,
   V2_CLASS_REQUIREMENT_MINIMUMS,
   V2_INTENT_BASELINE_CLASSES,
   V2_MODEL_FLOOR_MINIMUMS,
@@ -26,7 +28,20 @@ const {
 } = require("./reasoning-vocabulary");
 
 const DEFAULT_POLICY_PATH = path.resolve(__dirname, "..", "protocols", "reasoning-policy.json");
+const DEFAULT_PROJECTION_REGISTRY_PATH = path.resolve(
+  __dirname,
+  "..",
+  "protocols",
+  "reasoning-projections.json"
+);
 const REASONING_SIGNAL_SET = new Set(REASONING_SIGNALS);
+const SAFE_MODEL_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
+const PROJECTION_IDS = Object.freeze([
+  "legacy-v2",
+  "openai-reviewer-v1",
+  "lsa-efficiency-v1"
+]);
 
 const EXIT_CODES = {
   ok: 0,
@@ -207,6 +222,310 @@ function readJson(filePath, label) {
   }
 }
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalJson(entry));
+  }
+  if (isObject(value)) {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])])
+    );
+  }
+  return value;
+}
+
+function digestPayload(value) {
+  return `sha256:${crypto
+    .createHash("sha256")
+    .update(JSON.stringify(canonicalJson(value)), "utf8")
+    .digest("hex")}`;
+}
+
+function assertDigest(value, label) {
+  assert(typeof value === "string" && DIGEST_PATTERN.test(value), `${label} must be a sha256 digest`);
+}
+
+function ensureProjectionEffort(value, effortOrder, label) {
+  assert(effortOrder.includes(value), `${label} must be an effort supported by its projection`);
+  return value;
+}
+
+function validateProjectionRequirement(requirement, projection, reasoningClass) {
+  assertExactKeys(
+    requirement,
+    ["minimum_model_tier", "effort_by_model_tier"],
+    `projection ${projection.id} class_requirements.${reasoningClass}`
+  );
+  ensureEnum(
+    requirement.minimum_model_tier,
+    MODEL_TIERS,
+    `projection ${projection.id} class_requirements.${reasoningClass}.minimum_model_tier`
+  );
+  assertExactKeys(
+    requirement.effort_by_model_tier,
+    [...MODEL_TIERS, "unknown"],
+    `projection ${projection.id} class_requirements.${reasoningClass}.effort_by_model_tier`
+  );
+  for (const tier of [...MODEL_TIERS, "unknown"]) {
+    ensureProjectionEffort(
+      requirement.effort_by_model_tier[tier],
+      projection.effort_order,
+      `projection ${projection.id} class_requirements.${reasoningClass}.effort_by_model_tier.${tier}`
+    );
+  }
+}
+
+function validateModelSetBinding(modelSet, projection) {
+  assertExactKeys(
+    modelSet,
+    ["id", "version", "mapping_digest", "tiers", "role_overrides"],
+    `projection ${projection.id} model_set`
+  );
+  assert(
+    typeof modelSet.id === "string" && SAFE_REASONING_IDENTIFIER.test(modelSet.id),
+    `projection ${projection.id} model_set id must be a bounded identifier`
+  );
+  assert(
+    typeof modelSet.version === "string" && SAFE_POLICY_VERSION.test(modelSet.version),
+    `projection ${projection.id} model_set version must be bounded`
+  );
+  assertExactKeys(modelSet.tiers, MODEL_TIERS, `projection ${projection.id} model_set tiers`);
+  for (const tier of MODEL_TIERS) {
+    assert(
+      typeof modelSet.tiers[tier] === "string" && SAFE_MODEL_IDENTIFIER.test(modelSet.tiers[tier]),
+      `projection ${projection.id} model_set tier ${tier} must bind a safe model identifier`
+    );
+  }
+  assert(isObject(modelSet.role_overrides), `projection ${projection.id} model_set role_overrides must be an object`);
+  for (const [role, override] of Object.entries(modelSet.role_overrides)) {
+    assert(SAFE_REASONING_IDENTIFIER.test(role), `projection ${projection.id} has an invalid role override`);
+    assertExactKeys(override, ["model_tier", "model"], `projection ${projection.id} role override ${role}`);
+    ensureEnum(override.model_tier, MODEL_TIERS, `projection ${projection.id} role override ${role}.model_tier`);
+    assert(
+      typeof override.model === "string" && SAFE_MODEL_IDENTIFIER.test(override.model),
+      `projection ${projection.id} role override ${role}.model must be safe`
+    );
+  }
+  assertDigest(modelSet.mapping_digest, `projection ${projection.id} model_set mapping_digest`);
+  const mappingPayload = {
+    id: modelSet.id,
+    version: modelSet.version,
+    tiers: modelSet.tiers,
+    role_overrides: modelSet.role_overrides
+  };
+  assert(
+    modelSet.mapping_digest === digestPayload(mappingPayload),
+    `projection ${projection.id} model_set ${modelSet.id} mapping_digest does not match its immutable mapping`
+  );
+}
+
+function validateProjectionRegistry(registry) {
+  assert(isObject(registry), "Reasoning projection registry must be an object");
+  assertExactKeys(registry, ["schema_version", "digest_algorithm", "projections"], "Reasoning projection registry");
+  assert(registry.schema_version === "1", "Reasoning projection registry schema_version must be 1");
+  assert(registry.digest_algorithm === "sha256", "Reasoning projection registry must use sha256");
+  assert(Array.isArray(registry.projections), "Reasoning projection registry projections must be an array");
+  assert(registry.projections.length === PROJECTION_IDS.length, "Reasoning projection registry must contain the canonical projections");
+  const seen = new Set();
+  for (const projection of registry.projections) {
+    assertExactKeys(
+      projection,
+      [
+        "id",
+        "version",
+        "policy_version",
+        "digest",
+        "effort_order",
+        "global_floor",
+        "model_floors",
+        "class_requirements",
+        "role_effort_overrides",
+        "model_sets"
+      ],
+      "Reasoning projection"
+    );
+    assert(PROJECTION_IDS.includes(projection.id), `Unsupported reasoning projection: ${projection.id}`);
+    assert(!seen.has(projection.id), `Reasoning projection ${projection.id} must be unique`);
+    seen.add(projection.id);
+    assert(typeof projection.version === "string" && SAFE_POLICY_VERSION.test(projection.version), `Projection ${projection.id} version must be bounded`);
+    assert(
+      projection.policy_version === (projection.id === "legacy-v2" ? "2" : "3"),
+      `Projection ${projection.id} has an incompatible policy version`
+    );
+    const expectedEfforts = projection.id === "legacy-v2" ? EFFORTS : V3_EFFORTS;
+    assert(
+      JSON.stringify(projection.effort_order) === JSON.stringify(expectedEfforts),
+      `Projection ${projection.id} must retain its canonical effort vocabulary`
+    );
+    ensureProjectionEffort(projection.global_floor, projection.effort_order, `projection ${projection.id} global_floor`);
+    assertExactKeys(projection.model_floors, [...MODEL_TIERS, "unknown"], `projection ${projection.id} model_floors`);
+    for (const tier of [...MODEL_TIERS, "unknown"]) {
+      ensureProjectionEffort(projection.model_floors[tier], projection.effort_order, `projection ${projection.id} model_floors.${tier}`);
+    }
+    assertExactKeys(projection.class_requirements, REASONING_CLASSES, `projection ${projection.id} class_requirements`);
+    for (const reasoningClass of REASONING_CLASSES) {
+      validateProjectionRequirement(projection.class_requirements[reasoningClass], projection, reasoningClass);
+    }
+    assert(isObject(projection.role_effort_overrides), `projection ${projection.id} role_effort_overrides must be an object`);
+    for (const [role, classes] of Object.entries(projection.role_effort_overrides)) {
+      assert(SAFE_REASONING_IDENTIFIER.test(role), `projection ${projection.id} role effort override must name a role`);
+      assert(isObject(classes), `projection ${projection.id} role effort override must be an object`);
+      for (const [reasoningClass, tiers] of Object.entries(classes)) {
+        ensureEnum(reasoningClass, REASONING_CLASSES, `projection ${projection.id} role effort class`);
+        assert(isObject(tiers), `projection ${projection.id} role effort tier override must be an object`);
+        for (const [tier, effort] of Object.entries(tiers)) {
+          ensureEnum(tier, MODEL_TIERS, `projection ${projection.id} role effort model tier`);
+          ensureProjectionEffort(effort, projection.effort_order, `projection ${projection.id} role effort`);
+        }
+      }
+    }
+    assert(Array.isArray(projection.model_sets) && projection.model_sets.length > 0, `projection ${projection.id} requires model bindings`);
+    const modelSetIds = new Set();
+    for (const modelSet of projection.model_sets) {
+      validateModelSetBinding(modelSet, projection);
+      assert(!modelSetIds.has(modelSet.id), `projection ${projection.id} must not repeat model set ${modelSet.id}`);
+      modelSetIds.add(modelSet.id);
+    }
+    assertDigest(projection.digest, `projection ${projection.id} digest`);
+    const { digest, ...projectionPayload } = projection;
+    assert(
+      digest === digestPayload(projectionPayload),
+      `Projection ${projection.id} digest does not match its immutable policy`
+    );
+  }
+  assert(PROJECTION_IDS.every((id) => seen.has(id)), "Reasoning projection registry is missing a canonical projection");
+  return registry;
+}
+
+function loadProjectionRegistry(registryPath = DEFAULT_PROJECTION_REGISTRY_PATH) {
+  return validateProjectionRegistry(readJson(path.resolve(registryPath), "Reasoning projection registry"));
+}
+
+function hasConfigurationMetadata(input) {
+  return ["resolved_configuration", "model_set", "reasoning_projection", "role_binding", "provenance"]
+    .some((key) => input[key] !== undefined);
+}
+
+function validateResolvedConfiguration(input, registry = loadProjectionRegistry()) {
+  assert(isObject(input), "Resolver input must be an object");
+  if (!hasConfigurationMetadata(input)) return null;
+  assert(isObject(input.resolved_configuration), "resolved_configuration is required when projection metadata is supplied");
+  const configuration = input.resolved_configuration;
+  assertExactKeys(
+    configuration,
+    ["schema_version", "model_set", "reasoning_projection", "role_binding", "provenance"],
+    "resolved_configuration"
+  );
+  assert(configuration.schema_version === 1, "resolved_configuration.schema_version must be 1");
+  assertExactKeys(configuration.model_set, ["id", "version", "mapping_digest"], "resolved_configuration.model_set");
+  assertExactKeys(
+    configuration.reasoning_projection,
+    ["id", "version", "policy_version", "digest"],
+    "resolved_configuration.reasoning_projection"
+  );
+  assertExactKeys(configuration.role_binding, ["role", "model_tier", "model", "mapping_digest"], "resolved_configuration.role_binding");
+  assertExactKeys(configuration.provenance, ["source", "override"], "resolved_configuration.provenance");
+  assert(
+    typeof configuration.role_binding.role === "string" && SAFE_REASONING_IDENTIFIER.test(configuration.role_binding.role),
+    "resolved_configuration.role_binding.role must be a bounded identifier"
+  );
+  assert(configuration.role_binding.role === input.role, "resolved_configuration.role_binding.role must match role");
+  ensureEnum(configuration.role_binding.model_tier, MODEL_TIERS, "resolved_configuration.role_binding.model_tier");
+  assert(
+    typeof configuration.role_binding.model === "string" && SAFE_MODEL_IDENTIFIER.test(configuration.role_binding.model),
+    "resolved_configuration.role_binding.model must be safe"
+  );
+  assertDigest(configuration.model_set.mapping_digest, "resolved_configuration.model_set.mapping_digest");
+  assertDigest(configuration.role_binding.mapping_digest, "resolved_configuration.role_binding.mapping_digest");
+  assert(configuration.role_binding.mapping_digest === configuration.model_set.mapping_digest, "resolved_configuration binding digest must match model-set digest");
+  assert(["workspace_profile", "pinned_legacy"].includes(configuration.provenance.source), "resolved_configuration.provenance.source is unsupported");
+  if (configuration.provenance.override !== null) {
+    assertExactKeys(
+      configuration.provenance.override,
+      ["kind", "version", "source_model_tier", "target_model_tier"],
+      "resolved_configuration.provenance.override"
+    );
+    assert(configuration.provenance.override.kind === "capability_recovery", "resolved_configuration override kind is unsupported");
+    assert(configuration.provenance.override.version === "1", "resolved_configuration override version is unsupported");
+    ensureEnum(configuration.provenance.override.source_model_tier, MODEL_TIERS, "resolved_configuration override source tier");
+    ensureEnum(configuration.provenance.override.target_model_tier, MODEL_TIERS, "resolved_configuration override target tier");
+    assert(
+      modelTierIndex(configuration.provenance.override.target_model_tier)
+        > modelTierIndex(configuration.provenance.override.source_model_tier),
+      "resolved_configuration override must raise the model tier"
+    );
+    assert(
+      configuration.provenance.override.target_model_tier === configuration.role_binding.model_tier,
+      "resolved_configuration override target must match the resolved role tier"
+    );
+    assert(
+      ["executor", "generalist"].includes(input.role),
+      "resolved_configuration recovery override is limited to executor and generalist"
+    );
+    assert(
+      configuration.provenance.source === "workspace_profile",
+      "resolved_configuration recovery override requires workspace_profile provenance"
+    );
+  }
+  const projection = registry.projections.find((entry) => (
+    entry.id === configuration.reasoning_projection.id
+      && entry.version === configuration.reasoning_projection.version
+  ));
+  assert(projection, "resolved_configuration names an unknown reasoning projection");
+  assert(
+    projection.policy_version === configuration.reasoning_projection.policy_version
+      && projection.digest === configuration.reasoning_projection.digest,
+    "resolved_configuration reasoning projection metadata does not match the registry"
+  );
+  const modelSet = projection.model_sets.find((entry) => (
+    entry.id === configuration.model_set.id
+      && entry.version === configuration.model_set.version
+  ));
+  assert(modelSet, "resolved_configuration model set is not bound to the selected projection");
+  assert(modelSet.mapping_digest === configuration.model_set.mapping_digest, "resolved_configuration model-set digest does not match the registry");
+  const expectedBinding = modelSet.role_overrides[input.role] || {
+    model_tier: configuration.role_binding.model_tier,
+    model: modelSet.tiers[configuration.role_binding.model_tier]
+  };
+  assert(
+    expectedBinding.model_tier === configuration.role_binding.model_tier
+      && expectedBinding.model === configuration.role_binding.model,
+    "resolved_configuration role binding does not match the selected model mapping"
+  );
+  if (input.model_tier !== undefined || input.selected_model_tier !== undefined) {
+    const suppliedTier = input.selected_model_tier === undefined ? input.model_tier : input.selected_model_tier;
+    assert(suppliedTier === configuration.role_binding.model_tier, "selected model tier must match resolved_configuration");
+  }
+  if (projection.id !== "legacy-v2") {
+    assert(configuration.provenance.source === "workspace_profile", "new projections require workspace_profile provenance");
+  }
+  return {
+    projection,
+    modelSet,
+    configuration,
+    isNew: projection.policy_version === "3"
+  };
+}
+
+function resolveProjection(input, registry = loadProjectionRegistry()) {
+  return validateResolvedConfiguration(input, registry);
+}
+
+function projectedNormalEffort(projection, role, reasoningClass, modelTier) {
+  assert(isObject(projection), "projection must be an object");
+  assert(PROJECTION_IDS.includes(projection.id), "projection must be a registered projection");
+  ensureEnum(reasoningClass, REASONING_CLASSES, "reasoningClass");
+  ensureEnum(modelTier, MODEL_TIERS, "modelTier");
+  const requirement = projection.class_requirements[reasoningClass];
+  const override = projection.role_effort_overrides[role]?.[reasoningClass]?.[modelTier];
+  return maxEffortFor(
+    projection.effort_order,
+    override || requirement.effort_by_model_tier[modelTier],
+    projection.global_floor,
+    projection.model_floors[modelTier]
+  );
+}
+
 function ensureEnum(value, allowed, label) {
   assert(allowed.includes(value), `${label} must be one of: ${allowed.join(", ")}`);
   return value;
@@ -231,8 +550,8 @@ function classIndex(value) {
   return REASONING_CLASSES.indexOf(value);
 }
 
-function effortIndex(value) {
-  return EFFORTS.indexOf(value);
+function effortIndex(value, effortOrder = EFFORTS) {
+  return effortOrder.indexOf(value);
 }
 
 function modelTierIndex(value) {
@@ -245,10 +564,14 @@ function maxClass(...values) {
   ), "routine");
 }
 
-function maxEffort(...values) {
+function maxEffortFor(effortOrder, ...values) {
   return values.filter(Boolean).reduce((current, value) => (
-    effortIndex(value) > effortIndex(current) ? value : current
-  ), "medium");
+    effortIndex(value, effortOrder) > effortIndex(current, effortOrder) ? value : current
+  ), effortOrder[0]);
+}
+
+function maxEffort(...values) {
+  return maxEffortFor(EFFORTS, ...values);
 }
 
 function maxModelTier(...values) {
@@ -518,12 +841,14 @@ function loadPolicy(policyPath = DEFAULT_POLICY_PATH) {
   return validatePolicy(readJson(path.resolve(policyPath), "Reasoning policy"));
 }
 
-function normalizeInput(input, policy) {
+function normalizeInput(input, policy, projectionRegistry) {
   assert(isObject(input), "Resolver input must be an object");
   assert(
     typeof input.role === "string" && SAFE_REASONING_IDENTIFIER.test(input.role),
     "role must be a bounded lowercase reasoning identifier"
   );
+  const projectionContext = validateResolvedConfiguration(input, projectionRegistry);
+  const supportedVocabulary = projectionContext ? projectionContext.projection.effort_order : EFFORTS;
   const mode = input.mode === undefined ? policy.default_mode : ensureEnum(input.mode, POLICY_MODES, "mode");
   const taskIntent = input.task_intent === undefined || input.task_intent === null
     ? null
@@ -536,16 +861,18 @@ function normalizeInput(input, policy) {
     : ensureEnum(input.explicit_reasoning_class, REASONING_CLASSES, "explicit_reasoning_class");
   const explicitEffort = input.explicit_effort === undefined
     ? undefined
-    : ensureEnum(input.explicit_effort, EFFORTS, "explicit_effort");
+    : ensureProjectionEffort(input.explicit_effort, supportedVocabulary, "explicit_effort");
   if (input.model_tier !== undefined && input.selected_model_tier !== undefined) {
     assert(input.model_tier === input.selected_model_tier, "model_tier and selected_model_tier must match");
   }
   const modelTierInput = input.selected_model_tier === undefined
     ? input.model_tier
     : input.selected_model_tier;
-  const modelTier = modelTierInput === undefined
-    ? "unknown"
-    : ensureEnum(modelTierInput, [...MODEL_TIERS, "unknown"], "selected_model_tier");
+  const modelTier = projectionContext
+    ? projectionContext.configuration.role_binding.model_tier
+    : (modelTierInput === undefined
+      ? "unknown"
+      : ensureEnum(modelTierInput, [...MODEL_TIERS, "unknown"], "selected_model_tier"));
   if (input.dispatch_context !== undefined) {
     assert(
       typeof input.dispatch_context === "string" && policy.dispatch_contexts[input.dispatch_context],
@@ -561,6 +888,17 @@ function normalizeInput(input, policy) {
   if (input.prior_reasoning_failure === true && priorFailureType !== "reasoning_failure") {
     throw new Error("prior_reasoning_failure=true conflicts with an operational prior_failure_type");
   }
+  const priorEffectiveClass = input.prior_effective_class === undefined || input.prior_effective_class === null
+    ? null
+    : ensureEnum(input.prior_effective_class, REASONING_CLASSES, "prior_effective_class");
+  const priorObservedEffectiveEffort = input.prior_observed_effective_effort === undefined
+    || input.prior_observed_effective_effort === null
+    ? null
+    : ensureProjectionEffort(
+      input.prior_observed_effective_effort,
+      supportedVocabulary,
+      "prior_observed_effective_effort"
+    );
   if (input.allow_degraded_deep !== undefined) {
     assert(typeof input.allow_degraded_deep === "boolean", "allow_degraded_deep must be a boolean");
   }
@@ -570,15 +908,15 @@ function normalizeInput(input, policy) {
   let supportedEfforts;
   if (input.runtime_supported_efforts !== undefined) {
     assert(Array.isArray(input.runtime_supported_efforts), "runtime_supported_efforts must be an array");
-    supportedEfforts = [...new Set(input.runtime_supported_efforts.filter((value) => EFFORTS.includes(value)))];
+    supportedEfforts = [...new Set(input.runtime_supported_efforts.filter((value) => supportedVocabulary.includes(value)))];
     assert(supportedEfforts.length > 0, "runtime_supported_efforts must include at least one supported non-ultra effort");
   }
   const observedEffectiveEffort = input.observed_effective_effort === undefined
     ? undefined
-    : ensureEnum(input.observed_effective_effort, EFFORTS, "observed_effective_effort");
+    : ensureProjectionEffort(input.observed_effective_effort, supportedVocabulary, "observed_effective_effort");
   const workspaceCeiling = input.workspace_ceiling === undefined
     ? "max"
-    : ensureEnum(input.workspace_ceiling, EFFORTS, "workspace_ceiling");
+    : ensureProjectionEffort(input.workspace_ceiling, supportedVocabulary, "workspace_ceiling");
 
   return {
     role: input.role,
@@ -591,11 +929,15 @@ function normalizeInput(input, policy) {
     modelTier,
     dispatchContext: input.dispatch_context,
     priorFailureType,
+    priorEffectiveClass,
+    priorObservedEffectiveEffort,
     allowDegradedDeep: Boolean(input.allow_degraded_deep),
     selectorAvailable: input.selector_available,
     supportedEfforts,
     observedEffectiveEffort,
-    workspaceCeiling
+    workspaceCeiling,
+    projectionContext,
+    effortOrder: supportedVocabulary
   };
 }
 
@@ -648,16 +990,16 @@ function selectedTierMeetsRequirement(selected, required, reasoningClass) {
   return modelTierIndex(selected) >= modelTierIndex(required);
 }
 
-function resolveSupportedEffort(requested, supported, minimumFloor, maximumCeiling, exact) {
+function resolveSupportedEffort(requested, supported, minimumFloor, maximumCeiling, exact, effortOrder = EFFORTS) {
   if (!supported || supported.includes(requested)) {
     return { effort: requested, degraded: false, conflict: undefined };
   }
   const candidates = supported
     .filter((effort) => (
-      effortIndex(effort) >= effortIndex(minimumFloor)
-      && effortIndex(effort) <= effortIndex(maximumCeiling)
+      effortIndex(effort, effortOrder) >= effortIndex(minimumFloor, effortOrder)
+      && effortIndex(effort, effortOrder) <= effortIndex(maximumCeiling, effortOrder)
     ))
-    .sort((left, right) => effortIndex(right) - effortIndex(left));
+    .sort((left, right) => effortIndex(right, effortOrder) - effortIndex(left, effortOrder));
   if (!candidates.length) {
     return {
       effort: undefined,
@@ -665,7 +1007,9 @@ function resolveSupportedEffort(requested, supported, minimumFloor, maximumCeili
       conflict: `Runtime does not support an effort between required floor ${minimumFloor} and ceiling ${maximumCeiling}`
     };
   }
-  const fallback = candidates.find((effort) => effortIndex(effort) <= effortIndex(requested)) || candidates[0];
+  const fallback = candidates.find((effort) => (
+    effortIndex(effort, effortOrder) <= effortIndex(requested, effortOrder)
+  )) || candidates[0];
   if (exact && fallback !== requested) {
     return {
       effort: undefined,
@@ -692,9 +1036,19 @@ function makeConflictDecision(base, conflictReason, reasons) {
   };
 }
 
-function resolveReasoning(rawInput, policy = loadPolicy()) {
+function resolveReasoning(
+  rawInput,
+  policy = loadPolicy(),
+  projectionRegistry = loadProjectionRegistry()
+) {
   validatePolicy(policy);
-  const input = normalizeInput(rawInput, policy);
+  const input = normalizeInput(rawInput, policy, projectionRegistry);
+  const projection = input.projectionContext?.projection || null;
+  const effortPolicy = projection || policy;
+  const isNewProjection = Boolean(input.projectionContext?.isNew);
+  const isEfficiencyProjection = projection?.id === "lsa-efficiency-v1";
+  const isCalibratedProjection = isEfficiencyProjection
+    || (projection?.id === "openai-reviewer-v1" && input.role === "reviewer");
   const rolePolicy = policy.role_policies[input.role] || policy.default_role_policy;
   const role = roleBounds(rolePolicy);
   const contextPolicy = input.dispatchContext ? policy.dispatch_contexts[input.dispatchContext] : undefined;
@@ -707,8 +1061,8 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     : (input.reasoningClass ? "legacy_explicit_class" : "legacy_role_target");
   assert(CLASSIFICATION_SOURCES.includes(classificationSource), "Unsupported classification source");
   const base = {
-    schema_version: "2.0",
-    policy_version: policy.policy_version,
+    schema_version: isNewProjection ? "3.0" : "2.0",
+    policy_version: isNewProjection ? projection.policy_version : policy.policy_version,
     mode: input.mode,
     role: input.role,
     task_intent: input.taskIntent,
@@ -737,7 +1091,20 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     explicit_override: explicitOverrideSnapshot(input),
     reasons: [],
     conflict: null,
-    conflict_reason: null
+    conflict_reason: null,
+    ...(input.projectionContext ? {
+      reasoning_projection: {
+        id: projection.id,
+        version: projection.version,
+        policy_version: projection.policy_version,
+        digest: projection.digest
+      },
+      model_set: {
+        id: input.projectionContext.modelSet.id,
+        version: input.projectionContext.modelSet.version,
+        mapping_digest: input.projectionContext.modelSet.mapping_digest
+      }
+    } : {})
   };
 
   let strict = Boolean(rolePolicy.strict || contextPolicy?.strict);
@@ -774,6 +1141,18 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   }
   let recoveryBoost = false;
   if (input.priorFailureType === "reasoning_failure") {
+    const preservedPriorClass = input.priorEffectiveClass || input.reasoningClass;
+    if (isEfficiencyProjection && (!preservedPriorClass || !input.priorObservedEffectiveEffort)) {
+      return makeConflictDecision(
+        { ...base, reasoning_class: effectiveClass, effective_class: effectiveClass, strict, recovery_boost: false },
+        "Versioned same-model reasoning recovery requires the prior effective class and observed effective effort",
+        [...reasons, "recovery_evidence_missing"]
+      );
+    }
+    if (preservedPriorClass) {
+      effectiveClass = maxClass(effectiveClass, preservedPriorClass);
+      reasons.push("prior_effective_class");
+    }
     const priorClass = effectiveClass;
     effectiveClass = bumpClass(effectiveClass);
     recoveryBoost = priorClass === "deep";
@@ -819,7 +1198,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     );
   }
 
-  const requirement = policy.class_requirements[effectiveClass];
+  const requirement = effortPolicy.class_requirements[effectiveClass];
   const minimumModelTier = maxModelTier(
     requirement.minimum_model_tier,
     rolePolicy.minimum_model_tier,
@@ -861,7 +1240,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   if (
     input.mode === "inherit"
     && input.observedEffectiveEffort
-    && effortIndex(input.observedEffectiveEffort) > effortIndex(input.workspaceCeiling)
+    && effortIndex(input.observedEffectiveEffort, input.effortOrder) > effortIndex(input.workspaceCeiling, input.effortOrder)
   ) {
     return makeConflictDecision(
       {
@@ -910,20 +1289,65 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   }
 
   let requestedEffort = requirement.effort_by_model_tier[input.modelTier];
+  const roleOverrideEffort = projection?.role_effort_overrides[input.role]?.[effectiveClass]?.[input.modelTier];
+  if (roleOverrideEffort) {
+    requestedEffort = roleOverrideEffort;
+    reasons.push("role_effort_projection");
+  }
   if (canRunDegradedDeep || recoveryBoost) {
-    requestedEffort = policy.highest_single_agent;
+    requestedEffort = "max";
   }
   if (requestedEffort === "highest_single_agent") {
     requestedEffort = policy.highest_single_agent;
     reasons.push("highest_single_agent");
   }
   if (input.explicitEffort) {
-    requestedEffort = maxEffort(requestedEffort, input.explicitEffort);
+    requestedEffort = maxEffortFor(input.effortOrder, requestedEffort, input.explicitEffort);
     reasons.push("explicit_effort");
   }
 
-  const minimumFloor = maxEffort(policy.global_floor, policy.model_floors[input.modelTier]);
-  requestedEffort = maxEffort(requestedEffort, minimumFloor);
+  const minimumFloor = maxEffortFor(
+    input.effortOrder,
+    effortPolicy.global_floor,
+    effortPolicy.model_floors[input.modelTier]
+  );
+  requestedEffort = maxEffortFor(input.effortOrder, requestedEffort, minimumFloor);
+  if (
+    isEfficiencyProjection
+    && input.priorFailureType === "reasoning_failure"
+    && !recoveryBoost
+    && effortIndex(requestedEffort, input.effortOrder)
+      <= effortIndex(input.priorObservedEffectiveEffort, input.effortOrder)
+  ) {
+    const retryEfforts = (input.supportedEfforts || input.effortOrder)
+      .filter((effort) => (
+        effortIndex(effort, input.effortOrder)
+          > effortIndex(input.priorObservedEffectiveEffort, input.effortOrder)
+          && effortIndex(effort, input.effortOrder)
+            <= effortIndex(input.workspaceCeiling, input.effortOrder)
+      ))
+      .sort((left, right) => (
+        effortIndex(left, input.effortOrder) - effortIndex(right, input.effortOrder)
+      ));
+    if (!retryEfforts.length) {
+      return makeConflictDecision(
+        {
+          ...base,
+          reasoning_class: effectiveClass,
+          effective_class: effectiveClass,
+          minimum_model_tier: minimumModelTier,
+          requires_model_escalation: requiresModelEscalation,
+          requested_effort: requestedEffort,
+          strict,
+          recovery_boost: recoveryBoost
+        },
+        "Versioned same-model reasoning recovery has no supported effort above the prior observed effort",
+        [...reasons, "recovery_effort_unavailable"]
+      );
+    }
+    requestedEffort = retryEfforts[0];
+    reasons.push("same_model_effort_increase");
+  }
   const resolvedBase = {
     ...base,
     reasoning_class: effectiveClass,
@@ -936,14 +1360,14 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     degraded: canRunDegradedDeep,
     degradation_reason: canRunDegradedDeep ? "model_tier_below_deep_requirement" : null
   };
-  if (effortIndex(input.workspaceCeiling) < effortIndex(minimumFloor)) {
+  if (effortIndex(input.workspaceCeiling, input.effortOrder) < effortIndex(minimumFloor, input.effortOrder)) {
     return makeConflictDecision(
       resolvedBase,
       `Workspace ceiling ${input.workspaceCeiling} is below required floor ${minimumFloor}`,
       reasons
     );
   }
-  if (effortIndex(requestedEffort) > effortIndex(input.workspaceCeiling)) {
+  if (effortIndex(requestedEffort, input.effortOrder) > effortIndex(input.workspaceCeiling, input.effortOrder)) {
     return makeConflictDecision(
       resolvedBase,
       `Required effort ${requestedEffort} exceeds workspace ceiling ${input.workspaceCeiling}`,
@@ -952,7 +1376,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   }
   if (
     input.observedEffectiveEffort
-    && effortIndex(input.observedEffectiveEffort) > effortIndex(input.workspaceCeiling)
+    && effortIndex(input.observedEffectiveEffort, input.effortOrder) > effortIndex(input.workspaceCeiling, input.effortOrder)
   ) {
     return makeConflictDecision(
       resolvedBase,
@@ -966,7 +1390,8 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
     input.supportedEfforts,
     minimumFloor,
     input.workspaceCeiling,
-    strict || Boolean(input.explicitEffort) || canRunDegradedDeep
+    strict || Boolean(input.explicitEffort) || canRunDegradedDeep || isCalibratedProjection,
+    input.effortOrder
   );
   if (supported.conflict) {
     return makeConflictDecision(
@@ -979,7 +1404,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   if (
     input.observedEffectiveEffort
     && input.observedEffectiveEffort !== supported.effort
-    && (strict || input.explicitEffort || canRunDegradedDeep)
+    && (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection)
   ) {
     return makeConflictDecision(
       resolvedBase,
@@ -997,7 +1422,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   }
 
   if (input.mode === "adaptive" && input.selectorAvailable === false) {
-    if (strict || input.explicitEffort || canRunDegradedDeep) {
+    if (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection) {
       return makeConflictDecision(
         resolvedBase,
         `Required effort ${requestedEffort} cannot be enforced without a per-spawn reasoning selector`,
@@ -1028,7 +1453,7 @@ function resolveReasoning(rawInput, policy = loadPolicy()) {
   if (
     input.mode === "adaptive"
     && input.observedEffectiveEffort
-    && effortIndex(input.observedEffectiveEffort) < effortIndex(supported.effort)
+    && effortIndex(input.observedEffectiveEffort, input.effortOrder) < effortIndex(supported.effort, input.effortOrder)
   ) {
     return makeConflictDecision(
       resolvedBase,
@@ -1126,6 +1551,7 @@ if (require.main === module) {
 module.exports = {
   CLASSIFICATION_SOURCES,
   DEFAULT_POLICY_PATH,
+  DEFAULT_PROJECTION_REGISTRY_PATH,
   DEGRADATION_REASONS,
   EFFORTS,
   EXIT_CODES,
@@ -1135,8 +1561,13 @@ module.exports = {
   REASONING_SIGNALS,
   TASK_INTENTS,
   loadPolicy,
+  loadProjectionRegistry,
   parseArgs,
+  projectedNormalEffort,
   resolveReasoning,
+  resolveProjection,
   runCli,
-  validatePolicy
+  validatePolicy,
+  validateProjectionRegistry,
+  validateResolvedConfiguration
 };

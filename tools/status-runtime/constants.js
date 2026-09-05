@@ -83,6 +83,7 @@ const RUN_KEY_ORDER = [
   "updated_at",
   "output_dir",
   "checkpoint_path",
+  "configuration",
   "user_prompt",
   "current_stage",
   "completed_stages",
@@ -120,6 +121,7 @@ const TASK_KEY_ORDER = [
   "capability_recovery_used",
   "reasoning_class",
   "reasoning_signals",
+  "configuration_identity",
   "batch_id",
   "depends_on",
   "assigned_agent_id",
@@ -157,7 +159,9 @@ const AGENT_KEY_ORDER = [
   "teardown_required",
   "resource_handles",
   "cleanup_status",
+  "resolved_configuration",
   "reasoning",
+  "trace_evidence",
   "result_summary",
   "evidence_refs",
   "error"
@@ -192,6 +196,8 @@ const REASONING_DECISION_KEY_ORDER = [
   "degradation_reason",
   "recovery_boost",
   "explicit_override",
+  "reasoning_projection",
+  "model_set",
   "reasons",
   "conflict",
   "conflict_reason"
@@ -207,7 +213,8 @@ const REASONING_OBSERVATION_KEY_ORDER = [
   "attempt",
   "outcome",
   "wall_time_ms",
-  "reasoning"
+  "reasoning",
+  "trace_evidence"
 ];
 
 const REASONING_OBSERVATION_DECISION_KEY_ORDER = REASONING_DECISION_KEY_ORDER.filter(
@@ -219,6 +226,7 @@ const CHECKPOINT_KEY_ORDER = [
   "pipeline_id",
   "orchestrator",
   "user_prompt",
+  "configuration",
   "flags",
   "current_stage",
   "completed_stages",

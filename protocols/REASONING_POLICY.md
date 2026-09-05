@@ -176,9 +176,35 @@ The central projection is:
 | `deep` | `standard` | conflict by default | `xhigh` | `xhigh` | conflict by default |
 | `assurance` | `strong` | conflict | conflict | `max`, strict | conflict |
 
-No managed child dispatch resolves below `medium`; `mini` and `unknown` start
-at `high` for routine work. A role or context may require a stronger minimum
-tier, but the resolver never changes the selected role model to satisfy it.
+No policy-v2 managed child dispatch resolves below `medium`; `mini` and
+`unknown` start at `high` for routine work. A role or context may require a
+stronger minimum tier, but the resolver never changes the selected role model
+to satisfy it.
+
+### Versioned projections
+
+[`reasoning-projections.json`](reasoning-projections.json) is the immutable
+registry for a resolved, versioned model mapping. A new projection is usable
+only when `resolved_configuration` carries a matching model-set id/version/
+mapping digest, projection id/version/policy-version/digest, and proven
+role/tier/model binding. The resolver recomputes both registry digests using
+recursively sorted, compact UTF-8 JSON and rejects unknown or mismatched data.
+Unconfigured, unknown, uniform, or ineligible inputs retain policy-v2
+semantics; they never infer a projection from a model name.
+
+| Projection | Applicable binding | Routine | Deliberative | Deep | Assurance |
+|---|---|---|---|---|---|
+| `legacy-v2` | `openai-legacy` | v2 | v2 | v2 | v2 |
+| `openai-reviewer-v1` | Astra, strong `reviewer` | v2 | v2 | `high` | `max`, strict |
+| `lsa-efficiency-v1` | Luna mini / Sol standard / Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
+
+Only v3 projection decisions accept `low`. They carry the selected
+`reasoning_projection` and model-set identity. A legacy-v2 decision generated
+from a verified configuration carries the same identity while retaining its
+v2 behavior; callers with no configuration remain byte-compatible v2. The
+normal `openai-reviewer-v1` recovery path remains v2-equivalent for every
+non-reviewer. Its reviewer-specific deep calibration never weakens explicit
+`xhigh`/`max`, high-consequence review, reviewer recovery, or assurance.
 
 ### Deep compatibility exception
 
@@ -246,6 +272,12 @@ so exact and strict requirements conflict there. A `conflict` blocks the
 spawn. `requested` is not proof of enforcement; only matching child-trace
 evidence may become `enforced`.
 
+For LSA and the calibrated Astra reviewer path in adaptive mode, selector
+absence is a conflict: they cannot claim a calibrated effort was applied.
+Those paths also require exact runtime support for the projected effort;
+missing `low` does not silently become `medium`. Non-reviewer updated OpenAI
+paths retain their v2 selector and fallback behavior.
+
 ## Failure-aware recovery
 
 Only `prior_failure_type = reasoning_failure` can alter reasoning selection:
@@ -275,6 +307,14 @@ redispatch pass the prior attempt's `effective_class` as the new resolver
 `explicit_reasoning_class` nor a user override. Simple keeps it in memory;
 Flow and Pipeline persist it in the attempt's ReasoningDecision and hydrate the
 latest task attempt on resume.
+
+For `lsa-efficiency-v1` only, the retry input must additionally preserve the
+prior `effective_class` and observed effective effort. After the ordinary
+class/boost calculation, if the same model would otherwise receive the same
+or lower effort, the resolver requests the next supported effort within the
+workspace ceiling. Missing prior evidence, an unavailable higher runtime
+effort, or an unavailable selector conflicts; it is never reported as an
+applied LSA projection. A deep recovery boost still wins directly at `max`.
 
 Operational failure types (`timeout`, `permission_denied`, `network_error`,
 `dependency_unavailable`, `browser_startup_failure`, `cli_format_error`, and

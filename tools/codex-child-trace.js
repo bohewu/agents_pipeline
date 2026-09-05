@@ -11,9 +11,9 @@ const EXIT_CODES = Object.freeze({
   OK: 0,
   INVALID_OR_NOT_FOUND: 2
 });
-const SCHEMA_VERSION = "1.3";
+const SCHEMA_VERSION = "1.4";
 const RUNTIME = "codex";
-const EFFORTS = Object.freeze(["medium", "high", "xhigh", "max"]);
+const EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max"]);
 const EFFORT_SET = new Set(EFFORTS);
 const PARENT_EFFORT_SET = new Set(["low", ...EFFORTS]);
 const SELECTOR_EVIDENCE = Object.freeze([
@@ -37,7 +37,7 @@ Options:
   --parent-id <uuid>           Override the V2 parent (defaults to CODEX_THREAD_ID)
   --expected-role <role>       Optionally compare the bounded observed agent_role
   --expected-model <model>     Optionally compare the bounded observed model
-  --expected-effort <effort>   Compare medium, high, xhigh, or max
+  --expected-effort <effort>   Compare low, medium, high, xhigh, or max
   --codex-home <path>          Override CODEX_HOME
   --wait-ms <0-${MAX_WAIT_MS}>       Wait briefly for the trace to appear
   --compact                    Emit one-line JSON
@@ -120,7 +120,7 @@ function normalizeExpectedModel(value) {
 
 function normalizeExpectedEffort(value) {
   if (!EFFORT_SET.has(value)) {
-    throw new ChildTraceInputError("--expected-effort must be medium, high, xhigh, or max");
+    throw new ChildTraceInputError("--expected-effort must be low, medium, high, xhigh, or max");
   }
   return value;
 }

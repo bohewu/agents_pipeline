@@ -1,0 +1,153 @@
+{
+  "schema_version": "1",
+  "digest_algorithm": "sha256",
+  "projections": [
+    {
+      "id": "legacy-v2",
+      "version": "2",
+      "policy_version": "2",
+      "digest": "sha256:1340af9f44d75abe6311da36c7aa5b22b27b713c5b4706ec0ea720810d604279",
+      "effort_order": ["medium", "high", "xhigh", "max"],
+      "global_floor": "medium",
+      "model_floors": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "medium",
+        "unknown": "high"
+      },
+      "class_requirements": {
+        "routine": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "high", "standard": "medium", "strong": "medium", "unknown": "high"}
+        },
+        "deliberative": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "xhigh", "standard": "high", "strong": "high", "unknown": "xhigh"}
+        },
+        "deep": {
+          "minimum_model_tier": "standard",
+          "effort_by_model_tier": {"mini": "max", "standard": "xhigh", "strong": "xhigh", "unknown": "max"}
+        },
+        "assurance": {
+          "minimum_model_tier": "strong",
+          "effort_by_model_tier": {"mini": "max", "standard": "max", "strong": "max", "unknown": "max"}
+        }
+      },
+      "role_effort_overrides": {},
+      "model_sets": [
+        {
+          "id": "openai-legacy",
+          "version": "2",
+          "mapping_digest": "sha256:fa0bd154138c11c5425b72401f256f92004d0b146f655044c9284bbb38782d75",
+          "tiers": {
+            "mini": "gpt-5.6-luna",
+            "standard": "gpt-5.6-terra",
+            "strong": "gpt-5.6-sol"
+          },
+          "role_overrides": {}
+        }
+      ]
+    },
+    {
+      "id": "openai-reviewer-v1",
+      "version": "1",
+      "policy_version": "3",
+      "digest": "sha256:35c72783f0670fe227ff2db8c53af77995c4532cfdd7983b6efc7f6db99f07c7",
+      "effort_order": ["low", "medium", "high", "xhigh", "max"],
+      "global_floor": "medium",
+      "model_floors": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "medium",
+        "unknown": "high"
+      },
+      "class_requirements": {
+        "routine": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "high", "standard": "medium", "strong": "medium", "unknown": "high"}
+        },
+        "deliberative": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "xhigh", "standard": "high", "strong": "high", "unknown": "xhigh"}
+        },
+        "deep": {
+          "minimum_model_tier": "standard",
+          "effort_by_model_tier": {"mini": "max", "standard": "xhigh", "strong": "xhigh", "unknown": "max"}
+        },
+        "assurance": {
+          "minimum_model_tier": "strong",
+          "effort_by_model_tier": {"mini": "max", "standard": "max", "strong": "max", "unknown": "max"}
+        }
+      },
+      "role_effort_overrides": {
+        "reviewer": {
+          "deep": {"strong": "high"}
+        }
+      },
+      "model_sets": [
+        {
+          "id": "openai",
+          "version": "3",
+          "mapping_digest": "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f",
+          "tiers": {
+            "mini": "gpt-5.6-luna",
+            "standard": "gpt-5.6-terra",
+            "strong": "gpt-5.6-sol"
+          },
+          "role_overrides": {
+            "reviewer": {
+              "model_tier": "strong",
+              "model": "gpt-6-astra"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "lsa-efficiency-v1",
+      "version": "1",
+      "policy_version": "3",
+      "digest": "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690",
+      "effort_order": ["low", "medium", "high", "xhigh", "max"],
+      "global_floor": "low",
+      "model_floors": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "low",
+        "unknown": "high"
+      },
+      "class_requirements": {
+        "routine": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "high", "standard": "medium", "strong": "low", "unknown": "high"}
+        },
+        "deliberative": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "xhigh", "standard": "medium", "strong": "low", "unknown": "xhigh"}
+        },
+        "deep": {
+          "minimum_model_tier": "standard",
+          "effort_by_model_tier": {"mini": "max", "standard": "high", "strong": "high", "unknown": "max"}
+        },
+        "assurance": {
+          "minimum_model_tier": "strong",
+          "effort_by_model_tier": {"mini": "max", "standard": "max", "strong": "max", "unknown": "max"}
+        }
+      },
+      "role_effort_overrides": {},
+      "model_sets": [
+        {
+          "id": "openai-luna-sol-astra",
+          "version": "1",
+          "mapping_digest": "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9",
+          "tiers": {
+            "mini": "gpt-5.6-luna",
+            "standard": "gpt-5.6-sol",
+            "strong": "gpt-6-astra"
+          },
+          "role_overrides": {}
+        }
+      ]
+    }
+  ]
+}

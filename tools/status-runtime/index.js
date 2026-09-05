@@ -236,24 +236,28 @@ class StatusRuntime {
     for (const entry of events) {
       this.projector.applyEvent(state, entry.event, entry.payload);
     }
-    canonicalizeCheckpoint(state.checkpoint);
-    canonicalizeRunStatus(state.runStatus);
+    const checkpoint = canonicalizeCheckpoint(state.checkpoint);
+    const runStatus = canonicalizeRunStatus(state.runStatus);
+    this.assertConfigurationPair(runStatus, checkpoint);
     for (const task of state.tasks.values()) {
-      canonicalizeTaskStatus(task);
+      canonicalizeTaskStatus(task, runStatus.configuration);
     }
     for (const agent of state.agents.values()) {
-      canonicalizeAgentStatus(agent);
+      canonicalizeAgentStatus(agent, runStatus.configuration);
     }
   }
 
   async persistState(run, state, dirty) {
     await this.registry.assertSafeRunLayout(run.runDir);
 
-    const preparedCheckpoint = state.checkpoint && dirty.checkpoint
-      ? canonicalizeCheckpoint(state.checkpoint)
+    const canonicalCheckpoint = state.checkpoint ? canonicalizeCheckpoint(state.checkpoint) : undefined;
+    const canonicalRunStatus = state.runStatus ? canonicalizeRunStatus(state.runStatus) : undefined;
+    this.assertConfigurationPair(canonicalRunStatus, canonicalCheckpoint);
+    const preparedCheckpoint = canonicalCheckpoint && dirty.checkpoint
+      ? canonicalCheckpoint
       : undefined;
-    const preparedRunStatus = state.runStatus && dirty.runStatus
-      ? canonicalizeRunStatus(state.runStatus)
+    const preparedRunStatus = canonicalRunStatus && dirty.runStatus
+      ? canonicalRunStatus
       : undefined;
     const preparedTasks = [];
     const preparedAgents = [];
@@ -263,18 +267,18 @@ class StatusRuntime {
       if (dirty.tasks.has(taskId)) {
         preparedTasks.push({
           filePath: resolveContainedFile(run.tasksDir, `${taskId}.json`),
-          value: canonicalizeTaskStatus(task)
+          value: canonicalizeTaskStatus(task, canonicalRunStatus?.configuration)
         });
       }
     }
     for (const [agentId, agent] of state.agents.entries()) {
       if (dirty.agents.has(agentId)) {
-        const canonicalAgent = canonicalizeAgentStatus(agent);
+        const canonicalAgent = canonicalizeAgentStatus(agent, canonicalRunStatus?.configuration);
         preparedAgents.push({
           filePath: resolveContainedFile(run.agentsDir, `${agentId}.json`),
           value: canonicalAgent
         });
-        const observation = this.buildReasoningObservation(canonicalAgent, state.runStatus);
+        const observation = this.buildReasoningObservation(canonicalAgent, canonicalRunStatus);
         if (observation) {
           preparedReasoningObservations.push({
             filePath: resolveContainedFile(run.reasoningObservationsDir, `${agentId}.json`),
@@ -295,10 +299,10 @@ class StatusRuntime {
       await this.writer.writeRunStatus(run.runStatusPath, preparedRunStatus);
     }
     for (const task of preparedTasks) {
-      await this.writer.writeTaskStatus(task.filePath, task.value);
+      await this.writer.writeTaskStatus(task.filePath, task.value, canonicalRunStatus?.configuration);
     }
     for (const agent of preparedAgents) {
-      await this.writer.writeAgentStatus(agent.filePath, agent.value);
+      await this.writer.writeAgentStatus(agent.filePath, agent.value, canonicalRunStatus?.configuration);
     }
     for (const observation of preparedReasoningObservations) {
       await this.writer.writeReasoningObservation(observation.filePath, observation.value);
@@ -318,7 +322,7 @@ class StatusRuntime {
       : undefined;
 
     return canonicalizeReasoningObservation({
-      schema_version: agent.reasoning.schema_version === "2.0" ? "2.0" : "1.0",
+      schema_version: agent.reasoning.schema_version,
       observed_at: observedAt,
       run_id: agent.run_id,
       orchestrator: runStatus.orchestrator,
@@ -327,8 +331,24 @@ class StatusRuntime {
       attempt: agent.attempt || 1,
       outcome: agent.status,
       wall_time_ms: wallTimeMs,
-      reasoning: agent.reasoning
+      reasoning: agent.reasoning,
+      trace_evidence: agent.trace_evidence
     });
+  }
+
+  assertConfigurationPair(runStatus, checkpoint) {
+    const runConfiguration = runStatus?.configuration;
+    const checkpointConfiguration = checkpoint?.configuration;
+    assert(
+      (runConfiguration === undefined) === (checkpointConfiguration === undefined),
+      "Run and checkpoint configuration must be present together"
+    );
+    if (runConfiguration !== undefined) {
+      assert(
+        isDeepStrictEqual(runConfiguration, checkpointConfiguration),
+        "Run and checkpoint configuration do not match"
+      );
+    }
   }
 
   createDirtyState() {

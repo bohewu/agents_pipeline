@@ -20,7 +20,7 @@
     "selector_evidence"
   ],
   "properties": {
-    "schema_version": { "const": "1.3" },
+    "schema_version": { "enum": ["1.3", "1.4"] },
     "runtime": { "const": "codex" },
     "agent_id": {
       "oneOf": [
@@ -57,7 +57,7 @@
       "type": ["boolean", "null"]
     },
     "effective_effort": {
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "role_matches": {
       "description": "Whether the bounded observed role exactly matched the optional caller-supplied expected role; null when no comparison was requested.",
@@ -263,6 +263,12 @@
         "anyOf": [
           {
             "properties": {
+              "effective_effort": { "const": "low" },
+              "parent_effective_effort": { "const": "low" }
+            }
+          },
+          {
+            "properties": {
               "effective_effort": { "const": "medium" },
               "parent_effective_effort": { "const": "medium" }
             }
@@ -296,6 +302,12 @@
       "then": {
         "not": {
           "anyOf": [
+            {
+              "properties": {
+                "effective_effort": { "const": "low" },
+                "parent_effective_effort": { "const": "low" }
+              }
+            },
             {
               "properties": {
                 "effective_effort": { "const": "medium" },

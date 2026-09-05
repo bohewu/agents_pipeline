@@ -1,0 +1,28 @@
+{
+  "name": "openai-luna-sol-astra",
+  "version": "1",
+  "runtime": "codex",
+  "description": "Experimental Luna/Sol/Astra model set with its dedicated effort projection.",
+  "mapping_digest": "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9",
+  "reasoning_projection": {
+    "id": "lsa-efficiency-v1",
+    "version": "1",
+    "policy_version": "3",
+    "digest": "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"
+  },
+  "tiers": {
+    "mini": {
+      "model": "gpt-5.6-luna",
+      "model_provider": "openai"
+    },
+    "standard": {
+      "model": "gpt-5.6-sol",
+      "model_provider": "openai"
+    },
+    "strong": {
+      "model": "gpt-6-astra",
+      "model_provider": "openai"
+    }
+  },
+  "role_overrides": {}
+}

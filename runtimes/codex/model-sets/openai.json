@@ -1,7 +1,15 @@
 {
   "name": "openai",
+  "version": "3",
   "runtime": "codex",
-  "description": "OpenAI model set for Codex exported agent profiles.",
+  "description": "OpenAI standard set: Luna/Terra/Sol, with Astra for the proven strong reviewer.",
+  "mapping_digest": "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f",
+  "reasoning_projection": {
+    "id": "openai-reviewer-v1",
+    "version": "1",
+    "policy_version": "3",
+    "digest": "sha256:35c72783f0670fe227ff2db8c53af77995c4532cfdd7983b6efc7f6db99f07c7"
+  },
   "tiers": {
     "mini": {
       "model": "gpt-5.6-luna",
@@ -14,6 +22,12 @@
     "strong": {
       "model": "gpt-5.6-sol",
       "model_provider": "openai"
+    }
+  },
+  "role_overrides": {
+    "reviewer": {
+      "expected_tier": "strong",
+      "model": "gpt-6-astra"
     }
   }
 }

@@ -31,7 +31,13 @@ from codex_skill_catalog import (
 from agent_model_profiles import (
     load_model_set,
     load_profile,
+    model_mapping_snapshot,
+    resolved_configuration,
     resolve_recovery_model_setting,
+    resolve_workspace_configurations,
+    validate_model_mapping_projection,
+    validate_model_mapping_snapshot,
+    validate_model_set_projection,
 )
 
 
@@ -43,8 +49,8 @@ PROJECT_MANIFEST_TOOL = "agents_pipeline.codex-project-profile"
 CACHE_MANIFEST_TOOL = "agents_pipeline.codex-profile-cache"
 GLOBAL_MANIFEST_TOOL = "agents_pipeline.install-codex-config"
 SUPPORT_MARKER_TOOL = "agents_pipeline.sync-runtime-support"
-PROJECT_MANIFEST_VERSION = 2
-SUPPORTED_PROJECT_MANIFEST_VERSIONS = (1, PROJECT_MANIFEST_VERSION)
+PROJECT_MANIFEST_VERSION = 3
+SUPPORTED_PROJECT_MANIFEST_VERSIONS = (1, 2, PROJECT_MANIFEST_VERSION)
 CACHE_MANIFEST_VERSION = 2
 SUPPORTED_CACHE_MANIFEST_VERSIONS = (1, CACHE_MANIFEST_VERSION)
 SUPPORTED_GLOBAL_MANIFEST_VERSIONS = (2, 3, 4)
@@ -66,6 +72,7 @@ SUPPORT_COMMON_REQUIRED_FILES = (
     "protocols/UI_UX_WORKFLOW.md",
     "protocols/UX_DEVTOOLS_WORKFLOW.md",
     "protocols/capability-recovery-policy.json",
+    "protocols/reasoning-projections.json",
     "scripts/agent-profile.sh",
     "scripts/agent-profile.ps1",
     "scripts/agent_model_profiles.py",
@@ -405,6 +412,7 @@ def _asset_digest(
         Path("scripts/export-codex-agents.py"),
         Path("scripts/agent_model_profiles.py"),
         Path("scripts/codex_mode_aliases.py"),
+        Path("protocols/reasoning-projections.json"),
     ]
     relative_paths.extend(
         path.relative_to(asset_root) for path in sorted((asset_root / "agents").glob("*.md"))
@@ -977,6 +985,171 @@ def _validate_project_manifest_v2(
     return names, files, hashes
 
 
+def _validate_project_manifest_v3(
+    data: Mapping[str, Any],
+    *,
+    workspace: Path,
+    asset_root: Path | None = None,
+    current_profile_inputs: bool = False,
+) -> tuple[list[str], list[str], dict[str, str]]:
+    """Validate immutable catalog/projection evidence before status or recovery use it."""
+
+    names, files, hashes = _validate_project_manifest_v2(data, workspace=workspace)
+    profile, selected_model_set, uniform_model = _selection_from_manifest(
+        data, label="Project profile manifest"
+    )
+    if uniform_model is not None:
+        if (
+            data.get("model_mapping") is not None
+            or data.get("configuration_identity") is not None
+            or data.get("resolved_configurations") != {}
+        ):
+            raise ProjectProfileError(
+                "Uniform project profile must not declare managed projection metadata."
+            )
+        return names, files, hashes
+    try:
+        mapping = validate_model_mapping_snapshot(data.get("model_mapping"))
+    except ValueError as exc:
+        raise ProjectProfileError(f"Project profile manifest has invalid model mapping: {exc}") from exc
+    identity = data.get("configuration_identity")
+    if not isinstance(identity, dict) or set(identity) != {
+        "schema_version", "model_set", "reasoning_projection"
+    }:
+        raise ProjectProfileError("Project profile manifest has invalid configuration identity.")
+    model_set = identity.get("model_set")
+    projection = identity.get("reasoning_projection")
+    if (
+        identity.get("schema_version") != 1
+        or not isinstance(model_set, dict)
+        or set(model_set) != {"id", "version", "mapping_digest"}
+        or model_set != {
+            "id": mapping["id"],
+            "version": mapping["version"],
+            "mapping_digest": mapping["mapping_digest"],
+        }
+        or not isinstance(projection, dict)
+        or set(projection) != {"id", "version", "policy_version", "digest"}
+        or not all(isinstance(projection.get(key), str) and projection[key] for key in projection)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", projection["digest"]) is None
+    ):
+        raise ProjectProfileError("Project profile manifest has invalid projection identity.")
+    configurations = data.get("resolved_configurations")
+    if not isinstance(configurations, dict) or set(configurations) != set(names):
+        raise ProjectProfileError(
+            "Project profile manifest must contain one resolved configuration per managed role."
+        )
+    for role in names:
+        config = configurations[role]
+        if not isinstance(config, dict) or set(config) != {
+            "schema_version", "model_set", "reasoning_projection", "role_binding", "provenance"
+        }:
+            raise ProjectProfileError(
+                f"Project profile manifest has invalid resolved configuration for {role}."
+            )
+        binding = config.get("role_binding")
+        provenance = config.get("provenance")
+        if (
+            config.get("schema_version") != 1
+            or config.get("model_set") != model_set
+            or config.get("reasoning_projection") != projection
+            or not isinstance(binding, dict)
+            or set(binding) != {"role", "model_tier", "model", "mapping_digest"}
+            or binding.get("role") != role
+            or binding.get("mapping_digest") != mapping["mapping_digest"]
+            or binding.get("model_tier") not in mapping["tiers"]
+            or not isinstance(binding.get("model"), str)
+            or provenance != {"source": "workspace_profile", "override": None}
+        ):
+            raise ProjectProfileError(
+                f"Project profile manifest has invalid resolved configuration for {role}."
+            )
+        expected_model = mapping["tiers"][binding["model_tier"]]
+        reviewer_override = mapping["role_overrides"].get("reviewer")
+        if (
+            role == "reviewer"
+            and isinstance(reviewer_override, dict)
+            and binding["model_tier"] == reviewer_override["model_tier"]
+        ):
+            expected_model = reviewer_override["model"]
+        if binding["model"] != expected_model:
+            raise ProjectProfileError(
+                f"Project profile manifest resolved model does not match its pinned mapping for {role}."
+            )
+    if asset_root is not None:
+        if mapping["id"] != selected_model_set:
+            raise ProjectProfileError(
+                "Project profile manifest model mapping does not match the selected model set."
+            )
+        try:
+            validate_model_mapping_projection(
+                mapping,
+                projection,
+                label="Project profile manifest",
+            )
+        except ValueError as exc:
+            raise ProjectProfileError(
+                f"Project profile manifest cannot bind to the central registry: {exc}"
+            ) from exc
+        agents_dir = _validated_project_dir(workspace) / "agents"
+        if agents_dir.is_dir():
+            for role in names:
+                role_path = agents_dir / f"{role}.toml"
+                if (
+                    _is_linklike(role_path)
+                    or not role_path.is_file()
+                    or _sha256_file(role_path) != hashes[role]
+                ):
+                    continue
+                try:
+                    generated_role = tomllib.loads(role_path.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+                    raise ProjectProfileError(
+                        f"Project profile generated role is invalid for {role}."
+                    ) from exc
+                if generated_role.get("model") != configurations[role]["role_binding"]["model"]:
+                    raise ProjectProfileError(
+                        f"Project profile manifest resolved model does not match generated role for {role}."
+                    )
+        if not current_profile_inputs:
+            return names, files, hashes
+        try:
+            installed_profile = load_profile(
+                str(profile), asset_root / "tools" / "agent-profiles", "codex"
+            )
+            installed_model_set = load_model_set(
+                str(selected_model_set),
+                asset_root / "runtimes" / "codex" / "model-sets",
+                "codex",
+            )
+            validate_model_set_projection(installed_model_set)
+            installed_mapping = model_mapping_snapshot(installed_model_set)
+            installed_configurations = resolve_workspace_configurations(
+                names, installed_profile, installed_model_set
+            )
+        except ValueError as exc:
+            raise ProjectProfileError(
+                f"Project profile manifest cannot bind to the installed catalog: {exc}"
+            ) from exc
+        installed_identity = {
+            key: next(iter(installed_configurations.values()))[key]
+            for key in ("schema_version", "model_set", "reasoning_projection")
+        }
+        if mapping != installed_mapping:
+            raise ProjectProfileError(
+                "Project profile manifest model mapping does not match the installed catalog."
+            )
+        if identity != installed_identity:
+            raise ProjectProfileError(
+                "Project profile manifest projection identity does not match the installed catalog."
+            )
+        if configurations != installed_configurations:
+            raise ProjectProfileError(
+                "Project profile manifest resolved configurations do not match the selected profile."
+            )
+    return names, files, hashes
+
+
 def _read_project_manifest(workspace: Path) -> tuple[Path, dict[str, Any]] | None:
     path = _validated_project_dir(workspace) / PROJECT_MANIFEST_FILENAME
     _validate_leaf(path, "Project profile manifest")
@@ -991,6 +1164,8 @@ def _read_project_manifest(workspace: Path) -> tuple[Path, dict[str, Any]] | Non
     if data.get("runtime") != "codex" or _canonical(str(data.get("workspace", ""))) != workspace:
         raise ProjectProfileError(f"Project profile manifest does not belong to {workspace}: {path}")
     if data.get("version") == PROJECT_MANIFEST_VERSION:
+        _validate_project_manifest_v3(data, workspace=workspace)
+    elif data.get("version") == 2:
         _validate_project_manifest_v2(data, workspace=workspace)
     return path, data
 
@@ -1121,6 +1296,34 @@ def set_profile(
     dry_run: bool,
 ) -> dict[str, Any]:
     global_names = validate_global_install(global_target)
+    model_mapping: dict[str, Any] | None = None
+    configuration_identity: dict[str, Any] | None = None
+    resolved_configurations: dict[str, Any] = {}
+    if uniform_model is None:
+        try:
+            resolved_profile = load_profile(
+                str(profile), asset_root / "tools" / "agent-profiles", "codex"
+            )
+            resolved_model_set = load_model_set(
+                str(model_set),
+                asset_root / "runtimes" / "codex" / "model-sets",
+                "codex",
+            )
+            model_mapping = model_mapping_snapshot(resolved_model_set)
+            resolved_configurations = resolve_workspace_configurations(
+                global_names, resolved_profile, resolved_model_set
+            )
+            configuration_identity = next(iter(resolved_configurations.values()), None)
+            if configuration_identity is None:
+                raise ValueError("named profile has no generated role bindings")
+            configuration_identity = {
+                key: configuration_identity[key]
+                for key in ("schema_version", "model_set", "reasoning_projection")
+            }
+        except ValueError as exc:
+            raise ProjectProfileError(
+                f"Project profile configuration is invalid before write: {exc}"
+            ) from exc
     role_contents, source_version, asset_digest = _render_workspace_roles(
         asset_root=asset_root,
         global_target=global_target,
@@ -1144,10 +1347,15 @@ def set_profile(
     _validate_no_agent_conflicts(remaining, names)
     loaded = _read_project_manifest(workspace)
     old_owned_files: list[str] = []
-    if loaded is not None and loaded[1].get("version") == PROJECT_MANIFEST_VERSION:
-        _old_names, old_owned_files, _old_hashes = _validate_project_manifest_v2(
-            loaded[1], workspace=workspace
-        )
+    if loaded is not None:
+        if loaded[1].get("version") == PROJECT_MANIFEST_VERSION:
+            _old_names, old_owned_files, _old_hashes = _validate_project_manifest_v3(
+                loaded[1], workspace=workspace
+            )
+        elif loaded[1].get("version") == 2:
+            _old_names, old_owned_files, _old_hashes = _validate_project_manifest_v2(
+                loaded[1], workspace=workspace
+            )
     old_owned = set(old_owned_files)
     managed_files = [f"agents/{name}.toml" for name in names]
     for relative in managed_files:
@@ -1179,7 +1387,10 @@ def set_profile(
         "managed_agent_files": managed_files,
         "mode": "uniform" if uniform_model else "profile",
         "model_set": model_set,
+        "model_mapping": model_mapping,
         "profile": profile or ("uniform" if uniform_model else None),
+        "configuration_identity": configuration_identity,
+        "resolved_configurations": resolved_configurations,
         "roles_dir": str(agents_dir),
         "runtime": "codex",
         "source_version": source_version,
@@ -1221,6 +1432,153 @@ def set_profile(
     }
 
 
+def _legacy_v2_status(
+    *,
+    data: Mapping[str, Any],
+    manifest_path: Path,
+    workspace: Path,
+    global_target: Path,
+    asset_root: Path,
+    global_names: Sequence[str],
+    source_version: str,
+) -> dict[str, Any]:
+    """Report only a verified v2 Luna/Terra/Sol overlay as pinned legacy state."""
+
+    profile, model_set, uniform_model = _selection_from_manifest(
+        data, label="Project profile manifest"
+    )
+    if uniform_model is not None or model_set != "openai":
+        return {
+            "configured": True,
+            "catalog_state": "pinned",
+            "configuration_compatibility": "pinned_unknown",
+            "global_installed": True,
+            "global_target": str(global_target),
+            "health": "incomplete",
+            "installed": True,
+            "managed_generated_count": 0,
+            "managed_generated_files": [],
+            "manifest": str(manifest_path),
+            "missing_generated_files": ["project:legacy-profile-layout"],
+            "mode": data.get("mode"),
+            "model_set": data.get("model_set"),
+            "model_mapping": None,
+            "profile": data.get("profile"),
+            "runtime": "codex",
+            "scope": "workspace",
+            "source_version": source_version,
+            "target": str(workspace / ".codex"),
+            "uniform_model": data.get("uniform_model"),
+            "workspace": str(workspace),
+            "configuration_identity": None,
+            "resolved_configurations": {},
+            **_eligibility_metadata(global_target, workspace, configured=True),
+        }
+    names, managed_files, hashes = _validate_project_manifest_v2(data, workspace=workspace)
+    try:
+        legacy_set = load_model_set(
+            "openai-legacy", asset_root / "runtimes" / "codex" / "model-sets", "codex"
+        )
+        validate_model_set_projection(legacy_set)
+        mapping = model_mapping_snapshot(legacy_set)
+        legacy_profile = load_profile(
+            str(profile), asset_root / "tools" / "agent-profiles", "codex"
+        )
+        expected_configurations = resolve_workspace_configurations(
+            names, legacy_profile, legacy_set
+        )
+    except ValueError as exc:
+        raise ProjectProfileError(f"Legacy project mapping is unavailable: {exc}") from exc
+    project_dir = _validated_project_dir(workspace)
+    agents_dir = _validate_project_agents_dir(project_dir)
+    missing: list[str] = []
+    configurations: dict[str, Any] = {}
+    if not agents_dir.is_dir():
+        missing.append("agents")
+    else:
+        for name in names:
+            role_path = agents_dir / f"{name}.toml"
+            if _is_linklike(role_path) or not role_path.is_file():
+                missing.append(f"agents/{name}.toml")
+                continue
+            if _sha256_file(role_path) != hashes[name]:
+                missing.append(f"agents/{name}.toml:sha256")
+                continue
+            try:
+                role = tomllib.loads(role_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+                missing.append(f"agents/{name}.toml:invalid")
+                continue
+            expected = expected_configurations[name]["role_binding"]
+            expected_model = expected["model"]
+            expected_tier = expected["model_tier"]
+            if role.get("model") != expected_model:
+                missing.append(f"agents/{name}.toml:legacy-model")
+                continue
+            configurations[name] = resolved_configuration(
+                legacy_set,
+                role=name,
+                model_tier=expected_tier,
+                model_setting={"model": expected_model},
+                provenance={"source": "pinned_legacy", "override": None},
+            )
+    if names != sorted(global_names):
+        missing.append("project:agent-catalog")
+    config_path = project_dir / "config.toml"
+    _validate_leaf(config_path, "Project Codex config")
+    if not config_path.is_file():
+        missing.append("project:.codex/config.toml")
+    else:
+        try:
+            _remaining, block = _remove_managed_block(config_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as exc:
+            raise ProjectProfileError(f"Unable to read project Codex config: {config_path}") from exc
+        if block is None:
+            missing.append("project:managed-profile-block")
+        elif block.strip() != _build_block(
+            agents_dir=agents_dir,
+            agent_names=names,
+            profile=profile,
+            model_set=model_set,
+            uniform_model=uniform_model,
+        ).strip():
+            missing.append("project:managed-profile-block-mismatch")
+    identity = None
+    if len(configurations) == len(names):
+        sample = next(iter(configurations.values()))
+        identity = {
+            key: sample[key]
+            for key in ("schema_version", "model_set", "reasoning_projection")
+        }
+    return {
+        "configured": True,
+        "catalog_state": "pinned",
+        "configuration_compatibility": "pinned_legacy",
+        "configuration_identity": identity,
+        "global_installed": True,
+        "global_target": str(global_target),
+        "health": "ok" if not missing else "incomplete",
+        "installed": True,
+        "managed_generated_count": len(managed_files),
+        "managed_generated_files": managed_files,
+        "manifest": str(manifest_path),
+        "missing_generated_files": missing,
+        "mode": "profile",
+        "model_set": model_set,
+        "model_mapping": mapping,
+        "profile": profile,
+        "resolved_configurations": configurations,
+        "roles_dir": str(agents_dir),
+        "runtime": "codex",
+        "scope": "workspace",
+        "source_version": source_version,
+        "target": str(workspace / ".codex"),
+        "uniform_model": None,
+        "workspace": str(workspace),
+        **_eligibility_metadata(global_target, workspace, configured=True),
+    }
+
+
 def read_status(
     workspace: Path, *, global_target: Path, asset_root: Path
 ) -> dict[str, Any]:
@@ -1245,6 +1603,8 @@ def read_status(
         validate_global_install(global_target)
         return {
             "catalog_state": "inherit",
+            "configuration_identity": None,
+            "configuration_compatibility": "inherit",
             "configured": False,
             "global_installed": True,
             "global_target": str(global_target),
@@ -1255,6 +1615,7 @@ def read_status(
             "missing_generated_files": [],
             "mode": "inherit",
             "model_set": None,
+            "model_mapping": None,
             "profile": None,
             "runtime": "codex",
             "scope": "workspace",
@@ -1262,6 +1623,7 @@ def read_status(
             "target": str(workspace / ".codex"),
             "uniform_model": None,
             "workspace": str(workspace),
+            "resolved_configurations": {},
             **_eligibility_metadata(global_target, workspace, configured=False),
         }
     manifest_path, data = loaded
@@ -1285,10 +1647,21 @@ def read_status(
     ):
         raise ProjectProfileError("Project profile manifest has no valid source version.")
     current_source_version = _asset_version(asset_root)
+    if data.get("version") == 2:
+        return _legacy_v2_status(
+            data=data,
+            manifest_path=manifest_path,
+            workspace=workspace,
+            global_target=global_target,
+            asset_root=asset_root,
+            global_names=global_names,
+            source_version=source_version,
+        )
     if data.get("version") != PROJECT_MANIFEST_VERSION:
         return {
             "configured": True,
             "catalog_state": "pinned",
+            "configuration_compatibility": "pinned_legacy",
             "global_installed": True,
             "global_target": str(global_target),
             "health": "incomplete",
@@ -1299,6 +1672,7 @@ def read_status(
             "missing_generated_files": ["project:legacy-profile-layout"],
             "mode": data.get("mode"),
             "model_set": data.get("model_set"),
+            "model_mapping": None,
             "profile": data.get("profile"),
             "runtime": "codex",
             "scope": "workspace",
@@ -1306,21 +1680,11 @@ def read_status(
             "target": str(project_dir),
             "uniform_model": data.get("uniform_model"),
             "workspace": str(workspace),
+            "configuration_identity": None,
+            "resolved_configurations": {},
             **_eligibility_metadata(global_target, workspace, configured=True),
         }
 
-    names, managed_files, hashes = _validate_project_manifest_v2(data, workspace=workspace)
-    agents_dir = _validate_project_agents_dir(project_dir)
-    missing: list[str] = []
-    if not agents_dir.is_dir():
-        missing.append("agents")
-    else:
-        for name in names:
-            role = agents_dir / f"{name}.toml"
-            if _is_linklike(role) or not role.is_file():
-                missing.append(f"agents/{name}.toml")
-            elif _sha256_file(role) != hashes[name]:
-                missing.append(f"agents/{name}.toml:sha256")
     expected_asset_digest = _asset_digest(
         asset_root,
         profile=profile,
@@ -1337,6 +1701,23 @@ def read_status(
             version_override=source_version,
         )
         profile_inputs_current = data.get("asset_digest") == recorded_version_digest
+    names, managed_files, hashes = _validate_project_manifest_v3(
+        data,
+        workspace=workspace,
+        asset_root=asset_root,
+        current_profile_inputs=profile_inputs_current,
+    )
+    agents_dir = _validate_project_agents_dir(project_dir)
+    missing: list[str] = []
+    if not agents_dir.is_dir():
+        missing.append("agents")
+    else:
+        for name in names:
+            role = agents_dir / f"{name}.toml"
+            if _is_linklike(role) or not role.is_file():
+                missing.append(f"agents/{name}.toml")
+            elif _sha256_file(role) != hashes[name]:
+                missing.append(f"agents/{name}.toml:sha256")
     if source_version == current_source_version and not profile_inputs_current:
         missing.append("project:profile-input-digest")
     if not config_path.is_file():
@@ -1366,6 +1747,10 @@ def read_status(
             if names == global_names and profile_inputs_current
             else "pinned"
         ),
+        "configuration_compatibility": (
+            "current" if names == global_names and profile_inputs_current else "pinned"
+        ),
+        "configuration_identity": data.get("configuration_identity"),
         "global_installed": True,
         "global_target": str(global_target),
         "health": "ok" if not missing else "incomplete",
@@ -1376,6 +1761,7 @@ def read_status(
         "missing_generated_files": missing,
         "mode": data.get("mode"),
         "model_set": data.get("model_set"),
+        "model_mapping": data.get("model_mapping"),
         "profile": data.get("profile"),
         "roles_dir": str(agents_dir),
         "runtime": "codex",
@@ -1384,6 +1770,7 @@ def read_status(
         "target": str(workspace / ".codex"),
         "uniform_model": data.get("uniform_model"),
         "workspace": str(workspace),
+        "resolved_configurations": data.get("resolved_configurations"),
         **_eligibility_metadata(global_target, workspace, configured=True),
     }
 
@@ -1421,6 +1808,10 @@ def clear_profile(*, workspace: Path, dry_run: bool) -> dict[str, Any]:
     managed_files: list[str] = []
     agents_dir = _validate_project_agents_dir(project_dir)
     if data.get("version") == PROJECT_MANIFEST_VERSION:
+        _names, managed_files, _hashes = _validate_project_manifest_v3(
+            data, workspace=workspace
+        )
+    elif data.get("version") == 2:
         _names, managed_files, _hashes = _validate_project_manifest_v2(
             data, workspace=workspace
         )
@@ -1508,6 +1899,7 @@ def resolve_recovery(
         model_set = load_model_set(
             model_set_name, asset_root / "runtimes" / "codex" / "model-sets", "codex"
         )
+        validate_model_set_projection(model_set)
         resolved = resolve_recovery_model_setting(agent, requested_tier, profile, model_set)
     except ValueError as exc:
         raise ProjectProfileError(f"Recovery resolution unavailable: {exc}") from exc
@@ -1526,6 +1918,21 @@ def resolve_recovery(
         "requested_model_tier": resolved["requested_tier"],
         "recovery_ceiling_model_tier": resolved["ceiling_tier"],
         "model": model_setting["model"],
+        "resolved_configuration": resolved_configuration(
+            model_set,
+            role=agent,
+            model_tier=resolved["requested_tier"],
+            model_setting=model_setting,
+            provenance={
+                "source": "workspace_profile",
+                "override": {
+                    "kind": "capability_recovery",
+                    "version": "1",
+                    "source_model_tier": resolved["base_tier"],
+                    "target_model_tier": resolved["requested_tier"],
+                },
+            },
+        ),
     }
     provider = model_setting.get("model_provider")
     if isinstance(provider, str):
@@ -1681,6 +2088,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ("Would set" if args.dry_run else "Set")
                     + f" project profile overlay: {workspace}"
                 )
+                identity = result.get("configuration_identity")
+                if (
+                    isinstance(identity, dict)
+                    and isinstance(identity.get("model_set"), dict)
+                    and identity["model_set"].get("id") == "openai"
+                ):
+                    print("Reviewer model: gpt-6-astra when the named reviewer is strong.")
         if args.action in ("set", "status") and result.get("configured", True):
             _print_eligibility_warning(result)
         return 0

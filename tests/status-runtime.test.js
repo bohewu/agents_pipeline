@@ -18,6 +18,7 @@ const {
 } = require("../tools/status-runtime/schema-lite");
 const { StatusWriter } = require("../tools/status-runtime/status-writer");
 const {
+  loadProjectionRegistry,
   loadPolicy,
   resolveReasoning,
   validatePolicy
@@ -44,6 +45,117 @@ async function readJson(filePath) {
 
 async function setMtime(filePath, seconds) {
   await fs.utimes(filePath, seconds, seconds);
+}
+
+function currentExecutorConfiguration({ modelTier = "strong", recovery = null } = {}) {
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v1");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  return {
+    schema_version: 1,
+    model_set: {
+      id: modelSet.id,
+      version: modelSet.version,
+      mapping_digest: modelSet.mapping_digest
+    },
+    reasoning_projection: {
+      id: projection.id,
+      version: projection.version,
+      policy_version: projection.policy_version,
+      digest: projection.digest
+    },
+    role_binding: {
+      role: "executor",
+      model_tier: recovery?.target_model_tier || modelTier,
+      model: modelSet.tiers[recovery?.target_model_tier || modelTier],
+      mapping_digest: modelSet.mapping_digest
+    },
+    provenance: {
+      source: "workspace_profile",
+      override: recovery
+    }
+  };
+}
+
+function currentRunConfiguration({ modelTier = "strong" } = {}) {
+  const resolved = currentExecutorConfiguration({ modelTier });
+  const registry = loadProjectionRegistry();
+  const projection = registry.projections.find((entry) => entry.id === resolved.reasoning_projection.id);
+  const modelSet = projection.model_sets.find((entry) => entry.id === resolved.model_set.id);
+  return {
+    profile: "balanced",
+    configuration_compatibility: "current",
+    model_mapping: {
+      id: modelSet.id,
+      version: modelSet.version,
+      tiers: modelSet.tiers,
+      role_overrides: modelSet.role_overrides,
+      mapping_digest: modelSet.mapping_digest
+    },
+    configuration_identity: {
+      schema_version: resolved.schema_version,
+      model_set: resolved.model_set,
+      reasoning_projection: resolved.reasoning_projection
+    },
+    resolved_configurations: { executor: resolved }
+  };
+}
+
+function legacyRunConfiguration() {
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "legacy-v2");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-legacy");
+  const resolved = {
+    schema_version: 1,
+    model_set: { id: modelSet.id, version: modelSet.version, mapping_digest: modelSet.mapping_digest },
+    reasoning_projection: {
+      id: projection.id,
+      version: projection.version,
+      policy_version: projection.policy_version,
+      digest: projection.digest
+    },
+    role_binding: {
+      role: "executor",
+      model_tier: "standard",
+      model: modelSet.tiers.standard,
+      mapping_digest: modelSet.mapping_digest
+    },
+    provenance: { source: "pinned_legacy", override: null }
+  };
+  return {
+    profile: "balanced",
+    configuration_compatibility: "pinned_legacy",
+    model_mapping: {
+      id: modelSet.id,
+      version: modelSet.version,
+      tiers: modelSet.tiers,
+      role_overrides: modelSet.role_overrides,
+      mapping_digest: modelSet.mapping_digest
+    },
+    configuration_identity: {
+      schema_version: 1,
+      model_set: resolved.model_set,
+      reasoning_projection: resolved.reasoning_projection
+    },
+    resolved_configurations: { executor: resolved }
+  };
+}
+
+function matchingLowTrace(agentId) {
+  return {
+    schema_version: "1.4",
+    runtime: "codex",
+    agent_id: agentId,
+    trace_found: true,
+    agent_role: "executor",
+    model: "gpt-6-astra",
+    model_matches: true,
+    effective_effort: "low",
+    role_matches: true,
+    effort_matches: true,
+    parent_trace_found: false,
+    parent_effective_effort: null,
+    inheritance_consistent: null,
+    selector_evidence: "indeterminate"
+  };
 }
 
 test("resolveResumeRun picks newest compatible checkpoint-backed run", async (t) => {
@@ -1659,6 +1771,168 @@ test("invalid task reasoning hints do not mutate canonical run files", async (t)
     await fs.readdir(path.join(tempRoot, "run-invalid-reasoning", "status", "tasks")),
     []
   );
+});
+
+test("configured adaptive dispatch persists its exact low-effort decision and matching local trace", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-configured-low-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-configured-low";
+  const agentId = "123e4567-e89b-42d3-a456-426614174111";
+  const configuration = currentRunConfiguration();
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Persist the saved dispatch configuration",
+    configuration,
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "3",
+      reasoning_ceiling: "max"
+    },
+    timestamp: "2026-09-05T01:00:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    output_root: tempRoot,
+    run_id: runId,
+    tasks: [{ task_id: "t3", summary: "Persist configured dispatch", status: "ready" }],
+    timestamp: "2026-09-05T01:00:01.000Z"
+  });
+  const requested = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    resolved_configuration: configuration.resolved_configurations.executor
+  });
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot,
+    run_id: runId,
+    agent_id: agentId,
+    agent: "executor",
+    task_id: "t3",
+    reasoning: requested,
+    resolved_configuration: configuration.resolved_configurations.executor,
+    timestamp: "2026-09-05T01:00:02.000Z"
+  });
+  const enforced = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    observed_effective_effort: "low",
+    resolved_configuration: configuration.resolved_configurations.executor
+  });
+  const finished = await runtime.applyEvent("agent.finished", {
+    output_root: tempRoot,
+    run_id: runId,
+    agent_id: agentId,
+    status: "done",
+    reasoning: enforced,
+    trace_evidence: matchingLowTrace(agentId),
+    timestamp: "2026-09-05T01:00:03.000Z"
+  });
+
+  const runStatus = await readJson(finished.run_status_path);
+  const checkpoint = await readJson(finished.checkpoint_path);
+  const task = await readJson(path.join(tempRoot, runId, "status", "tasks", "t3.json"));
+  const agent = await readJson(path.join(tempRoot, runId, "status", "agents", `${agentId}.json`));
+  const observation = await readJson(path.join(tempRoot, runId, "observations", "reasoning", `${agentId}.json`));
+  assert.deepEqual(runStatus.configuration, checkpoint.configuration);
+  assert.deepEqual(task.configuration_identity, configuration.configuration_identity);
+  assert.deepEqual(agent.resolved_configuration, configuration.resolved_configurations.executor);
+  assert.equal(agent.reasoning.dispatch_effort, "low");
+  assert.equal(agent.trace_evidence.effort_matches, true);
+  assert.equal(observation.reasoning.model_set.id, "openai-luna-sol-astra");
+  assert.equal(observation.trace_evidence.effective_effort, "low");
+
+  const changed = JSON.parse(JSON.stringify(configuration));
+  changed.profile = "careful";
+  await assert.rejects(runtime.applyEvent("run.resumed", {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-flow",
+    configuration: changed,
+    timestamp: "2026-09-05T01:00:04.000Z"
+  }), /incompatible with the saved run configuration/);
+});
+
+test("configured adaptive dispatch rejects a low-to-medium trace mismatch without rewriting the agent", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-configured-mismatch-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-configured-mismatch";
+  const agentId = "123e4567-e89b-42d3-a456-426614174112";
+  const configuration = currentRunConfiguration();
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot,
+    run_id: runId,
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Reject mismatched adaptive evidence",
+    configuration,
+    flags: { reasoning_mode: "adaptive", reasoning_policy_version: "3", reasoning_ceiling: "max" },
+    timestamp: "2026-09-05T01:01:00.000Z"
+  });
+  const requested = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
+    resolved_configuration: configuration.resolved_configurations.executor
+  });
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot, run_id: runId, agent_id: agentId, agent: "executor",
+    reasoning: requested, resolved_configuration: configuration.resolved_configurations.executor,
+    timestamp: "2026-09-05T01:01:01.000Z"
+  });
+  const before = await fs.readFile(path.join(tempRoot, runId, "status", "agents", `${agentId}.json`), "utf8");
+  const enforced = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
+    observed_effective_effort: "low", resolved_configuration: configuration.resolved_configurations.executor
+  });
+  const mismatch = { ...matchingLowTrace(agentId), effective_effort: "medium", effort_matches: false, selector_evidence: "mismatch" };
+  await assert.rejects(runtime.applyEvent("agent.finished", {
+    output_root: tempRoot, run_id: runId, agent_id: agentId, status: "done",
+    reasoning: enforced, trace_evidence: mismatch, timestamp: "2026-09-05T01:01:02.000Z"
+  }), /matching adaptive trace evidence/);
+  assert.equal(await fs.readFile(path.join(tempRoot, runId, "status", "agents", `${agentId}.json`), "utf8"), before);
+});
+
+test("configured legacy decisions and approved recovery envelopes retain their saved compatibility boundary", () => {
+  const legacyConfiguration = legacyRunConfiguration();
+  const legacyDecision = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
+    resolved_configuration: legacyConfiguration.resolved_configurations.executor
+  });
+  assert.equal(legacyDecision.schema_version, "2.0");
+  assert.doesNotThrow(() => canonicalizeAgentStatus({
+    run_id: "run-legacy-config", agent_id: "legacy-executor", agent: "executor", status: "done",
+    created_at: "2026-09-05T01:02:00.000Z", updated_at: "2026-09-05T01:02:01.000Z",
+    resolved_configuration: legacyConfiguration.resolved_configurations.executor,
+    reasoning: legacyDecision
+  }, legacyConfiguration));
+
+  const runConfiguration = currentRunConfiguration({ modelTier: "standard" });
+  const recovery = {
+    kind: "capability_recovery", version: "1", source_model_tier: "standard", target_model_tier: "strong"
+  };
+  const recovered = currentExecutorConfiguration({ modelTier: "standard", recovery });
+  const recoveryDecision = resolveReasoning({
+    role: "executor", mode: "shadow", task_intent: "execute", selector_available: true,
+    resolved_configuration: recovered
+  });
+  const canonical = canonicalizeAgentStatus({
+    run_id: "run-recovery-config", agent_id: "recovery-executor", agent: "executor", status: "starting",
+    created_at: "2026-09-05T01:02:00.000Z", updated_at: "2026-09-05T01:02:01.000Z",
+    resolved_configuration: recovered, reasoning: recoveryDecision
+  }, runConfiguration);
+  assert.equal(canonical.resolved_configuration.provenance.override.target_model_tier, "strong");
+  assert.equal(canonical.reasoning.enforcement_status, "shadow");
+  assert.equal(canonical.trace_evidence, undefined);
 });
 
 test("terminal agent attempts emit content-free local reasoning observations", async (t) => {

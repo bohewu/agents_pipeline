@@ -33,9 +33,11 @@ const {
   SAFE_POLICY_VERSION,
   SAFE_REASONING_IDENTIFIER,
   TASK_INTENTS,
+  V3_EFFORTS,
   minimumReasoningClassForSignals
 } = require("../reasoning-vocabulary");
 const REASONING_POLICY = require("../../protocols/reasoning-policy.json");
+const { projectedNormalEffort, resolveProjection } = require("../reasoning-policy");
 const {
   assert,
   ensureEnum,
@@ -47,6 +49,27 @@ const {
   sortObjectKeys,
   uniqueStrings
 } = require("./utils");
+
+const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/;
+const SAFE_MODEL_IDENTIFIER = /^(?:gpt-[a-z0-9][a-z0-9.-]{0,62}|o[1-9][a-z0-9.-]{0,62})$/;
+const SAFE_PROFILE_IDENTIFIER = /^[a-z][a-z0-9-]{0,63}$/;
+const CONFIGURATION_COMPATIBILITIES = ["current", "pinned", "pinned_legacy"];
+const TRACE_KEY_ORDER = [
+  "schema_version",
+  "runtime",
+  "agent_id",
+  "trace_found",
+  "agent_role",
+  "model",
+  "model_matches",
+  "effective_effort",
+  "role_matches",
+  "effort_matches",
+  "parent_trace_found",
+  "parent_effective_effort",
+  "inheritance_consistent",
+  "selector_evidence"
+];
 
 function canonicalizeCompletedStages(stages) {
   if (!Array.isArray(stages) || stages.length === 0) {
@@ -103,6 +126,241 @@ function canonicalizeAgentRefs(agentRefs) {
       path: ensureString(entry.path, "agent_refs[].path")
     }))
     .sort((a, b) => a.agent_id.localeCompare(b.agent_id));
+}
+
+function assertExactKeys(value, keys, label) {
+  assert(value && typeof value === "object" && !Array.isArray(value), `${label} must be an object`);
+  assert(
+    Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key)),
+    `${label} has unsupported or missing fields`
+  );
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(sortObjectKeys(left)) === JSON.stringify(sortObjectKeys(right));
+}
+
+function canonicalizeConfigurationIdentity(identity, label = "configuration_identity") {
+  assertExactKeys(identity, ["schema_version", "model_set", "reasoning_projection"], label);
+  assert(identity.schema_version === 1, `${label}.schema_version must be 1`);
+  assertExactKeys(identity.model_set, ["id", "version", "mapping_digest"], `${label}.model_set`);
+  assertExactKeys(
+    identity.reasoning_projection,
+    ["id", "version", "policy_version", "digest"],
+    `${label}.reasoning_projection`
+  );
+  assert(
+    typeof identity.model_set.id === "string" && SAFE_REASONING_IDENTIFIER.test(identity.model_set.id),
+    `${label}.model_set.id must be a bounded identifier`
+  );
+  assert(
+    typeof identity.model_set.version === "string" && SAFE_POLICY_VERSION.test(identity.model_set.version),
+    `${label}.model_set.version must be a bounded identifier`
+  );
+  assert(SHA256_DIGEST.test(identity.model_set.mapping_digest), `${label}.model_set.mapping_digest must be a sha256 digest`);
+  assert(
+    typeof identity.reasoning_projection.id === "string" && SAFE_REASONING_IDENTIFIER.test(identity.reasoning_projection.id),
+    `${label}.reasoning_projection.id must be a bounded identifier`
+  );
+  assert(
+    typeof identity.reasoning_projection.version === "string" && SAFE_POLICY_VERSION.test(identity.reasoning_projection.version),
+    `${label}.reasoning_projection.version must be a bounded identifier`
+  );
+  assert(
+    typeof identity.reasoning_projection.policy_version === "string" && SAFE_POLICY_VERSION.test(identity.reasoning_projection.policy_version),
+    `${label}.reasoning_projection.policy_version must be a bounded identifier`
+  );
+  assert(SHA256_DIGEST.test(identity.reasoning_projection.digest), `${label}.reasoning_projection.digest must be a sha256 digest`);
+  return {
+    schema_version: 1,
+    model_set: {
+      id: identity.model_set.id,
+      version: identity.model_set.version,
+      mapping_digest: identity.model_set.mapping_digest
+    },
+    reasoning_projection: {
+      id: identity.reasoning_projection.id,
+      version: identity.reasoning_projection.version,
+      policy_version: identity.reasoning_projection.policy_version,
+      digest: identity.reasoning_projection.digest
+    }
+  };
+}
+
+function canonicalizeResolvedConfiguration(configuration, expectedRole, label = "resolved_configuration") {
+  assertExactKeys(
+    configuration,
+    ["schema_version", "model_set", "reasoning_projection", "role_binding", "provenance"],
+    label
+  );
+  assertExactKeys(configuration.role_binding, ["role", "model_tier", "model", "mapping_digest"], `${label}.role_binding`);
+  const role = expectedRole || configuration.role_binding.role;
+  assert(typeof role === "string" && SAFE_REASONING_IDENTIFIER.test(role), `${label}.role_binding.role must be a bounded identifier`);
+  const projection = resolveProjection({ role, resolved_configuration: configuration });
+  return {
+    value: {
+      schema_version: configuration.schema_version,
+      model_set: {
+        id: configuration.model_set.id,
+        version: configuration.model_set.version,
+        mapping_digest: configuration.model_set.mapping_digest
+      },
+      reasoning_projection: {
+        id: configuration.reasoning_projection.id,
+        version: configuration.reasoning_projection.version,
+        policy_version: configuration.reasoning_projection.policy_version,
+        digest: configuration.reasoning_projection.digest
+      },
+      role_binding: {
+        role: configuration.role_binding.role,
+        model_tier: configuration.role_binding.model_tier,
+        model: configuration.role_binding.model,
+        mapping_digest: configuration.role_binding.mapping_digest
+      },
+      provenance: sortObjectKeys(configuration.provenance)
+    },
+    projection
+  };
+}
+
+function canonicalizeModelMapping(mapping, projection) {
+  assertExactKeys(mapping, ["id", "version", "tiers", "role_overrides", "mapping_digest"], "configuration.model_mapping");
+  assertExactKeys(mapping.tiers, MODEL_TIERS, "configuration.model_mapping.tiers");
+  assert(mapping.role_overrides && typeof mapping.role_overrides === "object" && !Array.isArray(mapping.role_overrides), "configuration.model_mapping.role_overrides must be an object");
+  for (const tier of MODEL_TIERS) {
+    assert(
+      typeof mapping.tiers[tier] === "string" && SAFE_MODEL_IDENTIFIER.test(mapping.tiers[tier]),
+      `configuration.model_mapping.tiers.${tier} must be a safe model identifier`
+    );
+  }
+  for (const [role, override] of Object.entries(mapping.role_overrides)) {
+    assert(SAFE_REASONING_IDENTIFIER.test(role), "configuration.model_mapping role override must name a managed role");
+    assertExactKeys(override, ["model_tier", "model"], `configuration.model_mapping.role_overrides.${role}`);
+    ensureEnum(override.model_tier, MODEL_TIERS, `configuration.model_mapping.role_overrides.${role}.model_tier`);
+    assert(typeof override.model === "string" && SAFE_MODEL_IDENTIFIER.test(override.model), `configuration.model_mapping.role_overrides.${role}.model must be safe`);
+  }
+  assert(SHA256_DIGEST.test(mapping.mapping_digest), "configuration.model_mapping.mapping_digest must be a sha256 digest");
+  const expected = projection.modelSet;
+  assert(
+    mapping.id === expected.id
+      && mapping.version === expected.version
+      && mapping.mapping_digest === expected.mapping_digest
+      && sameJson(mapping.tiers, expected.tiers)
+      && sameJson(mapping.role_overrides, expected.role_overrides),
+    "configuration.model_mapping must match the centrally registered model set"
+  );
+  return {
+    id: mapping.id,
+    version: mapping.version,
+    tiers: { ...mapping.tiers },
+    role_overrides: sortObjectKeys(mapping.role_overrides),
+    mapping_digest: mapping.mapping_digest
+  };
+}
+
+function canonicalizeRunConfiguration(configuration) {
+  assertExactKeys(
+    configuration,
+    ["profile", "configuration_compatibility", "model_mapping", "configuration_identity", "resolved_configurations"],
+    "configuration"
+  );
+  assert(typeof configuration.profile === "string" && SAFE_PROFILE_IDENTIFIER.test(configuration.profile), "configuration.profile must be a bounded identifier");
+  const compatibility = ensureEnum(
+    configuration.configuration_compatibility,
+    CONFIGURATION_COMPATIBILITIES,
+    "configuration.configuration_compatibility"
+  );
+  const identity = canonicalizeConfigurationIdentity(configuration.configuration_identity);
+  assert(
+    configuration.resolved_configurations
+      && typeof configuration.resolved_configurations === "object"
+      && !Array.isArray(configuration.resolved_configurations)
+      && Object.keys(configuration.resolved_configurations).length > 0,
+    "configuration.resolved_configurations must contain managed roles"
+  );
+  const resolvedConfigurations = {};
+  let firstProjection;
+  for (const role of Object.keys(configuration.resolved_configurations).sort()) {
+    assert(SAFE_REASONING_IDENTIFIER.test(role), "configuration.resolved_configurations has an invalid role");
+    const resolved = canonicalizeResolvedConfiguration(
+      configuration.resolved_configurations[role],
+      role,
+      `configuration.resolved_configurations.${role}`
+    );
+    assert(resolved.value.role_binding.role === role, "configuration role binding must match its resolved configuration key");
+    const resolvedIdentity = {
+      schema_version: resolved.value.schema_version,
+      model_set: resolved.value.model_set,
+      reasoning_projection: resolved.value.reasoning_projection
+    };
+    assert(sameJson(identity, resolvedIdentity), "configuration identity must match every resolved configuration");
+    if (firstProjection) {
+      assert(
+        firstProjection.projection.id === resolved.projection.projection.id
+          && firstProjection.projection.version === resolved.projection.projection.version
+          && firstProjection.modelSet.id === resolved.projection.modelSet.id
+          && firstProjection.modelSet.version === resolved.projection.modelSet.version,
+        "configuration resolved configurations must share one model set and projection"
+      );
+    } else {
+      firstProjection = resolved.projection;
+    }
+    resolvedConfigurations[role] = resolved.value;
+  }
+  const modelMapping = canonicalizeModelMapping(configuration.model_mapping, firstProjection);
+  assert(
+    modelMapping.id === identity.model_set.id
+      && modelMapping.version === identity.model_set.version
+      && modelMapping.mapping_digest === identity.model_set.mapping_digest,
+    "configuration model mapping must match configuration identity"
+  );
+  return {
+    profile: configuration.profile,
+    configuration_compatibility: compatibility,
+    model_mapping: modelMapping,
+    configuration_identity: identity,
+    resolved_configurations: resolvedConfigurations
+  };
+}
+
+function canonicalizeTraceEvidence(trace) {
+  assertExactKeys(trace, TRACE_KEY_ORDER, "trace_evidence");
+  const result = {
+    schema_version: ensureString(trace.schema_version, "trace_evidence.schema_version"),
+    runtime: ensureString(trace.runtime, "trace_evidence.runtime"),
+    agent_id: trace.agent_id,
+    trace_found: trace.trace_found,
+    agent_role: trace.agent_role,
+    model: trace.model,
+    model_matches: trace.model_matches,
+    effective_effort: trace.effective_effort,
+    role_matches: trace.role_matches,
+    effort_matches: trace.effort_matches,
+    parent_trace_found: trace.parent_trace_found,
+    parent_effective_effort: trace.parent_effective_effort,
+    inheritance_consistent: trace.inheritance_consistent,
+    selector_evidence: trace.selector_evidence
+  };
+  assert(result.schema_version === "1.4", "trace_evidence.schema_version must be 1.4");
+  assert(result.runtime === "codex", "trace_evidence.runtime must be codex");
+  assert(result.agent_id === null || (typeof result.agent_id === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(result.agent_id)), "trace_evidence.agent_id must be a UUID or null");
+  assert(typeof result.trace_found === "boolean", "trace_evidence.trace_found must be a boolean");
+  assert(result.agent_role === null || (typeof result.agent_role === "string" && SAFE_REASONING_IDENTIFIER.test(result.agent_role)), "trace_evidence.agent_role must be a managed role or null");
+  assert(result.model === null || (typeof result.model === "string" && SAFE_MODEL_IDENTIFIER.test(result.model)), "trace_evidence.model must be a safe model identifier or null");
+  assert(result.effective_effort === null || V3_EFFORTS.includes(result.effective_effort), "trace_evidence.effective_effort must be a supported effort or null");
+  for (const field of ["model_matches", "role_matches", "effort_matches", "inheritance_consistent"]) {
+    assert(result[field] === null || typeof result[field] === "boolean", `trace_evidence.${field} must be a boolean or null`);
+  }
+  assert(typeof result.parent_trace_found === "boolean", "trace_evidence.parent_trace_found must be a boolean");
+  assert(result.parent_effective_effort === null || V3_EFFORTS.includes(result.parent_effective_effort), "trace_evidence.parent_effective_effort must be a supported effort or null");
+  assert([null, "distinct_from_parent", "matches_parent", "indeterminate", "mismatch"].includes(result.selector_evidence), "trace_evidence.selector_evidence is invalid");
+  if (!result.trace_found) {
+    for (const field of ["agent_role", "model", "model_matches", "effective_effort", "role_matches", "effort_matches", "parent_effective_effort", "inheritance_consistent", "selector_evidence"]) {
+      assert(result[field] === null, `trace_evidence.${field} must be null when trace is not found`);
+    }
+    assert(result.parent_trace_found === false, "trace_evidence.parent_trace_found must be false when trace is not found");
+  }
+  return orderedObject(result, TRACE_KEY_ORDER);
 }
 
 function canonicalizeReasoningSignals(signals, label = "reasoning_signals", allowEmpty = false) {
@@ -176,7 +434,7 @@ function canonicalizeRolePolicy(rolePolicy) {
   return result;
 }
 
-function canonicalizeExplicitOverride(explicitOverride) {
+function canonicalizeExplicitOverride(explicitOverride, effortVocabulary = EFFORTS) {
   if (explicitOverride === null) return null;
   assert(
     explicitOverride && typeof explicitOverride === "object" && !Array.isArray(explicitOverride),
@@ -189,7 +447,7 @@ function canonicalizeExplicitOverride(explicitOverride) {
     result.reasoning_class = ensureEnum(explicitOverride.reasoning_class, REASONING_CLASSES, "reasoning.explicit_override.reasoning_class");
   }
   if (explicitOverride.effort !== undefined) {
-    result.effort = ensureEnum(explicitOverride.effort, EFFORTS, "reasoning.explicit_override.effort");
+    result.effort = ensureEnum(explicitOverride.effort, effortVocabulary, "reasoning.explicit_override.effort");
   }
   return result;
 }
@@ -505,10 +763,53 @@ function validateV2ReasoningState(result) {
   }
 }
 
+function validateV3ReasoningState(result, effortVocabulary) {
+  const conflict = result.enforcement_status === "conflict";
+  if (result.mode === "inherit") {
+    assert(result.requested_effort === null, "inherit reasoning must not request effort");
+    assert(result.dispatch_effort === null, "inherit reasoning must not dispatch effort");
+    assert(result.enforcement_status === "inherited" || conflict, "inherit reasoning status must be inherited or conflict");
+  } else if (result.mode === "shadow") {
+    assert(result.dispatch_effort === null, "shadow reasoning must not dispatch effort");
+    assert(result.enforcement_status === "shadow" || conflict, "shadow reasoning status must be shadow or conflict");
+  } else if (!conflict) {
+    assert(
+      ["requested", "enforced", "degraded"].includes(result.enforcement_status),
+      "adaptive reasoning has an invalid enforcement status"
+    );
+    assert(result.requested_effort !== null, "adaptive reasoning requires requested effort");
+    if (result.selector_available === false) {
+      assert(result.dispatch_effort === null, "unavailable selector cannot dispatch effort");
+      assert(result.effective_effort === null, "unavailable selector cannot report effective effort");
+    } else {
+      assert(result.dispatch_effort !== null, "adaptive reasoning requires dispatched effort");
+    }
+    if (result.enforcement_status === "enforced") {
+      assert(result.dispatch_effort === result.requested_effort, "enforced reasoning must dispatch requested effort");
+      assert(result.effective_effort === result.dispatch_effort, "enforced reasoning must observe dispatched effort");
+      assert(result.degraded === false, "enforced reasoning cannot be degraded");
+    }
+  } else {
+    assert(result.dispatch_effort === null, "conflicting reasoning must not dispatch effort");
+    assert(result.degraded === false, "conflicting reasoning cannot be degraded");
+  }
+  if (result.recovery_boost && result.requested_effort !== null) {
+    assert(result.reasoning_class === "deep", "recovery boost is available only for deep reasoning");
+    assert(result.requested_effort === "max", "deep recovery boost must request max effort");
+  }
+  if (result.explicit_override?.effort && result.requested_effort !== null) {
+    assert(
+      effortVocabulary.indexOf(result.requested_effort) >= effortVocabulary.indexOf(result.explicit_override.effort),
+      "reasoning.requested_effort must not be below explicit_override.effort"
+    );
+  }
+}
+
 function canonicalizeReasoningDecisionCore(decision) {
   assert(decision && typeof decision === "object" && !Array.isArray(decision), "reasoning must be an object");
   const schemaVersion = ensureString(decision.schema_version, "reasoning.schema_version");
-  assert(schemaVersion === "1.0" || schemaVersion === "2.0", "reasoning.schema_version must be 1.0 or 2.0");
+  assert(schemaVersion === "1.0" || schemaVersion === "2.0" || schemaVersion === "3.0", "reasoning.schema_version must be 1.0, 2.0, or 3.0");
+  const effortVocabulary = schemaVersion === "3.0" ? V3_EFFORTS : EFFORTS;
   const result = {
     schema_version: schemaVersion,
     policy_version: ensureString(decision.policy_version, "reasoning.policy_version"),
@@ -530,13 +831,13 @@ function canonicalizeReasoningDecisionCore(decision) {
       : ensureEnum(decision.minimum_model_tier, MODEL_TIERS, "reasoning.minimum_model_tier"),
     requested_effort: decision.requested_effort === null
       ? null
-      : ensureEnum(decision.requested_effort, EFFORTS, "reasoning.requested_effort"),
+      : ensureEnum(decision.requested_effort, effortVocabulary, "reasoning.requested_effort"),
     dispatch_effort: decision.dispatch_effort === null
       ? null
-      : ensureEnum(decision.dispatch_effort, EFFORTS, "reasoning.dispatch_effort"),
+      : ensureEnum(decision.dispatch_effort, effortVocabulary, "reasoning.dispatch_effort"),
     effective_effort: decision.effective_effort === null
       ? null
-      : ensureEnum(decision.effective_effort, EFFORTS, "reasoning.effective_effort"),
+      : ensureEnum(decision.effective_effort, effortVocabulary, "reasoning.effective_effort"),
     capability_source: ensureEnum(decision.capability_source, CAPABILITY_SOURCES, "reasoning.capability_source"),
     enforcement_status: ensureEnum(decision.enforcement_status, ENFORCEMENT_STATUSES, "reasoning.enforcement_status")
   };
@@ -558,8 +859,11 @@ function canonicalizeReasoningDecisionCore(decision) {
   } else {
     assert(result.effective_class !== null, `reasoning.effective_class must be non-null in ${result.mode} mode`);
   }
-  if (result.schema_version === "2.0") {
-    assert(result.policy_version === "2", "reasoning.policy_version must be 2 for schema version 2.0");
+  if (result.schema_version === "2.0" || result.schema_version === "3.0") {
+    assert(
+      result.policy_version === (result.schema_version === "3.0" ? "3" : "2"),
+      `reasoning.policy_version must match schema version ${result.schema_version}`
+    );
     assert(
       result.dispatch_context === null
         || REASONING_POLICY.dispatch_contexts[result.dispatch_context] !== undefined,
@@ -606,7 +910,7 @@ function canonicalizeReasoningDecisionCore(decision) {
     assert(result.degraded === (result.degradation_reason !== null), "reasoning.degraded must match degradation_reason presence");
     assert(typeof decision.recovery_boost === "boolean", "reasoning.recovery_boost must be a boolean");
     result.recovery_boost = decision.recovery_boost;
-    result.explicit_override = canonicalizeExplicitOverride(decision.explicit_override);
+    result.explicit_override = canonicalizeExplicitOverride(decision.explicit_override, effortVocabulary);
     if (result.task_intent === null) {
       assert(result.intent_baseline_class === null, "reasoning.intent_baseline_class must be null without task_intent");
     } else {
@@ -649,6 +953,18 @@ function canonicalizeReasoningDecisionCore(decision) {
         `reasoning.effective_class ${result.effective_class} is below intent baseline ${result.intent_baseline_class}`
       );
     }
+    if (result.schema_version === "3.0") {
+      result.reasoning_projection = canonicalizeConfigurationIdentity({
+        schema_version: 1,
+        model_set: decision.model_set,
+        reasoning_projection: decision.reasoning_projection
+      }).reasoning_projection;
+      result.model_set = canonicalizeConfigurationIdentity({
+        schema_version: 1,
+        model_set: decision.model_set,
+        reasoning_projection: decision.reasoning_projection
+      }).model_set;
+    }
   }
 
   if (result.effective_class !== null) {
@@ -663,6 +979,8 @@ function canonicalizeReasoningDecisionCore(decision) {
   }
   if (result.schema_version === "2.0") {
     validateV2ReasoningState(result);
+  } else if (result.schema_version === "3.0") {
+    validateV3ReasoningState(result, effortVocabulary);
   }
 
   return result;
@@ -676,7 +994,7 @@ function canonicalizeReasoningDecision(decision) {
   result.conflict = decision.conflict === null
     ? null
     : ensureString(decision.conflict, "reasoning.conflict");
-  if (result.schema_version === "2.0") {
+  if (result.schema_version === "2.0" || result.schema_version === "3.0") {
     result.conflict_reason = decision.conflict_reason === null
       ? null
       : ensureString(decision.conflict_reason, "reasoning.conflict_reason");
@@ -711,7 +1029,10 @@ function canonicalizeReasoningObservation(observation) {
     reasoning: canonicalizeReasoningObservationDecision(observation.reasoning)
   };
 
-  assert(result.schema_version === "1.0" || result.schema_version === "2.0", "schema_version must be 1.0 or 2.0");
+  assert(
+    result.schema_version === "1.0" || result.schema_version === "2.0" || result.schema_version === "3.0",
+    "schema_version must be 1.0, 2.0, or 3.0"
+  );
   assert(
     result.reasoning.schema_version === result.schema_version,
     "reasoning observation schema_version must match reasoning.schema_version"
@@ -722,6 +1043,24 @@ function canonicalizeReasoningObservation(observation) {
   }
   if (observation.wall_time_ms !== undefined) {
     result.wall_time_ms = ensureInteger(observation.wall_time_ms, "wall_time_ms", 0);
+  }
+  if (observation.trace_evidence !== undefined) {
+    result.trace_evidence = canonicalizeTraceEvidence(observation.trace_evidence);
+  }
+  if (
+    result.schema_version === "3.0"
+      && result.reasoning.mode === "adaptive"
+      && result.reasoning.enforcement_status === "enforced"
+  ) {
+    assert(result.trace_evidence !== undefined, "enforced version 3 observation requires matching trace evidence");
+    assert(
+      result.trace_evidence.trace_found
+        && result.trace_evidence.role_matches === true
+        && result.trace_evidence.model_matches === true
+        && result.trace_evidence.effort_matches === true
+        && result.trace_evidence.effective_effort === result.reasoning.dispatch_effort,
+      "enforced version 3 observation requires matching adaptive trace evidence"
+    );
   }
 
   return orderedObject(result, REASONING_OBSERVATION_KEY_ORDER);
@@ -840,6 +1179,111 @@ function validateAgentResources(agentStatus) {
   }
 }
 
+function validateAgentConfiguration(agentStatus, runConfiguration) {
+  if (runConfiguration === undefined) {
+    assert(
+      agentStatus.resolved_configuration === undefined,
+      "resolved_configuration requires a saved run configuration"
+    );
+    assert(
+      agentStatus.reasoning?.schema_version !== "3.0",
+      "version 3 reasoning requires a saved run configuration"
+    );
+    return;
+  }
+  if (agentStatus.reasoning === undefined) {
+    assert(
+      agentStatus.resolved_configuration === undefined,
+      "resolved_configuration requires managed reasoning metadata"
+    );
+    return;
+  }
+  assert(
+    agentStatus.resolved_configuration !== undefined,
+    "Configured managed dispatch requires the saved resolved_configuration"
+  );
+  const expected = runConfiguration.resolved_configurations[agentStatus.agent];
+  assert(expected !== undefined, "Saved run configuration has no resolved configuration for agent role");
+  const isRecovery = agentStatus.resolved_configuration.provenance.override !== null;
+  if (isRecovery) {
+    const override = agentStatus.resolved_configuration.provenance.override;
+    assert(
+      expected.provenance.override === null
+        && expected.provenance.source === "workspace_profile"
+        && override.source_model_tier === expected.role_binding.model_tier,
+      "Capability recovery must originate from the saved workspace-profile role binding"
+    );
+  }
+  assert(
+    isRecovery || sameJson(agentStatus.resolved_configuration, expected),
+    "Agent resolved_configuration must match the saved run configuration unless it is approved capability recovery"
+  );
+  const projection = resolveProjection({
+    role: agentStatus.agent,
+    resolved_configuration: agentStatus.resolved_configuration
+  }).projection;
+  if (projection.policy_version === "2") {
+    assert(
+      agentStatus.reasoning.schema_version === "2.0",
+      "Legacy projection requires version 2 reasoning metadata"
+    );
+    assert(!isRecovery, "Legacy projection cannot use capability recovery");
+    return;
+  }
+  assert(
+    agentStatus.reasoning.schema_version === "3.0",
+    "Configured managed dispatch requires version 3 reasoning metadata"
+  );
+  const identity = {
+    schema_version: agentStatus.resolved_configuration.schema_version,
+    model_set: agentStatus.resolved_configuration.model_set,
+    reasoning_projection: agentStatus.resolved_configuration.reasoning_projection
+  };
+  assert(
+    sameJson(agentStatus.reasoning.model_set, identity.model_set)
+      && sameJson(agentStatus.reasoning.reasoning_projection, identity.reasoning_projection),
+    "Reasoning projection identity must match the saved resolved_configuration"
+  );
+  assert(
+    agentStatus.reasoning.selected_model_tier === agentStatus.resolved_configuration.role_binding.model_tier
+      && agentStatus.reasoning.model_tier === agentStatus.resolved_configuration.role_binding.model_tier,
+    "Reasoning model tier must match the saved resolved_configuration"
+  );
+  if (
+    agentStatus.reasoning.requested_effort !== null
+      && agentStatus.reasoning.enforcement_status !== "conflict"
+  ) {
+    const normalEffort = projectedNormalEffort(
+      projection,
+      agentStatus.agent,
+      agentStatus.reasoning.reasoning_class,
+      agentStatus.resolved_configuration.role_binding.model_tier
+    );
+    assert(
+      projection.effort_order.indexOf(agentStatus.reasoning.requested_effort)
+        >= projection.effort_order.indexOf(normalEffort),
+      "Reasoning requested effort is below the centrally projected normal effort"
+    );
+  }
+  if (
+    agentStatus.reasoning.mode === "adaptive"
+      && agentStatus.reasoning.enforcement_status === "enforced"
+  ) {
+    const trace = agentStatus.trace_evidence;
+    assert(trace !== undefined, "Enforced version 3 reasoning requires matching trace evidence");
+    assert(
+      trace.trace_found
+        && trace.agent_role === agentStatus.agent
+        && trace.model === agentStatus.resolved_configuration.role_binding.model
+        && trace.effective_effort === agentStatus.reasoning.dispatch_effort
+        && trace.role_matches === true
+        && trace.model_matches === true
+        && trace.effort_matches === true,
+      "Enforced version 3 reasoning requires matching adaptive trace evidence"
+    );
+  }
+}
+
 function canonicalizeRunStatus(runStatus) {
   const result = {
     protocol_version: runStatus.protocol_version || PROTOCOL_VERSION,
@@ -855,6 +1299,7 @@ function canonicalizeRunStatus(runStatus) {
   assert(isIsoDateTime(result.created_at), "created_at must be an ISO date-time");
   assert(isIsoDateTime(result.updated_at), "updated_at must be an ISO date-time");
 
+  if (runStatus.configuration !== undefined) result.configuration = canonicalizeRunConfiguration(runStatus.configuration);
   if (runStatus.user_prompt !== undefined) result.user_prompt = ensureString(runStatus.user_prompt, "user_prompt");
   if (runStatus.current_stage !== undefined) result.current_stage = ensureInteger(runStatus.current_stage, "current_stage", -1);
   if (runStatus.completed_stages !== undefined) result.completed_stages = canonicalizeCompletedStages(runStatus.completed_stages);
@@ -879,7 +1324,7 @@ function canonicalizeRunStatus(runStatus) {
   return orderedObject(result, RUN_KEY_ORDER);
 }
 
-function canonicalizeTaskStatus(taskStatus) {
+function canonicalizeTaskStatus(taskStatus, runConfiguration = undefined) {
   const result = {
     protocol_version: taskStatus.protocol_version || PROTOCOL_VERSION,
     run_id: ensureSafeStatusId(taskStatus.run_id, "run_id"),
@@ -978,6 +1423,18 @@ function canonicalizeTaskStatus(taskStatus) {
   if (taskStatus.reasoning_signals !== undefined) {
     result.reasoning_signals = canonicalizeReasoningSignals(taskStatus.reasoning_signals);
   }
+  if (taskStatus.configuration_identity !== undefined) {
+    result.configuration_identity = canonicalizeConfigurationIdentity(taskStatus.configuration_identity);
+  }
+  if (runConfiguration !== undefined) {
+    assert(result.configuration_identity !== undefined, "Configured run tasks require configuration_identity");
+    assert(
+      sameJson(result.configuration_identity, runConfiguration.configuration_identity),
+      "Task configuration_identity must match the saved run configuration"
+    );
+  } else {
+    assert(result.configuration_identity === undefined, "Task configuration_identity requires a saved run configuration");
+  }
   assert(
     (result.reasoning_class === undefined) === (result.reasoning_signals === undefined),
     "reasoning_class and reasoning_signals must be supplied together"
@@ -1045,7 +1502,7 @@ function canonicalizeTaskStatus(taskStatus) {
   return orderedObject(result, TASK_KEY_ORDER);
 }
 
-function canonicalizeAgentStatus(agentStatus) {
+function canonicalizeAgentStatus(agentStatus, runConfiguration = undefined) {
   const result = {
     protocol_version: agentStatus.protocol_version || PROTOCOL_VERSION,
     run_id: ensureSafeStatusId(agentStatus.run_id, "run_id"),
@@ -1090,6 +1547,12 @@ function canonicalizeAgentStatus(agentStatus) {
     result.resource_handles = sortObjectKeys(agentStatus.resource_handles);
   }
   if (agentStatus.cleanup_status !== undefined) result.cleanup_status = agentStatus.cleanup_status;
+  if (agentStatus.resolved_configuration !== undefined) {
+    result.resolved_configuration = canonicalizeResolvedConfiguration(
+      agentStatus.resolved_configuration,
+      result.agent
+    ).value;
+  }
   if (agentStatus.reasoning !== undefined) {
     result.reasoning = canonicalizeReasoningDecision(agentStatus.reasoning);
     assert(
@@ -1098,6 +1561,10 @@ function canonicalizeAgentStatus(agentStatus) {
     );
     assert(result.agent === result.reasoning.role, "agent must match reasoning.role");
   }
+  if (agentStatus.trace_evidence !== undefined) {
+    result.trace_evidence = canonicalizeTraceEvidence(agentStatus.trace_evidence);
+  }
+  validateAgentConfiguration(result, runConfiguration);
   if (agentStatus.result_summary !== undefined) result.result_summary = ensureString(agentStatus.result_summary, "result_summary");
   if (agentStatus.evidence_refs !== undefined) result.evidence_refs = uniqueStrings(agentStatus.evidence_refs);
   if (agentStatus.error !== undefined) result.error = ensureString(agentStatus.error, "error");
@@ -1112,6 +1579,9 @@ function canonicalizeCheckpoint(checkpoint) {
     pipeline_id: ensureSafeStatusId(checkpoint.pipeline_id, "pipeline_id"),
     orchestrator: ensureEnum(checkpoint.orchestrator, ORCHESTRATORS, "orchestrator"),
     user_prompt: ensureString(checkpoint.user_prompt, "user_prompt"),
+    configuration: checkpoint.configuration === undefined
+      ? undefined
+      : canonicalizeRunConfiguration(checkpoint.configuration),
     flags: checkpoint.flags && typeof checkpoint.flags === "object" ? sortObjectKeys(checkpoint.flags) : {},
     current_stage: ensureInteger(checkpoint.current_stage, "current_stage", -1),
     completed_stages: canonicalizeCompletedStages(checkpoint.completed_stages) || [],
@@ -1134,7 +1604,22 @@ function canonicalizeCheckpoint(checkpoint) {
     ensureEnum(result.flags.reasoning_mode, POLICY_MODES, "flags.reasoning_mode");
     const policyVersion = ensureString(result.flags.reasoning_policy_version, "flags.reasoning_policy_version");
     assert(SAFE_POLICY_VERSION.test(policyVersion), "flags.reasoning_policy_version must be a bounded identifier");
-    ensureEnum(result.flags.reasoning_ceiling, EFFORTS, "flags.reasoning_ceiling");
+    ensureEnum(
+      result.flags.reasoning_ceiling,
+      result.configuration?.configuration_identity.reasoning_projection.policy_version === "3" ? V3_EFFORTS : EFFORTS,
+      "flags.reasoning_ceiling"
+    );
+  }
+  if (result.configuration !== undefined) {
+    assert(
+      reasoningFlagCount === reasoningFlagNames.length,
+      "configured checkpoint requires the complete reasoning policy flag set"
+    );
+    assert(
+      result.flags.reasoning_policy_version
+        === result.configuration.configuration_identity.reasoning_projection.policy_version,
+      "checkpoint reasoning policy version must match the saved configuration"
+    );
   }
   if (result.flags.allow_degraded_deep !== undefined) {
     assert(typeof result.flags.allow_degraded_deep === "boolean", "flags.allow_degraded_deep must be a boolean");
@@ -1168,6 +1653,7 @@ module.exports = {
   canonicalizeCheckpoint,
   canonicalizeReasoningDecision,
   canonicalizeReasoningObservation,
+  canonicalizeRunConfiguration,
   canonicalizeRunStatus,
   canonicalizeTaskCounts,
   canonicalizeTaskStatus

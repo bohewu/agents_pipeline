@@ -26,7 +26,7 @@
   ],
   "properties": {
     "schema_version": {
-      "enum": ["1.0", "2.0"]
+      "enum": ["1.0", "2.0", "3.0"]
     },
     "policy_version": {
       "type": "string",
@@ -128,13 +128,13 @@
       "type": "boolean"
     },
     "requested_effort": {
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "dispatch_effort": {
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "effective_effort": {
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "selector_available": {
       "type": ["boolean", "null"]
@@ -161,6 +161,12 @@
     },
     "explicit_override": {
       "$ref": "#/$defs/explicitOverride"
+    },
+    "reasoning_projection": {
+      "$ref": "#/$defs/reasoningProjection"
+    },
+    "model_set": {
+      "$ref": "#/$defs/modelSetIdentity"
     },
     "reasons": {
       "type": "array",
@@ -240,7 +246,14 @@
               "conflict_reason"
             ],
             "properties": {
-              "policy_version": { "const": "2" }
+              "policy_version": { "const": "2" },
+              "requested_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+              "dispatch_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+              "effective_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+              "explicit_override": { "$ref": "#/$defs/v2ExplicitOverride" },
+              "reasoning_projection": {
+                "properties": { "id": { "const": "legacy-v2" } }
+              }
             }
           },
           { "$ref": "#/$defs/matchingClassAliases" },
@@ -248,6 +261,37 @@
           { "$ref": "#/$defs/v2SemanticState" },
           { "$ref": "#/$defs/v2DecisionState" }
         ]
+      }
+    },
+    {
+      "if": { "required": ["model_set"] },
+      "then": { "required": ["reasoning_projection"] }
+    },
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "3.0" } }
+      },
+      "then": {
+        "required": [
+          "task_intent",
+          "intent_baseline_class",
+          "classification_source",
+          "role_policy",
+          "reasoning_class",
+          "selected_model_tier",
+          "selector_available",
+          "degraded",
+          "degradation_reason",
+          "recovery_boost",
+          "explicit_override",
+          "conflict_reason",
+          "reasoning_projection",
+          "model_set"
+        ],
+        "properties": {
+          "policy_version": { "const": "3" }
+        }
       }
     }
   ],
@@ -1041,8 +1085,50 @@
             "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
             "effort": {
               "type": "string",
-              "enum": ["medium", "high", "xhigh", "max"]
+              "enum": ["low", "medium", "high", "xhigh", "max"]
             }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reasoningProjection": {
+      "type": "object",
+      "required": ["id", "version", "policy_version", "digest"],
+      "properties": {
+        "id": { "enum": ["legacy-v2", "openai-reviewer-v1", "lsa-efficiency-v1"] },
+        "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+        "policy_version": { "enum": ["2", "3"] },
+        "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "id": { "const": "legacy-v2" } } },
+          "then": { "properties": { "version": { "const": "2" }, "policy_version": { "const": "2" } } },
+          "else": { "properties": { "version": { "const": "1" }, "policy_version": { "const": "3" } } }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "modelSetIdentity": {
+      "type": "object",
+      "required": ["id", "version", "mapping_digest"],
+      "properties": {
+        "id": { "enum": ["openai-legacy", "openai", "openai-luna-sol-astra"] },
+        "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+        "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "v2ExplicitOverride": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "reasoning_class": { "$ref": "#/$defs/reasoningClass" },
+            "effort": { "enum": ["medium", "high", "xhigh", "max"] }
           },
           "additionalProperties": false
         }

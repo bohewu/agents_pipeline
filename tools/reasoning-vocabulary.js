@@ -2,7 +2,11 @@
 
 const REASONING_CLASSES = Object.freeze(["routine", "deliberative", "deep", "assurance"]);
 const TASK_INTENTS = Object.freeze(["execute", "inspect", "diagnose", "design", "review", "certify"]);
+// Version 2 decisions deliberately retain their original vocabulary. Versioned
+// projections opt into the broader v3 vocabulary through V3_EFFORTS instead
+// of making `low` silently valid for old snapshots.
 const EFFORTS = Object.freeze(["medium", "high", "xhigh", "max"]);
+const V3_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh", "max"]);
 const MODEL_TIERS = Object.freeze(["mini", "standard", "strong"]);
 const POLICY_MODES = Object.freeze(["inherit", "shadow", "adaptive"]);
 const CLASSIFICATION_SOURCES = Object.freeze([
@@ -163,6 +167,7 @@ module.exports = {
   CLASSIFICATION_SOURCES,
   DEGRADATION_REASONS,
   EFFORTS,
+  V3_EFFORTS,
   ENFORCEMENT_STATUSES,
   LEGACY_SIGNAL_MINIMUM_CLASSES,
   MODEL_TIERS,

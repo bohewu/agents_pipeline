@@ -47,6 +47,9 @@
       "minLength": 1,
       "description": "The original main_task_prompt provided by the user."
     },
+    "configuration": {
+      "$ref": "agent-status.schema.json#/$defs/runConfiguration"
+    },
     "flags": {
       "type": "object",
       "description": "All effective parsed and workflow-derived flag values for this run.",

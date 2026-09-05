@@ -142,6 +142,12 @@
     "reasoning": {
       "$ref": "reasoning-decision.schema.json"
     },
+    "resolved_configuration": {
+      "$ref": "#/$defs/resolvedConfiguration"
+    },
+    "trace_evidence": {
+      "$ref": "codex-child-trace.schema.json"
+    },
     "result_summary": {
       "type": "string",
       "minLength": 1
@@ -335,7 +341,174 @@
           { "properties": { "agent": { "const": "ux-visual-hierarchy" }, "reasoning": { "properties": { "role": { "const": "ux-visual-hierarchy" } } } } }
         ]
       }
+    },
+    {
+      "if": {
+        "required": ["reasoning"],
+        "properties": {
+          "reasoning": {
+            "required": ["schema_version"],
+            "properties": { "schema_version": { "const": "3.0" } }
+          }
+        }
+      },
+      "then": { "required": ["resolved_configuration"] }
+    },
+    {
+      "if": {
+        "required": ["reasoning"],
+        "properties": {
+          "reasoning": {
+            "required": ["schema_version", "mode", "enforcement_status"],
+            "properties": {
+              "schema_version": { "const": "3.0" },
+              "mode": { "const": "adaptive" },
+              "enforcement_status": { "const": "enforced" }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["resolved_configuration", "trace_evidence"],
+        "properties": {
+          "trace_evidence": {
+            "required": ["trace_found", "role_matches", "model_matches", "effort_matches"],
+            "properties": {
+              "trace_found": { "const": true },
+              "role_matches": { "const": true },
+              "model_matches": { "const": true },
+              "effort_matches": { "const": true }
+            }
+          }
+        }
+      }
     }
   ],
+  "$defs": {
+    "configurationIdentity": {
+      "type": "object",
+      "required": ["schema_version", "model_set", "reasoning_projection"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "model_set": {
+          "type": "object",
+          "required": ["id", "version", "mapping_digest"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+            "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "reasoning_projection": {
+          "type": "object",
+          "required": ["id", "version", "policy_version", "digest"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+            "policy_version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "resolvedConfiguration": {
+      "type": "object",
+      "required": ["schema_version", "model_set", "reasoning_projection", "role_binding", "provenance"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "model_set": { "$ref": "#/$defs/configurationIdentity/properties/model_set" },
+        "reasoning_projection": { "$ref": "#/$defs/configurationIdentity/properties/reasoning_projection" },
+        "role_binding": {
+          "type": "object",
+          "required": ["role", "model_tier", "model", "mapping_digest"],
+          "properties": {
+            "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+            "model_tier": { "enum": ["mini", "standard", "strong"] },
+            "model": { "type": "string", "pattern": "^(?:gpt-[a-z0-9][a-z0-9.-]{0,62}|o[1-9][a-z0-9.-]{0,62})$" },
+            "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["source", "override"],
+          "properties": {
+            "source": { "enum": ["workspace_profile", "pinned_legacy"] },
+            "override": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["kind", "version", "source_model_tier", "target_model_tier"],
+                  "properties": {
+                    "kind": { "const": "capability_recovery" },
+                    "version": { "const": "1" },
+                    "source_model_tier": { "enum": ["mini", "standard", "strong"] },
+                    "target_model_tier": { "enum": ["mini", "standard", "strong"] }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "modelMapping": {
+      "type": "object",
+      "required": ["id", "version", "tiers", "role_overrides", "mapping_digest"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
+        "tiers": {
+          "type": "object",
+          "required": ["mini", "standard", "strong"],
+          "properties": {
+            "mini": { "type": "string" },
+            "standard": { "type": "string" },
+            "strong": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "role_overrides": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "additionalProperties": {
+            "type": "object",
+            "required": ["model_tier", "model"],
+            "properties": {
+              "model_tier": { "enum": ["mini", "standard", "strong"] },
+              "model": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "runConfiguration": {
+      "type": "object",
+      "required": ["profile", "configuration_compatibility", "model_mapping", "configuration_identity", "resolved_configurations"],
+      "properties": {
+        "profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+        "configuration_compatibility": { "enum": ["current", "pinned", "pinned_legacy"] },
+        "model_mapping": { "$ref": "#/$defs/modelMapping" },
+        "configuration_identity": { "$ref": "#/$defs/configurationIdentity" },
+        "resolved_configurations": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "additionalProperties": { "$ref": "#/$defs/resolvedConfiguration" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "additionalProperties": false
 }

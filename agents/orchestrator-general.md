@@ -110,6 +110,10 @@ resolver validates capability and selects child effort only. Never pass a raw
 model, dynamically route a model, or apply a child selector to the current/main
 agent. A resolver conflict blocks that spawn; do not lower a class or discard
 signals to fit a role.
+For an eligible workspace profile, retain the exact role
+`resolved_configuration` and configuration identity from preflight; pass that
+envelope to the resolver and local trace expectation, and preserve it in run
+status before any resume or later dispatch.
 
 # CONFIRM / VERBOSE PROTOCOL
 

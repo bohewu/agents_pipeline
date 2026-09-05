@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
 import sys
 from dataclasses import dataclass
@@ -22,17 +23,117 @@ class ManagedModelSet:
     builder: Callable[[object | None, Path], dict]
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+
+
+def _sha256_digest(value: object) -> str:
+    return "sha256:" + hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+
+
+def _projection_metadata(projection_id: str) -> dict:
+    path = REPO_ROOT / "protocols" / "reasoning-projections.json"
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Unable to load managed reasoning projections: {path}") from exc
+    projections = registry.get("projections") if isinstance(registry, dict) else None
+    if not isinstance(projections, list):
+        raise ValueError(f"Managed reasoning projections have no projection list: {path}")
+    for projection in projections:
+        if not isinstance(projection, dict) or projection.get("id") != projection_id:
+            continue
+        required = ("id", "version", "policy_version", "digest")
+        if not all(isinstance(projection.get(key), str) and projection[key] for key in required):
+            raise ValueError(f"Managed reasoning projection is invalid: {projection_id}")
+        return {key: projection[key] for key in required}
+    raise ValueError(f"Managed reasoning projection is missing: {projection_id}")
+
+
+def _build_codex_catalog(
+    *,
+    name: str,
+    version: str,
+    description: str,
+    tiers: dict,
+    projection_id: str,
+    role_overrides: dict | None = None,
+) -> dict:
+    overrides = role_overrides or {}
+    mapping_payload = {
+        "id": name,
+        "version": version,
+        "tiers": {tier: tiers[tier]["model"] for tier in sorted(tiers)},
+        "role_overrides": {
+            role: {
+                "model_tier": overrides[role]["expected_tier"],
+                "model": overrides[role]["model"],
+            }
+            for role in sorted(overrides)
+        },
+    }
+    return {
+        "name": name,
+        "version": version,
+        "runtime": "codex",
+        "description": description,
+        "mapping_digest": _sha256_digest(mapping_payload),
+        "reasoning_projection": _projection_metadata(projection_id),
+        "tiers": tiers,
+        "role_overrides": overrides,
+    }
+
+
 def build_codex_openai(_data: object | None, _path: Path) -> dict:
     return {
-        "name": "openai",
-        "runtime": "codex",
-        "description": "OpenAI model set for Codex exported agent profiles.",
-        "tiers": {
+        **_build_codex_catalog(
+            name="openai",
+            version="3",
+            description=(
+                "OpenAI standard set: Luna/Terra/Sol, with Astra for the proven "
+                "strong reviewer."
+            ),
+            tiers={
+            "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
+            "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
+            "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
+            },
+            projection_id="openai-reviewer-v1",
+            role_overrides={
+                "reviewer": {"expected_tier": "strong", "model": "gpt-6-astra"}
+            },
+        )
+    }
+
+
+def build_codex_openai_luna_sol_astra(_data: object | None, _path: Path) -> dict:
+    return _build_codex_catalog(
+        name="openai-luna-sol-astra",
+        version="1",
+        description="Experimental Luna/Sol/Astra model set with its dedicated effort projection.",
+        tiers={
+            "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
+            "standard": {"model": "gpt-5.6-sol", "model_provider": "openai"},
+            "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
+        },
+        projection_id="lsa-efficiency-v1",
+    )
+
+
+def build_codex_openai_legacy(_data: object | None, _path: Path) -> dict:
+    return _build_codex_catalog(
+        name="openai-legacy",
+        version="2",
+        description="Legacy Luna/Terra/Sol model set with the v2 effort projection.",
+        tiers={
             "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
             "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
             "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
         },
-    }
+        projection_id="legacy-v2",
+    )
 
 
 def build_copilot_default(_data: object | None, _path: Path) -> dict:
@@ -57,23 +158,33 @@ def build_claude_default(_data: object | None, _path: Path) -> dict:
     }
 
 
-MANAGED_MODEL_SETS = {
-    "codex": ManagedModelSet(
+MANAGED_MODEL_SETS = (
+    ManagedModelSet(
         "codex",
         REPO_ROOT / "runtimes/codex/model-sets/openai.json",
         build_codex_openai,
     ),
-    "copilot": ManagedModelSet(
+    ManagedModelSet(
+        "codex",
+        REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json",
+        build_codex_openai_legacy,
+    ),
+    ManagedModelSet(
+        "codex",
+        REPO_ROOT / "runtimes/codex/model-sets/openai-luna-sol-astra.json",
+        build_codex_openai_luna_sol_astra,
+    ),
+    ManagedModelSet(
         "copilot",
         REPO_ROOT / "runtimes/copilot/model-sets/default.json",
         build_copilot_default,
     ),
-    "claude": ManagedModelSet(
+    ManagedModelSet(
         "claude",
         REPO_ROOT / "runtimes/claude/model-sets/default.json",
         build_claude_default,
     ),
-}
+)
 MANAGED_MODEL_SET_ORDER = ("codex", "copilot", "claude")
 
 
@@ -105,8 +216,8 @@ def render_json(document: dict) -> str:
 
 def selected_model_sets(provider: str) -> list[ManagedModelSet]:
     if provider == "all":
-        return [MANAGED_MODEL_SETS[name] for name in MANAGED_MODEL_SET_ORDER]
-    return [MANAGED_MODEL_SETS[provider]]
+        return list(MANAGED_MODEL_SETS)
+    return [model_set for model_set in MANAGED_MODEL_SETS if model_set.runtime == provider]
 
 
 def output_path(

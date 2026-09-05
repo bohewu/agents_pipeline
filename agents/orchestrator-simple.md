@@ -17,7 +17,11 @@ FOCUS: Fast, lightweight task decomposition and subagent dispatch for coding, de
 - Do NOT create ad-hoc agent identities. Use existing subagents only.
 - Keep orchestration lightweight: no formal ProblemSpec, PlanOutline, TaskList, DispatchPlan, retry loop, or reviewer gate unless explicitly requested.
 - Treat the user's request as executable by default. If the work is too broad for simple mode, complete the safest bounded subset and clearly state what remains.
-- Do NOT infer missing requirements. Make the smallest safe assumptions and report them briefly.
+- Do not invent requirements or acceptance criteria. Resolve reversible
+  implementation details within the authorized scope using the smallest
+  reasonable assumption, and report material assumptions briefly.
+  Ask when unresolved ambiguity changes scope, acceptance criteria,
+  or destructive/irreversible behavior.
 - Treat in-memory work items, DoD, checks, and review notes as derivative. Assumptions and workflow suggestions cannot become blocking requirements merely by being restated.
 - Validation infrastructure is forbidden by default. It may be part of a Simple work item only when the explicit user request or an independently established repository contract that predates this workflow already targets it; record that authority in the handoff. A same-run note or check cannot authorize it without separate user approval. Product tests and fixtures are ordinary verification.
 
@@ -88,6 +92,10 @@ with the registered role, effective `reasoning_mode`, proven selected logical
 model tier or `unknown`, selector capability, and that in-memory classification.
 A conflict blocks that spawn. The profile/runtime selects the actual role
 model; the resolver selects only child effort and no dispatch passes a model.
+For a healthy eligible workspace profile, retain the exact preflight
+`resolved_configuration` and configuration identity for the selected role; use
+that envelope in each resolver call and trace expectation. Simple keeps this
+in-memory only and never writes workflow status artifacts.
 
 Before resolution, verify that the selected role policy ceiling accepts the
 work item's class. `peon` is fixed-routine and may receive only `routine` work;
@@ -115,9 +123,10 @@ and block. `inherit` preserves classification metadata but omits the selector,
 so exact overrides and strict assurance conflict. `shadow` computes requested
 effort but omits the selector; strict assurance conflicts. Use
 `dispatch_context = ad-hoc-review` for reviewer attempts. Ordinary reviewer dispatch
-uses the profile's strong tier with `xhigh` effort. Only explicit `--review=max`, a
-material high-consequence security/data-integrity review, or reviewer reasoning
-recovery may request `max`; generic risk alone does not. Reviewer models never uplift.
+uses the centrally projected effort for its saved reviewer configuration. Only explicit
+`--review=max`, a material high-consequence security/data-integrity review, or
+reviewer reasoning recovery may request `max`; generic risk alone does not.
+Reviewer models never uplift.
 `--review=max` passes `explicit_effort = max` only for that reviewer, stays deep, and
 does not certify the review. On local Codex, after every spawn returns
 its identifier, run `node tools/codex-child-trace.js` with V2 `--task-name` or
@@ -130,6 +139,9 @@ unverified and blocks formal assurance or exact overrides. Never claim
 `enforced` without matching effective-effort evidence. Here `enforced` means
 the effort contract matched; `selector_evidence = matches_parent` remains
 indeterminate between a same-value selector and inheritance.
+Adaptive enforcement requires matching role, model, and effort evidence from
+that saved envelope. `shadow` and `inherit` retain their decision but do not
+claim that the selector was applied.
 
 # DISPATCH POLICY
 

@@ -143,7 +143,7 @@ function invokeCli(args, codexHome, environment = {}) {
 
 function expectedFoundResult(overrides = {}) {
   return {
-    schema_version: "1.3",
+    schema_version: "1.4",
     runtime: "codex",
     agent_id: AGENT_ID,
     trace_found: true,
@@ -161,8 +161,8 @@ function expectedFoundResult(overrides = {}) {
   };
 }
 
-test("uses schema 1.3 for bounded observed role and model semantics", () => {
-  assert.equal(SCHEMA_VERSION, "1.3");
+test("uses schema 1.4 for bounded observed role and model semantics", () => {
+  assert.equal(SCHEMA_VERSION, "1.4");
 });
 
 test("finds a synthetic archived trace through the importable API and compact CLI", async (t) => {
@@ -257,6 +257,35 @@ test("reports role and effort mismatches without treating a found trace as an er
   }));
 });
 
+test("accepts a locally synthetic low effort trace only for an exact low expectation", async (t) => {
+  const codexHome = await createCodexHome(t);
+  await writeSession(
+    codexHome,
+    path.join("sessions", "2026", "07", `rollout-low-${AGENT_ID}.jsonl`),
+    traceRecords({ effort: "low" })
+  );
+
+  const matched = await inspectChildTrace({
+    agentId: AGENT_ID,
+    codexHome,
+    expectedEffort: "low"
+  });
+  assert.deepEqual(matched, expectedFoundResult({
+    effective_effort: "low",
+    effort_matches: true,
+    selector_evidence: "indeterminate"
+  }));
+
+  const mismatched = await inspectChildTrace({
+    agentId: AGENT_ID,
+    codexHome,
+    expectedEffort: "medium"
+  });
+  assert.equal(mismatched.effective_effort, "low");
+  assert.equal(mismatched.effort_matches, false);
+  assert.equal(mismatched.selector_evidence, "mismatch");
+});
+
 test("rejects an invalid UUID with only the bounded JSON schema", async (t) => {
   const codexHome = await createCodexHome(t);
   const processResult = invokeCli([
@@ -269,7 +298,7 @@ test("rejects an invalid UUID with only the bounded JSON schema", async (t) => {
   assert.equal(processResult.stderr, "");
   assert.equal(processResult.stdout.split("\n").filter(Boolean).length, 1);
   assert.deepEqual(JSON.parse(processResult.stdout), {
-    schema_version: "1.3",
+    schema_version: "1.4",
     runtime: "codex",
     agent_id: null,
     trace_found: false,

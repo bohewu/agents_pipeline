@@ -15,7 +15,7 @@
   ],
   "properties": {
     "schema_version": {
-      "enum": ["1.0", "2.0"]
+      "enum": ["1.0", "2.0", "3.0"]
     },
     "observed_at": {
       "type": "string",
@@ -65,6 +65,9 @@
     },
     "reasoning": {
       "$ref": "#/$defs/reasoningSummary"
+    },
+    "trace_evidence": {
+      "$ref": "codex-child-trace.schema.json"
     }
   },
   "allOf": [
@@ -93,6 +96,48 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": "3.0" } }
+      },
+      "then": {
+        "properties": {
+          "reasoning": {
+            "properties": { "schema_version": { "const": "3.0" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["schema_version", "reasoning"],
+        "properties": {
+          "schema_version": { "const": "3.0" },
+          "reasoning": {
+            "required": ["mode", "enforcement_status"],
+            "properties": {
+              "mode": { "const": "adaptive" },
+              "enforcement_status": { "const": "enforced" }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["trace_evidence"],
+        "properties": {
+          "trace_evidence": {
+            "required": ["trace_found", "role_matches", "model_matches", "effort_matches"],
+            "properties": {
+              "trace_found": { "const": true },
+              "role_matches": { "const": true },
+              "model_matches": { "const": true },
+              "effort_matches": { "const": true }
+            }
+          }
+        }
+      }
     }
   ],
   "additionalProperties": false,
@@ -109,7 +154,7 @@
       "enum": ["mini", "standard", "strong"]
     },
     "effort": {
-      "enum": [null, "medium", "high", "xhigh", "max"]
+      "enum": [null, "low", "medium", "high", "xhigh", "max"]
     },
     "rolePolicy": {
       "oneOf": [
@@ -253,7 +298,7 @@
             "reasoning_class": { "$ref": "#/$defs/nonNullReasoningClass" },
             "effort": {
               "type": "string",
-              "enum": ["medium", "high", "xhigh", "max"]
+              "enum": ["low", "medium", "high", "xhigh", "max"]
             }
           },
           "additionalProperties": false
@@ -679,7 +724,7 @@
         "strict"
       ],
       "properties": {
-        "schema_version": { "enum": ["1.0", "2.0"] },
+        "schema_version": { "enum": ["1.0", "2.0", "3.0"] },
         "policy_version": {
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$",
@@ -783,7 +828,13 @@
         "degraded": { "type": "boolean" },
         "degradation_reason": { "$ref": "#/$defs/degradationReason" },
         "recovery_boost": { "type": "boolean" },
-        "explicit_override": { "$ref": "#/$defs/explicitOverride" }
+        "explicit_override": { "$ref": "#/$defs/explicitOverride" },
+        "reasoning_projection": {
+          "$ref": "reasoning-decision.schema.json#/$defs/reasoningProjection"
+        },
+        "model_set": {
+          "$ref": "reasoning-decision.schema.json#/$defs/modelSetIdentity"
+        }
       },
       "allOf": [
         { "$ref": "#/$defs/observationTaskHintRules" },
@@ -845,7 +896,16 @@
                   "explicit_override"
                 ],
                 "properties": {
-                  "policy_version": { "const": "2" }
+                  "policy_version": { "const": "2" },
+                  "requested_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+                  "dispatch_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+                  "effective_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+                  "explicit_override": {
+                    "$ref": "reasoning-decision.schema.json#/$defs/v2ExplicitOverride"
+                  },
+                  "reasoning_projection": {
+                    "properties": { "id": { "const": "legacy-v2" } }
+                  }
                 }
               },
               { "$ref": "#/$defs/matchingClassAliases" },
@@ -876,6 +936,34 @@
                 }
               }
             ]
+          }
+        },
+        {
+          "if": { "required": ["model_set"] },
+          "then": { "required": ["reasoning_projection"] }
+        },
+        {
+          "if": {
+            "required": ["schema_version"],
+            "properties": { "schema_version": { "const": "3.0" } }
+          },
+          "then": {
+            "required": [
+              "task_intent",
+              "intent_baseline_class",
+              "classification_source",
+              "role_policy",
+              "reasoning_class",
+              "selected_model_tier",
+              "selector_available",
+              "degraded",
+              "degradation_reason",
+              "recovery_boost",
+              "explicit_override",
+              "reasoning_projection",
+              "model_set"
+            ],
+            "properties": { "policy_version": { "const": "3" } }
           }
         }
       ],

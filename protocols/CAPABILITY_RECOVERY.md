@@ -89,7 +89,12 @@ qualify for model recovery:
    installed profile manager's `resolve-recovery` action.
 3. Re-run the reasoning resolver using the prior effective class and the
    requested recovery tier, without carrying the prior model's
-   `recovery_boost`. This reprojects normal effort for the stronger tier.
+   `recovery_boost`. This reprojects normal effort for the stronger tier. The
+   destination call carries its newly resolved, digest-bound configuration;
+   it must not reuse the source projection or source effort. For example, a
+   legal LSA Sol `deep` plus `max` recovery can become Astra `deep` plus
+   `high`. The class and failure history remain intact, while the source boost
+   is cleared.
 4. For Pipeline `auto`, atomically claim the attempt with one `task.updated`
    event that changes `capability_recovery_used` to `true` and increments
    `retry_opportunities_used` by exactly one. Await the canonical task write
@@ -115,6 +120,14 @@ normal recovery effort. It may not select another model tier. At the profile rec
 a material deep failure must receive its legal `max` effort-first attempt
 before the workflow stops and reports the blocker.
 
+The destination resolver configuration may use the
+`capability_recovery` provenance marker only for `executor` or `generalist`,
+with workspace-profile provenance and a strictly higher target tier. This
+marker records a recovery already authorized by `tools/capability-recovery.js`;
+it does not authorize a retry, enlarge its budget, or make reviewer recovery
+legal. A pinned legacy catalog remains ineligible for recovery under the
+workspace resolver's existing contract.
+
 Operational errors use operational retries or a corrected tool invocation.
 They never request model recovery and never consume repair budget.
 
@@ -138,8 +151,9 @@ output comes only from the selected installed model set.
 
 ## Reviewer boundary
 
-Reviewer recovery is effort-only. Ordinary review uses strong plus `xhigh`.
-An explicit `--review=max`, a workflow-selected material
+Reviewer recovery is effort-only. Policy-v2 ordinary review uses strong plus
+`xhigh`; the verified `openai-reviewer-v1` Astra reviewer projection calibrates
+ordinary deep review to `high`. An explicit `--review=max`, a workflow-selected material
 security/data-integrity review, or reviewer reasoning recovery may request
 strong plus `max` while remaining deep. Formal acceptance/rejection alone uses
 assurance, strong, `max`, and strict enforcement.

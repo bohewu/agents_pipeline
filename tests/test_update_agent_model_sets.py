@@ -25,6 +25,14 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
     def test_builders_match_bundled_catalogs(self) -> None:
         cases = (
             (UPDATER.build_codex_openai, REPO_ROOT / "runtimes/codex/model-sets/openai.json"),
+            (
+                UPDATER.build_codex_openai_legacy,
+                REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json",
+            ),
+            (
+                UPDATER.build_codex_openai_luna_sol_astra,
+                REPO_ROOT / "runtimes/codex/model-sets/openai-luna-sol-astra.json",
+            ),
             (UPDATER.build_copilot_default, REPO_ROOT / "runtimes/copilot/model-sets/default.json"),
             (UPDATER.build_claude_default, REPO_ROOT / "runtimes/claude/model-sets/default.json"),
         )
@@ -43,6 +51,24 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
                 "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
             },
         )
+
+    def test_codex_catalogs_bind_the_three_registered_projections(self) -> None:
+        expected = {
+            "openai": ("openai-reviewer-v1", "gpt-6-astra"),
+            "openai-legacy": ("legacy-v2", None),
+            "openai-luna-sol-astra": ("lsa-efficiency-v1", None),
+        }
+        for name, (projection, reviewer_model) in expected.items():
+            with self.subTest(name=name):
+                catalog = read_json(
+                    REPO_ROOT / "runtimes" / "codex" / "model-sets" / f"{name}.json"
+                )
+                self.assertEqual(catalog["reasoning_projection"]["id"], projection)
+                self.assertRegex(catalog["mapping_digest"], r"^sha256:[0-9a-f]{64}$")
+                override = catalog["role_overrides"].get("reviewer")
+                self.assertEqual(
+                    None if override is None else override["model"], reviewer_model
+                )
 
     def test_runtime_defaults_are_static(self) -> None:
         self.assertEqual(
@@ -72,6 +98,8 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
             root = Path(temp_dir)
             expected = {
                 "runtimes/codex/model-sets/openai.json": "codex",
+                "runtimes/codex/model-sets/openai-legacy.json": "codex",
+                "runtimes/codex/model-sets/openai-luna-sol-astra.json": "codex",
                 "runtimes/copilot/model-sets/default.json": "copilot",
                 "runtimes/claude/model-sets/default.json": "claude",
             }

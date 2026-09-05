@@ -152,6 +152,9 @@
         ]
       }
     },
+    "configuration_identity": {
+      "$ref": "agent-status.schema.json#/$defs/configurationIdentity"
+    },
     "batch_id": {
       "type": "string",
       "minLength": 1

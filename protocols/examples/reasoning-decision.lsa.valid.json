@@ -1,0 +1,55 @@
+{
+  "schema_version": "3.0",
+  "policy_version": "3",
+  "mode": "adaptive",
+  "role": "executor",
+  "task_intent": "execute",
+  "intent_baseline_class": "routine",
+  "classification_source": "task_intent",
+  "role_policy": {
+    "mode": "adaptive",
+    "floor_class": "routine",
+    "target_class": "deliberative",
+    "ceiling_class": "deep",
+    "strict": false
+  },
+  "dispatch_context": null,
+  "requested_class": null,
+  "reasoning_class": "routine",
+  "effective_class": "routine",
+  "reasoning_signals": [],
+  "model_tier": "strong",
+  "selected_model_tier": "strong",
+  "minimum_model_tier": "mini",
+  "requires_model_escalation": false,
+  "requested_effort": "low",
+  "dispatch_effort": "low",
+  "effective_effort": null,
+  "selector_available": true,
+  "capability_source": "runtime",
+  "enforcement_status": "requested",
+  "strict": false,
+  "degraded": false,
+  "degradation_reason": null,
+  "recovery_boost": false,
+  "explicit_override": null,
+  "reasons": [
+    "intent:execute",
+    "intent_baseline:routine",
+    "role:executor",
+    "role_mode:adaptive"
+  ],
+  "conflict": null,
+  "conflict_reason": null,
+  "reasoning_projection": {
+    "id": "lsa-efficiency-v1",
+    "version": "1",
+    "policy_version": "3",
+    "digest": "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"
+  },
+  "model_set": {
+    "id": "openai-luna-sol-astra",
+    "version": "1",
+    "mapping_digest": "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9"
+  }
+}

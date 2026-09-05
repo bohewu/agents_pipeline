@@ -174,6 +174,10 @@ validates capability and selects child effort only. Never pass a raw model,
 dynamically route a model, or apply a child selector to the current/main agent.
 During an execution transition, adopt Pipeline's same resolver contract rather
 than creating a modernization-specific effort map.
+For an eligible workspace profile, retain the exact role
+`resolved_configuration` and configuration identity from preflight; pass that
+envelope to the resolver and local trace expectation, and preserve it in run
+status before any resume or later dispatch.
 
 ## CONFIRM / VERBOSE PROTOCOL
 

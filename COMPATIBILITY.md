@@ -80,6 +80,10 @@ Direct workspace installers remain available as explicit materialization compati
 
 Profile-manager `status` and `--json` describe installed role/profile state. For global Codex they report the model-free installation and any legacy state; for a Codex workspace or the Tier 2 runtimes they also describe installed model routing. They do not describe a running workflow. Workflow status remains the independent Node.js status/checkpoint contract below.
 
+Codex named workspace profiles use a versioned catalog/projection pair. `openai` is Luna/Terra/Sol with Astra only for a proven strong reviewer; `openai-luna-sol-astra` is the experimental Luna/Sol/Astra matrix; and `openai-legacy` preserves the v2 Luna/Terra/Sol mapping and effort policy. A workspace manifest records its profile, mapping, projection, and resolved bindings. A recognized v2 overlay stays pinned to `openai-legacy` semantics, and a changed workspace configuration cannot hot-reload a running workflow or resume under a different identity. `clear` restores parent-session inheritance, not a fixed legacy/Sol selection. See [runtime profile details](docs/runtime-agent-model-profiles.md#versioned-codex-model-sets) for commands and the `low` limits.
+
+`status` is configuration evidence, not a live child trace. Only adaptive dispatch requests an effort selector; a projection can be reported applied only after matching trace evidence. `inherit` and `shadow` do not prove that the selected projection or effort ran. Uniform, no-profile, ineligible, and unknown configurations never infer a tier or a v3 projection from a model name.
+
 ## Claude Code compatibility
 
 - Claude Code must support project/global custom agent Markdown for the selected install target.

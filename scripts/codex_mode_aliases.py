@@ -65,7 +65,11 @@ CUSTOM_ROLE_FORK_ISOLATION_LINE = (
     "use the returned UUID with `--agent-id`. Exported subagent roles are leaf "
     "workers and must not spawn another agent. When the adopted definition invokes the installed "
     "reasoning policy protocol, use its shared resolver for child effort and never "
-    "infer effort from workflow risk or apply a child selector to the current/main agent."
+    "infer effort from workflow risk or apply a child selector to the current/main agent. "
+    "For an eligible workspace profile, retain the exact preflight "
+    "`resolved_configuration` and configuration identity for every resolver call, "
+    "trace expectation, lifecycle record, and resume check; an approved recovery "
+    "envelope may differ only by its profile-returned capability-recovery override."
 )
 AD_HOC_MANAGED_ROLE_DISPATCH_LINES = (
     "Ad-hoc managed-role dispatch:",
@@ -78,18 +82,23 @@ AD_HOC_MANAGED_ROLE_DISPATCH_LINES = (
     "proves that tier; a uniform raw-model profile or any other unprovable mapping "
     "passes tier `unknown` without guessing from the model slug. A normal workspace "
     "without a profile may continue through global role routing with tier `unknown`; "
-    "if a configured profile is ineligible, warn and use that same global/unknown-tier path.",
+    "if a configured profile is ineligible, warn and use that same global/unknown-tier path. "
+    "For an eligible profile, retain the exact `resolved_configurations[role]` envelope "
+    "and configuration identity from this preflight.",
     "3. Classify the bounded task intent and reasoning signals, then call the installed "
     "reasoning-policy resolver with `mode = adaptive`, the registered role, the proven "
-    "tier or `unknown`, and selector availability. If the task exceeds a fixed role or "
+    "tier or `unknown`, the exact saved `resolved_configuration`, and selector availability. "
+    "If the task exceeds a fixed role or "
     "role ceiling, report the conflict; do not lower the class or silently reassign it.",
     "4. Pass the resolver's non-null `dispatch_effort` as `reasoning_effort`. Never "
     "select effort directly from the role name or perceived task simplicity. If the "
     "resolver conflicts or the required selector is unavailable, stop before spawning.",
     "5. Spawn with `agent_type = <role>`, omit `model`, and use `fork_turns = \"none\"`.",
     "6. Verify the observed role and effective effort with `codex-child-trace.js`. "
-    "Verify an expected model only when the eligible workspace profile proves one; "
-    "otherwise report the bounded observed model without claiming profile routing.",
+    "Verify the expected model from the saved role envelope and the expected effort. "
+    "Only matching adaptive role, model, and effort evidence is applied; shadow and "
+    "inherit remain unapplied. Otherwise report the bounded observed model without "
+    "claiming profile routing.",
     "This is a lightweight dispatch preflight only. It must not create workflow "
     "artifacts, manifests, task decomposition, retry loops, or other `$run-*` behavior.",
 )

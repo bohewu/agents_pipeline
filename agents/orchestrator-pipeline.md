@@ -325,6 +325,13 @@ each redispatch pass the prior task attempt's persisted
 `reasoning.effective_class` as the new `reasoning_class` floor when higher,
 including after resume. Do not restart recovery from the canonical task class.
 
+For a healthy eligible workspace profile, freeze the current profile identity,
+model mapping, projection identity, and exact per-role `resolved_configuration`
+at run start. Pass that saved envelope into every resolver call and agent
+lifecycle payload, including reviewer and recovery attempts, and require the
+same configuration on resume before further dispatch. A recovery destination may
+differ only through the approved capability-recovery override returned by the profile.
+
 In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
 and apply it without passing a model. If selector unavailability produces a
@@ -339,8 +346,8 @@ and does not change the selected model. Conflicts block the spawn. Deep
 `allow_degraded_deep` compatibility input may continue as degraded deep `max`.
 It never permits assurance or model routing outside the bounded capability recovery below.
 
-Include the complete decision in each `agent.started` status payload as
-`reasoning`. On local Codex, after every spawn returns its identifier, run
+Include the complete decision and exact saved `resolved_configuration` in each
+`agent.started` status payload. On local Codex, after every spawn returns its identifier, run
 `node tools/codex-child-trace.js` with V2 `--task-name` or legacy `--agent-id`,
 the expected role and, when non-null, expected `dispatch_effort`; rerun the
 resolver with the reported
@@ -352,6 +359,8 @@ formal assurance or exact overrides. Do not claim enforcement without matching
 trace evidence. Matching effort enforces the policy contract;
 `selector_evidence = matches_parent` remains indeterminate between a same-value
 selector and inheritance.
+Only matching adaptive role, model, and effort trace evidence permits an
+`enforced` result; `shadow` and `inherit` observations remain unapplied.
 
 ## MATERIALITY AND CAPABILITY RECOVERY
 
@@ -490,7 +499,7 @@ Stage 5: Execute batches + optional validation:
 - After each task completion or reconciliation point, immediately flush the semantic status deltas needed for that point. Prefer one status CLI call with `--event batch` when a task outcome and its related agent lifecycle deltas land together; use single-event calls only when there is exactly one delta or an intermediate write matters. Coalesce heartbeats so only the latest still-useful heartbeat per active agent is flushed, keep standalone heartbeats coarse (roughly >=15 seconds), and skip redundant heartbeats when completion or a richer batched delta is likely soon. Apply the same rule to stage-scoped subagent dispatch/completion even when no canonical task exists yet.
 - If `skip_tests = false`, run @test-runner after execution and attach `test-report.json` evidence for Stage 6
 - If `test_only = true`, skip executor dispatch and run only @test-runner, then continue to Stage 6 and stop after final summary (skip retry/compression stages)
-Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, optional DevSpec, explicit non-goals or out-of-scope constraints when supplied, and the required verification. Review the complete run and prioritize high-risk or L-complexity TaskList entries. Preserve requirement source and validation authority: derivative DoD/test-plan wording is not independent scope, and missing `workflow_suggested` validation does not fail by itself. For legacy 1.0 input, include the orchestrator's reconciliation to the original request or pre-workflow repository evidence and the normalized false validation-infrastructure value; do not demand absent 1.1 provenance. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, optional improvements, and alternative designs that already satisfy the contract never enter `required_followups`. Adequate targeted evidence is sufficient unless a changed shared boundary or explicit requirement proves a wider gap. Ordinary review uses the profile's strong tier with `xhigh` effort; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
+Stage 6: @reviewer -> `review-report.json` (pass/fail + issues + delta recommendations) with `mode = pipeline`, TaskList/DeltaTaskList, DispatchPlan, executor outputs, ProblemSpec, optional DevSpec, explicit non-goals or out-of-scope constraints when supplied, and the required verification. Review the complete run and prioritize high-risk or L-complexity TaskList entries. Preserve requirement source and validation authority: derivative DoD/test-plan wording is not independent scope, and missing `workflow_suggested` validation does not fail by itself. For legacy 1.0 input, include the orchestrator's reconciliation to the original request or pre-workflow repository evidence and the normalized false validation-infrastructure value; do not demand absent 1.1 provenance. When `overall_status = fail`, reviewer MUST prefix every issue/followup string with `[artifact]`, `[evidence]`, or `[logic]`. Only evidence-backed blocking P0-P2 findings may fail the run; P3 suggestions, wording preferences, optional improvements, and alternative designs that already satisfy the contract never enter `required_followups`. Adequate targeted evidence is sufficient unless a changed shared boundary or explicit requirement proves a wider gap. Ordinary review uses the centrally projected effort for the saved reviewer configuration; only `--review=max`, material high-consequence security/data-integrity review, or reviewer reasoning recovery may request `max`, never generic risk. Reviewer models never uplift. Resolve every Stage 6 reviewer attempt independently with `dispatch_context = pipeline-review`, including post-repair and delta-round re-reviews. If `review_reasoning_effort = max`, pass exact reviewer-only `explicit_effort = max`: adaptive requests and verifies it, shadow records it without applying it, and inherit conflicts. It remains deep ordinary review, not certification. No executor, test runner, or other role receives this override.
 Stage 7: If fail and `test_only = false` -> treat the review result as input and apply `protocols/MATERIALITY_GATE.md` to each finding before creating work. Harness and operational failures do not enter Stage 7; use only their bounded task-local handling and report a blocker when that is unavailable or exhausted. Retry only blocking P0-P2 followups that name the unmet original requirement, concrete evidence, practical impact, and smallest necessary fix. Before each affected product task is redispatched, atomically increment that originating task's persisted `retry_opportunities_used`; a capability-recovery claim already counts as one, and a task at `max_retry_rounds` cannot be redispatched. If every `required_followups` entry is `[artifact]` and/or `[evidence]`, first exclude harness and operational failures, then prefer a narrow repair pass that re-dispatches only the affected producing task. If any `required_followups` entry is `[logic]` after admission, create DeltaTaskList and re-run Stage 4-6 within the remaining per-task opportunities and the run's max_retry_rounds.
 Stage 8: Only if `compress_mode = true`, decide whether the run is trivial enough for inline compression.
 

@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -120,6 +123,124 @@ class AgentModelProfilesTest(unittest.TestCase):
             with self.subTest(profile=name):
                 profile = RESOLVER.load_profile(name, profiles_dir, "codex")
                 self.assertEqual(profile.recovery_ceiling_tiers, ceilings)
+
+    def test_versioned_codex_catalogs_resolve_only_the_strong_reviewer_override(self) -> None:
+        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
+        model_set_dir = REPO_ROOT / "runtimes" / "codex" / "model-sets"
+        profile = RESOLVER.load_profile("balanced", profiles_dir, "codex")
+        expected = {
+            "openai": ("gpt-6-astra", "gpt-5.6-terra", "openai-reviewer-v1"),
+            "openai-legacy": ("gpt-5.6-sol", "gpt-5.6-terra", "legacy-v2"),
+            "openai-luna-sol-astra": (
+                "gpt-6-astra",
+                "gpt-5.6-sol",
+                "lsa-efficiency-v1",
+            ),
+        }
+        for name, (reviewer, executor, projection) in expected.items():
+            with self.subTest(name=name):
+                model_set = RESOLVER.load_model_set(name, model_set_dir, "codex")
+                settings = RESOLVER.resolve_agent_model_settings(
+                    ["reviewer", "executor"], profile, model_set
+                )
+                self.assertEqual(settings["reviewer"]["model"], reviewer)
+                self.assertEqual(settings["executor"]["model"], executor)
+                configurations = RESOLVER.resolve_workspace_configurations(
+                    ["reviewer", "executor"], profile, model_set
+                )
+                self.assertEqual(
+                    configurations["reviewer"]["reasoning_projection"]["id"],
+                    projection,
+                )
+                self.assertEqual(
+                    configurations["reviewer"]["role_binding"]["model"], reviewer
+                )
+
+    def test_installed_resolver_accepts_updater_catalog_from_custom_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            support_root = root / "installed-support"
+            resolver_path = support_root / "scripts" / "agent_model_profiles.py"
+            registry_path = support_root / "protocols" / "reasoning-projections.json"
+            profiles_dir = support_root / "tools" / "agent-profiles"
+            catalog_dir = root / "custom-catalog"
+            resolver_path.parent.mkdir(parents=True)
+            registry_path.parent.mkdir(parents=True)
+            profiles_dir.mkdir(parents=True)
+            shutil.copy2(RESOLVER_SCRIPT_PATH, resolver_path)
+            shutil.copy2(REPO_ROOT / "protocols" / "reasoning-projections.json", registry_path)
+            shutil.copy2(REPO_ROOT / "tools" / "agent-profiles" / "balanced.json", profiles_dir)
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "update-agent-model-sets.py"),
+                    "--provider",
+                    "codex",
+                    "--model-set-dir",
+                    str(catalog_dir),
+                ],
+                check=True,
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+            previous_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                installed_resolver = load_module(
+                    "installed_agent_model_profiles", resolver_path
+                )
+                profile = installed_resolver.load_profile("balanced", profiles_dir, "codex")
+                model_set = installed_resolver.load_model_set("openai", catalog_dir, "codex")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    settings = installed_resolver.resolve_agent_model_settings(
+                        ["reviewer", "executor"], profile, model_set
+                    )
+            finally:
+                os.chdir(previous_cwd)
+
+            self.assertEqual(
+                settings,
+                {
+                    "reviewer": {"model": "gpt-6-astra", "model_provider": "openai"},
+                    "executor": {"model": "gpt-5.6-terra", "model_provider": "openai"},
+                },
+            )
+
+    def test_invalid_or_inapplicable_reviewer_override_fails_before_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            profile_dir = root / "profiles"
+            model_set_dir = root / "model-sets"
+            write_json(profile_dir, "missing-reviewer", profile_payload({"executor": "standard"}))
+            profile = RESOLVER.load_profile("missing-reviewer", profile_dir, "codex")
+            model_set = RESOLVER.load_model_set(
+                "openai", REPO_ROOT / "runtimes/codex/model-sets", "codex"
+            )
+            with self.assertRaisesRegex(ValueError, "define that role"):
+                RESOLVER.resolve_agent_model_settings(["executor"], profile, model_set)
+
+            invalid = model_set_payload("codex", codex_tiers())
+            invalid.update(
+                {
+                    "version": "1",
+                    "mapping_digest": "sha256:" + "0" * 64,
+                    "reasoning_projection": {
+                        "id": "example",
+                        "version": "1",
+                        "policy_version": "3",
+                        "digest": "sha256:" + "0" * 64,
+                    },
+                    "role_overrides": {
+                        "reviewer": {"expected_tier": "strong", "model": "not valid"}
+                    },
+                }
+            )
+            write_json(model_set_dir, "invalid", invalid)
+            with self.assertRaisesRegex(ValueError, "bounded model identifier"):
+                RESOLVER.load_model_set("invalid", model_set_dir, "codex")
 
     def test_unknown_tier_fails_during_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:

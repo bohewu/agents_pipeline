@@ -27,12 +27,12 @@ class StatusWriter {
     return this.writeJsonAtomic(filePath, canonicalizeRunStatus(value));
   }
 
-  async writeTaskStatus(filePath, value) {
-    return this.writeJsonAtomic(filePath, canonicalizeTaskStatus(value));
+  async writeTaskStatus(filePath, value, runConfiguration) {
+    return this.writeJsonAtomic(filePath, canonicalizeTaskStatus(value, runConfiguration));
   }
 
-  async writeAgentStatus(filePath, value) {
-    return this.writeJsonAtomic(filePath, canonicalizeAgentStatus(value));
+  async writeAgentStatus(filePath, value, runConfiguration) {
+    return this.writeJsonAtomic(filePath, canonicalizeAgentStatus(value, runConfiguration));
   }
 
   async writeCheckpoint(filePath, value) {

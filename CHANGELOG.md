@@ -6,6 +6,21 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-09-05
+
+### Added
+
+- Added versioned Codex workspace model sets: `openai` with the Astra strong-reviewer override, experimental `openai-luna-sol-astra`, and compatibility `openai-legacy`, each bound to an immutable reasoning projection.
+
+### Changed
+
+- Workspace manifests and run/status configuration evidence now preserve selected catalog, mapping, projection, and role bindings. Legacy v2 Luna/Terra/Sol overlays remain pinned rather than silently upgrading; changed workspace configuration stops later dispatch/resume instead of hot-reloading it.
+- Policy v3 admits `low` only for the registered experimental Astra routine/deliberative paths. Adaptive application still requires matching child trace evidence; `status`, `shadow`, and `inherit` do not claim live selector enforcement.
+
+### Fixed
+
+- Fail closed when a v3 workspace manifest lacks matching catalog, mapping, projection, or resolved-role evidence; recognized v2 Luna/Terra/Sol manifests remain pinned to their legacy semantics.
+
 ## [0.35.9] - 2026-09-02
 
 ### Changed

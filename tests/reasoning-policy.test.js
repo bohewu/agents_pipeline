@@ -6,12 +6,50 @@ const { Writable } = require("node:stream");
 
 const {
   DEFAULT_POLICY_PATH,
+  DEFAULT_PROJECTION_REGISTRY_PATH,
   EXIT_CODES,
+  loadProjectionRegistry,
   loadPolicy,
   resolveReasoning,
   runCli,
   validatePolicy
 } = require("../tools/reasoning-policy");
+
+const PROJECTION_REGISTRY = loadProjectionRegistry();
+
+function versionedConfiguration({
+  projectionId,
+  modelSetId,
+  role,
+  modelTier,
+  provenance = { source: "workspace_profile", override: null }
+}) {
+  const projection = PROJECTION_REGISTRY.projections.find((entry) => entry.id === projectionId);
+  const modelSet = projection.model_sets.find((entry) => entry.id === modelSetId);
+  const override = modelSet.role_overrides[role];
+  const binding = override || { model_tier: modelTier, model: modelSet.tiers[modelTier] };
+  return {
+    schema_version: 1,
+    model_set: {
+      id: modelSet.id,
+      version: modelSet.version,
+      mapping_digest: modelSet.mapping_digest
+    },
+    reasoning_projection: {
+      id: projection.id,
+      version: projection.version,
+      policy_version: projection.policy_version,
+      digest: projection.digest
+    },
+    role_binding: {
+      role,
+      model_tier: binding.model_tier,
+      model: binding.model,
+      mapping_digest: modelSet.mapping_digest
+    },
+    provenance
+  };
+}
 
 function capture() {
   let value = "";
@@ -1454,4 +1492,268 @@ test("CLI emits a decision and uses a distinct conflict exit code in every mode"
 test("default policy path remains inside the repository protocol tree", () => {
   assert.equal(path.basename(DEFAULT_POLICY_PATH), "reasoning-policy.json");
   assert.equal(path.basename(path.dirname(DEFAULT_POLICY_PATH)), "protocols");
+});
+
+test("versioned registry keeps legacy v2 exact while projecting the Astra reviewer", () => {
+  const legacy = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "review",
+    model_tier: "strong",
+    selector_available: true
+  });
+  const legacyConfiguration = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "review",
+    model_tier: "strong",
+    selector_available: true,
+    resolved_configuration: versionedConfiguration({
+      projectionId: "legacy-v2",
+      modelSetId: "openai-legacy",
+      role: "reviewer",
+      modelTier: "strong"
+    })
+  });
+  const { reasoning_projection, model_set, ...legacyBehavior } = legacyConfiguration;
+  assert.deepEqual(legacyBehavior, legacy);
+  assert.equal(legacyConfiguration.schema_version, "2.0");
+  assert.equal(legacyConfiguration.dispatch_effort, "xhigh");
+  assert.equal(reasoning_projection.id, "legacy-v2");
+  assert.equal(model_set.id, "openai-legacy");
+
+  const reviewer = resolveReasoning({
+    role: "reviewer",
+    mode: "adaptive",
+    task_intent: "review",
+    selector_available: true,
+    resolved_configuration: versionedConfiguration({
+      projectionId: "openai-reviewer-v1",
+      modelSetId: "openai",
+      role: "reviewer",
+      modelTier: "strong"
+    })
+  });
+  assert.equal(reviewer.schema_version, "3.0");
+  assert.equal(reviewer.reasoning_projection.id, "openai-reviewer-v1");
+  assert.equal(reviewer.dispatch_effort, "high");
+
+  const executor = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    selector_available: true,
+    resolved_configuration: versionedConfiguration({
+      projectionId: "openai-reviewer-v1",
+      modelSetId: "openai",
+      role: "executor",
+      modelTier: "strong"
+    })
+  });
+  assert.equal(executor.dispatch_effort, "xhigh");
+
+  const baselineRecovery = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    model_tier: "strong",
+    selector_available: true,
+    prior_failure_type: "reasoning_failure"
+  });
+  const projectedRecovery = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    selector_available: true,
+    prior_failure_type: "reasoning_failure",
+    resolved_configuration: versionedConfiguration({
+      projectionId: "openai-reviewer-v1",
+      modelSetId: "openai",
+      role: "executor",
+      modelTier: "strong"
+    })
+  });
+  assert.equal(projectedRecovery.dispatch_effort, baselineRecovery.dispatch_effort);
+  assert.equal(projectedRecovery.recovery_boost, true);
+
+  const baselineSelectorGap = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    model_tier: "strong",
+    selector_available: false
+  });
+  const projectedSelectorGap = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    selector_available: false,
+    resolved_configuration: versionedConfiguration({
+      projectionId: "openai-reviewer-v1",
+      modelSetId: "openai",
+      role: "executor",
+      modelTier: "strong"
+    })
+  });
+  const {
+    schema_version: ignoredSchemaVersion,
+    policy_version: ignoredPolicyVersion,
+    reasoning_projection: ignoredProjection,
+    model_set: ignoredModelSet,
+    ...projectedBehavior
+  } = projectedSelectorGap;
+  const {
+    schema_version: ignoredBaselineSchemaVersion,
+    policy_version: ignoredBaselinePolicyVersion,
+    ...baselineBehavior
+  } = baselineSelectorGap;
+  assert.deepEqual(projectedBehavior, baselineBehavior);
+});
+
+test("lsa v3 uses the approved Luna, Sol, and Astra effort matrix", () => {
+  const cases = [
+    ["mini routine", "executor", "mini", "execute", [], "high"],
+    ["standard routine", "executor", "standard", "execute", [], "medium"],
+    ["strong routine", "executor", "strong", "execute", [], "low"],
+    ["mini deliberative", "executor", "mini", "diagnose", [], "xhigh"],
+    ["standard deliberative", "executor", "standard", "diagnose", [], "medium"],
+    ["strong deliberative", "executor", "strong", "diagnose", [], "low"],
+    ["standard deep", "executor", "standard", "design", ["cross_module"], "high"],
+    ["strong deep", "executor", "strong", "design", ["cross_module"], "high"],
+    ["strong assurance", "reviewer", "strong", "certify", [], "max"]
+  ];
+  for (const [label, role, tier, taskIntent, signals, effort] of cases) {
+    const decision = resolveReasoning({
+      role,
+      mode: "adaptive",
+      task_intent: taskIntent,
+      reasoning_signals: signals,
+      selector_available: true,
+      resolved_configuration: versionedConfiguration({
+        projectionId: "lsa-efficiency-v1",
+        modelSetId: "openai-luna-sol-astra",
+        role,
+        modelTier: tier
+      })
+    });
+    assert.equal(decision.dispatch_effort, effort, label);
+    assert.equal(decision.policy_version, "3", label);
+  }
+});
+
+test("versioned projections fail closed on bad metadata, unavailable effort, and a missing selector", () => {
+  const configuration = versionedConfiguration({
+    projectionId: "lsa-efficiency-v1",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor",
+    modelTier: "strong"
+  });
+  assert.throws(() => resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    resolved_configuration: {
+      ...configuration,
+      reasoning_projection: {
+        ...configuration.reasoning_projection,
+        digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    }
+  }), /projection metadata/);
+  assert.throws(() => resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    resolved_configuration: {
+      ...configuration,
+      role_binding: { ...configuration.role_binding, model: "gpt-5.6-sol" }
+    }
+  }), /role binding/);
+
+  const unavailable = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    runtime_supported_efforts: ["medium", "high", "xhigh", "max"],
+    resolved_configuration: configuration
+  });
+  assert.equal(unavailable.enforcement_status, "conflict");
+  assert.equal(unavailable.dispatch_effort, null);
+
+  const selectorMissing = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: false,
+    resolved_configuration: configuration
+  });
+  assert.equal(selectorMissing.enforcement_status, "conflict");
+  assert.match(selectorMissing.conflict_reason, /selector/);
+
+  assert.throws(() => resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    model_tier: "strong",
+    explicit_effort: "low"
+  }), /explicit_effort/);
+});
+
+test("versioned same-model recovery raises real effort and destination recovery reprojects", () => {
+  const solConfiguration = versionedConfiguration({
+    projectionId: "lsa-efficiency-v1",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor",
+    modelTier: "standard"
+  });
+  const retry = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "execute",
+    prior_effective_class: "routine",
+    prior_observed_effective_effort: "medium",
+    prior_failure_type: "reasoning_failure",
+    selector_available: true,
+    resolved_configuration: solConfiguration
+  });
+  assert.equal(retry.effective_class, "deliberative");
+  assert.equal(retry.dispatch_effort, "high");
+  assert.ok(retry.reasons.includes("same_model_effort_increase"));
+
+  const astraConfiguration = versionedConfiguration({
+    projectionId: "lsa-efficiency-v1",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor",
+    modelTier: "strong",
+    provenance: {
+      source: "workspace_profile",
+      override: {
+        kind: "capability_recovery",
+        version: "1",
+        source_model_tier: "standard",
+        target_model_tier: "strong"
+      }
+    }
+  });
+  const destination = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_class: "deep",
+    selector_available: true,
+    resolved_configuration: astraConfiguration
+  });
+  assert.equal(destination.effective_class, "deep");
+  assert.equal(destination.recovery_boost, false);
+  assert.equal(destination.dispatch_effort, "high");
+});
+
+test("projection registry remains inside the repository protocol tree", () => {
+  assert.equal(path.basename(DEFAULT_PROJECTION_REGISTRY_PATH), "reasoning-projections.json");
 });
