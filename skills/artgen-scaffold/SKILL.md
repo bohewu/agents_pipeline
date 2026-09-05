@@ -1,6 +1,6 @@
 ---
 name: artgen-scaffold
-description: Docs-only guidance for writing a provider-neutral 2D asset prompt or preparing a complete versioned brief and copy-ready handoff. Use for sprites, animation frames, tiles, icons, UI elements, and simple props; do not use it as an image renderer or editor.
+description: Docs-only guidance for an explicit request to write one paste-ready, provider-neutral 2D asset prompt, or to prepare a complete versioned asset brief and copy-ready handoff. Use when the requested deliverable is a prompt, brief, or handoff for sprites, animation frames, tiles, icons, UI elements, or simple props; do not use it as an image renderer or editor.
 license: See repository license
 ---
 

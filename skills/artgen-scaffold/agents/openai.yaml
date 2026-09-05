@@ -1,4 +1,4 @@
 interface:
   display_name: "Artgen Scaffold"
-  short_description: "Write 2D asset prompts or full handoffs"
-  default_prompt: "Use $artgen-scaffold to write a copy-ready 2D asset prompt or prepare a complete versioned handoff, according to my requested delivery."
+  short_description: "Write one paste-ready 2D prompt or full handoff"
+  default_prompt: "Use $artgen-scaffold to write only one paste-ready 2D asset prompt, or prepare a complete versioned handoff when I request the full package."

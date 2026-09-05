@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.36.2] - 2026-09-05
+
+### Changed
+
+- Clarified artgen-scaffold discovery copy to distinguish one paste-ready standalone 2D asset prompt request from a complete versioned asset handoff.
+
+### Fixed
+
+- Added an explicit prompt-only exception for generalist responses: standalone prompt requests return exactly one fenced text block, while full handoffs and workflow callers retain their existing artifact and task-result JSON contracts.
+
 ## [0.36.1] - 2026-09-05
 
 ### Added

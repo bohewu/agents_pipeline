@@ -38,6 +38,12 @@ Execute EXACTLY ONE task. No scope creep.
 - Include cleanup evidence in `evidence` or `notes`.
 - If cleanup is not verified, return `partial` or `blocked`; do NOT claim `done`.
 
+# STANDALONE ASSET PROMPT EXCEPTION
+
+When the assigned task explicitly requests only one standalone, paste-ready 2D asset prompt, requires no full handoff, and does not require a structured or machine-readable workflow result, follow `skills/artgen-scaffold/SKILL.md` and return exactly one fenced `text` block. Put every necessary assumption inside that block and add no JSON, status, artifact marker, or prose outside it.
+
+This exception does not apply to a full asset handoff or to any caller that requires the normal task-result envelope. For those consumers, use the artifact and JSON contracts below unchanged.
+
 # ARTIFACT OUTPUT (MANDATORY)
 
 If `primary_output` is a design, plan, spec, checklist, notes, or analysis, you MUST emit a named artifact. Prose-only output is INVALID. Missing required artifact = task INCOMPLETE.
