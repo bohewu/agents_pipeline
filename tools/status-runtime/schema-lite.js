@@ -54,6 +54,9 @@ const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SAFE_MODEL_IDENTIFIER = /^(?:gpt-[a-z0-9][a-z0-9.-]{0,62}|o[1-9][a-z0-9.-]{0,62})$/;
 const SAFE_PROFILE_IDENTIFIER = /^[a-z][a-z0-9-]{0,63}$/;
 const CONFIGURATION_COMPATIBILITIES = ["current", "pinned", "pinned_legacy"];
+const LSA_RECOVERY_STAGES = ["strong-medium", "strong-high", "strong-max"];
+const LSA_RECOVERY_PREVIOUS_STAGES = ["source-qualified", "strong-medium", "strong-high"];
+const FAILURE_CLASSIFICATIONS = ["product_failure", "harness_failure", "operational_failure"];
 const TRACE_KEY_ORDER = [
   "schema_version",
   "runtime",
@@ -220,6 +223,200 @@ function canonicalizeResolvedConfiguration(configuration, expectedRole, label = 
       provenance: sortObjectKeys(configuration.provenance)
     },
     projection
+  };
+}
+
+function canonicalizeRecoveryConfiguration(configuration, label) {
+  assertExactKeys(
+    configuration,
+    ["model_set", "reasoning_projection", "role_binding", "provenance"],
+    label
+  );
+  const canonical = canonicalizeResolvedConfiguration(
+    { schema_version: 1, ...configuration },
+    configuration.role_binding?.role,
+    label
+  ).value;
+  const { schema_version: _schemaVersion, ...snapshot } = canonical;
+  return snapshot;
+}
+
+function canonicalizeLsaRecoveryStage(stage, allowedStatuses = ["requested", "shadow"]) {
+  const label = "recovery_stage";
+  assertExactKeys(stage, [
+    "strategy", "status", "stage", "previous_stage", "requested_effort",
+    "dispatch_effort", "uses_model_uplift", "source", "target",
+    "latest_verified_effort", "retry_claim", "uplift_claim", "reason",
+    "conflict", "conflict_reason"
+  ], label);
+  assertExactKeys(stage.strategy, ["id", "version"], `${label}.strategy`);
+  assert(
+    stage.strategy.id === "lsa-qualified-execution-v2" && stage.strategy.version === "2",
+    `${label}.strategy must identify lsa-qualified-execution-v2 version 2`
+  );
+  const status = ensureEnum(stage.status, allowedStatuses, `${label}.status`);
+  const recoveryStage = ensureEnum(stage.stage, LSA_RECOVERY_STAGES, `${label}.stage`);
+  const previousStage = ensureEnum(
+    stage.previous_stage,
+    LSA_RECOVERY_PREVIOUS_STAGES,
+    `${label}.previous_stage`
+  );
+  const requestedEffort = ensureEnum(
+    stage.requested_effort,
+    ["medium", "high", "max"],
+    `${label}.requested_effort`
+  );
+  const dispatchEffort = ensureEnum(
+    stage.dispatch_effort,
+    status === "shadow" ? [null] : ["medium", "high", "max"],
+    `${label}.dispatch_effort`
+  );
+  assert(typeof stage.uses_model_uplift === "boolean", `${label}.uses_model_uplift must be a boolean`);
+  const source = canonicalizeRecoveryConfiguration(stage.source, `${label}.source`);
+  const target = canonicalizeRecoveryConfiguration(stage.target, `${label}.target`);
+  const latestVerifiedEffort = ensureEnum(
+    stage.latest_verified_effort,
+    ["medium", "high", "xhigh", "max"],
+    `${label}.latest_verified_effort`
+  );
+  assertExactKeys(stage.retry_claim, ["expected_used", "next_used", "max"], `${label}.retry_claim`);
+  const retryClaim = {
+    expected_used: ensureInteger(stage.retry_claim.expected_used, `${label}.retry_claim.expected_used`, 0),
+    next_used: ensureInteger(stage.retry_claim.next_used, `${label}.retry_claim.next_used`, 0),
+    max: ensureInteger(stage.retry_claim.max, `${label}.retry_claim.max`, 0)
+  };
+  assert(retryClaim.max <= 5, `${label}.retry_claim.max must be <= 5`);
+  assert(
+    retryClaim.next_used === retryClaim.expected_used + (status === "shadow" ? 0 : 1),
+    `${label}.retry_claim must preserve canonical retry accounting`
+  );
+  assert(retryClaim.next_used <= retryClaim.max, `${label}.retry_claim exceeds its retry limit`);
+  assertExactKeys(stage.uplift_claim, ["expected_used", "next_used"], `${label}.uplift_claim`);
+  assert(typeof stage.uplift_claim.expected_used === "boolean", `${label}.uplift_claim.expected_used must be a boolean`);
+  assert(typeof stage.uplift_claim.next_used === "boolean", `${label}.uplift_claim.next_used must be a boolean`);
+  const upliftClaim = {
+    expected_used: stage.uplift_claim.expected_used,
+    next_used: stage.uplift_claim.next_used
+  };
+  if (status === "shadow") {
+    assert(upliftClaim.next_used === upliftClaim.expected_used, `${label} shadow must not consume model uplift`);
+  } else if (stage.uses_model_uplift) {
+    assert(!upliftClaim.expected_used && upliftClaim.next_used, `${label} initial uplift claim is invalid`);
+  } else {
+    assert(upliftClaim.expected_used && upliftClaim.next_used, `${label} continuation must retain the consumed uplift`);
+  }
+  const expectedStage = `strong-${requestedEffort}`;
+  assert(recoveryStage === expectedStage, `${label}.stage must match requested_effort`);
+  if (status !== "shadow") {
+    assert(dispatchEffort === requestedEffort, `${label}.dispatch_effort must match requested_effort`);
+  }
+  assert(stage.conflict === null && stage.conflict_reason === null, `${label} cannot persist a conflict`);
+  const reason = ensureString(stage.reason, `${label}.reason`);
+  if (status === "verified") {
+    assert(reason === "verified", `${label} verified stage must use reason verified`);
+  } else if (status === "shadow") {
+    assert(reason === "eligible_shadow", `${label} shadow stage must use reason eligible_shadow`);
+  } else {
+    ensureEnum(
+      reason,
+      ["qualified_initial_uplift", "qualified_same_uplift_retry"],
+      `${label}.reason`
+    );
+  }
+  return {
+    strategy: { id: stage.strategy.id, version: stage.strategy.version },
+    status,
+    stage: recoveryStage,
+    previous_stage: previousStage,
+    requested_effort: requestedEffort,
+    dispatch_effort: dispatchEffort,
+    uses_model_uplift: stage.uses_model_uplift,
+    source,
+    target,
+    latest_verified_effort: latestVerifiedEffort,
+    retry_claim: retryClaim,
+    uplift_claim: upliftClaim,
+    reason,
+    conflict: null,
+    conflict_reason: null
+  };
+}
+
+function canonicalizeFailureEvidence(evidence) {
+  assertExactKeys(
+    evidence,
+    ["failure_signature", "failure_classification", "failure_type", "material", "meaningful_progress"],
+    "failure_evidence"
+  );
+  const result = {
+    failure_signature: ensureString(evidence.failure_signature, "failure_evidence.failure_signature"),
+    failure_classification: ensureEnum(
+      evidence.failure_classification,
+      FAILURE_CLASSIFICATIONS,
+      "failure_evidence.failure_classification"
+    ),
+    failure_type: ensureEnum(evidence.failure_type, PRIOR_FAILURE_TYPES, "failure_evidence.failure_type"),
+    material: evidence.material,
+    meaningful_progress: evidence.meaningful_progress
+  };
+  assert(typeof result.material === "boolean", "failure_evidence.material must be a boolean");
+  assert(typeof result.meaningful_progress === "boolean", "failure_evidence.meaningful_progress must be a boolean");
+  if (result.failure_classification === "product_failure") {
+    assert(result.failure_type === "reasoning_failure", "product recovery evidence must be a reasoning_failure");
+  } else {
+    assert(result.failure_type !== "reasoning_failure", "harness and operational failures cannot be reasoning failures");
+  }
+  return result;
+}
+
+function canonicalizeFailureHistory(history) {
+  assert(Array.isArray(history), "failure_history must be an array");
+  const attemptIds = new Set();
+  return history.map((failure, index) => {
+    const label = `failure_history[${index}]`;
+    assertExactKeys(
+      failure,
+      ["attempt_id", "failure_signature", "failure_type", "material", "meaningful_progress", "model_tier", "effective_effort"],
+      label
+    );
+    const result = {
+      attempt_id: ensureSafeStatusId(failure.attempt_id, `${label}.attempt_id`),
+      failure_signature: ensureString(failure.failure_signature, `${label}.failure_signature`),
+      failure_type: ensureEnum(failure.failure_type, PRIOR_FAILURE_TYPES, `${label}.failure_type`),
+      material: failure.material,
+      meaningful_progress: failure.meaningful_progress,
+      model_tier: ensureEnum(failure.model_tier, MODEL_TIERS, `${label}.model_tier`),
+      effective_effort: ensureEnum(failure.effective_effort, V3_EFFORTS, `${label}.effective_effort`)
+    };
+    assert(typeof result.material === "boolean", `${label}.material must be a boolean`);
+    assert(typeof result.meaningful_progress === "boolean", `${label}.meaningful_progress must be a boolean`);
+    assert(result.failure_type === "reasoning_failure", `${label}.failure_type must be reasoning_failure`);
+    assert(!attemptIds.has(result.attempt_id), "failure_history must use distinct canonical attempt ids");
+    attemptIds.add(result.attempt_id);
+    return result;
+  });
+}
+
+function canonicalizeRecoveryRuntimeSupport(support) {
+  assertExactKeys(
+    support,
+    ["model_selector_available", "effort_selector_available", "supported_efforts", "evidence_ref"],
+    "recovery_runtime_support"
+  );
+  assert(typeof support.model_selector_available === "boolean", "recovery_runtime_support.model_selector_available must be a boolean");
+  assert(typeof support.effort_selector_available === "boolean", "recovery_runtime_support.effort_selector_available must be a boolean");
+  assert(Array.isArray(support.supported_efforts), "recovery_runtime_support.supported_efforts must be an array");
+  const supportedEfforts = [...new Set(support.supported_efforts)]
+    .sort((left, right) => V3_EFFORTS.indexOf(left) - V3_EFFORTS.indexOf(right));
+  assert(supportedEfforts.length > 0, "recovery_runtime_support.supported_efforts must not be empty");
+  for (const effort of supportedEfforts) {
+    ensureEnum(effort, V3_EFFORTS, "recovery_runtime_support.supported_efforts[]");
+  }
+  return {
+    model_selector_available: support.model_selector_available,
+    effort_selector_available: support.effort_selector_available,
+    supported_efforts: supportedEfforts,
+    evidence_ref: ensureString(support.evidence_ref, "recovery_runtime_support.evidence_ref")
   };
 }
 
@@ -910,6 +1107,22 @@ function canonicalizeReasoningDecisionCore(decision) {
     assert(result.degraded === (result.degradation_reason !== null), "reasoning.degraded must match degradation_reason presence");
     assert(typeof decision.recovery_boost === "boolean", "reasoning.recovery_boost must be a boolean");
     result.recovery_boost = decision.recovery_boost;
+    if (decision.recovery_stage !== undefined) {
+      assert(result.schema_version === "3.0", "recovery_stage requires version 3 reasoning metadata");
+      result.recovery_stage = canonicalizeLsaRecoveryStage(decision.recovery_stage);
+      assert(result.reasoning_class === "deep", "recovery_stage is available only for deep reasoning");
+      assert(result.recovery_boost === false, "recovery_stage cannot also use legacy recovery_boost");
+      if (result.recovery_stage.status === "requested") {
+        assert(result.mode === "adaptive", "requested recovery_stage requires adaptive reasoning");
+        assert(
+          result.requested_effort === result.recovery_stage.requested_effort
+            && result.dispatch_effort === result.recovery_stage.dispatch_effort,
+          "reasoning effort must match recovery_stage"
+        );
+      } else {
+        assert(result.dispatch_effort === null, "shadow recovery_stage cannot dispatch effort");
+      }
+    }
     result.explicit_override = canonicalizeExplicitOverride(decision.explicit_override, effortVocabulary);
     if (result.task_intent === null) {
       assert(result.intent_baseline_class === null, "reasoning.intent_baseline_class must be null without task_intent");
@@ -1249,6 +1462,26 @@ function validateAgentConfiguration(agentStatus, runConfiguration) {
       && agentStatus.reasoning.model_tier === agentStatus.resolved_configuration.role_binding.model_tier,
     "Reasoning model tier must match the saved resolved_configuration"
   );
+  const recoveryStage = agentStatus.reasoning.recovery_stage;
+  if (recoveryStage !== undefined) {
+    assert(isRecovery, "LSA recovery_stage requires an approved capability-recovery configuration");
+    assert(
+      recoveryStage.target.role_binding.role === agentStatus.agent
+        && sameJson(
+          { schema_version: 1, ...recoveryStage.target },
+          agentStatus.resolved_configuration
+        ),
+      "LSA recovery_stage target must match the agent resolved_configuration"
+    );
+    assert(
+      recoveryStage.source.role_binding.role === agentStatus.agent
+        && sameJson(
+          { schema_version: 1, ...recoveryStage.source },
+          expected
+        ),
+      "LSA recovery_stage source must match the saved workspace role binding"
+    );
+  }
   if (
     agentStatus.reasoning.requested_effort !== null
       && agentStatus.reasoning.enforcement_status !== "conflict"
@@ -1260,8 +1493,9 @@ function validateAgentConfiguration(agentStatus, runConfiguration) {
       agentStatus.resolved_configuration.role_binding.model_tier
     );
     assert(
-      projection.effort_order.indexOf(agentStatus.reasoning.requested_effort)
-        >= projection.effort_order.indexOf(normalEffort),
+      recoveryStage?.status === "requested"
+        || projection.effort_order.indexOf(agentStatus.reasoning.requested_effort)
+          >= projection.effort_order.indexOf(normalEffort),
       "Reasoning requested effort is below the centrally projected normal effort"
     );
   }
@@ -1280,6 +1514,19 @@ function validateAgentConfiguration(agentStatus, runConfiguration) {
         && trace.model_matches === true
         && trace.effort_matches === true,
       "Enforced version 3 reasoning requires matching adaptive trace evidence"
+    );
+  }
+  if (agentStatus.recovery_stage?.status === "verified") {
+    const trace = agentStatus.trace_evidence;
+    assert(
+      trace?.trace_found
+        && trace.agent_role === agentStatus.agent
+        && trace.model === agentStatus.resolved_configuration.role_binding.model
+        && trace.effective_effort === agentStatus.recovery_stage.dispatch_effort
+        && trace.role_matches === true
+        && trace.model_matches === true
+        && trace.effort_matches === true,
+      "Verified LSA recovery_stage requires exact role, model, and effort trace evidence"
     );
   }
 }
@@ -1382,11 +1629,50 @@ function canonicalizeTaskStatus(taskStatus, runConfiguration = undefined) {
     );
     result.capability_recovery_used = taskStatus.capability_recovery_used;
   }
+  if (taskStatus.failure_history !== undefined) {
+    result.failure_history = canonicalizeFailureHistory(taskStatus.failure_history);
+  }
+  if (taskStatus.recovery_stage !== undefined) {
+    result.recovery_stage = canonicalizeLsaRecoveryStage(
+      taskStatus.recovery_stage,
+      ["requested", "verified"]
+    );
+  }
+  if (taskStatus.recovery_claim_id !== undefined) {
+    result.recovery_claim_id = ensureSafeStatusId(
+      taskStatus.recovery_claim_id,
+      "recovery_claim_id"
+    );
+  }
+  if (taskStatus.recovery_agent_id !== undefined) {
+    result.recovery_agent_id = ensureSafeStatusId(taskStatus.recovery_agent_id, "recovery_agent_id");
+  }
+  if (taskStatus.recovery_runtime_support !== undefined) {
+    result.recovery_runtime_support = canonicalizeRecoveryRuntimeSupport(taskStatus.recovery_runtime_support);
+  }
   if (result.capability_recovery_used === true) {
     assert(
       result.retry_opportunities_used !== undefined
         && result.retry_opportunities_used >= 1,
       "capability_recovery_used requires retry_opportunities_used >= 1"
+    );
+  }
+  assert(
+    (result.recovery_stage === undefined) === (result.recovery_claim_id === undefined),
+    "recovery_stage and recovery_claim_id must be supplied together"
+  );
+  assert(result.recovery_agent_id === undefined || result.recovery_stage !== undefined, "recovery_agent_id requires recovery_stage");
+  assert(result.recovery_runtime_support === undefined || result.recovery_stage !== undefined, "recovery_runtime_support requires recovery_stage");
+  if (result.recovery_stage !== undefined) {
+    assert(result.recovery_runtime_support !== undefined, "recovery_stage requires recovery_runtime_support");
+    assert(result.capability_recovery_used === true, "recovery_stage requires capability_recovery_used=true");
+    assert(
+      result.retry_opportunities_used >= result.recovery_stage.retry_claim.next_used,
+      "recovery_stage retry claim cannot exceed task retry_opportunities_used"
+    );
+    assert(
+      Array.isArray(result.failure_history) && result.failure_history.length >= 2,
+      "recovery_stage requires canonical repeated failure history"
     );
   }
   if (result.task_intent !== undefined && result.task_intent !== null) {
@@ -1561,9 +1847,49 @@ function canonicalizeAgentStatus(agentStatus, runConfiguration = undefined) {
     );
     assert(result.agent === result.reasoning.role, "agent must match reasoning.role");
   }
+  if (agentStatus.recovery_stage !== undefined) {
+    result.recovery_stage = canonicalizeLsaRecoveryStage(
+      agentStatus.recovery_stage,
+      ["requested", "verified"]
+    );
+  }
+  if (agentStatus.recovery_claim_id !== undefined) {
+    result.recovery_claim_id = ensureSafeStatusId(agentStatus.recovery_claim_id, "recovery_claim_id");
+  }
+  if (agentStatus.recovery_runtime_support !== undefined) {
+    result.recovery_runtime_support = canonicalizeRecoveryRuntimeSupport(agentStatus.recovery_runtime_support);
+  }
   if (agentStatus.trace_evidence !== undefined) {
     result.trace_evidence = canonicalizeTraceEvidence(agentStatus.trace_evidence);
   }
+  if (agentStatus.failure_evidence !== undefined) {
+    result.failure_evidence = canonicalizeFailureEvidence(agentStatus.failure_evidence);
+    assert(
+      ["blocked", "failed"].includes(result.status),
+      "failure_evidence requires a blocked or failed terminal attempt"
+    );
+    assert(result.reasoning !== undefined, "failure_evidence requires persisted reasoning");
+    assert(result.resolved_configuration !== undefined, "failure_evidence requires resolved_configuration");
+    assert(result.trace_evidence !== undefined, "failure_evidence requires verified trace evidence");
+    assert(
+      Array.isArray(agentStatus.evidence_refs) && agentStatus.evidence_refs.length > 0,
+      "failure_evidence requires at least one evidence_ref"
+    );
+  }
+  if (result.recovery_stage !== undefined) {
+    assert(result.recovery_claim_id !== undefined, "agent recovery_stage requires recovery_claim_id");
+    assert(result.recovery_runtime_support !== undefined, "agent recovery_stage requires recovery_runtime_support");
+    assert(result.reasoning?.recovery_stage !== undefined, "agent recovery_stage requires a reasoning recovery_stage decision");
+    const requestedStage = result.reasoning.recovery_stage;
+    const comparableStage = { ...result.recovery_stage, status: requestedStage.status, reason: requestedStage.reason };
+    assert(
+      sameJson(comparableStage, requestedStage),
+      "agent recovery_stage must match its requested reasoning decision"
+    );
+    assert(result.resolved_configuration !== undefined, "agent recovery_stage requires resolved_configuration");
+  }
+  assert(result.recovery_claim_id === undefined || result.recovery_stage !== undefined, "agent recovery_claim_id requires recovery_stage");
+  assert(result.recovery_runtime_support === undefined || result.recovery_stage !== undefined, "agent recovery_runtime_support requires recovery_stage");
   validateAgentConfiguration(result, runConfiguration);
   if (agentStatus.result_summary !== undefined) result.result_summary = ensureString(agentStatus.result_summary, "result_summary");
   if (agentStatus.evidence_refs !== undefined) result.evidence_refs = uniqueStrings(agentStatus.evidence_refs);
@@ -1651,6 +1977,8 @@ function canonicalizeCheckpoint(checkpoint) {
 module.exports = {
   canonicalizeAgentStatus,
   canonicalizeCheckpoint,
+  canonicalizeFailureHistory,
+  canonicalizeLsaRecoveryStage,
   canonicalizeReasoningDecision,
   canonicalizeReasoningObservation,
   canonicalizeRunConfiguration,

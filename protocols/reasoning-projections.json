@@ -148,6 +148,72 @@
           "role_overrides": {}
         }
       ]
+    },
+    {
+      "id": "lsa-efficiency-v2",
+      "version": "2",
+      "policy_version": "3",
+      "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
+      "effort_order": ["low", "medium", "high", "xhigh", "max"],
+      "global_floor": "low",
+      "model_floors": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "low",
+        "unknown": "high"
+      },
+      "class_requirements": {
+        "routine": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "high", "standard": "medium", "strong": "low", "unknown": "high"}
+        },
+        "deliberative": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {"mini": "xhigh", "standard": "medium", "strong": "low", "unknown": "xhigh"}
+        },
+        "deep": {
+          "minimum_model_tier": "standard",
+          "effort_by_model_tier": {"mini": "max", "standard": "high", "strong": "high", "unknown": "max"}
+        },
+        "assurance": {
+          "minimum_model_tier": "strong",
+          "effort_by_model_tier": {"mini": "max", "standard": "max", "strong": "max", "unknown": "max"}
+        }
+      },
+      "role_effort_overrides": {},
+      "model_sets": [
+        {
+          "id": "openai-luna-sol-astra",
+          "version": "2",
+          "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
+          "tiers": {
+            "mini": "gpt-5.6-luna",
+            "standard": "gpt-5.6-sol",
+            "strong": "gpt-6-astra"
+          },
+          "role_overrides": {}
+        }
+      ],
+      "recovery_strategy": {
+        "id": "lsa-qualified-execution-v2",
+        "version": "2",
+        "eligible_roles": ["executor", "generalist"],
+        "source": {
+          "model_tier": "standard",
+          "reasoning_class": "deep",
+          "minimum_verified_effort": "high"
+        },
+        "target": {
+          "model_tier": "strong",
+          "reasoning_class": "deep",
+          "initial_effort": "medium"
+        },
+        "next_efforts": {
+          "medium": "high",
+          "high": "max",
+          "max": null
+        }
+      }
     }
   ]
 }

@@ -52,23 +52,57 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
             },
         )
 
-    def test_codex_catalogs_bind_the_three_registered_projections(self) -> None:
+    def test_codex_catalogs_bind_the_current_registered_projections(self) -> None:
         expected = {
-            "openai": ("openai-reviewer-v1", "gpt-6-astra"),
-            "openai-legacy": ("legacy-v2", None),
-            "openai-luna-sol-astra": ("lsa-efficiency-v1", None),
+            "openai": ("3", "openai-reviewer-v1", "gpt-6-astra"),
+            "openai-legacy": ("2", "legacy-v2", None),
+            "openai-luna-sol-astra": ("2", "lsa-efficiency-v2", None),
         }
-        for name, (projection, reviewer_model) in expected.items():
+        for name, (version, projection, reviewer_model) in expected.items():
             with self.subTest(name=name):
                 catalog = read_json(
                     REPO_ROOT / "runtimes" / "codex" / "model-sets" / f"{name}.json"
                 )
+                self.assertEqual(catalog["version"], version)
                 self.assertEqual(catalog["reasoning_projection"]["id"], projection)
                 self.assertRegex(catalog["mapping_digest"], r"^sha256:[0-9a-f]{64}$")
                 override = catalog["role_overrides"].get("reviewer")
                 self.assertEqual(
                     None if override is None else override["model"], reviewer_model
                 )
+
+    def test_lsa_v2_changes_only_the_versioned_lsa_catalog(self) -> None:
+        self.assertEqual(
+            read_json(REPO_ROOT / "runtimes/codex/model-sets/openai.json")[
+                "mapping_digest"
+            ],
+            "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f",
+        )
+        self.assertEqual(
+            read_json(REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json")[
+                "mapping_digest"
+            ],
+            "sha256:fa0bd154138c11c5425b72401f256f92004d0b146f655044c9284bbb38782d75",
+        )
+        lsa = UPDATER.build_codex_openai_luna_sol_astra(
+            None, Path("openai-luna-sol-astra.json")
+        )
+        self.assertEqual(
+            lsa["tiers"],
+            {
+                "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
+                "standard": {"model": "gpt-5.6-sol", "model_provider": "openai"},
+                "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
+            },
+        )
+        self.assertEqual(
+            lsa["mapping_digest"],
+            "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
+        )
+        self.assertEqual(
+            lsa["reasoning_projection"]["digest"],
+            "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
+        )
 
     def test_runtime_defaults_are_static(self) -> None:
         self.assertEqual(

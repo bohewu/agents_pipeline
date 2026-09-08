@@ -40,7 +40,8 @@ const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const PROJECTION_IDS = Object.freeze([
   "legacy-v2",
   "openai-reviewer-v1",
-  "lsa-efficiency-v1"
+  "lsa-efficiency-v1",
+  "lsa-efficiency-v2"
 ]);
 
 const EXIT_CODES = {
@@ -319,6 +320,44 @@ function validateModelSetBinding(modelSet, projection) {
   );
 }
 
+function validateRecoveryStrategy(strategy, projection) {
+  assert(isObject(strategy), `projection ${projection.id} recovery_strategy must be an object`);
+  assertExactKeys(
+    strategy,
+    ["id", "version", "eligible_roles", "source", "target", "next_efforts"],
+    `projection ${projection.id} recovery_strategy`
+  );
+  assert(strategy.id === "lsa-qualified-execution-v2", `projection ${projection.id} recovery_strategy id is unsupported`);
+  assert(strategy.version === "2", `projection ${projection.id} recovery_strategy version is unsupported`);
+  assert(
+    JSON.stringify(strategy.eligible_roles) === JSON.stringify(["executor", "generalist"]),
+    `projection ${projection.id} recovery_strategy eligible_roles must retain the execution-role boundary`
+  );
+  assertExactKeys(
+    strategy.source,
+    ["model_tier", "reasoning_class", "minimum_verified_effort"],
+    `projection ${projection.id} recovery_strategy source`
+  );
+  assert(strategy.source.model_tier === "standard", `projection ${projection.id} recovery_strategy source tier must be standard`);
+  assert(strategy.source.reasoning_class === "deep", `projection ${projection.id} recovery_strategy source class must be deep`);
+  assert(strategy.source.minimum_verified_effort === "high", `projection ${projection.id} recovery_strategy source effort floor must be high`);
+  assertExactKeys(
+    strategy.target,
+    ["model_tier", "reasoning_class", "initial_effort"],
+    `projection ${projection.id} recovery_strategy target`
+  );
+  assert(strategy.target.model_tier === "strong", `projection ${projection.id} recovery_strategy target tier must be strong`);
+  assert(strategy.target.reasoning_class === "deep", `projection ${projection.id} recovery_strategy target class must be deep`);
+  assert(strategy.target.initial_effort === "medium", `projection ${projection.id} recovery_strategy initial target effort must be medium`);
+  assertExactKeys(strategy.next_efforts, ["medium", "high", "max"], `projection ${projection.id} recovery_strategy next_efforts`);
+  assert(
+    strategy.next_efforts.medium === "high"
+      && strategy.next_efforts.high === "max"
+      && strategy.next_efforts.max === null,
+    `projection ${projection.id} recovery_strategy must retain the medium-high-max ladder`
+  );
+}
+
 function validateProjectionRegistry(registry) {
   assert(isObject(registry), "Reasoning projection registry must be an object");
   assertExactKeys(registry, ["schema_version", "digest_algorithm", "projections"], "Reasoning projection registry");
@@ -328,9 +367,7 @@ function validateProjectionRegistry(registry) {
   assert(registry.projections.length === PROJECTION_IDS.length, "Reasoning projection registry must contain the canonical projections");
   const seen = new Set();
   for (const projection of registry.projections) {
-    assertExactKeys(
-      projection,
-      [
+    const projectionKeys = [
         "id",
         "version",
         "policy_version",
@@ -341,7 +378,11 @@ function validateProjectionRegistry(registry) {
         "class_requirements",
         "role_effort_overrides",
         "model_sets"
-      ],
+      ];
+    if (projection.id === "lsa-efficiency-v2") projectionKeys.push("recovery_strategy");
+    assertExactKeys(
+      projection,
+      projectionKeys,
       "Reasoning projection"
     );
     assert(PROJECTION_IDS.includes(projection.id), `Unsupported reasoning projection: ${projection.id}`);
@@ -378,6 +419,11 @@ function validateProjectionRegistry(registry) {
           ensureProjectionEffort(effort, projection.effort_order, `projection ${projection.id} role effort`);
         }
       }
+    }
+    if (projection.id === "lsa-efficiency-v2") {
+      validateRecoveryStrategy(projection.recovery_strategy, projection);
+    } else {
+      assert(projection.recovery_strategy === undefined, `projection ${projection.id} must not declare a recovery_strategy`);
     }
     assert(Array.isArray(projection.model_sets) && projection.model_sets.length > 0, `projection ${projection.id} requires model bindings`);
     const modelSetIds = new Set();
@@ -509,6 +555,419 @@ function validateResolvedConfiguration(input, registry = loadProjectionRegistry(
 
 function resolveProjection(input, registry = loadProjectionRegistry()) {
   return validateResolvedConfiguration(input, registry);
+}
+
+const LSA_RECOVERY_STAGES = Object.freeze(["strong-medium", "strong-high", "strong-max"]);
+
+function recoveryConfigurationSnapshot(configuration) {
+  return {
+    model_set: configuration.model_set,
+    reasoning_projection: configuration.reasoning_projection,
+    role_binding: configuration.role_binding,
+    provenance: configuration.provenance
+  };
+}
+
+function lsaRecoveryConflict(base, reason, conflictReason) {
+  return {
+    ...base,
+    status: "conflict",
+    stage: null,
+    requested_effort: null,
+    dispatch_effort: null,
+    uses_model_uplift: false,
+    reason,
+    conflict: "conflict",
+    conflict_reason: conflictReason
+  };
+}
+
+function resolveLsaRecoveryStage(rawInput, registry = loadProjectionRegistry()) {
+  assert(isObject(rawInput), "LSA recovery context must be an object");
+  assert(
+    typeof rawInput.role === "string" && SAFE_REASONING_IDENTIFIER.test(rawInput.role),
+    "LSA recovery role must be a bounded lowercase reasoning identifier"
+  );
+  const reasoningMode = ensureEnum(
+    rawInput.reasoning_mode,
+    POLICY_MODES,
+    "lsa_recovery_context.reasoning_mode"
+  );
+  const capabilityMode = ensureEnum(
+    rawInput.capability_recovery_mode,
+    ["off", "shadow", "auto"],
+    "lsa_recovery_context.capability_recovery_mode"
+  );
+  const base = {
+    strategy: null,
+    status: "conflict",
+    stage: null,
+    previous_stage: null,
+    requested_effort: null,
+    dispatch_effort: null,
+    uses_model_uplift: false,
+    source: null,
+    target: null,
+    latest_verified_effort: null,
+    retry_claim: null,
+    uplift_claim: null,
+    reason: "not_applicable",
+    conflict: null,
+    conflict_reason: null
+  };
+  if (capabilityMode === "off") {
+    return { ...base, status: "off", reason: "disabled" };
+  }
+  if (reasoningMode !== "adaptive") {
+    return lsaRecoveryConflict(
+      base,
+      "reasoning_mode_not_adaptive",
+      "The calibrated LSA recovery stage requires adaptive reasoning mode"
+    );
+  }
+  if (rawInput.workflow_supports_capability_recovery !== true) {
+    return lsaRecoveryConflict(
+      base,
+      "workflow_not_eligible",
+      "The current workflow does not support model capability recovery"
+    );
+  }
+  if (!["executor", "generalist"].includes(rawInput.role)) {
+    return lsaRecoveryConflict(
+      base,
+      "role_not_eligible",
+      `Role ${rawInput.role} is not eligible for the LSA recovery strategy`
+    );
+  }
+  assert(
+    isObject(rawInput.source_resolved_configuration),
+    "lsa_recovery_context.source_resolved_configuration is required"
+  );
+  assert(
+    isObject(rawInput.target_resolved_configuration),
+    "lsa_recovery_context.target_resolved_configuration is required"
+  );
+  const sourceContext = validateResolvedConfiguration({
+    role: rawInput.role,
+    resolved_configuration: rawInput.source_resolved_configuration
+  }, registry);
+  const targetContext = validateResolvedConfiguration({
+    role: rawInput.role,
+    resolved_configuration: rawInput.target_resolved_configuration
+  }, registry);
+  const strategy = sourceContext.projection.recovery_strategy;
+  assert(
+    sourceContext.projection.id === "lsa-efficiency-v2" && strategy,
+    "LSA recovery requires the exact lsa-efficiency-v2 source projection"
+  );
+  assert(
+    targetContext.projection.id === sourceContext.projection.id
+      && targetContext.projection.version === sourceContext.projection.version
+      && targetContext.projection.digest === sourceContext.projection.digest,
+    "LSA recovery target projection must match the exact source projection"
+  );
+  assert(
+    targetContext.modelSet.id === sourceContext.modelSet.id
+      && targetContext.modelSet.version === sourceContext.modelSet.version
+      && targetContext.modelSet.mapping_digest === sourceContext.modelSet.mapping_digest,
+    "LSA recovery target model set must match the exact source model set"
+  );
+  assert(
+    sourceContext.configuration.provenance.source === "workspace_profile"
+      && sourceContext.configuration.provenance.override === null,
+    "LSA recovery source must be an unmodified workspace-profile binding"
+  );
+  assert(
+    sourceContext.configuration.role_binding.model_tier === strategy.source.model_tier,
+    "LSA recovery source role binding does not match the strategy"
+  );
+  const targetOverride = targetContext.configuration.provenance.override;
+  assert(
+    targetOverride
+      && targetOverride.kind === "capability_recovery"
+      && targetOverride.source_model_tier === strategy.source.model_tier
+      && targetOverride.target_model_tier === strategy.target.model_tier
+      && targetContext.configuration.role_binding.model_tier === strategy.target.model_tier,
+    "LSA recovery target must be the profile-approved capability-recovery binding"
+  );
+  const configuredBase = {
+    ...base,
+    strategy: { id: strategy.id, version: strategy.version },
+    source: recoveryConfigurationSnapshot(sourceContext.configuration),
+    target: recoveryConfigurationSnapshot(targetContext.configuration)
+  };
+  if (rawInput.effective_class !== strategy.source.reasoning_class) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "effective_class_not_deep",
+      "The LSA recovery strategy is limited to a preserved deep effective class"
+    );
+  }
+  if (rawInput.prior_failure_type !== "reasoning_failure") {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "failure_not_reasoning",
+      "The LSA recovery strategy requires a canonical reasoning failure"
+    );
+  }
+  if (rawInput.explicit_effort !== undefined && rawInput.explicit_effort !== null) {
+    ensureProjectionEffort(rawInput.explicit_effort, sourceContext.projection.effort_order, "lsa_recovery_context.explicit_effort");
+    return lsaRecoveryConflict(
+      configuredBase,
+      "explicit_effort_preserved",
+      "An explicit effort requirement cannot be replaced by the calibrated LSA recovery stage"
+    );
+  }
+  if (rawInput.strict === true) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "strict_requirement_preserved",
+      "A strict reasoning requirement cannot be replaced by the calibrated LSA recovery stage"
+    );
+  }
+  assert(
+    Number.isInteger(rawInput.retry_opportunities_used) && rawInput.retry_opportunities_used >= 0,
+    "lsa_recovery_context.retry_opportunities_used must be a non-negative integer"
+  );
+  assert(
+    Number.isInteger(rawInput.max_retry_rounds) && rawInput.max_retry_rounds >= 0,
+    "lsa_recovery_context.max_retry_rounds must be a non-negative integer"
+  );
+  if (rawInput.retry_opportunities_used >= rawInput.max_retry_rounds) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "retry_budget_exhausted",
+      "The canonical retry budget has no remaining opportunity for this recovery stage"
+    );
+  }
+  if (rawInput.effort_selector_available !== true) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "effort_selector_unavailable",
+      "The calibrated LSA recovery stage requires a native reasoning-effort selector"
+    );
+  }
+  assert(Array.isArray(rawInput.runtime_supported_efforts), "lsa_recovery_context.runtime_supported_efforts must be an array");
+  const runtimeEfforts = [...new Set(rawInput.runtime_supported_efforts.map((effort) => (
+    ensureProjectionEffort(effort, sourceContext.projection.effort_order, "lsa_recovery_context.runtime_supported_efforts")
+  )))];
+  assert(isObject(rawInput.latest_verified_trace), "lsa_recovery_context.latest_verified_trace is required");
+  assertExactKeys(
+    rawInput.latest_verified_trace,
+    ["role", "model_tier", "model", "effective_effort"],
+    "lsa_recovery_context.latest_verified_trace"
+  );
+  const trace = rawInput.latest_verified_trace;
+  assert(trace.role === rawInput.role, "LSA recovery trace role must match the requested role");
+  ensureEnum(trace.model_tier, MODEL_TIERS, "lsa_recovery_context.latest_verified_trace.model_tier");
+  ensureProjectionEffort(trace.effective_effort, sourceContext.projection.effort_order, "lsa_recovery_context.latest_verified_trace.effective_effort");
+  assert(
+    typeof trace.model === "string" && SAFE_MODEL_IDENTIFIER.test(trace.model),
+    "lsa_recovery_context.latest_verified_trace.model must be safe"
+  );
+  assert(Array.isArray(rawInput.failure_history), "lsa_recovery_context.failure_history must be an array");
+  const history = rawInput.failure_history;
+  if (history.length < 2) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "failure_not_repeated",
+      "The same concrete failure must be present in at least two canonical attempts"
+    );
+  }
+  for (const [index, failure] of history.entries()) {
+    assertExactKeys(
+      failure,
+      ["attempt_id", "failure_signature", "failure_type", "material", "meaningful_progress", "model_tier", "effective_effort"],
+      `lsa_recovery_context.failure_history[${index}]`
+    );
+    assert(
+      typeof failure.attempt_id === "string" && failure.attempt_id.length > 0,
+      `lsa_recovery_context.failure_history[${index}].attempt_id is required`
+    );
+    assert(
+      typeof failure.failure_signature === "string" && failure.failure_signature.length > 0,
+      `lsa_recovery_context.failure_history[${index}].failure_signature is required`
+    );
+    ensureEnum(failure.failure_type, PRIOR_FAILURE_TYPES, `lsa_recovery_context.failure_history[${index}].failure_type`);
+    assert(typeof failure.material === "boolean", `lsa_recovery_context.failure_history[${index}].material must be a boolean`);
+    assert(typeof failure.meaningful_progress === "boolean", `lsa_recovery_context.failure_history[${index}].meaningful_progress must be a boolean`);
+    ensureEnum(failure.model_tier, MODEL_TIERS, `lsa_recovery_context.failure_history[${index}].model_tier`);
+    ensureProjectionEffort(failure.effective_effort, sourceContext.projection.effort_order, `lsa_recovery_context.failure_history[${index}].effective_effort`);
+  }
+  if (new Set(history.map((failure) => failure.attempt_id)).size !== history.length) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "attempt_history_duplicate",
+      "Repeated-failure evidence must come from distinct canonical attempts"
+    );
+  }
+  const previousFailure = history.at(-2);
+  const latestFailure = history.at(-1);
+  if (latestFailure.failure_type !== "reasoning_failure") {
+    return lsaRecoveryConflict(configuredBase, "failure_not_reasoning", "The latest failure is not a reasoning failure");
+  }
+  if (!latestFailure.material) {
+    return lsaRecoveryConflict(configuredBase, "failure_not_material", "The latest failure is not material");
+  }
+  if (latestFailure.meaningful_progress) {
+    return lsaRecoveryConflict(configuredBase, "meaningful_progress_present", "The latest retry made meaningful progress");
+  }
+  if (
+    previousFailure.failure_signature !== latestFailure.failure_signature
+    || previousFailure.failure_type !== "reasoning_failure"
+    || !previousFailure.material
+  ) {
+    return lsaRecoveryConflict(configuredBase, "failure_not_repeated", "The latest material defect does not repeat the prior concrete failure");
+  }
+  assert(
+    latestFailure.model_tier === trace.model_tier
+      && latestFailure.effective_effort === trace.effective_effort,
+    "The latest failure must match the latest verified trace tier and effort"
+  );
+  assert(typeof rawInput.model_uplift_used === "boolean", "lsa_recovery_context.model_uplift_used must be a boolean");
+  const upliftUsed = rawInput.model_uplift_used;
+  const currentConfiguration = upliftUsed
+    ? targetContext.configuration
+    : sourceContext.configuration;
+  assert(
+    trace.model_tier === currentConfiguration.role_binding.model_tier
+      && trace.model === currentConfiguration.role_binding.model,
+    "The latest verified trace must match the current resolved role binding"
+  );
+  if (!upliftUsed && rawInput.model_selector_available !== true) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "model_selector_unavailable",
+      "The initial LSA model uplift requires a native per-spawn model selector"
+    );
+  }
+  if (upliftUsed) {
+    if (!isObject(rawInput.prior_recovery_stage)) {
+      return lsaRecoveryConflict(
+        configuredBase,
+        "prior_recovery_stage_missing",
+        "An uplifted continuation requires the prior verified LSA recovery-stage decision"
+      );
+    }
+    const priorStage = rawInput.prior_recovery_stage;
+    assertExactKeys(
+      priorStage,
+      [
+        "strategy", "status", "stage", "previous_stage", "requested_effort",
+        "dispatch_effort", "uses_model_uplift", "source", "target",
+        "latest_verified_effort", "retry_claim", "uplift_claim", "reason",
+        "conflict", "conflict_reason"
+      ],
+      "lsa_recovery_context.prior_recovery_stage"
+    );
+    assert(
+      isObject(priorStage.strategy)
+        && priorStage.strategy.id === strategy.id
+        && priorStage.strategy.version === strategy.version,
+      "Prior LSA recovery stage must use the active strategy identity"
+    );
+    assert(
+      priorStage.status === "verified"
+        && priorStage.reason === "verified"
+        && priorStage.conflict === null
+        && priorStage.conflict_reason === null,
+      "Prior LSA recovery stage must be trace-verified"
+    );
+    assert(
+      priorStage.stage === `strong-${trace.effective_effort}`
+        && priorStage.requested_effort === trace.effective_effort
+        && priorStage.dispatch_effort === trace.effective_effort,
+      "Prior LSA recovery stage must match the latest verified effort"
+    );
+    assert(
+      JSON.stringify(canonicalJson(priorStage.source)) === JSON.stringify(canonicalJson(configuredBase.source))
+        && JSON.stringify(canonicalJson(priorStage.target)) === JSON.stringify(canonicalJson(configuredBase.target)),
+      "Prior LSA recovery stage must retain the exact source and target bindings"
+    );
+    assert(
+      isObject(priorStage.retry_claim)
+        && priorStage.retry_claim.next_used === rawInput.retry_opportunities_used
+        && priorStage.retry_claim.max === rawInput.max_retry_rounds,
+      "Prior LSA recovery stage retry claim must match canonical retry accounting"
+    );
+    assert(
+      isObject(priorStage.uplift_claim) && priorStage.uplift_claim.next_used === true,
+      "Prior LSA recovery stage must prove that the single uplift was claimed"
+    );
+  } else if (rawInput.prior_recovery_stage !== undefined && rawInput.prior_recovery_stage !== null) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "unexpected_prior_recovery_stage",
+      "A source-stage recovery cannot already carry an uplifted recovery-stage decision"
+    );
+  }
+
+  let stage;
+  let previousStage;
+  let requestedEffort;
+  let usesModelUplift;
+  if (!upliftUsed) {
+    if (
+      trace.model_tier !== strategy.source.model_tier
+      || effortIndex(trace.effective_effort, sourceContext.projection.effort_order)
+        < effortIndex(strategy.source.minimum_verified_effort, sourceContext.projection.effort_order)
+    ) {
+      return lsaRecoveryConflict(
+        configuredBase,
+        "source_trace_not_qualified",
+        "The latest verified source attempt does not meet the strategy tier and effort floor"
+      );
+    }
+    stage = "strong-medium";
+    previousStage = "source-qualified";
+    requestedEffort = strategy.target.initial_effort;
+    usesModelUplift = true;
+  } else {
+    if (trace.model_tier !== strategy.target.model_tier) {
+      return lsaRecoveryConflict(configuredBase, "stage_binding_mismatch", "An uplifted LSA stage must remain on the approved strong binding");
+    }
+    requestedEffort = strategy.next_efforts[trace.effective_effort];
+    if (requestedEffort === undefined) {
+      return lsaRecoveryConflict(configuredBase, "stage_effort_mismatch", "The verified effort is not part of the LSA recovery ladder");
+    }
+    if (requestedEffort === null) {
+      return lsaRecoveryConflict(configuredBase, "strategy_exhausted", "The LSA recovery ladder is exhausted at strong max");
+    }
+    stage = `strong-${requestedEffort}`;
+    previousStage = `strong-${trace.effective_effort}`;
+    usesModelUplift = false;
+  }
+  assert(LSA_RECOVERY_STAGES.includes(stage), "Unsupported LSA recovery stage");
+  if (!runtimeEfforts.includes(requestedEffort)) {
+    return lsaRecoveryConflict(
+      configuredBase,
+      "runtime_effort_unavailable",
+      `Runtime does not support required LSA recovery effort ${requestedEffort}`
+    );
+  }
+  const shadow = capabilityMode === "shadow";
+  return {
+    ...configuredBase,
+    status: shadow ? "shadow" : "requested",
+    stage,
+    previous_stage: previousStage,
+    requested_effort: requestedEffort,
+    dispatch_effort: shadow ? null : requestedEffort,
+    uses_model_uplift: usesModelUplift,
+    latest_verified_effort: trace.effective_effort,
+    retry_claim: {
+      expected_used: rawInput.retry_opportunities_used,
+      next_used: shadow ? rawInput.retry_opportunities_used : rawInput.retry_opportunities_used + 1,
+      max: rawInput.max_retry_rounds
+    },
+    uplift_claim: {
+      expected_used: upliftUsed,
+      next_used: shadow ? upliftUsed : upliftUsed || usesModelUplift
+    },
+    reason: shadow ? "eligible_shadow" : (usesModelUplift ? "qualified_initial_uplift" : "qualified_same_uplift_retry"),
+    conflict: null,
+    conflict_reason: null
+  };
 }
 
 function projectedNormalEffort(projection, role, reasoningClass, modelTier) {
@@ -917,6 +1376,9 @@ function normalizeInput(input, policy, projectionRegistry) {
   const workspaceCeiling = input.workspace_ceiling === undefined
     ? "max"
     : ensureProjectionEffort(input.workspace_ceiling, supportedVocabulary, "workspace_ceiling");
+  if (input.lsa_recovery_context !== undefined) {
+    assert(isObject(input.lsa_recovery_context), "lsa_recovery_context must be an object");
+  }
 
   return {
     role: input.role,
@@ -937,7 +1399,8 @@ function normalizeInput(input, policy, projectionRegistry) {
     observedEffectiveEffort,
     workspaceCeiling,
     projectionContext,
-    effortOrder: supportedVocabulary
+    effortOrder: supportedVocabulary,
+    lsaRecoveryContext: input.lsa_recovery_context || null
   };
 }
 
@@ -1046,7 +1509,7 @@ function resolveReasoning(
   const projection = input.projectionContext?.projection || null;
   const effortPolicy = projection || policy;
   const isNewProjection = Boolean(input.projectionContext?.isNew);
-  const isEfficiencyProjection = projection?.id === "lsa-efficiency-v1";
+  const isEfficiencyProjection = ["lsa-efficiency-v1", "lsa-efficiency-v2"].includes(projection?.id);
   const isCalibratedProjection = isEfficiencyProjection
     || (projection?.id === "openai-reviewer-v1" && input.role === "reviewer");
   const rolePolicy = policy.role_policies[input.role] || policy.default_role_policy;
@@ -1139,10 +1602,45 @@ function resolveReasoning(
   if (contextPolicy) {
     effectiveClass = maxClass(effectiveClass, context.floor);
   }
+  let lsaRecoveryStage = null;
+  if (input.lsaRecoveryContext) {
+    assert(
+      input.projectionContext,
+      "lsa_recovery_context requires an exact outer resolved_configuration"
+    );
+    assert(
+      JSON.stringify(canonicalJson(input.lsaRecoveryContext.target_resolved_configuration))
+        === JSON.stringify(canonicalJson(input.projectionContext.configuration)),
+      "lsa_recovery_context target must match the outer resolved_configuration"
+    );
+    lsaRecoveryStage = resolveLsaRecoveryStage({
+      ...input.lsaRecoveryContext,
+      role: input.role,
+      reasoning_mode: input.mode,
+      effective_class: effectiveClass,
+      prior_failure_type: input.priorFailureType,
+      explicit_effort: input.explicitEffort || input.lsaRecoveryContext.explicit_effort || null,
+      strict: strict || input.lsaRecoveryContext.strict === true
+    }, projectionRegistry);
+  }
+  if (lsaRecoveryStage?.status === "conflict") {
+    return makeConflictDecision(
+      {
+        ...base,
+        reasoning_class: effectiveClass,
+        effective_class: effectiveClass,
+        strict,
+        recovery_boost: false
+      },
+      lsaRecoveryStage.conflict_reason,
+      [...reasons, `lsa_recovery_conflict:${lsaRecoveryStage.reason}`]
+    );
+  }
+  const calibratedRecoveryApplied = lsaRecoveryStage?.status === "requested";
   let recoveryBoost = false;
   if (input.priorFailureType === "reasoning_failure") {
     const preservedPriorClass = input.priorEffectiveClass || input.reasoningClass;
-    if (isEfficiencyProjection && (!preservedPriorClass || !input.priorObservedEffectiveEffort)) {
+    if (isEfficiencyProjection && !calibratedRecoveryApplied && (!preservedPriorClass || !input.priorObservedEffectiveEffort)) {
       return makeConflictDecision(
         { ...base, reasoning_class: effectiveClass, effective_class: effectiveClass, strict, recovery_boost: false },
         "Versioned same-model reasoning recovery requires the prior effective class and observed effective effort",
@@ -1153,9 +1651,13 @@ function resolveReasoning(
       effectiveClass = maxClass(effectiveClass, preservedPriorClass);
       reasons.push("prior_effective_class");
     }
-    const priorClass = effectiveClass;
-    effectiveClass = bumpClass(effectiveClass);
-    recoveryBoost = priorClass === "deep";
+    if (!calibratedRecoveryApplied) {
+      const priorClass = effectiveClass;
+      effectiveClass = bumpClass(effectiveClass);
+      recoveryBoost = priorClass === "deep";
+    } else {
+      reasons.push(`lsa_recovery_stage:${lsaRecoveryStage.stage}`);
+    }
     reasons.push("prior_reasoning_failure");
   } else if (input.priorFailureType) {
     assert(OPERATIONAL_FAILURE_TYPES.includes(input.priorFailureType), "Unsupported operational failure type");
@@ -1305,6 +1807,9 @@ function resolveReasoning(
     requestedEffort = maxEffortFor(input.effortOrder, requestedEffort, input.explicitEffort);
     reasons.push("explicit_effort");
   }
+  if (calibratedRecoveryApplied) {
+    requestedEffort = lsaRecoveryStage.requested_effort;
+  }
 
   const minimumFloor = maxEffortFor(
     input.effortOrder,
@@ -1357,6 +1862,9 @@ function resolveReasoning(
     requested_effort: requestedEffort,
     strict,
     recovery_boost: recoveryBoost,
+    ...(lsaRecoveryStage && ["requested", "shadow"].includes(lsaRecoveryStage.status)
+      ? { recovery_stage: lsaRecoveryStage }
+      : {}),
     degraded: canRunDegradedDeep,
     degradation_reason: canRunDegradedDeep ? "model_tier_below_deep_requirement" : null
   };
@@ -1390,7 +1898,7 @@ function resolveReasoning(
     input.supportedEfforts,
     minimumFloor,
     input.workspaceCeiling,
-    strict || Boolean(input.explicitEffort) || canRunDegradedDeep || isCalibratedProjection,
+    strict || Boolean(input.explicitEffort) || canRunDegradedDeep || isCalibratedProjection || calibratedRecoveryApplied,
     input.effortOrder
   );
   if (supported.conflict) {
@@ -1404,7 +1912,7 @@ function resolveReasoning(
   if (
     input.observedEffectiveEffort
     && input.observedEffectiveEffort !== supported.effort
-    && (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection)
+    && (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection || calibratedRecoveryApplied)
   ) {
     return makeConflictDecision(
       resolvedBase,
@@ -1422,7 +1930,7 @@ function resolveReasoning(
   }
 
   if (input.mode === "adaptive" && input.selectorAvailable === false) {
-    if (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection) {
+    if (strict || input.explicitEffort || canRunDegradedDeep || isCalibratedProjection || calibratedRecoveryApplied) {
       return makeConflictDecision(
         resolvedBase,
         `Required effort ${requestedEffort} cannot be enforced without a per-spawn reasoning selector`,
@@ -1564,6 +2072,7 @@ module.exports = {
   loadProjectionRegistry,
   parseArgs,
   projectedNormalEffort,
+  resolveLsaRecoveryStage,
   resolveReasoning,
   resolveProjection,
   runCli,

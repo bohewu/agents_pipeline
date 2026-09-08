@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-09-09
+
+### Added
+
+- Added the versioned `lsa-efficiency-v2` recovery strategy for qualified Flow/Pipeline `executor` or `generalist` retries: repeated verified material Sol deep/high failures may use the one profile-approved uplift at Astra medium, then continue at high and max within the existing retry budget.
+
+### Changed
+
+- Persist and verify LSA v2 recovery stage, exact configuration/binding, canonical failure history, claim, trace, uplift use, and retry counters so resend and resume cannot repeat a stage or reset budget.
+- Kept LSA v1, `openai`, `openai-legacy`, normal LSA effort projection, Simple/ad-hoc dispatch, reviewer/security/judge roles, explicit pins, strict/assurance requirements, recovery defaults, and legacy artifacts on their existing behavior. Selecting the LSA model set still does not enable capability recovery automatically.
+
 ## [0.36.2] - 2026-09-05
 
 ### Changed

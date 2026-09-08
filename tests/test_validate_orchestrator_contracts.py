@@ -105,6 +105,9 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             narrow continuation run
             full fresh run
             Do not create a `run-goal`
+            `lsa-efficiency-v2`
+            `resolveLsaRecoveryStage`
+            does not infer a stage, duplicate the ladder
             """,
         )
         self.write(
@@ -135,28 +138,41 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             + "without the old\n"
             + "recovery boost\n"
             + "Missing selector, profile, or trace\n"
-            + "Other runtime exports conflict\n",
+            + "Other runtime exports conflict\n"
+            + "`lsa_recovery_context`\n"
+            + "`resolveLsaRecoveryStage`\n"
+            + "canonical TaskStatus failure history\n"
+            + "`recovery_claim_id`\n"
+            + "`recovery_runtime_support`\n"
+            + "bind that id once with `agent.started`\n"
+            + "only then may\n"
+            + "status promote the task and attempt stage to `verified`\n",
         )
         self.write(
             self.repo_root / workflow_contracts[3],
             common
-            + """
-            tools/capability-recovery.js
-            reasoning-effort recovery
-            before model capability recovery
-            `recovery_boost`
-            `no_higher_tier_available`
-            prior task attempt's persisted
-            `reasoning.effective_class`
-            `deep` plus `max`
-            never the same attempt
-            resolve-recovery
-            no inherited recovery boost
-            Reviewer models never uplift
-            `optional_notes` are not remaining work
-            `capability_recovery_used = true`
-            `retry_opportunities_used = <persisted value + 1>`
-            """,
+            + "tools/capability-recovery.js\n"
+            + "reasoning-effort recovery\n"
+            + "before model capability recovery\n"
+            + "`recovery_boost`\n"
+            + "`no_higher_tier_available`\n"
+            + "prior task attempt's persisted\n"
+            + "`reasoning.effective_class`\n"
+            + "`deep` plus `max`\n"
+            + "never the same attempt\n"
+            + "resolve-recovery\n"
+            + "no inherited recovery boost\n"
+            + "Reviewer models never uplift\n"
+            + "`optional_notes` are not remaining work\n"
+            + "`capability_recovery_used = true`\n"
+            + "`retry_opportunities_used = <persisted value + 1>`\n"
+            + "`lsa_recovery_context`\n"
+            + "`resolveLsaRecoveryStage`\n"
+            + "canonical TaskStatus failure history\n"
+            + "`recovery_claim_id`\n"
+            + "`recovery_runtime_support`\n"
+            + "bind it exactly\nonce in `agent.started`\n"
+            + "only then may status mark the task and\nattempt stage `verified`\n",
         )
         self.patchers = [
             mock.patch.object(MODULE, "REPO_ROOT", self.repo_root),

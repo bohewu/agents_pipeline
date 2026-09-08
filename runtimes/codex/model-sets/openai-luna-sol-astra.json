@@ -1,14 +1,14 @@
 {
   "name": "openai-luna-sol-astra",
-  "version": "1",
+  "version": "2",
   "runtime": "codex",
-  "description": "Experimental Luna/Sol/Astra model set with its dedicated effort projection.",
-  "mapping_digest": "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9",
+  "description": "Experimental Luna/Sol/Astra model set with versioned recovery semantics.",
+  "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
   "reasoning_projection": {
-    "id": "lsa-efficiency-v1",
-    "version": "1",
+    "id": "lsa-efficiency-v2",
+    "version": "2",
     "policy_version": "3",
-    "digest": "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"
+    "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e"
   },
   "tiers": {
     "mini": {

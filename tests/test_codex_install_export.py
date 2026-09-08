@@ -188,6 +188,11 @@ class CodexInstallExportTest(unittest.TestCase):
             "reasoning-effort recovery before model capability recovery",
             managed_block,
         )
+        self.assertIn("sole earlier-uplift exception", managed_block)
+        self.assertIn("exact verified LSA v2 execution stage", managed_block)
+        self.assertIn("same retry/uplift budget", managed_block)
+        self.assertIn("already approved task-scoped target binding", managed_block)
+        self.assertIn("does not downgrade the task or refund counters", managed_block)
         self.assertIn(
             "prior attempt's `effective_class` as the next retry floor",
             managed_block,
@@ -1536,6 +1541,179 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertIn(
                 f'node "{support_root.as_posix()}/tools/codex-child-trace.js"',
                 installed_reasoning_protocol,
+            )
+
+            installed_registry = json.loads(
+                (support_root / "protocols" / "reasoning-projections.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            lsa_v2 = next(
+                projection
+                for projection in installed_registry["projections"]
+                if projection["id"] == "lsa-efficiency-v2"
+            )
+            self.assertEqual(
+                lsa_v2["recovery_strategy"]["id"],
+                "lsa-qualified-execution-v2",
+            )
+            installed_lsa_catalog = json.loads(
+                (
+                    support_root
+                    / "runtimes"
+                    / "codex"
+                    / "model-sets"
+                    / "openai-luna-sol-astra.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(installed_lsa_catalog["version"], "2")
+            self.assertEqual(
+                installed_lsa_catalog["reasoning_projection"]["id"],
+                "lsa-efficiency-v2",
+            )
+
+            installed_list = subprocess.run(
+                [
+                    "bash",
+                    (support_root / "scripts" / "agent-profile.sh").as_posix(),
+                    "list",
+                    "--runtime",
+                    "codex",
+                    "--json",
+                ],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(installed_list.returncode, 0, installed_list.stderr)
+            listed = json.loads(installed_list.stdout)
+            lsa_listing = next(
+                model_set
+                for model_set in listed["model_sets"]
+                if model_set["name"] == "openai-luna-sol-astra"
+            )
+            self.assertEqual(
+                lsa_listing["tiers"],
+                installed_lsa_catalog["tiers"],
+            )
+
+            installed_mapping = lsa_v2["model_sets"][0]
+
+            def resolved_configuration(
+                model_tier: str, *, recovery: bool = False
+            ) -> dict[str, object]:
+                return {
+                    "schema_version": 1,
+                    "model_set": {
+                        key: installed_mapping[key]
+                        for key in ("id", "version", "mapping_digest")
+                    },
+                    "reasoning_projection": {
+                        key: lsa_v2[key]
+                        for key in ("id", "version", "policy_version", "digest")
+                    },
+                    "role_binding": {
+                        "role": "executor",
+                        "model_tier": model_tier,
+                        "model": installed_mapping["tiers"][model_tier],
+                        "mapping_digest": installed_mapping["mapping_digest"],
+                    },
+                    "provenance": {
+                        "source": "workspace_profile",
+                        "override": {
+                            "kind": "capability_recovery",
+                            "version": "1",
+                            "source_model_tier": "standard",
+                            "target_model_tier": "strong",
+                        }
+                        if recovery
+                        else None,
+                    },
+                }
+
+            source = resolved_configuration("standard")
+            recovery_target = resolved_configuration("strong", recovery=True)
+            failure_history = [
+                {
+                    "attempt_id": "attempt-1",
+                    "failure_signature": "criterion-a",
+                    "failure_type": "reasoning_failure",
+                    "material": True,
+                    "meaningful_progress": False,
+                    "model_tier": "standard",
+                    "effective_effort": "medium",
+                },
+                {
+                    "attempt_id": "attempt-2",
+                    "failure_signature": "criterion-a",
+                    "failure_type": "reasoning_failure",
+                    "material": True,
+                    "meaningful_progress": False,
+                    "model_tier": "standard",
+                    "effective_effort": "high",
+                },
+            ]
+            recovery_context = {
+                "role": "executor",
+                "reasoning_mode": "adaptive",
+                "capability_recovery_mode": "auto",
+                "workflow_supports_capability_recovery": True,
+                "effective_class": "deep",
+                "prior_failure_type": "reasoning_failure",
+                "source_resolved_configuration": source,
+                "target_resolved_configuration": recovery_target,
+                "latest_verified_trace": {
+                    "role": "executor",
+                    "model_tier": "standard",
+                    "model": source["role_binding"]["model"],
+                    "effective_effort": "high",
+                },
+                "failure_history": failure_history,
+                "model_uplift_used": False,
+                "retry_opportunities_used": 1,
+                "max_retry_rounds": 2,
+                "model_selector_available": True,
+                "effort_selector_available": True,
+                "runtime_supported_efforts": ["medium", "high", "max"],
+            }
+
+            def run_installed_reasoning(
+                context: dict[str, object], *, expected: int
+            ) -> dict[str, object]:
+                payload = {
+                    "role": "executor",
+                    "mode": context["reasoning_mode"],
+                    "task_intent": "design",
+                    "reasoning_signals": ["cross_module"],
+                    "prior_failure_type": "reasoning_failure",
+                    "selector_available": True,
+                    "resolved_configuration": recovery_target,
+                    "lsa_recovery_context": context,
+                }
+                input_path = root / "reasoning-input.json"
+                input_path.write_text(json.dumps(payload), encoding="utf-8")
+                result = subprocess.run(
+                    [
+                        "node",
+                        (support_root / "tools" / "reasoning-policy.js").as_posix(),
+                        "--input-file",
+                        input_path.as_posix(),
+                        "--compact",
+                    ],
+                    cwd=root,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                return json.loads(result.stdout)
+
+            last_retry = run_installed_reasoning(recovery_context, expected=0)
+            self.assertEqual(last_retry["recovery_stage"]["stage"], "strong-medium")
+            self.assertEqual(
+                last_retry["recovery_stage"]["retry_claim"],
+                {"expected_used": 1, "next_used": 2, "max": 2},
             )
 
     def test_install_helper_rejects_shell_active_target_before_mutation(self) -> None:

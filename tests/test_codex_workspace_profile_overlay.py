@@ -417,7 +417,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             self.assertEqual(first_status["configuration_compatibility"], "current")
             self.assertEqual(
                 first_status["configuration_identity"]["reasoning_projection"]["id"],
-                "lsa-efficiency-v1",
+                "lsa-efficiency-v2",
             )
             self.assertEqual(
                 first_status["resolved_configurations"]["reviewer"]["role_binding"]["model"],
@@ -433,6 +433,22 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 model_set="openai-luna-sol-astra",
             )
             self.assertEqual(manifest.read_bytes(), first_manifest)
+            recovery = json.loads(
+                self.resolve_recovery(wrapper, workspace, env=env).stdout
+            )
+            self.assertEqual(
+                recovery["resolved_configuration"]["reasoning_projection"],
+                first_status["configuration_identity"]["reasoning_projection"],
+            )
+            self.assertEqual(
+                recovery["resolved_configuration"]["role_binding"],
+                {
+                    "role": "executor",
+                    "model_tier": "strong",
+                    "model": "gpt-6-astra",
+                    "mapping_digest": first_status["model_mapping"]["mapping_digest"],
+                },
+            )
 
             self.run_profile(
                 wrapper,
@@ -453,6 +469,108 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             self.run_profile(wrapper, "clear", workspace, env=env)
             self.run_profile(wrapper, "clear", workspace, env=env)
             self.assertFalse(manifest.exists())
+
+    def test_saved_lsa_v1_workspace_stays_pinned_until_explicit_v2_set(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_name:
+            root = Path(temp_name)
+            home = root / "home"
+            workspace = root / "project"
+            env = self.isolated_environment(home)
+            codex_home, wrapper = self.install_global_codex(home, env)
+            self.set_project_trust(codex_home, workspace, "trusted")
+            self.run_profile(
+                wrapper,
+                "set",
+                workspace,
+                env=env,
+                model_set="openai-luna-sol-astra",
+            )
+
+            registry = json.loads(
+                (
+                    codex_home
+                    / "agents-pipeline"
+                    / "protocols"
+                    / "reasoning-projections.json"
+                ).read_text(encoding="utf-8")
+            )
+            v1 = next(
+                projection
+                for projection in registry["projections"]
+                if projection["id"] == "lsa-efficiency-v1"
+            )
+            v1_mapping = v1["model_sets"][0]
+            v1_identity = {
+                "schema_version": 1,
+                "model_set": {
+                    key: v1_mapping[key]
+                    for key in ("id", "version", "mapping_digest")
+                },
+                "reasoning_projection": {
+                    key: v1[key]
+                    for key in ("id", "version", "policy_version", "digest")
+                },
+            }
+            manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["source_version"] = "0.0.0"
+            manifest["asset_digest"] = "0" * 64
+            manifest["model_mapping"] = v1_mapping
+            manifest["configuration_identity"] = v1_identity
+            for configuration in manifest["resolved_configurations"].values():
+                configuration["model_set"] = v1_identity["model_set"]
+                configuration["reasoning_projection"] = v1_identity[
+                    "reasoning_projection"
+                ]
+                configuration["role_binding"]["mapping_digest"] = v1_mapping[
+                    "mapping_digest"
+                ]
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+
+            pinned = self.workspace_status(wrapper, workspace, env=env)
+            self.assertEqual(pinned["health"], "ok")
+            self.assertEqual(pinned["catalog_state"], "pinned")
+            self.assertEqual(
+                pinned["configuration_identity"]["reasoning_projection"]["id"],
+                "lsa-efficiency-v1",
+            )
+            self.assertEqual(
+                pinned["resolved_configurations"]["executor"]["role_binding"],
+                {
+                    "role": "executor",
+                    "model_tier": "standard",
+                    "model": "gpt-5.6-sol",
+                    "mapping_digest": v1_mapping["mapping_digest"],
+                },
+            )
+            blocked = self.resolve_recovery(wrapper, workspace, env=env, expected=2)
+            self.assertIn("requires the current workspace profile catalog", blocked.stderr)
+
+            self.run_profile(
+                wrapper,
+                "set",
+                workspace,
+                env=env,
+                model_set="openai-luna-sol-astra",
+            )
+            v2_manifest = manifest_path.read_bytes()
+            current = self.workspace_status(wrapper, workspace, env=env)
+            self.assertEqual(current["catalog_state"], "current")
+            self.assertEqual(
+                current["configuration_identity"]["reasoning_projection"]["id"],
+                "lsa-efficiency-v2",
+            )
+            self.run_profile(
+                wrapper,
+                "set",
+                workspace,
+                env=env,
+                model_set="openai-luna-sol-astra",
+            )
+            self.assertEqual(manifest_path.read_bytes(), v2_manifest)
 
     def test_v2_openai_manifest_uses_verified_pinned_legacy_mapping(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:

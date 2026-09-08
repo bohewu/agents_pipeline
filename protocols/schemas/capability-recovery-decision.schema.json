@@ -132,6 +132,9 @@
     "conflict_reason": {
       "type": ["string", "null"],
       "minLength": 1
+    },
+    "recovery_stage": {
+      "$ref": "#/$defs/lsaRecoveryStage"
     }
   },
   "allOf": [
@@ -267,5 +270,143 @@
       }
     }
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "lsaRecoveryStage": {
+      "type": "object",
+      "required": [
+        "strategy", "status", "stage", "previous_stage", "requested_effort",
+        "dispatch_effort", "uses_model_uplift", "source", "target",
+        "latest_verified_effort", "retry_claim", "uplift_claim", "reason",
+        "conflict", "conflict_reason"
+      ],
+      "properties": {
+        "strategy": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["id", "version"],
+              "properties": {
+                "id": { "const": "lsa-qualified-execution-v2" },
+                "version": { "const": "2" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "status": { "enum": ["off", "shadow", "requested", "verified", "conflict"] },
+        "stage": { "enum": [null, "strong-medium", "strong-high", "strong-max"] },
+        "previous_stage": { "enum": [null, "source-qualified", "strong-medium", "strong-high"] },
+        "requested_effort": { "enum": [null, "medium", "high", "max"] },
+        "dispatch_effort": { "enum": [null, "medium", "high", "max"] },
+        "uses_model_uplift": { "type": "boolean" },
+        "source": { "$ref": "#/$defs/recoveryConfigurationOrNull" },
+        "target": { "$ref": "#/$defs/recoveryConfigurationOrNull" },
+        "latest_verified_effort": { "enum": [null, "medium", "high", "xhigh", "max"] },
+        "retry_claim": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["expected_used", "next_used", "max"],
+              "properties": {
+                "expected_used": { "type": "integer", "minimum": 0 },
+                "next_used": { "type": "integer", "minimum": 0 },
+                "max": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "uplift_claim": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["expected_used", "next_used"],
+              "properties": {
+                "expected_used": { "type": "boolean" },
+                "next_used": { "type": "boolean" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 },
+        "conflict": { "enum": [null, "conflict"] },
+        "conflict_reason": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "recoveryConfigurationOrNull": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/recoveryConfiguration" }
+      ]
+    },
+    "recoveryConfiguration": {
+      "type": "object",
+      "required": ["model_set", "reasoning_projection", "role_binding", "provenance"],
+      "properties": {
+        "model_set": {
+          "type": "object",
+          "required": ["id", "version", "mapping_digest"],
+          "properties": {
+            "id": { "const": "openai-luna-sol-astra" },
+            "version": { "const": "2" },
+            "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "reasoning_projection": {
+          "type": "object",
+          "required": ["id", "version", "policy_version", "digest"],
+          "properties": {
+            "id": { "const": "lsa-efficiency-v2" },
+            "version": { "const": "2" },
+            "policy_version": { "const": "3" },
+            "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "role_binding": {
+          "type": "object",
+          "required": ["role", "model_tier", "model", "mapping_digest"],
+          "properties": {
+            "role": { "enum": ["executor", "generalist"] },
+            "model_tier": { "enum": ["standard", "strong"] },
+            "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+            "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["source", "override"],
+          "properties": {
+            "source": { "const": "workspace_profile" },
+            "override": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["kind", "version", "source_model_tier", "target_model_tier"],
+                  "properties": {
+                    "kind": { "const": "capability_recovery" },
+                    "version": { "const": "1" },
+                    "source_model_tier": { "const": "standard" },
+                    "target_model_tier": { "const": "strong" }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

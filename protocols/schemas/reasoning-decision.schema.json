@@ -168,6 +168,9 @@
     "model_set": {
       "$ref": "#/$defs/modelSetIdentity"
     },
+    "recovery_stage": {
+      "$ref": "#/$defs/lsaRecoveryStage"
+    },
     "reasons": {
       "type": "array",
       "uniqueItems": true,
@@ -1096,7 +1099,7 @@
       "type": "object",
       "required": ["id", "version", "policy_version", "digest"],
       "properties": {
-        "id": { "enum": ["legacy-v2", "openai-reviewer-v1", "lsa-efficiency-v1"] },
+        "id": { "enum": ["legacy-v2", "openai-reviewer-v1", "lsa-efficiency-v1", "lsa-efficiency-v2"] },
         "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
         "policy_version": { "enum": ["2", "3"] },
         "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
@@ -1105,9 +1108,109 @@
         {
           "if": { "properties": { "id": { "const": "legacy-v2" } } },
           "then": { "properties": { "version": { "const": "2" }, "policy_version": { "const": "2" } } },
-          "else": { "properties": { "version": { "const": "1" }, "policy_version": { "const": "3" } } }
+          "else": {
+            "if": { "properties": { "id": { "const": "lsa-efficiency-v2" } } },
+            "then": { "properties": { "version": { "const": "2" }, "policy_version": { "const": "3" } } },
+            "else": { "properties": { "version": { "const": "1" }, "policy_version": { "const": "3" } } }
+          }
         }
       ],
+      "additionalProperties": false
+    },
+    "lsaRecoveryStage": {
+      "type": "object",
+      "required": [
+        "strategy", "status", "stage", "previous_stage", "requested_effort",
+        "dispatch_effort", "uses_model_uplift", "source", "target",
+        "latest_verified_effort", "retry_claim", "uplift_claim", "reason",
+        "conflict", "conflict_reason"
+      ],
+      "properties": {
+        "strategy": {
+          "type": "object",
+          "required": ["id", "version"],
+          "properties": {
+            "id": { "const": "lsa-qualified-execution-v2" },
+            "version": { "const": "2" }
+          },
+          "additionalProperties": false
+        },
+        "status": { "enum": ["requested", "shadow"] },
+        "stage": { "enum": ["strong-medium", "strong-high", "strong-max"] },
+        "previous_stage": { "enum": ["source-qualified", "strong-medium", "strong-high"] },
+        "requested_effort": { "enum": ["medium", "high", "max"] },
+        "dispatch_effort": { "enum": [null, "medium", "high", "max"] },
+        "uses_model_uplift": { "type": "boolean" },
+        "source": { "$ref": "#/$defs/recoveryConfiguration" },
+        "target": { "$ref": "#/$defs/recoveryConfiguration" },
+        "latest_verified_effort": { "enum": ["high", "xhigh", "max", "medium"] },
+        "retry_claim": {
+          "type": "object",
+          "required": ["expected_used", "next_used", "max"],
+          "properties": {
+            "expected_used": { "type": "integer", "minimum": 0 },
+            "next_used": { "type": "integer", "minimum": 0 },
+            "max": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "uplift_claim": {
+          "type": "object",
+          "required": ["expected_used", "next_used"],
+          "properties": {
+            "expected_used": { "type": "boolean" },
+            "next_used": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "reason": { "enum": ["qualified_initial_uplift", "qualified_same_uplift_retry", "eligible_shadow"] },
+        "conflict": { "const": null },
+        "conflict_reason": { "const": null }
+      },
+      "additionalProperties": false
+    },
+    "recoveryConfiguration": {
+      "type": "object",
+      "required": ["model_set", "reasoning_projection", "role_binding", "provenance"],
+      "properties": {
+        "model_set": { "$ref": "#/$defs/modelSetIdentity" },
+        "reasoning_projection": { "$ref": "#/$defs/reasoningProjection" },
+        "role_binding": {
+          "type": "object",
+          "required": ["role", "model_tier", "model", "mapping_digest"],
+          "properties": {
+            "role": { "enum": ["executor", "generalist"] },
+            "model_tier": { "enum": ["standard", "strong"] },
+            "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+            "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+          },
+          "additionalProperties": false
+        },
+        "provenance": {
+          "type": "object",
+          "required": ["source", "override"],
+          "properties": {
+            "source": { "const": "workspace_profile" },
+            "override": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["kind", "version", "source_model_tier", "target_model_tier"],
+                  "properties": {
+                    "kind": { "const": "capability_recovery" },
+                    "version": { "const": "1" },
+                    "source_model_tier": { "const": "standard" },
+                    "target_model_tier": { "const": "strong" }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
       "additionalProperties": false
     },
     "modelSetIdentity": {

@@ -20,6 +20,7 @@ const { StatusWriter } = require("../tools/status-runtime/status-writer");
 const {
   loadProjectionRegistry,
   loadPolicy,
+  resolveLsaRecoveryStage,
   resolveReasoning,
   validatePolicy
 } = require("../tools/reasoning-policy");
@@ -155,6 +156,90 @@ function matchingLowTrace(agentId) {
     parent_effective_effort: null,
     inheritance_consistent: null,
     selector_evidence: "indeterminate"
+  };
+}
+
+function lsaV2ResolvedConfiguration({ modelTier = "standard", recovery = false } = {}) {
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  return {
+    schema_version: 1,
+    model_set: { id: modelSet.id, version: modelSet.version, mapping_digest: modelSet.mapping_digest },
+    reasoning_projection: {
+      id: projection.id,
+      version: projection.version,
+      policy_version: projection.policy_version,
+      digest: projection.digest
+    },
+    role_binding: {
+      role: "executor",
+      model_tier: modelTier,
+      model: modelSet.tiers[modelTier],
+      mapping_digest: modelSet.mapping_digest
+    },
+    provenance: {
+      source: "workspace_profile",
+      override: recovery ? {
+        kind: "capability_recovery",
+        version: "1",
+        source_model_tier: "standard",
+        target_model_tier: "strong"
+      } : null
+    }
+  };
+}
+
+function lsaV2RunConfiguration() {
+  const resolved = lsaV2ResolvedConfiguration();
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  return {
+    profile: "balanced",
+    configuration_compatibility: "current",
+    model_mapping: {
+      id: modelSet.id,
+      version: modelSet.version,
+      tiers: modelSet.tiers,
+      role_overrides: modelSet.role_overrides,
+      mapping_digest: modelSet.mapping_digest
+    },
+    configuration_identity: {
+      schema_version: 1,
+      model_set: resolved.model_set,
+      reasoning_projection: resolved.reasoning_projection
+    },
+    resolved_configurations: { executor: resolved }
+  };
+}
+
+function matchingTrace(agentId, model, effort) {
+  return {
+    schema_version: "1.4",
+    runtime: "codex",
+    agent_id: agentId,
+    trace_found: true,
+    agent_role: "executor",
+    model,
+    model_matches: true,
+    effective_effort: effort,
+    role_matches: true,
+    effort_matches: true,
+    parent_trace_found: false,
+    parent_effective_effort: null,
+    inheritance_consistent: null,
+    selector_evidence: "distinct_from_parent"
+  };
+}
+
+function recoveryReasoningInput(resolvedConfiguration, overrides = {}) {
+  return {
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    selector_available: true,
+    resolved_configuration: resolvedConfiguration,
+    ...overrides
   };
 }
 
@@ -2580,6 +2665,500 @@ test("Pipeline capability recovery atomically consumes one persisted task retry"
     /exceeds max_retry_rounds/
   );
   assert.equal(await fs.readFile(taskPath, "utf8"), exhausted);
+});
+
+test("LSA v2 recovery claims derive failure history, bind one native agent, and verify trace before resume", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-lsa-v2-recovery-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-lsa-v2-recovery";
+  const taskId = "task-lsa-recovery";
+  const configuration = lsaV2RunConfiguration();
+  const source = configuration.resolved_configurations.executor;
+  const target = lsaV2ResolvedConfiguration({ modelTier: "strong", recovery: true });
+  const envelope = { output_root: tempRoot, run_id: runId };
+  const support = {
+    model_selector_available: true,
+    effort_selector_available: true,
+    supported_efforts: ["medium", "high", "max"],
+    evidence_ref: "fixture:native-selector-capabilities"
+  };
+
+  await runtime.applyEvent("run.started", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Persist canonical LSA v2 recovery evidence",
+    configuration,
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "3",
+      reasoning_ceiling: "max",
+      capability_recovery_mode: "auto",
+      max_retry_rounds: 5
+    },
+    timestamp: "2026-09-08T01:00:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    ...envelope,
+    tasks: [{
+      task_id: taskId,
+      summary: "Recover a repeated material reasoning failure",
+      status: "ready",
+      task_intent: "design",
+      intent_baseline_class: "deliberative",
+      classification_source: "task_intent",
+      reasoning_class: "deep",
+      reasoning_signals: ["cross_module"],
+      retry_opportunities_used: 0,
+      capability_recovery_used: false,
+      assigned_executor: "executor"
+    }],
+    timestamp: "2026-09-08T01:00:01.000Z"
+  });
+
+  const recordSourceFailure = async (agentId, attempt, timestampPrefix) => {
+    const requested = resolveReasoning(recoveryReasoningInput(source));
+    await runtime.applyEvent("agent.started", {
+      ...envelope,
+      agent_id: agentId,
+      agent: "executor",
+      task_id: taskId,
+      attempt,
+      reasoning: requested,
+      resolved_configuration: source,
+      timestamp: `${timestampPrefix}:00.000Z`
+    });
+    const enforced = resolveReasoning(recoveryReasoningInput(source, {
+      observed_effective_effort: "high"
+    }));
+    await runtime.applyEvent("agent.finished", {
+      ...envelope,
+      agent_id: agentId,
+      task_id: taskId,
+      attempt,
+      status: "blocked",
+      reasoning: enforced,
+      trace_evidence: matchingTrace(agentId, source.role_binding.model, "high"),
+      failure_evidence: {
+        failure_signature: "criterion-a",
+        failure_classification: "product_failure",
+        failure_type: "reasoning_failure",
+        material: true,
+        meaningful_progress: false
+      },
+      evidence_refs: [`evidence/source-${attempt}.txt`],
+      timestamp: `${timestampPrefix}:01.000Z`
+    });
+  };
+
+  const firstAgentId = "123e4567-e89b-42d3-a456-426614174201";
+  const secondAgentId = "123e4567-e89b-42d3-a456-426614174202";
+  await recordSourceFailure(firstAgentId, 1, "2026-09-08T01:01");
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 1,
+    timestamp: "2026-09-08T01:02:00.000Z"
+  });
+  await recordSourceFailure(secondAgentId, 2, "2026-09-08T01:03");
+
+  const taskPath = path.join(tempRoot, runId, "status", "tasks", `${taskId}.json`);
+  let task = await readJson(taskPath);
+  assert.deepEqual(task.failure_history.map((entry) => entry.attempt_id), [firstAgentId, secondAgentId]);
+  assert.equal(task.failure_history[1].model_tier, "standard");
+  assert.equal(task.failure_history[1].effective_effort, "high");
+
+  const context = {
+    role: "executor",
+    reasoning_mode: "adaptive",
+    capability_recovery_mode: "auto",
+    workflow_supports_capability_recovery: true,
+    effective_class: "deep",
+    prior_failure_type: "reasoning_failure",
+    source_resolved_configuration: source,
+    target_resolved_configuration: target,
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "standard",
+      model: source.role_binding.model,
+      effective_effort: "high"
+    },
+    failure_history: task.failure_history,
+    model_uplift_used: false,
+    retry_opportunities_used: 1,
+    max_retry_rounds: 5,
+    model_selector_available: true,
+    effort_selector_available: true,
+    runtime_supported_efforts: support.supported_efforts
+  };
+  const requestedStage = resolveLsaRecoveryStage(context);
+  const recoveryDecision = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    lsa_recovery_context: context
+  }));
+  const claimId = "lsa-claim-2";
+  const nativeAgentId = "123e4567-e89b-42d3-a456-426614174203";
+
+  await assert.rejects(runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 2,
+    capability_recovery_used: true,
+    recovery_stage: requestedStage,
+    recovery_claim_id: claimId,
+    timestamp: "2026-09-08T01:04:00.000Z"
+  }), /recovery_runtime_support/);
+
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 2,
+    capability_recovery_used: true,
+    recovery_stage: requestedStage,
+    recovery_claim_id: claimId,
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:04:01.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.recovery_stage.status, "requested");
+  assert.equal(task.recovery_claim_id, claimId);
+  assert.equal(task.recovery_agent_id, undefined);
+  assert.equal(task.retry_opportunities_used, 2);
+  assert.equal(task.capability_recovery_used, true);
+
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: nativeAgentId,
+    agent: "executor",
+    task_id: taskId,
+    attempt: 3,
+    reasoning: recoveryDecision,
+    resolved_configuration: target,
+    recovery_stage: requestedStage,
+    recovery_claim_id: claimId,
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:05:00.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.recovery_agent_id, nativeAgentId);
+  assert.notEqual(task.recovery_claim_id, nativeAgentId);
+
+  await assert.rejects(runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "123e4567-e89b-42d3-a456-426614174204",
+    agent: "executor",
+    task_id: taskId,
+    attempt: 3,
+    reasoning: recoveryDecision,
+    resolved_configuration: target,
+    recovery_stage: requestedStage,
+    recovery_claim_id: claimId,
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:05:01.000Z"
+  }), /cannot bind more than one native agent id|cannot start more than one agent/);
+
+  const observedRecovery = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    observed_effective_effort: "medium",
+    lsa_recovery_context: context
+  }));
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: nativeAgentId,
+    task_id: taskId,
+    attempt: 3,
+    status: "blocked",
+    reasoning: observedRecovery,
+    trace_evidence: matchingTrace(nativeAgentId, target.role_binding.model, "medium"),
+    failure_evidence: {
+      failure_signature: "criterion-a",
+      failure_classification: "product_failure",
+      failure_type: "reasoning_failure",
+      material: true,
+      meaningful_progress: false
+    },
+    evidence_refs: ["evidence/astra-medium.txt"],
+    timestamp: "2026-09-08T01:06:00.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.recovery_stage.status, "verified");
+  assert.equal(task.recovery_stage.stage, "strong-medium");
+  assert.equal(task.failure_history.at(-1).attempt_id, nativeAgentId);
+  assert.equal(task.failure_history.at(-1).effective_effort, "medium");
+
+  await assert.rejects(runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: nativeAgentId,
+    task_id: taskId,
+    attempt: 3,
+    status: "blocked",
+    timestamp: "2026-09-08T01:06:01.000Z"
+  }), /cannot be completed more than once/);
+
+  const continuedContext = {
+    ...context,
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "strong",
+      model: target.role_binding.model,
+      effective_effort: "medium"
+    },
+    failure_history: task.failure_history,
+    model_uplift_used: true,
+    retry_opportunities_used: 2,
+    prior_recovery_stage: task.recovery_stage
+  };
+  const highStage = resolveLsaRecoveryStage(continuedContext);
+  const highClaimId = "lsa-claim-3";
+  const highAgentId = "123e4567-e89b-42d3-a456-426614174205";
+  const highDecision = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    lsa_recovery_context: continuedContext
+  }));
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 3,
+    recovery_stage: highStage,
+    recovery_claim_id: highClaimId,
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:07:01.000Z"
+  });
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: highAgentId,
+    agent: "executor",
+    task_id: taskId,
+    attempt: 4,
+    reasoning: highDecision,
+    resolved_configuration: target,
+    recovery_stage: highStage,
+    recovery_claim_id: highClaimId,
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:07:02.000Z"
+  });
+  const observedHigh = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    observed_effective_effort: "high",
+    lsa_recovery_context: continuedContext
+  }));
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: highAgentId,
+    task_id: taskId,
+    attempt: 4,
+    status: "blocked",
+    reasoning: observedHigh,
+    trace_evidence: matchingTrace(highAgentId, target.role_binding.model, "high"),
+    failure_evidence: {
+      failure_signature: "criterion-a",
+      failure_classification: "product_failure",
+      failure_type: "reasoning_failure",
+      material: true,
+      meaningful_progress: false
+    },
+    evidence_refs: ["evidence/astra-high.txt"],
+    timestamp: "2026-09-08T01:07:03.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.recovery_stage.status, "verified");
+  assert.equal(task.recovery_stage.stage, "strong-high");
+  assert.equal(task.recovery_agent_id, highAgentId);
+  assert.equal(task.retry_opportunities_used, 3);
+  const approvedStage = structuredClone(task.recovery_stage);
+  const approvedRuntimeSupport = structuredClone(task.recovery_runtime_support);
+  const approvedFailureHistory = structuredClone(task.failure_history);
+
+  await runtime.applyEvent("run.resumed", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    configuration,
+    flags: { capability_recovery_mode: "off" },
+    timestamp: "2026-09-08T01:08:00.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.recovery_stage.status, "verified");
+  assert.equal(task.recovery_stage.stage, "strong-high");
+  assert.equal(task.recovery_agent_id, highAgentId);
+  assert.equal(task.retry_opportunities_used, 3);
+  assert.equal(task.capability_recovery_used, true);
+
+  const maxContext = {
+    ...continuedContext,
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "strong",
+      model: target.role_binding.model,
+      effective_effort: "high"
+    },
+    failure_history: task.failure_history,
+    retry_opportunities_used: 3,
+    prior_recovery_stage: task.recovery_stage
+  };
+  const maxStage = resolveLsaRecoveryStage(maxContext);
+  await assert.rejects(runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 4,
+    recovery_stage: maxStage,
+    recovery_claim_id: "lsa-claim-4",
+    recovery_runtime_support: support,
+    timestamp: "2026-09-08T01:08:01.000Z"
+  }), /requires capability recovery auto mode/);
+
+  const ordinaryDecision = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    prior_effective_class: "deep",
+    prior_observed_effective_effort: "high"
+  }));
+  assert.equal(ordinaryDecision.recovery_stage, undefined);
+  assert.equal(ordinaryDecision.dispatch_effort, "max");
+  assert.equal(ordinaryDecision.recovery_boost, true);
+
+  await runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 4,
+    timestamp: "2026-09-08T01:08:02.000Z"
+  });
+  task = await readJson(taskPath);
+  assert.equal(task.retry_opportunities_used, 4);
+  assert.equal(task.capability_recovery_used, true);
+  assert.deepEqual(task.recovery_stage, approvedStage);
+  assert.deepEqual(task.recovery_runtime_support, approvedRuntimeSupport);
+  assert.deepEqual(task.failure_history, approvedFailureHistory);
+
+  const ordinaryAgentId = "123e4567-e89b-42d3-a456-426614174206";
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: ordinaryAgentId,
+    agent: "executor",
+    task_id: taskId,
+    attempt: 5,
+    reasoning: ordinaryDecision,
+    resolved_configuration: target,
+    timestamp: "2026-09-08T01:09:00.000Z"
+  });
+  const ordinaryObserved = resolveReasoning(recoveryReasoningInput(target, {
+    prior_failure_type: "reasoning_failure",
+    prior_effective_class: "deep",
+    prior_observed_effective_effort: "high",
+    observed_effective_effort: "max"
+  }));
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: ordinaryAgentId,
+    task_id: taskId,
+    attempt: 5,
+    status: "done",
+    reasoning: ordinaryObserved,
+    trace_evidence: matchingTrace(ordinaryAgentId, target.role_binding.model, "max"),
+    result_summary: "Ordinary same-model retry completed",
+    evidence_refs: ["evidence/astra-ordinary-max.txt"],
+    timestamp: "2026-09-08T01:09:01.000Z"
+  });
+
+  const ordinaryAgentPath = path.join(tempRoot, runId, "status", "agents", `${ordinaryAgentId}.json`);
+  let ordinaryAgent = await readJson(ordinaryAgentPath);
+  assert.equal(ordinaryAgent.status, "done");
+  assert.deepEqual(ordinaryAgent.resolved_configuration, target);
+  assert.equal(ordinaryAgent.recovery_stage, undefined);
+  assert.equal(ordinaryAgent.trace_evidence.model, approvedStage.target.role_binding.model);
+  assert.equal(ordinaryAgent.trace_evidence.effective_effort, "max");
+
+  await runtime.applyEvent("run.resumed", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    configuration,
+    flags: { capability_recovery_mode: "shadow" },
+    timestamp: "2026-09-08T01:10:00.000Z"
+  });
+  task = await readJson(taskPath);
+  ordinaryAgent = await readJson(ordinaryAgentPath);
+  assert.equal(task.retry_opportunities_used, 4);
+  assert.equal(task.capability_recovery_used, true);
+  assert.equal(task.recovery_agent_id, highAgentId);
+  assert.deepEqual(task.recovery_stage, approvedStage);
+  assert.deepEqual(task.recovery_stage.source, requestedStage.source);
+  assert.deepEqual(task.recovery_stage.target, approvedStage.target);
+  assert.deepEqual(task.recovery_runtime_support, approvedRuntimeSupport);
+  assert.deepEqual(task.failure_history, approvedFailureHistory);
+  assert.deepEqual(ordinaryAgent.resolved_configuration, target);
+  assert.equal(ordinaryAgent.trace_evidence.effective_effort, "max");
+
+  const beforeInvalidRetry = await fs.readFile(taskPath, "utf8");
+  await assert.rejects(runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 3,
+    timestamp: "2026-09-08T01:10:01.000Z"
+  }), /retry_opportunities_used must increase by exactly one/);
+  await assert.rejects(runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    retry_opportunities_used: 6,
+    timestamp: "2026-09-08T01:10:02.000Z"
+  }), /retry_opportunities_used must increase by exactly one/);
+  assert.equal(await fs.readFile(taskPath, "utf8"), beforeInvalidRetry);
+});
+
+test("LSA v2 recovery rejects caller-written history and detects forged resume evidence", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-lsa-v2-forgery-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+  const runtime = new StatusRuntime();
+  const runId = "run-lsa-v2-forgery";
+  const taskId = "task-lsa-forgery";
+  const configuration = lsaV2RunConfiguration();
+  const envelope = { output_root: tempRoot, run_id: runId };
+  await runtime.applyEvent("run.started", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    user_prompt: "Reject forged recovery history",
+    configuration,
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "3",
+      reasoning_ceiling: "max",
+      capability_recovery_mode: "auto",
+      max_retry_rounds: 3
+    },
+    timestamp: "2026-09-08T02:00:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    ...envelope,
+    tasks: [{ task_id: taskId, summary: "Reject forged history", status: "ready" }],
+    timestamp: "2026-09-08T02:00:01.000Z"
+  });
+  await assert.rejects(runtime.applyEvent("task.updated", {
+    ...envelope,
+    task_id: taskId,
+    failure_history: [],
+    timestamp: "2026-09-08T02:00:02.000Z"
+  }), /derived from canonical agent attempts/);
+
+  const taskPath = path.join(tempRoot, runId, "status", "tasks", `${taskId}.json`);
+  const forged = await readJson(taskPath);
+  forged.failure_history = [{
+    attempt_id: "missing-agent",
+    failure_signature: "criterion-a",
+    failure_type: "reasoning_failure",
+    material: true,
+    meaningful_progress: false,
+    model_tier: "standard",
+    effective_effort: "high"
+  }];
+  await writeJson(taskPath, forged);
+  await assert.rejects(runtime.applyEvent("run.resumed", {
+    ...envelope,
+    orchestrator: "orchestrator-pipeline",
+    configuration,
+    timestamp: "2026-09-08T02:00:03.000Z"
+  }), /Canonical failure attempt is missing/);
 });
 
 test("checkpoint.updated requires a non-empty flags delta", async () => {

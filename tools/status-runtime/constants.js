@@ -119,6 +119,11 @@ const TASK_KEY_ORDER = [
   "allow_degraded_deep",
   "retry_opportunities_used",
   "capability_recovery_used",
+  "failure_history",
+  "recovery_stage",
+  "recovery_claim_id",
+  "recovery_agent_id",
+  "recovery_runtime_support",
   "reasoning_class",
   "reasoning_signals",
   "configuration_identity",
@@ -161,7 +166,11 @@ const AGENT_KEY_ORDER = [
   "cleanup_status",
   "resolved_configuration",
   "reasoning",
+  "recovery_stage",
+  "recovery_claim_id",
+  "recovery_runtime_support",
   "trace_evidence",
+  "failure_evidence",
   "result_summary",
   "evidence_refs",
   "error"
@@ -195,6 +204,7 @@ const REASONING_DECISION_KEY_ORDER = [
   "degraded",
   "degradation_reason",
   "recovery_boost",
+  "recovery_stage",
   "explicit_override",
   "reasoning_projection",
   "model_set",
@@ -218,7 +228,7 @@ const REASONING_OBSERVATION_KEY_ORDER = [
 ];
 
 const REASONING_OBSERVATION_DECISION_KEY_ORDER = REASONING_DECISION_KEY_ORDER.filter(
-  (key) => key !== "reasons" && key !== "conflict" && key !== "conflict_reason"
+  (key) => !["recovery_stage", "reasons", "conflict", "conflict_reason"].includes(key)
 );
 
 const CHECKPOINT_KEY_ORDER = [

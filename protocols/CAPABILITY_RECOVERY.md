@@ -1,7 +1,10 @@
 # Child Capability Recovery
 
 Capability recovery is a bounded child-only fallback for repeated material
-reasoning failures. It is separate from the reasoning-effort resolver:
+reasoning failures. The default path remains effort-first. The exact
+`lsa-efficiency-v2` strategy adds one narrower exception for qualified execution
+recovery; it does not change other projections. Capability recovery is separate
+from the reasoning-effort resolver:
 
 - `tools/reasoning-policy.js` classifies work and selects child effort.
 - `tools/capability-recovery.js` decides whether one temporary model-tier
@@ -30,6 +33,9 @@ Direct Simple, Flow, and Pipeline runs default to `off`. Fresh Adaptive
 `delivery` and `autonomous` presets default to `auto`; `balanced`, `careful`,
 and `interactive` default to `off`. An explicit flag overrides the preset, and
 resume keeps the persisted effective mode.
+
+Selecting the `openai-luna-sol-astra` model set does not enable `auto`. The
+workflow preset or explicit flag still owns the mode.
 
 Simple does not perform model recovery. Its Adaptive wrapper may still use the
 flag when it selects Flow or Pipeline.
@@ -60,10 +66,12 @@ Profile ceilings are:
 
 The ceiling may equal the normal tier. In that case no model uplift exists.
 
-## Recovery sequence
+## Default recovery sequence
 
-Reasoning-effort recovery is mandatory before model capability recovery. For
-an admitted material reasoning failure, re-run the reasoning resolver first:
+Reasoning-effort recovery is mandatory before model capability recovery on the
+default path. The qualified LSA v2 path below is the sole exception. For an
+admitted material reasoning failure on the default path, re-run the reasoning
+resolver first:
 
 - `routine` may become `deliberative`;
 - `deliberative` may become `deep`;
@@ -120,6 +128,43 @@ normal recovery effort. It may not select another model tier. At the profile rec
 a material deep failure must receive its legal `max` effort-first attempt
 before the workflow stops and reports the blocker.
 
+## Qualified LSA v2 sequence
+
+The `lsa-qualified-execution-v2@2` strategy applies only when all normal trust,
+health, profile ceiling, selector, budget, and materiality checks pass and the
+saved configuration exactly verifies `lsa-efficiency-v2@2`. The workflow must
+be Flow, Pipeline, or Adaptive routed to one of them, with reasoning `adaptive`
+and capability recovery `auto`. The role must be `executor` or `generalist`.
+
+The source is a verified standard-tier Sol deep attempt at `high` or higher.
+Canonical history must show the same material `reasoning_failure` at least
+twice with no meaningful progress, ending at the verified source trace. A
+single high failure, a different failure signature, P3 or non-material work,
+operational failure, or caller-supplied history does not qualify. Explicit
+effort or model pins, strict or assurance requirements, missing runtime
+support, and mismatched identity, binding, stage, counter, or trace evidence
+also block the exception.
+
+For a qualified first uplift, the profile-approved strong binding is dispatched
+as the same role at deep `medium`; a Sol `max` attempt is not a prerequisite.
+That is a stage-specific recovery effort, not the normal strong/deep projection
+and not `explicit_effort`. The same task can then advance through `medium ->
+high -> max` only after each new material reasoning failure is admitted. There
+is no `xhigh` stage and no second model uplift.
+
+Each actual stage consumes one existing retry opportunity. The sequence does
+not promise three extra attempts: with one retry remaining, only the initial
+Astra medium attempt can run. Success, non-blocking remaining work, exhausted
+budget, or failure at Astra max stops the ladder. The canonical pre-spawn claim
+must be written before dispatch, and resume must reconstruct the exact strategy,
+binding, verified effort, failure history, stage, uplift use, and retry count.
+
+Later Astra high/max attempts retain the already approved task-scoped target
+binding and do not call `resolve-recovery` as a new uplift. Changing recovery
+mode to `off` or `shadow` stops new applied LSA stages but preserves the upgraded
+binding and consumed counters; it does not downgrade the task to Sol or refund
+budget. Shadow candidates never dispatch or change counters.
+
 The destination resolver configuration may use the
 `capability_recovery` provenance marker only for `executor` or `generalist`,
 with workspace-profile provenance and a strictly higher target tier. This
@@ -148,6 +193,10 @@ python tools/agent-profile.py resolve-recovery \
 The command is read-only. It rejects inherited, uniform, unhealthy, untrusted,
 pinned-catalog, unlisted, below-base, or above-ceiling requests. Its raw model
 output comes only from the selected installed model set.
+
+For LSA v2, use this action for the initial standard-to-strong authorization.
+Continuation uses the verified saved target binding and shared stage decision;
+it is not a second profile uplift request.
 
 ## Reviewer boundary
 

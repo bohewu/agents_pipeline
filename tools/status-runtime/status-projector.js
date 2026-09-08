@@ -3,7 +3,12 @@ const path = require("path");
 const { isDeepStrictEqual } = require("util");
 
 const { PROTOCOL_VERSION, TASK_COUNT_ORDER } = require("./constants");
-const { canonicalizeRunConfiguration, canonicalizeTaskCounts } = require("./schema-lite");
+const {
+  canonicalizeLsaRecoveryStage,
+  canonicalizeRunConfiguration,
+  canonicalizeTaskCounts
+} = require("./schema-lite");
+const { resolveLsaRecoveryStage } = require("../reasoning-policy");
 const { assert, cloneJson, isObject, nowIso, toRelativeStatusPath } = require("./utils");
 
 function mergeFlags(currentFlags, incomingFlags) {
@@ -229,6 +234,11 @@ class StatusProjector {
       ) {
         throw new Error("retry_opportunities_used cannot decrease");
       }
+      assert(input.failure_history === undefined, "failure_history is derived from canonical agent attempts");
+      assert(input.recovery_stage === undefined, "recovery_stage must be claimed through task.updated");
+      assert(input.recovery_claim_id === undefined, "recovery_claim_id must be claimed through task.updated");
+      assert(input.recovery_agent_id === undefined, "recovery_agent_id is runtime-derived");
+      assert(input.recovery_runtime_support === undefined, "recovery_runtime_support must be claimed through task.updated");
       const task = {
         protocol_version: PROTOCOL_VERSION,
         run_id: state.runStatus.run_id,
@@ -247,6 +257,11 @@ class StatusProjector {
           input.retry_opportunities_used ?? existing?.retry_opportunities_used,
         capability_recovery_used:
           input.capability_recovery_used ?? existing?.capability_recovery_used,
+        failure_history: existing?.failure_history,
+        recovery_stage: existing?.recovery_stage,
+        recovery_claim_id: existing?.recovery_claim_id,
+        recovery_agent_id: existing?.recovery_agent_id,
+        recovery_runtime_support: existing?.recovery_runtime_support,
         reasoning_class: input.reasoning_class,
         reasoning_signals: input.reasoning_signals,
         configuration_identity: state.runStatus.configuration?.configuration_identity,
@@ -277,6 +292,12 @@ class StatusProjector {
     assert(state.runStatus, "run.started must be emitted before task.updated");
     const task = state.tasks.get(payload.task_id);
     assert(task, `Unknown task_id: ${payload.task_id}`);
+    assert(payload.failure_history === undefined, "failure_history is derived from canonical agent attempts");
+
+    assert(payload.recovery_agent_id === undefined, "recovery_agent_id is runtime-derived");
+    if (payload.recovery_stage !== undefined || payload.recovery_claim_id !== undefined || payload.recovery_runtime_support !== undefined) {
+      this.assertRecoveryClaim(state, task, payload);
+    }
 
     const currentRetryCount = task.retry_opportunities_used || 0;
     if (payload.retry_opportunities_used !== undefined) {
@@ -322,6 +343,9 @@ class StatusProjector {
     delete patch.task_id;
     delete patch.timestamp;
     Object.assign(task, patch);
+    if (payload.recovery_stage !== undefined) {
+      delete task.recovery_agent_id;
+    }
     task.updated_at = timestamp;
     if (payload.status === "in_progress" && !task.started_at) {
       task.started_at = timestamp;
@@ -335,7 +359,15 @@ class StatusProjector {
 
   onAgentStarted(state, payload, timestamp) {
     assert(state.runStatus, "run.started must be emitted before agent.started");
+    assert(
+      (payload.recovery_stage === undefined) === (payload.recovery_claim_id === undefined),
+      "Recovery agent start requires both recovery_stage and recovery_claim_id"
+    );
     const existingEntry = this.findMatchingAgentEntry(state, payload, { allowAmbiguousActive: false });
+    if (payload.recovery_stage !== undefined) {
+      assert(!existingEntry, "A claimed recovery attempt cannot be started more than once");
+      this.assertRecoveryAgentStart(state, payload);
+    }
     const agentId = existingEntry?.agent.agent_id || this.allocateAgentId(state, payload);
     const existing = existingEntry?.agent;
     const agent = {
@@ -356,7 +388,10 @@ class StatusProjector {
       resource_handles: cloneJson(payload.resource_handles),
       cleanup_status: payload.cleanup_status || defaultCleanupStatus(payload.resource_class),
       resolved_configuration: cloneJson(payload.resolved_configuration),
-      reasoning: cloneJson(payload.reasoning)
+      reasoning: cloneJson(payload.reasoning),
+      recovery_stage: cloneJson(payload.recovery_stage),
+      recovery_claim_id: payload.recovery_claim_id,
+      recovery_runtime_support: cloneJson(payload.recovery_runtime_support)
     };
     state.agents.set(agentId, { ...existing, ...agent });
     state.runStatus.layout = "expanded";
@@ -372,6 +407,9 @@ class StatusProjector {
         task.resource_status = payload.resource_status;
       }
       task.updated_at = timestamp;
+      if (payload.recovery_stage !== undefined) {
+        task.recovery_agent_id = agentId;
+      }
     }
 
     return this.recompute(state, timestamp);
@@ -380,6 +418,13 @@ class StatusProjector {
   onAgentHeartbeat(state, payload, timestamp) {
     const entry = this.resolveAgentEntry(state, payload);
     const agent = entry.agent;
+    assert(payload.recovery_stage === undefined, "recovery_stage is runtime-derived after agent.started");
+    assert(payload.recovery_claim_id === undefined, "recovery_claim_id is immutable after agent.started");
+    assert(payload.recovery_runtime_support === undefined, "recovery_runtime_support is immutable after agent.started");
+    assert(payload.failure_evidence === undefined, "failure_evidence is accepted only on agent.finished");
+    if (agent.recovery_stage && ["done", "blocked", "failed", "stale"].includes(agent.status)) {
+      throw new Error("A terminal recovery attempt cannot receive another heartbeat");
+    }
 
     const patch = { ...payload };
     delete patch.run_id;
@@ -388,6 +433,7 @@ class StatusProjector {
     Object.assign(agent, patch);
     agent.updated_at = timestamp;
     agent.last_heartbeat_at = payload.last_heartbeat_at || timestamp;
+    this.verifyRecoveryObservation(state, agent);
 
     if (agent.task_id && state.tasks.has(agent.task_id)) {
       const task = state.tasks.get(agent.task_id);
@@ -404,6 +450,18 @@ class StatusProjector {
   onAgentFinished(state, payload, timestamp) {
     const entry = this.resolveAgentEntry(state, payload);
     const agent = entry.agent;
+    assert(payload.recovery_stage === undefined, "recovery_stage is runtime-derived after agent.started");
+    assert(payload.recovery_claim_id === undefined, "recovery_claim_id is immutable after agent.started");
+    assert(payload.recovery_runtime_support === undefined, "recovery_runtime_support is immutable after agent.started");
+    if (agent.recovery_stage && ["done", "blocked", "failed"].includes(agent.status)) {
+      throw new Error("A terminal recovery attempt cannot be completed more than once");
+    }
+    if (agent.failure_evidence && payload.failure_evidence !== undefined) {
+      assert(
+        isDeepStrictEqual(agent.failure_evidence, payload.failure_evidence),
+        "A terminal attempt cannot replace its canonical failure evidence"
+      );
+    }
 
     const patch = { ...payload };
     delete patch.run_id;
@@ -415,6 +473,7 @@ class StatusProjector {
     if (!agent.last_heartbeat_at) {
       agent.last_heartbeat_at = timestamp;
     }
+    this.verifyRecoveryObservation(state, agent);
 
     if (agent.task_id && state.tasks.has(agent.task_id)) {
       const task = state.tasks.get(agent.task_id);
@@ -425,6 +484,7 @@ class StatusProjector {
         task.resource_status = payload.resource_status;
       }
       task.updated_at = timestamp;
+      this.recordFailureEvidence(state, task, agent);
     }
 
     return this.recompute(state, timestamp);
@@ -451,6 +511,7 @@ class StatusProjector {
   }
 
   assertResumeConfiguration(state, incomingConfiguration) {
+    this.assertCanonicalRecoveryState(state);
     const savedRunConfiguration = state.runStatus.configuration;
     const savedCheckpointConfiguration = state.checkpoint.configuration;
     if (savedRunConfiguration === undefined && savedCheckpointConfiguration === undefined) {
@@ -479,6 +540,211 @@ class StatusProjector {
       isDeepStrictEqual(configurationLock(savedRun), configurationLock(incoming)),
       "Current workspace configuration is incompatible with the saved run configuration"
     );
+  }
+
+  assertRecoveryClaim(state, task, payload) {
+    this.assertCanonicalRecoveryState(state);
+    assert(
+      ["orchestrator-flow", "orchestrator-pipeline"].includes(state.runStatus.orchestrator),
+      "LSA recovery claims are limited to Flow and Pipeline"
+    );
+    assert(state.checkpoint?.flags?.reasoning_mode === "adaptive", "LSA recovery claim requires adaptive reasoning mode");
+    assert(state.checkpoint?.flags?.capability_recovery_mode === "auto", "LSA recovery claim requires capability recovery auto mode");
+    assert(typeof payload.recovery_claim_id === "string", "LSA recovery claim requires recovery_claim_id");
+    assert(
+      !Array.from(state.agents.values()).some((agent) => (
+        agent.recovery_claim_id === payload.recovery_claim_id
+      )),
+      "A recovery claim id cannot be reused after it has started"
+    );
+    const stage = canonicalizeLsaRecoveryStage(payload.recovery_stage, ["requested"]);
+    const runtimeSupport = payload.recovery_runtime_support;
+    assert(isObject(runtimeSupport), "LSA recovery claim requires recovery_runtime_support evidence");
+    assert(runtimeSupport.model_selector_available === true, "LSA recovery claim requires model selector support");
+    assert(runtimeSupport.effort_selector_available === true, "LSA recovery claim requires effort selector support");
+    assert(Array.isArray(runtimeSupport.supported_efforts), "LSA recovery claim requires supported effort evidence");
+    assert(typeof runtimeSupport.evidence_ref === "string" && runtimeSupport.evidence_ref.length > 0, "LSA recovery claim requires a runtime support evidence_ref");
+    this.assertFailureHistoryMatchesAgents(state, task);
+    assert(Array.isArray(task.failure_history) && task.failure_history.length >= 2, "LSA recovery requires repeated canonical failure history");
+    const latestFailure = task.failure_history.at(-1);
+    const latestAgent = state.agents.get(latestFailure.attempt_id);
+    assert(latestAgent, "Latest recovery failure attempt is missing");
+    const sourceConfiguration = state.runStatus.configuration?.resolved_configurations?.[stage.source.role_binding.role];
+    assert(sourceConfiguration, "Saved run configuration has no LSA recovery source role binding");
+    const maxRetryRounds = state.runStatus.orchestrator === "orchestrator-pipeline"
+      ? state.checkpoint?.flags?.max_retry_rounds
+      : state.checkpoint?.flags?.flow_recovery_limit;
+    assert(Number.isInteger(maxRetryRounds), "LSA recovery claim requires a persisted workflow retry limit");
+    const expected = resolveLsaRecoveryStage({
+      role: stage.source.role_binding.role,
+      reasoning_mode: state.checkpoint.flags.reasoning_mode,
+      capability_recovery_mode: state.checkpoint.flags.capability_recovery_mode,
+      workflow_supports_capability_recovery: true,
+      source_resolved_configuration: sourceConfiguration,
+      target_resolved_configuration: { schema_version: 1, ...stage.target },
+      effective_class: latestAgent.reasoning?.effective_class,
+      prior_failure_type: latestFailure.failure_type,
+      explicit_effort: latestAgent.reasoning?.explicit_override?.effort || null,
+      strict: latestAgent.reasoning?.strict === true,
+      retry_opportunities_used: task.retry_opportunities_used || 0,
+      max_retry_rounds: maxRetryRounds,
+      effort_selector_available: runtimeSupport.effort_selector_available,
+      model_selector_available: runtimeSupport.model_selector_available,
+      runtime_supported_efforts: runtimeSupport.supported_efforts,
+      latest_verified_trace: {
+        role: latestAgent.agent,
+        model_tier: latestAgent.resolved_configuration.role_binding.model_tier,
+        model: latestAgent.resolved_configuration.role_binding.model,
+        effective_effort: latestAgent.trace_evidence.effective_effort
+      },
+      failure_history: cloneJson(task.failure_history),
+      model_uplift_used: task.capability_recovery_used === true,
+      prior_recovery_stage: task.capability_recovery_used === true
+        ? cloneJson(task.recovery_stage)
+        : null
+    });
+    assert(
+      isDeepStrictEqual(stage, canonicalizeLsaRecoveryStage(expected, ["requested"])),
+      "Recovery claim does not match the shared canonical LSA recovery decision"
+    );
+    assert(payload.retry_opportunities_used === stage.retry_claim.next_used, "Recovery claim must atomically persist its retry count");
+    if (stage.uses_model_uplift) {
+      assert(payload.capability_recovery_used === true, "Initial LSA recovery claim must atomically persist its model uplift");
+    } else {
+      assert(payload.capability_recovery_used === undefined, "LSA continuation cannot consume a second model uplift");
+    }
+  }
+
+  assertRecoveryAgentStart(state, payload) {
+    const task = state.tasks.get(payload.task_id);
+    assert(task, "A recovery attempt must belong to a canonical task");
+    assert(typeof payload.recovery_claim_id === "string", "Recovery agent start requires recovery_claim_id");
+    assert(task.recovery_claim_id === payload.recovery_claim_id, "Recovery agent start must match the pre-spawn claim id");
+    assert(task.recovery_agent_id === undefined, "A recovery claim cannot bind more than one native agent id");
+    assert(
+      !Array.from(state.agents.values()).some((agent) => agent.recovery_claim_id === payload.recovery_claim_id),
+      "A recovery claim cannot start more than one agent"
+    );
+    assert(task.recovery_stage?.status === "requested", "Recovery agent requires a requested canonical task stage");
+    assert(isDeepStrictEqual(task.recovery_stage, payload.recovery_stage), "Recovery agent stage must match the claimed task stage");
+    assert(
+      isDeepStrictEqual(task.recovery_runtime_support, payload.recovery_runtime_support),
+      "Recovery agent runtime support must match the claimed preflight evidence"
+    );
+    assert(payload.agent === task.recovery_stage.target.role_binding.role, "Recovery agent role must match the approved target binding");
+    assert(
+      isDeepStrictEqual(payload.resolved_configuration, { schema_version: 1, ...task.recovery_stage.target }),
+      "Recovery agent resolved_configuration must match the approved target binding"
+    );
+    assert(
+      isDeepStrictEqual(payload.reasoning?.recovery_stage, task.recovery_stage),
+      "Recovery agent reasoning must carry the claimed requested stage"
+    );
+    assert(
+      payload.reasoning?.dispatch_effort === task.recovery_stage.dispatch_effort,
+      "Recovery agent reasoning effort must match the claimed stage"
+    );
+  }
+
+  verifyRecoveryObservation(state, agent) {
+    if (!agent.recovery_stage || !agent.trace_evidence) return;
+    const task = state.tasks.get(agent.task_id);
+    assert(task?.recovery_claim_id === agent.recovery_claim_id, "Recovery observation does not match the claimed recovery id");
+    assert(task?.recovery_agent_id === agent.agent_id, "Recovery observation does not match the bound native agent id");
+    assert(agent.reasoning?.enforcement_status === "enforced", "Recovery observation requires enforced reasoning evidence");
+    const trace = agent.trace_evidence;
+    assert(
+      trace.trace_found
+        && trace.agent_role === agent.agent
+        && trace.model === agent.resolved_configuration?.role_binding?.model
+        && trace.effective_effort === agent.recovery_stage.dispatch_effort
+        && trace.role_matches === true
+        && trace.model_matches === true
+        && trace.effort_matches === true,
+      "Recovery observation requires exact role, model, and effective-effort trace evidence"
+    );
+    agent.recovery_stage = {
+      ...agent.recovery_stage,
+      status: "verified",
+      reason: "verified"
+    };
+    task.recovery_stage = cloneJson(agent.recovery_stage);
+  }
+
+  recordFailureEvidence(state, task, agent) {
+    if (!agent.failure_evidence) return;
+    assert(agent.trace_evidence, "Canonical failure evidence requires trace evidence");
+    const evidence = agent.failure_evidence;
+    if (evidence.failure_classification !== "product_failure") return;
+    const entry = {
+      attempt_id: agent.agent_id,
+      failure_signature: evidence.failure_signature,
+      failure_type: evidence.failure_type,
+      material: evidence.material,
+      meaningful_progress: evidence.meaningful_progress,
+      model_tier: agent.resolved_configuration.role_binding.model_tier,
+      effective_effort: agent.trace_evidence.effective_effort
+    };
+    const history = Array.isArray(task.failure_history) ? task.failure_history : [];
+    const existing = history.find((failure) => failure.attempt_id === agent.agent_id);
+    if (existing) {
+      assert(isDeepStrictEqual(existing, entry), "Canonical failure history cannot replace an existing attempt");
+      return;
+    }
+    task.failure_history = [...history, entry];
+    task.prior_failure_type = entry.failure_type;
+  }
+
+  assertFailureHistoryMatchesAgents(state, task) {
+    if (task.failure_history === undefined) return;
+    const seen = new Set();
+    for (const failure of task.failure_history) {
+      assert(!seen.has(failure.attempt_id), "Canonical failure history cannot repeat an attempt id");
+      seen.add(failure.attempt_id);
+      const agent = state.agents.get(failure.attempt_id);
+      assert(agent, `Canonical failure attempt is missing: ${failure.attempt_id}`);
+      assert(agent.task_id === task.task_id, "Canonical failure attempt belongs to a different task");
+      assert(agent.failure_evidence?.failure_classification === "product_failure", "Recovery history requires a product failure attempt");
+      assert(["blocked", "failed"].includes(agent.status), "Recovery history requires a terminal failed attempt");
+      const expected = {
+        attempt_id: agent.agent_id,
+        failure_signature: agent.failure_evidence.failure_signature,
+        failure_type: agent.failure_evidence.failure_type,
+        material: agent.failure_evidence.material,
+        meaningful_progress: agent.failure_evidence.meaningful_progress,
+        model_tier: agent.resolved_configuration?.role_binding?.model_tier,
+        effective_effort: agent.trace_evidence?.effective_effort
+      };
+      assert(isDeepStrictEqual(failure, expected), "Recovery history does not match its canonical agent attempt");
+      assert(
+        agent.trace_evidence?.trace_found
+          && agent.trace_evidence.agent_role === agent.agent
+          && agent.trace_evidence.model === agent.resolved_configuration?.role_binding?.model
+          && agent.trace_evidence.role_matches === true
+          && agent.trace_evidence.model_matches === true
+          && agent.trace_evidence.effort_matches === true,
+        "Recovery history requires exact role, model, and effort trace evidence"
+      );
+    }
+  }
+
+  assertCanonicalRecoveryState(state) {
+    for (const task of state.tasks.values()) {
+      this.assertFailureHistoryMatchesAgents(state, task);
+      if (!task.recovery_stage) continue;
+      assert(task.capability_recovery_used === true, "Persisted recovery stage lost its model uplift accounting");
+      assert(task.retry_opportunities_used >= task.recovery_stage.retry_claim.next_used, "Persisted recovery stage exceeds its cumulative retry accounting");
+      const agent = task.recovery_agent_id === undefined ? undefined : state.agents.get(task.recovery_agent_id);
+      if (task.recovery_stage.status === "verified") {
+        assert(agent?.recovery_stage?.status === "verified", "Verified task recovery stage is missing its verified attempt");
+        assert(isDeepStrictEqual(agent.recovery_stage, task.recovery_stage), "Task and agent recovery stages do not match");
+      } else if (agent) {
+        assert(agent.recovery_stage?.status === "requested", "Requested task recovery stage has conflicting attempt state");
+        assert(!["done", "blocked", "failed"].includes(agent.status), "Terminal recovery attempt is missing verified trace evidence");
+      } else {
+        assert(task.recovery_agent_id === undefined, "Claimed recovery agent id is missing its canonical attempt");
+      }
+    }
   }
 
   allocateAgentId(state, payload) {

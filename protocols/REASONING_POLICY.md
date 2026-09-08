@@ -197,6 +197,7 @@ semantics; they never infer a projection from a model name.
 | `legacy-v2` | `openai-legacy` | v2 | v2 | v2 | v2 |
 | `openai-reviewer-v1` | Astra, strong `reviewer` | v2 | v2 | `high` | `max`, strict |
 | `lsa-efficiency-v1` | Luna mini / Sol standard / Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
+| `lsa-efficiency-v2` | Luna mini / Sol standard / Astra strong | same as LSA v1 | same as LSA v1 | same as LSA v1 | same as LSA v1 |
 
 Only v3 projection decisions accept `low`. They carry the selected
 `reasoning_projection` and model-set identity. A legacy-v2 decision generated
@@ -291,8 +292,9 @@ Only `prior_failure_type = reasoning_failure` can alter reasoning selection:
 class requirement produces `assurance`, the provisional boost is cleared;
 assurance obtains `max` from its own strict class contract.
 
-For an automatic `executor` or `generalist` retry, resolve this reasoning
-recovery before evaluating model capability recovery. A strong-tier child at
+For an automatic `executor` or `generalist` retry, this reasoning recovery is
+normally resolved before model capability recovery. The exact verified LSA v2
+shortcut below is the sole exception. A strong-tier child at
 `deep` plus `xhigh` therefore receives its next legal material retry at `max`
 on the same model through `recovery_boost`; it does not need a user override
 and must not be represented as `explicit_effort`. A
@@ -308,7 +310,7 @@ redispatch pass the prior attempt's `effective_class` as the new resolver
 Flow and Pipeline persist it in the attempt's ReasoningDecision and hydrate the
 latest task attempt on resume.
 
-For `lsa-efficiency-v1` only, the retry input must additionally preserve the
+For LSA efficiency projections, the retry input must additionally preserve the
 prior `effective_class` and observed effective effort. After the ordinary
 class/boost calculation, if the same model would otherwise receive the same
 or lower effort, the resolver requests the next supported effort within the
@@ -326,9 +328,28 @@ After this effort-only path has failed on the same material criterion without
 meaningful progress, Flow or Pipeline may invoke the separate bounded
 capability recovery policy. It may select one higher profile-approved tier for
 an `executor` or `generalist`, reproject normal effort for that tier, and
-consume an existing retry opportunity. It never applies to a reviewer,
-orchestrator, operational failure, or assurance decision. See
-`CAPABILITY_RECOVERY.md` and `MATERIALITY_GATE.md`.
+consume an existing retry opportunity.
+
+For an exact saved `lsa-efficiency-v2` configuration, both resolvers consume
+the same `lsa_recovery_context` and `resolveLsaRecoveryStage()` decision before
+the generic deep/max boost. A verified standard-tier Sol deep/high-or-higher
+source may request strong-tier Astra deep/medium only after canonical history
+shows the same material reasoning failure repeated without meaningful progress.
+This removes the Sol-max prerequisite only for that qualified path. It does not
+change the normal LSA v2 routine/deliberative/deep matrix, and the first isolated
+Sol high failure still follows the default path.
+
+The verified same-uplift continuation requests Astra `high` after medium and
+`max` after high. It retains the profile-approved target binding, carries no
+second uplift, and consumes the same canonical retry budget. A requested stage
+is not applied evidence: claim-before-spawn state plus a matching role, model,
+tier, and effective-effort trace must verify it. Off selects no stage; shadow
+returns a candidate without dispatch or counter changes; inherit does not apply
+the selector. Explicit pins and strict/assurance requirements remain exact.
+This recovery never applies to a reviewer, security or judge role, native
+strong assignment, Simple/ad-hoc dispatch, orchestrator, operational failure,
+or unverified configuration. See `CAPABILITY_RECOVERY.md` and
+`MATERIALITY_GATE.md`.
 
 ## Dispatch and evidence rules
 

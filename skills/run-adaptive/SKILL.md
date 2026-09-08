@@ -280,6 +280,11 @@ the Flow core. Flow supports the scout, commit, review (including `--review=max`
 reasoning, output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
 Forward normalized `--capability-recovery=off|shadow|auto` and persist it with
 `preset_mode` and `ux_gate_threshold` beside the expanded effective flags in the Flow checkpoint.
+When the selected Flow run has an exact saved `lsa-efficiency-v2` configuration,
+leave shortcut qualification, the shared `resolveLsaRecoveryStage` decision, canonical
+failure history, claim-before-spawn accounting, and trace verification to Flow's
+existing recovery/status path. Adaptive forwards the saved configuration and persisted
+mode; it does not infer a stage, duplicate the ladder, or hot-switch a resumed run.
 
 ### Pipeline
 
@@ -291,6 +296,10 @@ Preserve `--review=max` so Pipeline can enforce the reviewer-only spawn override
 `review_mode = off` conflicts with Pipeline's hard gate, so stop rather than weaken review. Persist `preset_mode`,
 `capability_recovery_mode`, and `ux_gate_threshold` beside the expanded effective
 flags in the Pipeline checkpoint.
+For an exact saved `lsa-efficiency-v2` Pipeline run, preserve the same canonical
+recovery state and let Pipeline call the shared `resolveLsaRecoveryStage` path before
+its legacy deep/max recovery dispatch. Adaptive does not turn fixture or prompt claims
+into failure history, selector support, an uplift, or a completed retry.
 
 ## Prompt-only mode
 

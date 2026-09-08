@@ -12,6 +12,93 @@ const {
   runCli,
   validatePolicy
 } = require("../tools/capability-recovery");
+const { loadProjectionRegistry } = require("../tools/reasoning-policy");
+
+const PROJECTION_REGISTRY = loadProjectionRegistry();
+
+function versionedConfiguration({ modelTier, recovery = false }) {
+  const projection = PROJECTION_REGISTRY.projections.find((entry) => entry.id === "lsa-efficiency-v2");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  return {
+    schema_version: 1,
+    model_set: {
+      id: modelSet.id,
+      version: modelSet.version,
+      mapping_digest: modelSet.mapping_digest
+    },
+    reasoning_projection: {
+      id: projection.id,
+      version: projection.version,
+      policy_version: projection.policy_version,
+      digest: projection.digest
+    },
+    role_binding: {
+      role: "executor",
+      model_tier: modelTier,
+      model: modelSet.tiers[modelTier],
+      mapping_digest: modelSet.mapping_digest
+    },
+    provenance: {
+      source: "workspace_profile",
+      override: recovery ? {
+        kind: "capability_recovery",
+        version: "1",
+        source_model_tier: "standard",
+        target_model_tier: "strong"
+      } : null
+    }
+  };
+}
+
+function lsaCapabilityInput(overrides = {}) {
+  const source = versionedConfiguration({ modelTier: "standard" });
+  const target = versionedConfiguration({ modelTier: "strong", recovery: true });
+  return eligibleInput({
+    lsa_recovery_context: {
+      role: "executor",
+      reasoning_mode: "adaptive",
+      capability_recovery_mode: "auto",
+      workflow_supports_capability_recovery: true,
+      effective_class: "deep",
+      prior_failure_type: "reasoning_failure",
+      source_resolved_configuration: source,
+      target_resolved_configuration: target,
+      latest_verified_trace: {
+        role: "executor",
+        model_tier: "standard",
+        model: source.role_binding.model,
+        effective_effort: "high"
+      },
+      failure_history: [
+        {
+          attempt_id: "attempt-1",
+          failure_signature: "criterion-a",
+          failure_type: "reasoning_failure",
+          material: true,
+          meaningful_progress: false,
+          model_tier: "standard",
+          effective_effort: "medium"
+        },
+        {
+          attempt_id: "attempt-2",
+          failure_signature: "criterion-a",
+          failure_type: "reasoning_failure",
+          material: true,
+          meaningful_progress: false,
+          model_tier: "standard",
+          effective_effort: "high"
+        }
+      ],
+      model_uplift_used: false,
+      retry_opportunities_used: 1,
+      max_retry_rounds: 3,
+      model_selector_available: true,
+      effort_selector_available: true,
+      runtime_supported_efforts: ["medium", "high", "max"],
+      ...overrides
+    }
+  });
+}
 
 function eligibleInput(overrides = {}) {
   return {
@@ -215,6 +302,70 @@ test("resolver output is deterministic", () => {
     resolveCapabilityRecovery(input),
     resolveCapabilityRecovery(input)
   );
+});
+
+test("qualified LSA v2 capability recovery reuses the shared Astra medium stage", () => {
+  const requested = resolveCapabilityRecovery(lsaCapabilityInput());
+  assert.equal(requested.status, "requested");
+  assert.equal(requested.requested_model_tier, "strong");
+  assert.equal(requested.dispatch_model_tier, "strong");
+  assert.equal(requested.recovery_stage.stage, "strong-medium");
+  assert.equal(requested.recovery_stage.dispatch_effort, "medium");
+  assert.equal(requested.recovery_stage.target.role_binding.model, "gpt-6-astra");
+  const fixture = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, "..", "protocols", "examples", "capability-recovery-decision.lsa-v2.valid.json"),
+    "utf8"
+  ));
+  assert.deepEqual(requested, fixture);
+
+  const verified = resolveCapabilityRecovery({
+    ...lsaCapabilityInput(),
+    model_matches: true,
+    observed_effective_model_tier: "strong"
+  });
+  assert.equal(verified.status, "verified");
+  assert.equal(verified.recovery_stage.stage, "strong-medium");
+});
+
+test("LSA v2 capability recovery cannot exceed or bypass the profile ceiling", () => {
+  const cases = [
+    ["unavailable ceiling", null, "ceiling_missing"],
+    ["standard ceiling", "standard", "no_higher_tier_available"]
+  ];
+  for (const [label, ceiling, reason] of cases) {
+    const input = lsaCapabilityInput();
+    input.recovery_ceiling_model_tier = ceiling;
+    const decision = resolveCapabilityRecovery(input);
+    assert.equal(decision.status, "conflict", label);
+    assert.equal(decision.reason, reason, label);
+    assert.equal(decision.requested_model_tier, null, label);
+    assert.equal(decision.dispatch_model_tier, null, label);
+  }
+});
+
+test("LSA v2 capability shadow reports a candidate without claiming budget or uplift", () => {
+  const input = lsaCapabilityInput({ capability_recovery_mode: "shadow" });
+  input.mode = "shadow";
+  const decision = resolveCapabilityRecovery(input);
+  assert.equal(decision.status, "shadow");
+  assert.equal(decision.dispatch_model_tier, null);
+  assert.equal(decision.recovery_stage.stage, "strong-medium");
+  assert.deepEqual(decision.recovery_stage.retry_claim, { expected_used: 1, next_used: 1, max: 3 });
+  assert.deepEqual(decision.recovery_stage.uplift_claim, { expected_used: false, next_used: false });
+});
+
+test("LSA v2 capability recovery fails closed on incomplete provenance and first-failure evidence", () => {
+  const missing = lsaCapabilityInput();
+  delete missing.lsa_recovery_context.target_resolved_configuration;
+  assert.throws(() => resolveCapabilityRecovery(missing), /target_resolved_configuration/);
+
+  const first = lsaCapabilityInput({
+    failure_history: [lsaCapabilityInput().lsa_recovery_context.failure_history[1]]
+  });
+  const denied = resolveCapabilityRecovery(first);
+  assert.equal(denied.status, "conflict");
+  assert.equal(denied.reason, "failure_not_repeated");
+  assert.equal(denied.dispatch_model_tier, null);
 });
 
 test("policy validation rejects broader roles, modes, or budgets", () => {

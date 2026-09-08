@@ -378,9 +378,17 @@ refreeze, recertification, or reasoning/model recovery. If the same harness or
 infrastructure signature occurs twice consecutively, stop and report the blocker.
 
 Call `node tools/capability-recovery.js` only after the same concrete material
-`reasoning_failure` repeats for the same `executor` or `generalist` task and its
-effort-first sequence has reached `deep` plus `max` without meaningful progress and a
-later persisted retry opportunity remains. Operational failures never qualify. One
+`reasoning_failure` repeats for the same `executor` or `generalist` task. For an exact
+saved `lsa-efficiency-v2` configuration, assemble `lsa_recovery_context` only from the
+canonical TaskStatus failure history and referenced terminal AgentStatus resolved
+bindings and verified traces, obtain the profile-approved target with
+`resolve-recovery`, and call the shared `resolveLsaRecoveryStage` path in
+`tools/reasoning-policy.js` plus `tools/capability-recovery.js` before the legacy
+deep/max recovery dispatch. The shared decision owns qualification and later stage
+selection; do not reproduce its ladder in Pipeline or trust prompt/caller assertions.
+If it does not return an applicable requested stage, the legacy path still requires
+the effort-first sequence to reach `deep` plus `max` without meaningful progress and a
+later persisted retry opportunity. Operational failures never qualify. One
 task-scoped uplift is allowed only for that concrete failed task inside existing retry
 bounds, and its used state persists with task evidence; no retry, repair, or recovery
 counter resets. The current/main agent, Pipeline orchestrator, and reviewer never
@@ -391,22 +399,36 @@ closed unless Codex provides a native per-spawn selector, healthy eligible works
 profile, and `python tools/agent-profile.py resolve-recovery --runtime codex --scope
 workspace --workspace . --agent <executor|generalist> --model-tier <tier> --json`
 provides the approved raw model. Other runtime exports conflict rather than inventing
-model routing; shadow may only compute a proven tier policy. Re-run
-`tools/reasoning-policy.js` for the stronger tier using the prior effective class and
-no inherited recovery boost, then pass that raw model only on the one promoted spawn.
-Verify expected role, model, and normal projected effort with
+model routing; shadow may only compute a proven tier policy. On the legacy path,
+re-run `tools/reasoning-policy.js` for the stronger tier using the prior effective
+class and no inherited recovery boost, then pass that raw model only on the one
+promoted spawn. For a requested LSA v2 stage, use its target resolved configuration
+and `dispatch_effort`: medium consumes the one uplift, while later high/max attempts
+retain that already approved task-scoped target binding without requesting or
+counting a new uplift. Pass the approved raw model on every such LSA stage dispatch.
+Verify expected role, model, and the legacy normal projection or LSA stage effort with
 `tools/codex-child-trace.js`; re-run both resolvers with `model_matches`, the
 trace-proven tier, and effort evidence before accepting. A missing or mismatched
 selector/profile/trace result blocks the recovery attempt.
 
 For Pipeline `auto`, after all selector/profile/reasoning prechecks succeed but
 before the promoted spawn, emit and await one `task.updated` event for the failed
-canonical task with `capability_recovery_used = true` and
-`retry_opportunities_used = <persisted value + 1>`. The status runtime requires
-both changes in the same atomic task write, rejects a second claim or a
-non-sequential counter, and enforces the persisted `max_retry_rounds`. On resume,
-hydrate these fields from `status/tasks/<task_id>.json`; a true used flag forbids
-another uplift. `shadow` never writes this claim.
+canonical task. Legacy promotion writes `capability_recovery_used = true` and
+`retry_opportunities_used = <persisted value + 1>` together. An LSA v2 claim also
+writes the shared requested `recovery_stage`, a stable pre-spawn
+`recovery_claim_id`, and the verified `recovery_runtime_support` evidence. The status
+runtime derives `failure_history` from terminal agent records, re-runs the shared
+decision, enforces `max_retry_rounds`, and rejects a non-sequential counter, second
+uplift, or duplicate claim. After Codex returns the native child id, bind it exactly
+once in `agent.started` with the same claim, requested stage, target resolved
+configuration, and reasoning decision. Add the matching trace and observed decision
+to `agent.heartbeat` or `agent.finished`; only then may status mark the task and
+attempt stage `verified`. On resume, hydrate these fields from
+`status/tasks/<task_id>.json` and their referenced agent records; never respawn a
+claimed, started, or completed attempt. Missing or conflicting history, stage,
+binding, selector support, counters, claim, or trace blocks unsafe continuation.
+Changing recovery mode to `off` or `shadow` retains the upgraded binding and consumed
+counters while preventing another applied LSA stage. `shadow` never writes a claim.
 
 # CANONICAL PIPELINE ARTIFACT PATHS
 

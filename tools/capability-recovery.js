@@ -10,6 +10,7 @@ const {
   SAFE_POLICY_VERSION,
   SAFE_REASONING_IDENTIFIER
 } = require("./reasoning-vocabulary");
+const { resolveLsaRecoveryStage } = require("./reasoning-policy");
 
 const DEFAULT_POLICY_PATH = path.resolve(
   __dirname,
@@ -164,7 +165,10 @@ function normalizeInput(input, policy) {
     modelSelectorAvailable: input.model_selector_available === undefined
       || input.model_selector_available === null
       ? null
-      : input.model_selector_available
+      : input.model_selector_available,
+    lsaRecoveryContext: input.lsa_recovery_context === undefined
+      ? null
+      : input.lsa_recovery_context
   };
 }
 
@@ -225,6 +229,111 @@ function resolveCapabilityRecovery(rawInput, policy = loadPolicy()) {
       ...base,
       status: "off",
       reason: "disabled"
+    };
+  }
+  if (input.lsaRecoveryContext) {
+    assert(isObject(input.lsaRecoveryContext), "lsa_recovery_context must be an object");
+    assert(
+      input.recoveryUsed === (input.lsaRecoveryContext.model_uplift_used === true),
+      "recovery_used must match lsa_recovery_context.model_uplift_used"
+    );
+    if (input.failureType !== "reasoning_failure") {
+      return conflict(base, "failure_not_reasoning", "Model capability recovery requires a concrete reasoning failure");
+    }
+    if (!input.sameFailure) {
+      return conflict(base, "failure_not_repeated", "Model capability recovery requires the same concrete failure to repeat");
+    }
+    if (!input.materialFailure) {
+      return conflict(base, "failure_not_material", "Model capability recovery requires a material failure");
+    }
+    if (!input.noMeaningfulProgress) {
+      return conflict(base, "meaningful_progress_present", "Model capability recovery requires evidence that the prior retry made no meaningful progress");
+    }
+    if (!input.recoveryCeilingModelTier) {
+      return conflict(
+        base,
+        "ceiling_missing",
+        "The active workspace profile did not provide a recovery ceiling for this role"
+      );
+    }
+    const recoveryStage = resolveLsaRecoveryStage({
+      ...input.lsaRecoveryContext,
+      role: input.role,
+      capability_recovery_mode: input.mode,
+      prior_failure_type: input.failureType,
+      model_selector_available: input.modelSelectorAvailable
+    });
+    if (recoveryStage.status === "conflict") {
+      return conflict(
+        { ...base, recovery_stage: recoveryStage },
+        recoveryStage.reason,
+        recoveryStage.conflict_reason
+      );
+    }
+    const requestedModelTier = recoveryStage.target.role_binding.model_tier;
+    if (
+      MODEL_TIERS.indexOf(requestedModelTier)
+        > MODEL_TIERS.indexOf(input.recoveryCeilingModelTier)
+    ) {
+      return conflict(
+        base,
+        "no_higher_tier_available",
+        `No higher model tier is available between selected tier ${input.selectedModelTier} and recovery ceiling ${input.recoveryCeilingModelTier}`
+      );
+    }
+    const eligible = {
+      ...base,
+      eligible: true,
+      requested_model_tier: requestedModelTier,
+      effective_model_tier: null,
+      reason: "eligible",
+      recovery_stage: recoveryStage
+    };
+    if (recoveryStage.status === "shadow") {
+      return {
+        ...eligible,
+        status: "shadow"
+      };
+    }
+    const requested = {
+      ...eligible,
+      dispatch_model_tier: requestedModelTier,
+      status: "requested",
+      reason: "awaiting_trace"
+    };
+    if (input.modelMatches === null) return requested;
+    if (!input.modelMatches) {
+      return conflict(
+        requested,
+        "effective_model_mismatch",
+        "The child trace did not match the profile-approved recovery model"
+      );
+    }
+    if (!input.observedEffectiveModelTier) {
+      return conflict(
+        requested,
+        "effective_model_tier_missing",
+        "A matching child trace must identify the profile-approved recovery tier"
+      );
+    }
+    if (input.observedEffectiveModelTier !== requestedModelTier) {
+      return conflict(
+        requested,
+        "effective_model_tier_mismatch",
+        `Observed model tier ${input.observedEffectiveModelTier} does not match requested recovery tier ${requestedModelTier}`,
+        { effective_model_tier: input.observedEffectiveModelTier }
+      );
+    }
+    return {
+      ...requested,
+      effective_model_tier: input.observedEffectiveModelTier,
+      recovery_stage: {
+        ...recoveryStage,
+        status: "verified",
+        reason: "verified"
+      },
+      status: "verified",
+      reason: "verified"
     };
   }
   if (!policy.eligible_roles.includes(input.role)) {

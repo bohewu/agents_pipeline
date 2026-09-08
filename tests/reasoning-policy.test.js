@@ -10,6 +10,7 @@ const {
   EXIT_CODES,
   loadProjectionRegistry,
   loadPolicy,
+  resolveLsaRecoveryStage,
   resolveReasoning,
   runCli,
   validatePolicy
@@ -48,6 +49,73 @@ function versionedConfiguration({
       mapping_digest: modelSet.mapping_digest
     },
     provenance
+  };
+}
+
+function lsaRecoveryContext(overrides = {}) {
+  const source = versionedConfiguration({
+    projectionId: "lsa-efficiency-v2",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor",
+    modelTier: "standard"
+  });
+  const target = versionedConfiguration({
+    projectionId: "lsa-efficiency-v2",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor",
+    modelTier: "strong",
+    provenance: {
+      source: "workspace_profile",
+      override: {
+        kind: "capability_recovery",
+        version: "1",
+        source_model_tier: "standard",
+        target_model_tier: "strong"
+      }
+    }
+  });
+  return {
+    role: "executor",
+    reasoning_mode: "adaptive",
+    capability_recovery_mode: "auto",
+    workflow_supports_capability_recovery: true,
+    effective_class: "deep",
+    prior_failure_type: "reasoning_failure",
+    source_resolved_configuration: source,
+    target_resolved_configuration: target,
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "standard",
+      model: source.role_binding.model,
+      effective_effort: "high"
+    },
+    failure_history: [
+      {
+        attempt_id: "attempt-1",
+        failure_signature: "criterion-a",
+        failure_type: "reasoning_failure",
+        material: true,
+        meaningful_progress: false,
+        model_tier: "standard",
+        effective_effort: "medium"
+      },
+      {
+        attempt_id: "attempt-2",
+        failure_signature: "criterion-a",
+        failure_type: "reasoning_failure",
+        material: true,
+        meaningful_progress: false,
+        model_tier: "standard",
+        effective_effort: "high"
+      }
+    ],
+    model_uplift_used: false,
+    retry_opportunities_used: 1,
+    max_retry_rounds: 5,
+    model_selector_available: true,
+    effort_selector_available: true,
+    runtime_supported_efforts: ["medium", "high", "max"],
+    ...overrides
   };
 }
 
@@ -1752,6 +1820,266 @@ test("versioned same-model recovery raises real effort and destination recovery 
   assert.equal(destination.effective_class, "deep");
   assert.equal(destination.recovery_boost, false);
   assert.equal(destination.dispatch_effort, "high");
+});
+
+test("qualified LSA v2 recovery computes an identity-bound Astra medium stage", () => {
+  const input = lsaRecoveryContext();
+  const first = resolveLsaRecoveryStage(input);
+  const second = resolveLsaRecoveryStage(input);
+  assert.deepEqual(first, second);
+  assert.equal(first.status, "requested");
+  assert.equal(first.stage, "strong-medium");
+  assert.equal(first.requested_effort, "medium");
+  assert.equal(first.dispatch_effort, "medium");
+  assert.equal(first.uses_model_uplift, true);
+  assert.equal(first.strategy.id, "lsa-qualified-execution-v2");
+  assert.equal(first.strategy.version, "2");
+  assert.equal(first.source.role_binding.model_tier, "standard");
+  assert.equal(first.target.role_binding.model_tier, "strong");
+  assert.deepEqual(first.retry_claim, { expected_used: 1, next_used: 2, max: 5 });
+  assert.deepEqual(first.uplift_claim, { expected_used: false, next_used: true });
+
+  const decision = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    prior_failure_type: "reasoning_failure",
+    selector_available: true,
+    resolved_configuration: input.target_resolved_configuration,
+    lsa_recovery_context: input
+  });
+  assert.equal(decision.effective_class, "deep");
+  assert.equal(decision.recovery_boost, false);
+  assert.equal(decision.requested_effort, "medium");
+  assert.equal(decision.dispatch_effort, "medium");
+  assert.equal(decision.recovery_stage.stage, "strong-medium");
+  assert.ok(decision.reasons.includes("lsa_recovery_stage:strong-medium"));
+  const fixture = JSON.parse(fs.readFileSync(
+    path.resolve(__dirname, "..", "protocols", "examples", "reasoning-decision.lsa-recovery-v2.valid.json"),
+    "utf8"
+  ));
+  assert.deepEqual(decision, fixture);
+});
+
+test("LSA v2 ladder advances medium to high to max without a second uplift", () => {
+  const initial = lsaRecoveryContext();
+  const target = initial.target_resolved_configuration;
+  let priorRecoveryStage = {
+    ...resolveLsaRecoveryStage(initial),
+    status: "verified",
+    reason: "verified"
+  };
+  const cases = [
+    ["medium", "strong-high", "high"],
+    ["high", "strong-max", "max"]
+  ];
+  for (const [priorEffort, stage, nextEffort] of cases) {
+    const context = lsaRecoveryContext({
+      latest_verified_trace: {
+        role: "executor",
+        model_tier: "strong",
+        model: target.role_binding.model,
+        effective_effort: priorEffort
+      },
+      failure_history: [
+        ...initial.failure_history,
+        {
+          attempt_id: `attempt-${priorEffort}`,
+          failure_signature: "criterion-a",
+          failure_type: "reasoning_failure",
+          material: true,
+          meaningful_progress: false,
+          model_tier: "strong",
+          effective_effort: priorEffort
+        }
+      ],
+      model_uplift_used: true,
+      retry_opportunities_used: priorRecoveryStage.retry_claim.next_used,
+      prior_recovery_stage: priorRecoveryStage
+    });
+    const recovery = resolveLsaRecoveryStage(context);
+    assert.equal(recovery.stage, stage);
+    assert.equal(recovery.requested_effort, nextEffort);
+    assert.deepEqual(recovery.uplift_claim, { expected_used: true, next_used: true });
+    priorRecoveryStage = { ...recovery, status: "verified", reason: "verified" };
+  }
+
+  const exhausted = resolveLsaRecoveryStage(lsaRecoveryContext({
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "strong",
+      model: target.role_binding.model,
+      effective_effort: "max"
+    },
+    failure_history: [
+      ...initial.failure_history,
+      {
+        attempt_id: "attempt-max",
+        failure_signature: "criterion-a",
+        failure_type: "reasoning_failure",
+        material: true,
+        meaningful_progress: false,
+        model_tier: "strong",
+        effective_effort: "max"
+      }
+    ],
+    model_uplift_used: true,
+    retry_opportunities_used: priorRecoveryStage.retry_claim.next_used,
+    prior_recovery_stage: priorRecoveryStage
+  }));
+  assert.equal(exhausted.status, "conflict");
+  assert.equal(exhausted.reason, "strategy_exhausted");
+});
+
+test("LSA v2 recovery refuses incomplete, forged, and mode-incompatible evidence", () => {
+  const input = lsaRecoveryContext();
+  const cases = [
+    ["first high failure", { failure_history: [input.failure_history[1]] }, "failure_not_repeated"],
+    ["different defect", {
+      failure_history: [input.failure_history[0], { ...input.failure_history[1], failure_signature: "criterion-b" }]
+    }, "failure_not_repeated"],
+    ["progress", {
+      failure_history: [input.failure_history[0], { ...input.failure_history[1], meaningful_progress: true }]
+    }, "meaningful_progress_present"],
+    ["operational", {
+      failure_history: [input.failure_history[0], { ...input.failure_history[1], failure_type: "tool_failure" }]
+    }, "failure_not_reasoning"],
+    ["budget exhausted", { retry_opportunities_used: 5 }, "retry_budget_exhausted"],
+    ["reasoning inherit", { reasoning_mode: "inherit" }, "reasoning_mode_not_adaptive"],
+    ["explicit high", { explicit_effort: "high" }, "explicit_effort_preserved"],
+    ["strict", { strict: true }, "strict_requirement_preserved"],
+    ["no effort selector", { effort_selector_available: false }, "effort_selector_unavailable"]
+  ];
+  for (const [label, overrides, reason] of cases) {
+    const result = resolveLsaRecoveryStage(lsaRecoveryContext(overrides));
+    assert.equal(result.status, "conflict", label);
+    assert.equal(result.reason, reason, label);
+    assert.equal(result.dispatch_effort, null, label);
+  }
+
+  const duplicateAttempt = resolveLsaRecoveryStage(lsaRecoveryContext({
+    failure_history: [
+      input.failure_history[0],
+      { ...input.failure_history[1], attempt_id: input.failure_history[0].attempt_id }
+    ]
+  }));
+  assert.equal(duplicateAttempt.status, "conflict");
+  assert.equal(duplicateAttempt.reason, "attempt_history_duplicate");
+
+  const nativeStrong = lsaRecoveryContext({
+    latest_verified_trace: {
+      role: "executor",
+      model_tier: "strong",
+      model: input.target_resolved_configuration.role_binding.model,
+      effective_effort: "medium"
+    },
+    failure_history: [
+      input.failure_history[0],
+      {
+        ...input.failure_history[1],
+        model_tier: "strong",
+        effective_effort: "medium"
+      }
+    ],
+    model_uplift_used: true
+  });
+  const unprovenContinuation = resolveLsaRecoveryStage(nativeStrong);
+  assert.equal(unprovenContinuation.status, "conflict");
+  assert.equal(unprovenContinuation.reason, "prior_recovery_stage_missing");
+
+  const forgedTarget = structuredClone(input.target_resolved_configuration);
+  forgedTarget.reasoning_projection.digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+  assert.throws(
+    () => resolveLsaRecoveryStage(lsaRecoveryContext({ target_resolved_configuration: forgedTarget })),
+    /projection metadata/
+  );
+
+  const shadow = resolveLsaRecoveryStage(lsaRecoveryContext({ capability_recovery_mode: "shadow" }));
+  assert.equal(shadow.status, "shadow");
+  assert.equal(shadow.stage, "strong-medium");
+  assert.equal(shadow.dispatch_effort, null);
+  assert.deepEqual(shadow.retry_claim, { expected_used: 1, next_used: 1, max: 5 });
+  assert.deepEqual(shadow.uplift_claim, { expected_used: false, next_used: false });
+
+  const off = resolveLsaRecoveryStage(lsaRecoveryContext({ capability_recovery_mode: "off" }));
+  assert.equal(off.status, "off");
+  assert.equal(off.stage, null);
+});
+
+test("rejected LSA v2 recovery stages cannot fall through to generic max", () => {
+  const baseContext = lsaRecoveryContext();
+  const cases = [
+    [
+      "unsupported Astra medium",
+      { runtime_supported_efforts: ["high", "max"] },
+      "runtime_effort_unavailable"
+    ],
+    [
+      "isolated first failure",
+      { failure_history: [baseContext.failure_history[1]] },
+      "failure_not_repeated"
+    ],
+    [
+      "exhausted retry budget",
+      { retry_opportunities_used: baseContext.max_retry_rounds },
+      "retry_budget_exhausted"
+    ]
+  ];
+  for (const [label, overrides, reason] of cases) {
+    const context = lsaRecoveryContext(overrides);
+    const decision = resolveReasoning({
+      role: "executor",
+      mode: "adaptive",
+      task_intent: "design",
+      reasoning_signals: ["cross_module"],
+      prior_failure_type: "reasoning_failure",
+      prior_effective_class: "deep",
+      prior_observed_effective_effort: "high",
+      selector_available: true,
+      resolved_configuration: context.target_resolved_configuration,
+      lsa_recovery_context: context
+    });
+    assert.equal(decision.enforcement_status, "conflict", label);
+    assert.equal(decision.dispatch_effort, null, label);
+    assert.equal(decision.recovery_boost, false, label);
+    assert.ok(decision.reasons.includes(`lsa_recovery_conflict:${reason}`), label);
+  }
+
+  const ordinarySourceRetry = resolveReasoning({
+    role: "executor",
+    mode: "adaptive",
+    task_intent: "design",
+    reasoning_signals: ["cross_module"],
+    prior_failure_type: "reasoning_failure",
+    prior_effective_class: "deep",
+    prior_observed_effective_effort: "high",
+    selector_available: true,
+    resolved_configuration: baseContext.source_resolved_configuration
+  });
+  assert.equal(ordinarySourceRetry.enforcement_status, "requested");
+  assert.equal(ordinarySourceRetry.dispatch_effort, "max");
+  assert.equal(ordinarySourceRetry.recovery_boost, true);
+});
+
+test("LSA v2 normal routing matches v1 when recovery context is absent", () => {
+  for (const projectionId of ["lsa-efficiency-v1", "lsa-efficiency-v2"]) {
+    const decision = resolveReasoning({
+      role: "executor",
+      mode: "adaptive",
+      task_intent: "design",
+      reasoning_signals: ["cross_module"],
+      selector_available: true,
+      resolved_configuration: versionedConfiguration({
+        projectionId,
+        modelSetId: "openai-luna-sol-astra",
+        role: "executor",
+        modelTier: "standard"
+      })
+    });
+    assert.equal(decision.dispatch_effort, "high", projectionId);
+    assert.equal(decision.recovery_boost, false, projectionId);
+  }
 });
 
 test("projection registry remains inside the repository protocol tree", () => {

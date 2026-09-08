@@ -98,7 +98,7 @@ Named Codex profiles select one registered catalog/projection pair. The catalog 
 | Model set | Tier mapping | Projection and normal limits |
 | --- | --- | --- |
 | `openai` | Luna / Terra / Sol | `openai-reviewer-v1` (policy v3). A named `reviewer` proven `strong` uses Astra; an ordinary adaptive deep review requests `high`. Other roles retain the normal Luna/Terra/Sol mapping. |
-| `openai-luna-sol-astra` | Luna / Sol / Astra | `lsa-efficiency-v1` (policy v3). Its dedicated matrix permits Astra `low` only for adaptive `routine` and `deliberative` work; `deep` on Astra remains `high`, and formal assurance remains strong + `max` + strict. |
+| `openai-luna-sol-astra` | Luna / Sol / Astra | `lsa-efficiency-v2` (policy v3). Its normal matrix is unchanged from v1: Astra `low` is limited to adaptive `routine` and `deliberative` work, normal `deep` remains `high`, and formal assurance remains strong + `max` + strict. Its versioned recovery strategy adds only the qualified execution path described below. |
 | `openai-legacy` | Luna / Terra / Sol | `legacy-v2` (policy v2), including the previous Sol reviewer and ordinary deep-review `xhigh` behavior. |
 
 Use one of these mutually exclusive commands in a workspace after the matching global support bundle has been deployed:
@@ -120,6 +120,8 @@ pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspa
 ```
 
 The manifest saves the selected profile, catalog mapping identity, projection identity, and each resolved role binding. A resumed run must use the saved profile, mapping, and projection; changing workspace configuration stops later dispatch rather than hot-reloading a running workflow. Existing manifest-v2 Luna/Terra/Sol overlays are recognized as pinned legacy state and are never silently resolved through the newer same-named `openai` catalog. Run `set` again to intentionally refresh a workspace.
+
+Applying `openai-luna-sol-astra` writes the current LSA v2 identity, but does not enable capability recovery `auto`. Direct Flow and Pipeline remain `off` by default. Use the workflow's existing preset or explicit `--capability-recovery=auto` together with adaptive reasoning when intentionally exercising the v2 shortcut.
 
 `uniform`, inherited, ineligible, and unknown configurations do not prove a tier or projection. They use existing unknown/legacy behavior; model names are never used to guess a tier. `clear` removes the workspace overlay and returns roles to parent-session inheritance. It does not select Sol or the legacy catalog.
 
@@ -153,7 +155,50 @@ bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh" resolve-recovery \
 
 This action is read-only. It accepts only `executor` or `generalist`, requires a tier above that role's normal tier and no higher than its profile ceiling, and returns the raw model solely from the installed model set. Uniform, inherited, unhealthy, ineligible, or pinned-catalog profiles are rejected; rerun workspace `set` before recovering from an older pinned catalog.
 
+For the LSA v2 exception, the shared recovery decision additionally requires an exact saved v2 identity and role bindings, a verified Sol deep/high-or-higher trace, and canonical evidence that the same material reasoning failure repeated without meaningful progress. It may then use the one approved uplift for Astra deep/medium and continue on that same binding through high and max within the existing retry budget. A first isolated Sol high failure does not qualify, and Sol max remains available on the legacy and unqualified paths. Reviewer, security, judge, native-Astra, Simple, ordinary ad-hoc, explicit pin, strict, assurance, off, and inherit behavior is unchanged. Shadow computes a candidate only.
+
+### Deploy LSA v2 (v0.37.0 or later)
+
+LSA v2 is included starting with `v0.37.0`; the older `v0.36.2` bundle retains LSA v1. Install the new release bundle or an equivalent source checkout, then explicitly refresh the target workspace and start a new Codex session/run:
+
+```bash
+cd /path/to/agents_pipeline
+bash scripts/install-codex.sh
+
+profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
+bash "$profile_tool" status --runtime codex --scope global --json
+bash "$profile_tool" set balanced --runtime codex --scope workspace \
+  --workspace /path/to/project --model-set openai-luna-sol-astra
+bash "$profile_tool" status --runtime codex --scope workspace \
+  --workspace /path/to/project --json
+```
+
+Confirm `health: ok`, `profile_eligibility: eligible`, `catalog_state: current`, and the `lsa-efficiency-v2` configuration identity. Status proves configuration only. A matching child trace is still required to verify an applied model and effort. Updating support or running `set` does not alter an already running session/run.
+
+There is no historical projection selector. Re-running `set --model-set openai-luna-sol-astra` on current support selects v2; `clear` returns to parent-session inheritance, while `openai` and `openai-legacy` select different configurations. None of those operations selects LSA v1.
+
+For a real v1 rollback or comparison, preserve an old v1 workspace without re-running `set`, or use a fixed old release bundle in an isolated Codex home and a separate workspace:
+
+```bash
+legacy_bundle=/path/to/extracted/agents-pipeline-bundle-v0.36.2
+legacy_codex_home=/path/to/isolated/codex-home
+legacy_workspace=/path/to/isolated/v1-workspace
+
+bash "$legacy_bundle/scripts/install-codex.sh" --target "$legacy_codex_home"
+CODEX_HOME="$legacy_codex_home" \
+  bash "$legacy_codex_home/agents-pipeline/scripts/agent-profile.sh" set balanced \
+  --runtime codex --scope workspace --workspace "$legacy_workspace" \
+  --model-set openai-luna-sol-astra
+CODEX_HOME="$legacy_codex_home" \
+  bash "$legacy_codex_home/agents-pipeline/scripts/agent-profile.sh" status \
+  --runtime codex --scope workspace --workspace "$legacy_workspace" --json
+```
+
+Start the comparison session with `CODEX_HOME="$legacy_codex_home" codex` from that isolated workspace. Do not point the old support bundle at a current v2 workspace or treat a pinned incompatibility as a successful rollback.
+
 Workspace role hashes, source-version provenance, and the role-input digest distinguish a release-only upgrade from an actual catalog change. Workspace `status` keeps `catalog_state: current` across a global agents_pipeline upgrade when the agent, profile, model-set, exporter, and catalog inputs are unchanged, even though the manifest retains its older `source_version`. It reports `pinned` when those role-generating inputs changed and returns to `current` after `set` refreshes the workspace roles. An upgrade never silently rewrites a project's selected roles. The JSON status shows configured catalog and projection evidence; it is not evidence of an actual child model or effort.
+
+A `pinned` result does not by itself mean the model mapping or projection changed: a shared exporter, role source, or other role-input hash can also pin the workspace while the catalog digest stays the same. Compare the saved and installed configuration identities and digests when describing the change. Existing pinned/trust/health gates still apply; recovery remains blocked until an intentional `set` refreshes the workspace when current-catalog evidence is required.
 
 Codex applies `.codex/config.toml` only for a trusted project. The profile manager never changes global project trust. Workspace `set` and `status` read the explicit global `projects.<path>.trust_level` value and report `project_trust` plus `profile_eligibility`; file `health` remains a separate integrity result. `eligible` means the trust gate is open, not that arbitrary preserved project settings passed Codex's complete semantic parser. For `unknown` or `untrusted`, trust the project through Codex's normal prompt and rerun `status`. Official behavior is documented under [project config files](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml).
 
@@ -181,6 +226,8 @@ Do not run a live Astra smoke until the support bundle is deployed, the account 
 Treat a missing model entitlement, quota, selector capability, or mismatched trace as a failed or unverified smoke. Do not substitute Sol and report an Astra success. Status is configuration evidence only; an adaptive projection is applied only when the real child trace matches the resolved role, model, and effective effort.
 
 Keep two comparisons separate. A pure-model comparison fixes the repository snapshot, scope, evidence, effort, and speed so a later model cannot read earlier findings. A set comparison may vary model and effort, and must report the result as a configuration comparison. Record available time, actual usage, valid findings, false positives, and rework; write unavailable usage as `unknown`. Do not infer subscription credits or billing from public price lists, and do not add telemetry, a paid evaluation job, or automatic model ranking for this manual check.
+
+For the LSA recovery comparison, use exactly three independent fresh sessions/runs: the preserved v1 Sol max control in its isolated workspace, the qualified v2 Astra medium attempt, and the qualified same-uplift Astra high continuation. Fix the repository commit, task scope, prompt, input artifacts, acceptance criteria, evidence available at start, runtime permissions, and time limit. Do not let a later session read another session's findings. Record whether the intended role/model/effort trace matched, the task result, valid findings, false positives, rework, elapsed time, and actual usage when the runtime exposes it; otherwise record usage as `unknown`. Keep these observations local to the comparison and do not automatically turn them into new repair work. No live comparison was run for this change.
 
 ## Global Codex diagnostics and legacy cleanup
 

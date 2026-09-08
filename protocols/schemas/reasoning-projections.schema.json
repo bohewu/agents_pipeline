@@ -9,8 +9,8 @@
     "digest_algorithm": { "const": "sha256" },
     "projections": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
+      "minItems": 4,
+      "maxItems": 4,
       "items": { "$ref": "#/$defs/projection" }
     }
   },
@@ -33,6 +33,13 @@
       "properties": {
         "projections": {
           "contains": { "properties": { "id": { "const": "lsa-efficiency-v1" } } }
+        }
+      }
+    },
+    {
+      "properties": {
+        "projections": {
+          "contains": { "properties": { "id": { "const": "lsa-efficiency-v2" } } }
         }
       }
     }
@@ -82,6 +89,55 @@
       },
       "additionalProperties": false
     },
+    "recoveryStrategy": {
+      "type": "object",
+      "required": ["id", "version", "eligible_roles", "source", "target", "next_efforts"],
+      "properties": {
+        "id": { "const": "lsa-qualified-execution-v2" },
+        "version": { "const": "2" },
+        "eligible_roles": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "executor" },
+            { "const": "generalist" }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "source": {
+          "type": "object",
+          "required": ["model_tier", "reasoning_class", "minimum_verified_effort"],
+          "properties": {
+            "model_tier": { "const": "standard" },
+            "reasoning_class": { "const": "deep" },
+            "minimum_verified_effort": { "const": "high" }
+          },
+          "additionalProperties": false
+        },
+        "target": {
+          "type": "object",
+          "required": ["model_tier", "reasoning_class", "initial_effort"],
+          "properties": {
+            "model_tier": { "const": "strong" },
+            "reasoning_class": { "const": "deep" },
+            "initial_effort": { "const": "medium" }
+          },
+          "additionalProperties": false
+        },
+        "next_efforts": {
+          "type": "object",
+          "required": ["medium", "high", "max"],
+          "properties": {
+            "medium": { "const": "high" },
+            "high": { "const": "max" },
+            "max": { "type": "null" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "projection": {
       "type": "object",
       "required": [
@@ -97,7 +153,7 @@
         "model_sets"
       ],
       "properties": {
-        "id": { "enum": ["legacy-v2", "openai-reviewer-v1", "lsa-efficiency-v1"] },
+        "id": { "enum": ["legacy-v2", "openai-reviewer-v1", "lsa-efficiency-v1", "lsa-efficiency-v2"] },
         "version": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$" },
         "policy_version": { "enum": ["2", "3"] },
         "digest": { "$ref": "#/$defs/digest" },
@@ -134,8 +190,16 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/modelSet" }
-        }
+        },
+        "recovery_strategy": { "$ref": "#/$defs/recoveryStrategy" }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "id": { "const": "lsa-efficiency-v2" } } },
+          "then": { "required": ["recovery_strategy"] },
+          "else": { "not": { "required": ["recovery_strategy"] } }
+        }
+      ],
       "additionalProperties": false
     }
   }

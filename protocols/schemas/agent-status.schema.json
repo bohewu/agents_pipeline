@@ -142,11 +142,80 @@
     "reasoning": {
       "$ref": "reasoning-decision.schema.json"
     },
+    "recovery_stage": {
+      "allOf": [
+        { "$ref": "capability-recovery-decision.schema.json#/$defs/lsaRecoveryStage" },
+        {
+          "properties": {
+            "status": { "enum": ["requested", "verified"] },
+            "stage": { "enum": ["strong-medium", "strong-high", "strong-max"] },
+            "previous_stage": { "enum": ["source-qualified", "strong-medium", "strong-high"] },
+            "requested_effort": { "enum": ["medium", "high", "max"] },
+            "dispatch_effort": { "enum": ["medium", "high", "max"] },
+            "reason": { "enum": ["qualified_initial_uplift", "qualified_same_uplift_retry", "verified"] },
+            "conflict": { "const": null },
+            "conflict_reason": { "const": null }
+          }
+        }
+      ]
+    },
+    "recovery_claim_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "recovery_runtime_support": {
+      "type": "object",
+      "required": ["model_selector_available", "effort_selector_available", "supported_efforts", "evidence_ref"],
+      "properties": {
+        "model_selector_available": { "type": "boolean" },
+        "effort_selector_available": { "type": "boolean" },
+        "supported_efforts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["low", "medium", "high", "xhigh", "max"] }
+        },
+        "evidence_ref": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "resolved_configuration": {
       "$ref": "#/$defs/resolvedConfiguration"
     },
     "trace_evidence": {
       "$ref": "codex-child-trace.schema.json"
+    },
+    "failure_evidence": {
+      "type": "object",
+      "required": [
+        "failure_signature",
+        "failure_classification",
+        "failure_type",
+        "material",
+        "meaningful_progress"
+      ],
+      "properties": {
+        "failure_signature": { "type": "string", "minLength": 1 },
+        "failure_classification": {
+          "enum": ["product_failure", "harness_failure", "operational_failure"]
+        },
+        "failure_type": {
+          "enum": [
+            "reasoning_failure",
+            "timeout",
+            "permission_denied",
+            "network_error",
+            "dependency_unavailable",
+            "browser_startup_failure",
+            "cli_format_error",
+            "tool_failure"
+          ]
+        },
+        "material": { "type": "boolean" },
+        "meaningful_progress": { "type": "boolean" }
+      },
+      "additionalProperties": false
     },
     "result_summary": {
       "type": "string",
@@ -176,6 +245,24 @@
     ],
     "cleanup_status": [
       "resource_class"
+    ],
+    "recovery_stage": [
+      "reasoning",
+      "resolved_configuration",
+      "recovery_claim_id",
+      "recovery_runtime_support"
+    ],
+    "recovery_claim_id": [
+      "recovery_stage"
+    ],
+    "recovery_runtime_support": [
+      "recovery_stage"
+    ],
+    "failure_evidence": [
+      "reasoning",
+      "resolved_configuration",
+      "trace_evidence",
+      "evidence_refs"
     ]
   },
   "allOf": [

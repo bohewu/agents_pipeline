@@ -134,7 +134,7 @@ class AgentModelProfilesTest(unittest.TestCase):
             "openai-luna-sol-astra": (
                 "gpt-6-astra",
                 "gpt-5.6-sol",
-                "lsa-efficiency-v1",
+                "lsa-efficiency-v2",
             ),
         }
         for name, (reviewer, executor, projection) in expected.items():
@@ -155,6 +155,75 @@ class AgentModelProfilesTest(unittest.TestCase):
                 self.assertEqual(
                     configurations["reviewer"]["role_binding"]["model"], reviewer
                 )
+
+    def test_lsa_v2_strategy_is_digest_bound_and_v1_identity_still_resolves(self) -> None:
+        registry = json.loads(
+            (REPO_ROOT / "protocols" / "reasoning-projections.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            [projection["id"] for projection in registry["projections"]],
+            [
+                "legacy-v2",
+                "openai-reviewer-v1",
+                "lsa-efficiency-v1",
+                "lsa-efficiency-v2",
+            ],
+        )
+        v1 = registry["projections"][2]
+        v2 = registry["projections"][3]
+        self.assertEqual(
+            v1["digest"],
+            "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690",
+        )
+        self.assertEqual(
+            v1["model_sets"][0]["mapping_digest"],
+            "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9",
+        )
+        for key in (
+            "effort_order",
+            "global_floor",
+            "model_floors",
+            "class_requirements",
+            "role_effort_overrides",
+        ):
+            self.assertEqual(v2[key], v1[key], key)
+        self.assertEqual(
+            v2["recovery_strategy"],
+            {
+                "id": "lsa-qualified-execution-v2",
+                "version": "2",
+                "eligible_roles": ["executor", "generalist"],
+                "source": {
+                    "model_tier": "standard",
+                    "reasoning_class": "deep",
+                    "minimum_verified_effort": "high",
+                },
+                "target": {
+                    "model_tier": "strong",
+                    "reasoning_class": "deep",
+                    "initial_effort": "medium",
+                },
+                "next_efforts": {"medium": "high", "high": "max", "max": None},
+            },
+        )
+        self.assertEqual(
+            v2["digest"],
+            RESOLVER._sha256_digest(
+                {key: value for key, value in v2.items() if key != "digest"}
+            ),
+        )
+
+        v1_mapping = v1["model_sets"][0]
+        RESOLVER.validate_model_mapping_projection(
+            v1_mapping,
+            {
+                key: v1[key]
+                for key in ("id", "version", "policy_version", "digest")
+            },
+            label="saved LSA v1 workspace",
+        )
 
     def test_installed_resolver_accepts_updater_catalog_from_custom_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

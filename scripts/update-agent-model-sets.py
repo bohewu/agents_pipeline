@@ -111,14 +111,14 @@ def build_codex_openai(_data: object | None, _path: Path) -> dict:
 def build_codex_openai_luna_sol_astra(_data: object | None, _path: Path) -> dict:
     return _build_codex_catalog(
         name="openai-luna-sol-astra",
-        version="1",
-        description="Experimental Luna/Sol/Astra model set with its dedicated effort projection.",
+        version="2",
+        description="Experimental Luna/Sol/Astra model set with versioned recovery semantics.",
         tiers={
             "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
             "standard": {"model": "gpt-5.6-sol", "model_provider": "openai"},
             "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
         },
-        projection_id="lsa-efficiency-v1",
+        projection_id="lsa-efficiency-v2",
     )
 
 

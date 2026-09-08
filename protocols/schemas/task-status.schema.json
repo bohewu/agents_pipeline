@@ -110,6 +110,79 @@
       "default": false,
       "description": "Whether this task has already consumed its single capability recovery."
     },
+    "failure_history": {
+      "type": "array",
+      "description": "Reasoning failures derived from terminal canonical agent attempts.",
+      "items": {
+        "type": "object",
+        "required": [
+          "attempt_id",
+          "failure_signature",
+          "failure_type",
+          "material",
+          "meaningful_progress",
+          "model_tier",
+          "effective_effort"
+        ],
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+            "maxLength": 128
+          },
+          "failure_signature": { "type": "string", "minLength": 1 },
+          "failure_type": { "const": "reasoning_failure" },
+          "material": { "type": "boolean" },
+          "meaningful_progress": { "type": "boolean" },
+          "model_tier": { "enum": ["mini", "standard", "strong"] },
+          "effective_effort": { "enum": ["low", "medium", "high", "xhigh", "max"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recovery_stage": {
+      "allOf": [
+        { "$ref": "capability-recovery-decision.schema.json#/$defs/lsaRecoveryStage" },
+        {
+          "properties": {
+            "status": { "enum": ["requested", "verified"] },
+            "stage": { "enum": ["strong-medium", "strong-high", "strong-max"] },
+            "previous_stage": { "enum": ["source-qualified", "strong-medium", "strong-high"] },
+            "requested_effort": { "enum": ["medium", "high", "max"] },
+            "dispatch_effort": { "enum": ["medium", "high", "max"] },
+            "reason": { "enum": ["qualified_initial_uplift", "qualified_same_uplift_retry", "verified"] },
+            "conflict": { "const": null },
+            "conflict_reason": { "const": null }
+          }
+        }
+      ]
+    },
+    "recovery_claim_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "recovery_agent_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$",
+      "maxLength": 128
+    },
+    "recovery_runtime_support": {
+      "type": "object",
+      "required": ["model_selector_available", "effort_selector_available", "supported_efforts", "evidence_ref"],
+      "properties": {
+        "model_selector_available": { "type": "boolean" },
+        "effort_selector_available": { "type": "boolean" },
+        "supported_efforts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["low", "medium", "high", "xhigh", "max"] }
+        },
+        "evidence_ref": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "reasoning_class": {
       "type": "string",
       "enum": [
@@ -272,6 +345,23 @@
     ],
     "resource_status": [
       "resource_class"
+    ],
+    "recovery_stage": [
+      "recovery_claim_id",
+      "failure_history",
+      "retry_opportunities_used",
+      "capability_recovery_used",
+      "recovery_runtime_support"
+    ],
+    "recovery_claim_id": [
+      "recovery_stage"
+    ],
+    "recovery_agent_id": [
+      "recovery_stage",
+      "recovery_claim_id"
+    ],
+    "recovery_runtime_support": [
+      "recovery_stage"
     ]
   },
   "allOf": [
