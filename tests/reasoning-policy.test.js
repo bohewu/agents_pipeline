@@ -1862,6 +1862,33 @@ test("qualified LSA v2 recovery computes an identity-bound Astra medium stage", 
   assert.deepEqual(decision, fixture);
 });
 
+test("LSA v2 target effort is not increased by carried source effort", () => {
+  for (const priorEffort of ["high", "max"]) {
+    const context = lsaRecoveryContext();
+    context.latest_verified_trace.effective_effort = priorEffort;
+    context.failure_history.at(-1).effective_effort = priorEffort;
+    const decision = resolveReasoning({
+      role: "executor",
+      mode: "adaptive",
+      task_intent: "design",
+      reasoning_signals: ["cross_module"],
+      prior_failure_type: "reasoning_failure",
+      prior_effective_class: "deep",
+      prior_observed_effective_effort: priorEffort,
+      selector_available: true,
+      resolved_configuration: context.target_resolved_configuration,
+      lsa_recovery_context: context
+    });
+    assert.equal(decision.enforcement_status, "requested", priorEffort);
+    assert.equal(decision.requested_effort, "medium", priorEffort);
+    assert.equal(decision.dispatch_effort, "medium", priorEffort);
+    assert.equal(decision.recovery_stage.dispatch_effort, "medium", priorEffort);
+    assert.equal(decision.recovery_boost, false, priorEffort);
+    assert.equal(decision.effective_class, "deep", priorEffort);
+    assert.ok(!decision.reasons.includes("same_model_effort_increase"), priorEffort);
+  }
+});
+
 test("LSA v2 ladder advances medium to high to max without a second uplift", () => {
   const initial = lsaRecoveryContext();
   const target = initial.target_resolved_configuration;
@@ -1902,6 +1929,20 @@ test("LSA v2 ladder advances medium to high to max without a second uplift", () 
     assert.equal(recovery.stage, stage);
     assert.equal(recovery.requested_effort, nextEffort);
     assert.deepEqual(recovery.uplift_claim, { expected_used: true, next_used: true });
+    const decision = resolveReasoning({
+      role: "executor",
+      mode: "adaptive",
+      task_intent: "design",
+      reasoning_signals: ["cross_module"],
+      prior_failure_type: "reasoning_failure",
+      prior_effective_class: "deep",
+      prior_observed_effective_effort: priorEffort,
+      selector_available: true,
+      resolved_configuration: target,
+      lsa_recovery_context: context
+    });
+    assert.equal(decision.dispatch_effort, nextEffort);
+    assert.equal(decision.recovery_stage.dispatch_effort, nextEffort);
     priorRecoveryStage = { ...recovery, status: "verified", reason: "verified" };
   }
 

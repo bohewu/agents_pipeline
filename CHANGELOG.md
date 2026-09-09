@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-09-09
+
+### Fixed
+
+- Keep an approved LSA v2 recovery stage's effort when prior source effort is carried into the resolver, preventing generic same-model recovery from raising Astra medium to xhigh or rejecting it after Sol max.
+
 ## [0.37.0] - 2026-09-09
 
 ### Added

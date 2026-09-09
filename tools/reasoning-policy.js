@@ -1820,6 +1820,7 @@ function resolveReasoning(
   if (
     isEfficiencyProjection
     && input.priorFailureType === "reasoning_failure"
+    && !calibratedRecoveryApplied
     && !recoveryBoost
     && effortIndex(requestedEffort, input.effortOrder)
       <= effortIndex(input.priorObservedEffectiveEffort, input.effortOrder)
