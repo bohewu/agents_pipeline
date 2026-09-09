@@ -113,6 +113,14 @@ opening another repair or continuation round. A harness-only failure after produ
 tests pass does not reopen the product unless concrete evidence proves a product
 defect.
 
+For a rejected run-start input, inspect the target run state first. If no run
+was created, one smallest payload correction using the verified preflight and
+one same-ID startup retry are allowed; continue the original task on success.
+This does not authorize overwriting an existing run's configuration, editing
+canonical checkpoint files manually, or creating a replacement `-restart` run.
+An existing run must satisfy formal resume compatibility; otherwise report the
+blocker. Preserve the consecutive-failure stop rule above.
+
 Product tests and fixtures that directly exercise changed behavior are ordinary
 product verification. Validation infrastructure means harness frameworks,
 validator generators, certification wrappers, test-run orchestrators, proof

@@ -52,6 +52,45 @@ printf '%s' '{"output_root":".pipeline-output","run_id":"run-123","status":"comp
   | node tools/status-event.js --event run.finished --stdin
 ```
 
+For a healthy eligible workspace profile, use the exact saved JSON preflight
+status to build the nested `configuration`. The minimal example above is for
+runs without a configuration binding, including legacy callers. This configured
+example assumes `profile-status.json` is the already verified current-workspace
+status; it does not query or change the profile:
+
+```bash
+node - <<'JS' > run-start.json
+const fs = require("node:fs");
+const status = JSON.parse(fs.readFileSync("profile-status.json", "utf8"));
+if (status.health !== "ok" || status.profile_eligibility !== "eligible") {
+  throw new Error("A healthy eligible preflight is required for this example");
+}
+const configuration = Object.fromEntries([
+  "profile", "configuration_compatibility", "model_mapping",
+  "configuration_identity", "resolved_configurations"
+].map((field) => [field, status[field]]));
+console.log(JSON.stringify({
+  output_root: ".pipeline-output",
+  run_id: "run-123",
+  orchestrator: "orchestrator-flow",
+  user_prompt: "Implement the requested change",
+  configuration,
+  flags: {
+    reasoning_mode: "adaptive",
+    reasoning_policy_version: configuration.configuration_identity.reasoning_projection.policy_version,
+    reasoning_ceiling: "max"
+  }
+}));
+JS
+node tools/status-event.js --event run.started --payload-file run-start.json
+```
+
+Use the adopted workflow's effective flags (the example uses adaptive reasoning);
+this example does not override inherit, shadow, preset, or resume defaults.
+The five configuration fields above belong inside `configuration`, never at the
+payload's top level, even when a nested configuration is also supplied.
+Misplaced fields are rejected before run creation.
+
 Optional `--base-dir <path>` supplies the session/worktree anchor used for relative paths.
 
 On success, stdout contains exactly one JSON result and the process exits `0`. Errors are written as one JSON object to stderr:
@@ -75,7 +114,7 @@ Supported events are deliberately bounded:
 
 1. `run.started`
    - required operational fields: `run_id`, `orchestrator`, `output_root`, non-empty `user_prompt`
-   - optional semantic fields: `working_project_dir`, `flags`, `status`, `waiting_on`, `notes`
+   - optional semantic fields: `working_project_dir`, `configuration`, `flags`, `status`, `waiting_on`, `notes`
 2. `run.resumed`
    - required `output_root` and `orchestrator`; `run_id` is optional for compatible-run discovery
    - may overlay invocation `flags`; in-flight tasks and agents are reconciled to `stale`
@@ -198,7 +237,7 @@ Launching multiple `status-event.js` processes concurrently against the same run
 
 With `run_id`, `run.resumed` targets `<output_root>/<run_id>/` only after the checkpoint and run-status agree on both run identity and orchestrator. Without `run_id`, the registry scans the output root (including the root itself), rejects malformed or orchestrator-incompatible candidates, and chooses the newest checkpoint-backed compatible run. Modification time is the primary order and run-directory name breaks ties.
 
-`run.started` refuses to reuse an existing run directory. Resume it explicitly or choose a new `run_id`; this prevents stale task and agent projections from leaking into a fresh run.
+`run.started` refuses to reuse an existing run directory. Use compatible resume for existing work; a new ID is for independently authorized fresh work, not an automatic workaround for an initialization error. This prevents stale task and agent projections from leaking into a fresh run.
 
 Before redispatch, prior in-flight tasks and agents become `stale`; uncertain resource and cleanup states become `unknown` unless already terminal.
 
@@ -254,3 +293,15 @@ node scripts/validate-status-runtime-smoke.cjs
 - strict full-schema validation mode
 - optional event stream for live viewers
 - duration and write-contention metrics
+
+### Rejected startup recovery
+
+After a startup input error, read back the target run state before retrying. If
+no run directory was created, correct the evidenced payload error once using the
+same verified preflight and retry the same run ID. On success continue the
+original task; this is bounded harness handling, not a workflow restart or model
+recovery. A second consecutive occurrence of the same failure signature stops.
+If a run already exists, do not overwrite its configuration, manually patch its
+checkpoint, or create a `-restart` run to bypass compatibility checks. Use valid
+resume when available; otherwise report the precise blocker. A legacy run cannot
+acquire a new profile binding through resume.

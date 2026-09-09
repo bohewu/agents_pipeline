@@ -3244,6 +3244,36 @@ test("checkpoint reasoning policy flags are atomic", async (t) => {
   assert.equal(await fs.readFile(started.checkpoint_path, "utf8"), before);
 });
 
+test("run.started rejects misplaced configuration before creation and permits corrected same-ID startup", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-configuration-start-"));
+  t.after(() => fs.rm(tempRoot, { recursive: true, force: true }));
+  const runtime = new StatusRuntime();
+  const configuration = currentRunConfiguration();
+  const payload = {
+    output_root: tempRoot,
+    run_id: "configured-start",
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Preserve the verified configuration at startup",
+    flags: { reasoning_mode: "adaptive", reasoning_policy_version: "3", reasoning_ceiling: "max" }
+  };
+  for (const field of Object.keys(configuration)) {
+    await assert.rejects(
+      runtime.applyEvent("run.started", { ...payload, [field]: configuration[field] }),
+      /must be nested under configuration/
+    );
+    await assert.rejects(fs.lstat(path.join(tempRoot, payload.run_id)), { code: "ENOENT" });
+  }
+  const started = await runtime.applyEvent("run.started", { ...payload, configuration });
+  assert.deepEqual((await readJson(started.checkpoint_path)).configuration, configuration);
+  await assert.rejects(
+    runtime.applyEvent("run.started", { ...payload, configuration, profile: configuration.profile }),
+    /must be nested under configuration/
+  );
+  assert.deepEqual((await readJson(started.checkpoint_path)).configuration, configuration);
+  const legacy = await runtime.applyEvent("run.started", { ...payload, run_id: "legacy-start", flags: {} });
+  assert.equal((await readJson(legacy.checkpoint_path)).configuration, undefined);
+});
+
 test("run.started validates reasoning flags before creating a run layout", async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-start-preflight-"));
   t.after(async () => {

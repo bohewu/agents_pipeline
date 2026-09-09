@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-09-09
+
+### Fixed
+
+- Reject misplaced `run.started` configuration before persistence and document same-ID corrected retry guidance after startup input errors.
+
 ## [0.37.1] - 2026-09-09
 
 ### Fixed

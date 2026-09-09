@@ -68,6 +68,12 @@ function validateEventPayload(eventName, payload) {
     );
   }
   if (eventName === "run.started") {
+    for (const field of ["profile", "configuration_compatibility", "model_mapping", "configuration_identity", "resolved_configurations"]) {
+      assert(
+        !Object.prototype.hasOwnProperty.call(payload, field),
+        `run.started field ${field} must be nested under configuration; correct the payload before retrying`
+      );
+    }
     assert(isNonEmptyString(payload.user_prompt), "run.started requires a non-empty user_prompt");
   }
   if (eventName === "checkpoint.updated") {
