@@ -1,4 +1,4 @@
 interface:
   display_name: "UI/UX Workflow"
-  short_description: "Create compact or durable UI/UX concepts"
-  default_prompt: "Use $ui-ux-workflow at the requested depth to create a bounded concept or durable handoff for this surface or user journey."
+  short_description: "Create a bounded UI/UX concept or handoff"
+  default_prompt: "Use $ui-ux-workflow to create the requested compact concept or durable conceptual handoff for this surface or journey."

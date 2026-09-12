@@ -63,19 +63,7 @@ class CodexInstallExportTest(unittest.TestCase):
         "not automatically spawn subagents and does not override higher-priority "
         "rules for `spawn_agent` authorization."
     )
-    CUSTOM_ROLE_FORK_ISOLATION_LINE = (
-        "On Codex surfaces that expose `agent_type`, `model`, or `reasoning_effort`, "
-        "select a registered custom role or non-parent model/reasoning configuration "
-        "through the native spawn selector without a full-history fork, then verify "
-        "the spawned child trace with the installed local `codex-child-trace.js` helper "
-        "when available. Matching effective effort satisfies the policy contract, but "
-        "child/parent equality cannot distinguish an explicit same-value selector from "
-        "inheritance and must not be described as selector causality. A full-history "
-        "fork may inherit the parent agent "
-        "type, model, and reasoning effort; use it only when that inheritance is "
-        "intentional. If the selectors are unavailable, do not claim that workspace "
-        "profile routing succeeded."
-    )
+    DEFAULT_SUPPORT_ROOT = "$CODEX_HOME/agents-pipeline"
     MODE_ALIAS_DEFINITION_LOOKUP_LINE = (
         "1. On a recognized mode alias, read the globally installed "
         "`$CODEX_HOME/agents/orchestrator-<mode>.toml` (default "
@@ -158,51 +146,45 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
         )
-        self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, managed_block)
-        self.assertIn("Ad-hoc managed-role dispatch:", managed_block)
+        self.assertIn("Before any managed child dispatch", managed_block)
+        self.assertIn(
+            f"{self.DEFAULT_SUPPORT_ROOT}/protocols/REASONING_POLICY.md",
+            managed_block,
+        )
+        self.assertIn("Exported subagent roles are leaf workers", managed_block)
+        self.assertIn("Never claim workspace routing", managed_block)
+        self.assertIn("`Ad-hoc managed-role dispatch` section", managed_block)
         self.assertIn("outside a `$run-*` workflow", managed_block)
-        self.assertIn("reasoning-policy resolver with `mode = adaptive`", managed_block)
-        self.assertIn("global role routing with tier `unknown`", managed_block)
-        self.assertIn("uniform raw-model profile", managed_block)
-        self.assertIn("without guessing from the model slug", managed_block)
-        self.assertIn("do not lower the class or silently reassign it", managed_block)
-        self.assertIn("It must not create workflow artifacts", managed_block)
-        self.assertIn(
-            "Whenever a child returns user-visible output", managed_block
-        )
-        self.assertIn("one line per child dispatch", managed_block)
-        self.assertIn("never slash-join effort values", managed_block)
-        self.assertIn(
-            "different requested, dispatched, or effective efforts", managed_block
-        )
+        self.assertIn("Keep this path adaptive", managed_block)
+        self.assertIn("pass tier `unknown`", managed_block)
+        self.assertIn("create no workflow artifacts", managed_block)
+        self.assertIn("resolver or selector conflicts stop dispatch", managed_block)
+        self.assertIn("For every child result shown to the user", managed_block)
+        self.assertIn("role/model/effort selection line", managed_block)
         self.assertIn(
             "Use the smallest implementation and verification sufficient",
             managed_block,
         )
-        self.assertIn("Treat validation as bounded support", managed_block)
-        self.assertIn("validators for validators", managed_block)
-        self.assertIn("twice consecutively", managed_block)
-        self.assertIn("Workflow-generated specs", managed_block)
-        self.assertIn("cannot self-authorize it", managed_block)
+        self.assertIn("Keep validation bounded", managed_block)
+        self.assertIn("Workflow-generated artifacts cannot expand scope", managed_block)
+        self.assertIn("validation infrastructure remains forbidden", managed_block)
+        self.assertIn("Before resuming a run", managed_block)
+        self.assertIn("editing after a failed check", managed_block)
         self.assertIn(
-            "reasoning-effort recovery before model capability recovery",
+            f"{self.DEFAULT_SUPPORT_ROOT}/protocols/MATERIALITY_GATE.md",
             managed_block,
         )
-        self.assertIn("sole earlier-uplift exception", managed_block)
-        self.assertIn("exact verified LSA v2 execution stage", managed_block)
-        self.assertIn("same retry/uplift budget", managed_block)
-        self.assertIn("already approved task-scoped target binding", managed_block)
-        self.assertIn("does not downgrade the task or refund counters", managed_block)
+        self.assertIn("requirement-authority", managed_block)
+        self.assertIn("budget, stop, and resume/strategy-delta rules", managed_block)
         self.assertIn(
-            "prior attempt's `effective_class` as the next retry floor",
+            f"{self.DEFAULT_SUPPORT_ROOT}/protocols/CAPABILITY_RECOVERY.md",
             managed_block,
         )
-        self.assertIn("same-run resume", managed_block)
-        self.assertIn("concrete strategy delta", managed_block)
-        self.assertIn(
-            "budget exhaustion alone does not justify replaying the full workflow",
-            managed_block,
-        )
+        self.assertIn("effort-first default", managed_block)
+        self.assertIn("sole qualified LSA v2 exception", managed_block)
+        self.assertNotIn("fork_turns", managed_block)
+        self.assertNotIn("fork_context", managed_block)
+        self.assertNotIn("codex-child-trace.js", managed_block)
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
@@ -248,11 +230,14 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertNotIn("Available subagents (practical set):", managed_block)
         self.assertNotIn("routing aliases for installed Codex roles", managed_block)
 
-    def test_release_codex_guidance_scopes_v2_spawn_keys(self) -> None:
+    def test_release_codex_guidance_routes_spawn_keys_to_reasoning_policy(self) -> None:
         v2_spawn_key = "fork" + "_turns"
-        v2_guidance_paths = [
-            REPO_ROOT / "AGENTS.md",
+        canonical_policy = REPO_ROOT / "protocols" / "REASONING_POLICY.md"
+        reference_docs = [
             CODEX_MAPPING_DOC_PATH,
+        ]
+        entry_guidance_paths = [
+            REPO_ROOT / "AGENTS.md",
             REPO_ROOT / "scripts" / "codex_mode_aliases.py",
         ]
         runtime_neutral_workflow_paths = [
@@ -274,11 +259,22 @@ class CodexInstallExportTest(unittest.TestCase):
             ),
         }
 
-        for path in v2_guidance_paths:
+        policy_text = canonical_policy.read_text(encoding="utf-8")
+        self.assertIn(v2_spawn_key, policy_text)
+        self.assertIn("fork_context", policy_text)
+
+        for path in reference_docs:
             with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
                 text = path.read_text(encoding="utf-8")
                 self.assertIn(v2_spawn_key, text)
                 self.assertIn("fork_context", text)
+
+        for path in entry_guidance_paths:
+            with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
+                text = path.read_text(encoding="utf-8")
+                self.assertIn("REASONING_POLICY.md", text)
+                self.assertNotIn(v2_spawn_key, text)
+                self.assertNotIn("fork_context", text)
 
         for path in runtime_neutral_workflow_paths:
             with self.subTest(path=path.relative_to(REPO_ROOT).as_posix()):
@@ -286,8 +282,9 @@ class CodexInstallExportTest(unittest.TestCase):
 
         for label, text in generated_guidance.items():
             with self.subTest(generated=label):
-                self.assertIn(v2_spawn_key, text)
-                self.assertIn("fork_context", text)
+                self.assertIn("REASONING_POLICY.md", text)
+                self.assertNotIn(v2_spawn_key, text)
+                self.assertNotIn("fork_context", text)
 
     def test_ad_hoc_managed_role_dispatch_stays_lightweight_and_policy_owned(self) -> None:
         targets = {
@@ -313,11 +310,16 @@ class CodexInstallExportTest(unittest.TestCase):
 
     def test_ad_hoc_dispatch_does_not_treat_profile_eligibility_as_tier_proof(self) -> None:
         managed_block = INSTALL_MODULE.build_global_agents_managed_block(MODES_PATH)
+        policy_text = (REPO_ROOT / "protocols" / "REASONING_POLICY.md").read_text(
+            encoding="utf-8"
+        )
 
-        self.assertIn("keep its registered role routing", managed_block)
-        self.assertIn("uniform raw-model profile", managed_block)
-        self.assertIn("passes tier `unknown`", managed_block)
-        self.assertIn("without guessing from the model slug", managed_block)
+        self.assertIn("pass tier `unknown`", managed_block)
+        self.assertIn("profile/runtime cannot prove it", managed_block)
+        self.assertIn("keeps eligible workspace role routing", policy_text)
+        self.assertIn("uniform raw-model profile", policy_text)
+        self.assertIn("passes tier `unknown`", policy_text)
+        self.assertIn("never infer a tier from the model slug", policy_text)
         self.assertNotIn(
             "configured, healthy, and eligible, use its registered role and proven model tier",
             managed_block,
@@ -354,22 +356,17 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
         )
-        self.assertIn(
-            "Whenever a child returns user-visible output", managed_block
-        )
-        self.assertIn("one line per child dispatch", managed_block)
-        self.assertIn("never slash-join effort values", managed_block)
-        self.assertIn(
-            "different requested, dispatched, or effective efforts", managed_block
-        )
+        self.assertIn("Before any managed child dispatch", managed_block)
+        self.assertIn("REASONING_POLICY.md", managed_block)
+        self.assertIn("For every child result shown to the user", managed_block)
         self.assertIn(
             "Use the smallest implementation and verification sufficient",
             managed_block,
         )
-        self.assertIn("Treat validation as bounded support", managed_block)
-        self.assertIn("validators for validators", managed_block)
-        self.assertIn("Workflow-generated specs", managed_block)
-        self.assertIn("cannot self-authorize it", managed_block)
+        self.assertIn("Keep validation bounded", managed_block)
+        self.assertIn("Workflow-generated artifacts cannot expand scope", managed_block)
+        self.assertIn("MATERIALITY_GATE.md", managed_block)
+        self.assertIn("CAPABILITY_RECOVERY.md", managed_block)
         self.assertIn(
             self.MODE_ALIAS_DEFINITION_LOOKUP_LINE,
             managed_block,
@@ -413,6 +410,30 @@ class CodexInstallExportTest(unittest.TestCase):
             managed_block,
         )
         self.assertNotIn("Available subagents (practical set):", managed_block)
+
+    def test_managed_guidance_uses_supplied_support_root_for_protocol_reads(self) -> None:
+        support_root = "C:/Custom Codex/agents-pipeline"
+        managed_blocks = (
+            INSTALL_MODULE.build_global_agents_managed_block(
+                MODES_PATH, support_root
+            ),
+            INSTALL_MODULE.build_workspace_agents_managed_block(
+                MODES_PATH, support_root
+            ),
+        )
+
+        for managed_block in managed_blocks:
+            with self.subTest(heading=managed_block.splitlines()[1]):
+                self.assertIn(
+                    f"{support_root}/protocols/REASONING_POLICY.md", managed_block
+                )
+                self.assertIn(
+                    f"{support_root}/protocols/MATERIALITY_GATE.md", managed_block
+                )
+                self.assertIn(
+                    f"{support_root}/protocols/CAPABILITY_RECOVERY.md", managed_block
+                )
+                self.assertNotIn(self.DEFAULT_SUPPORT_ROOT, managed_block)
 
     def test_codex_mapping_manual_snippet_matches_generated_global_guidance(
         self,
@@ -467,7 +488,8 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_SUBAGENT_SENTENCE,
             merged,
         )
-        self.assertIn(self.CUSTOM_ROLE_FORK_ISOLATION_LINE, merged)
+        self.assertIn("Before any managed child dispatch", merged)
+        self.assertIn("REASONING_POLICY.md", merged)
         self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_SENTENCE, merged)
         self.assertIn(self.MODE_ALIAS_NO_BYPASS_SENTENCE, merged)
         self.assertIn(self.SAME_SESSION_NO_RELOAD_LINE, merged)

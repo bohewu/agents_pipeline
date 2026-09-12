@@ -10,6 +10,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: An existing editable table page with a reachable desktop preview.
 - Expected: Perform the bounded implementation and check horizontal scrolling, column overlap, and action usability. Do not create a UX bundle or a mobile design.
 - Failure conditions: Requires conceptual design without an unresolved decision; expands other layouts or mobile support; omits checks for the affected table behavior.
+- Static required-read expectation: read `skills/frontend-aesthetic-director/SKILL.md`. Read `references/layout-style-playbook.md` when selecting a correction strategy, layout archetype, or visual style. Use `references/polish-checklist.md` for the detailed state and anti-slop pass. Only when rendered QA is unavailable, additionally read `references/ui-quality-rubric.md`, run non-visual checks, and state what was not verified. This local check does not require the formal audit contract.
 - Status: `not run` (static review only).
 
 ## S02 — Approved design
@@ -34,6 +35,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: The current message context and intended recovery action are known.
 - Expected: Return the requested actionable copy without requiring a revised flow, nine-section bundle, or full rubric.
 - Failure conditions: Redesigns or blocks on redesigning the flow; changes unrelated UI; invents evidence or a full score.
+- Static required-read expectation: direct skill use reads `skills/ui-communication-designer/SKILL.md` only. Direct `ui-ux-designer` use reads that leaf and then the communication skill root. A full flow review additionally reads `references/output-template.md`; scoring additionally reads `references/rubric.md`. Copy-only does not select either deeper reference.
 - Status: `not run` (static review only).
 
 ## S05 — Artifact-only critique
@@ -50,6 +52,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: None beyond the explicit asset request; any necessary missing style or palette choice must remain visible as an assumption.
 - Expected: Return one self-contained fenced `text` prompt. Do not add the seven-section handoff, IDs, output folders, or a generation claim.
 - Failure conditions: Returns multiple prompts or the full handoff; hides necessary assumptions; claims an image or file was created.
+- Static required-read expectation: direct skill use reads `skills/artgen-scaffold/SKILL.md` only; direct `art-director` use reads the leaf only. Neither prompt-only entry reads `references/full-handoff.md`.
 - Status: `not run` (static review only).
 
 ## S07 — Full art handoff
@@ -58,6 +61,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: Enough scope information to define the icon family; unresolved required fields are recorded as assumptions or narrow questions.
 - Expected: Preserve all seven full-handoff sections, aligned IDs and version markers, naming/output guidance, manual checks, external package, and the final Direct Use Prompt.
 - Failure conditions: Substitutes prompt-only output; omits or renames required sections or identifiers; claims assets were generated.
+- Static required-read expectation: skill entry reads `skills/artgen-scaffold/SKILL.md` and then `references/full-handoff.md`; direct `art-director` entry reads the leaf and then the same full-handoff reference. The leaf does not require a second read of the skill root.
 - Status: `not run` (static review only).
 
 ## S08 — Actual image generation
@@ -82,6 +86,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: Enough product context to describe the bounded desktop concept.
 - Expected: Produce a desktop-scoped concept only. Do not implement, add mobile delivery, write an unrequested durable artifact, or start another workflow.
 - Failure conditions: Designs mobile/tablet work; modifies product code; treats a suggested handoff as authorized execution.
+- Static required-read expectation: direct skill use reads `skills/ui-ux-workflow/SKILL.md` only; direct `ui-ux-designer` use reads the leaf only. The compact branch does not read the durable protocol, schema, example, or communication skill.
 - Status: `not run` (static review only).
 
 ## S11 — Durable UI bundle
@@ -90,6 +95,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: The user supplies a legal output path and enough scope information for the requested flows and states.
 - Expected: Preserve JSON/Markdown pairing, all nine Markdown headings, all five artifact classes, version alignment, and schema validity.
 - Failure conditions: Uses compact output to omit a heading or artifact class; invents content instead of marking an item inapplicable; writes outside the authorized path.
+- Static required-read expectation: skill entry reads `skills/ui-ux-workflow/SKILL.md`, `protocols/UI_UX_WORKFLOW.md`, and `protocols/schemas/ui-ux-bundle.schema.json`; direct `ui-ux-designer` entry reads the leaf plus the same protocol and schema. `protocols/examples/ui-ux-bundle.valid.json` is conditional when structural guidance is needed. Communication-focused durable work separately enters through `skills/ui-communication-designer/SKILL.md`, whose full/scored references remain conditional.
 - Status: `not run` (static review only).
 
 ## S12 — Formal UX gate with missing evidence
@@ -98,6 +104,7 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: A reachable product journey and desktop evidence are available; required mobile browser evidence is unavailable.
 - Expected: Report the gate as incomplete or `not_evaluable`, with the missing mobile coverage identified. Do not infer a pass from source or desktop-only evidence.
 - Failure conditions: Calculates or claims a passing gate; silently narrows the requested viewport plan; substitutes source inspection for browser evidence.
+- Static required-read expectation: read `skills/devtools-ux-audit/SKILL.md`. Read `references/chrome-devtools.md` only for Chrome-specific operation and `references/windows-notes.md` only for Windows lifecycle handling. Missing mobile evidence still requires an incomplete or `not_evaluable` formal result; it does not turn this into the smaller S01 local UI check.
 - Status: `not run` (static review only).
 
 ## S13 — Shared browser and server

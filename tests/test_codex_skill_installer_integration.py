@@ -62,6 +62,35 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 skill_root = user_skills_root / name
                 self.assertTrue((skill_root / "SKILL.md").is_file())
                 skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+                if name == "artgen-scaffold":
+                    full_handoff = (
+                        skill_root / "references" / "full-handoff.md"
+                    ).read_text(encoding="utf-8")
+                    for heading in (
+                        "### Request Record",
+                        "### Asset Brief",
+                        "### Reusable Prompt",
+                        "### Suggested Outputs",
+                        "### Manual Checks",
+                        "### External Handoff Package",
+                        "### Direct Use Prompt",
+                    ):
+                        self.assertIn(heading, full_handoff)
+                    for identifier in (
+                        "request_id = <asset_slug>-request-v001",
+                        "brief_id = <asset_slug>-brief-v001",
+                        "prompt_id = <asset_slug>-prompt-v001",
+                        "output_id = <asset_slug>-output-v001",
+                    ):
+                        self.assertIn(identifier, full_handoff)
+                    for entry_label in (
+                        "`asset style or visible style assumption`",
+                        "`size input or visible size assumption`",
+                        "`asset style`",
+                        "`size input or stated size assumption`",
+                        "`prompt`",
+                    ):
+                        self.assertIn(entry_label, full_handoff)
                 if name in WORKFLOW_SKILLS:
                     mode = name.removeprefix("run-")
                     if name == "run-adaptive":

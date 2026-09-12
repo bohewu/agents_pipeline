@@ -1,6 +1,6 @@
 ---
 name: frontend-aesthetic-director
-description: "Use for bounded implementation or review that changes visible frontend UI: landing pages, dashboards, forms, tables, components, responsive cleanup, accessibility states, design-system alignment, existing-UI polish, or faithful implementation of an approved screenshot, Figma note, wireframe, or UI concept. Do not use for backend-only work, conceptual critique without implementation, or a formal UX audit."
+description: Implement or polish a bounded visible frontend UI change. Use for approved designs, components, responsive behavior, accessibility states, or design-system alignment.
 license: See repository license
 ---
 

@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.3] - 2026-09-12
+
+### Changed
+
+- Shortened five capability-skill discovery descriptions and routed full art, durable UI/UX, and full or scored communication contracts through branch-specific canonical references while keeping compact paths self-contained.
+- Reduced duplicated repository and generated Codex guidance by requiring operation-specific policy reads, with custom support-root rewriting preserved for installed global and workspace guidance and generated leaf roles.
+
 ## [0.37.2] - 2026-09-09
 
 ### Fixed

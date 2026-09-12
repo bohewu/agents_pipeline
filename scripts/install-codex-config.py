@@ -164,12 +164,15 @@ def build_agents_alias_map_lines(modes_path: Path) -> List[str]:
     return lines
 
 
-def build_global_agents_managed_block(modes_path: Path) -> str:
+def build_global_agents_managed_block(
+    modes_path: Path,
+    support_root_ref: str = "$CODEX_HOME/agents-pipeline",
+) -> str:
     lines = [
         WORKSPACE_AGENTS_MANAGED_START,
         "## Codex global mode aliases",
         "",
-        *build_mode_summary_lines(),
+        *build_mode_summary_lines(support_root_ref),
         "",
         *build_agents_alias_map_lines(modes_path),
         "",
@@ -180,12 +183,15 @@ def build_global_agents_managed_block(modes_path: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build_workspace_agents_managed_block(modes_path: Path) -> str:
+def build_workspace_agents_managed_block(
+    modes_path: Path,
+    support_root_ref: str = "$CODEX_HOME/agents-pipeline",
+) -> str:
     lines = [
         WORKSPACE_AGENTS_MANAGED_START,
         "## Codex mode aliases",
         "",
-        *build_mode_summary_lines(),
+        *build_mode_summary_lines(support_root_ref),
         "",
         *build_agents_alias_map_lines(modes_path),
         "",
@@ -1606,12 +1612,18 @@ def main() -> int:
     try:
         if global_agents_target is not None:
             global_agents_path = resolve_global_agents_path(global_agents_target)
-            global_agents_block = build_global_agents_managed_block(modes_path)
+            global_agents_block = build_global_agents_managed_block(
+                modes_path, support_tree_target.expanduser().resolve().as_posix()
+            )
         elif workspace_agents_path is not None:
-            workspace_agents_block = build_workspace_agents_managed_block(modes_path)
+            workspace_agents_block = build_workspace_agents_managed_block(
+                modes_path, support_tree_target.expanduser().resolve().as_posix()
+            )
         else:
             global_agents_path = resolve_global_agents_path(target_dir)
-            global_agents_block = build_global_agents_managed_block(modes_path)
+            global_agents_block = build_global_agents_managed_block(
+                modes_path, support_tree_target.expanduser().resolve().as_posix()
+            )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2

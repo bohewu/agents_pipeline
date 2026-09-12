@@ -1,4 +1,4 @@
 interface:
   display_name: "UI Communication Designer"
-  short_description: "Clarify UI flows, screens, or copy"
-  default_prompt: "Use $ui-communication-designer at the requested depth to diagnose this UI communication problem or provide the requested copy rewrite."
+  short_description: "Clarify a UI flow or its copy"
+  default_prompt: "Use $ui-communication-designer to diagnose this UI communication problem or provide the requested copy rewrite."

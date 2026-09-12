@@ -1,4 +1,4 @@
 interface:
   display_name: "DevTools UX Audit"
-  short_description: "Audit journeys with browser evidence"
-  default_prompt: "Use $devtools-ux-audit to collect formal browser evidence for this declared user journey across its required viewports."
+  short_description: "Audit a web journey with browser evidence"
+  default_prompt: "Use $devtools-ux-audit to collect formal browser evidence for this declared web journey and its required viewports."
