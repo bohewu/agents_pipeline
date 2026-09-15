@@ -1,6 +1,6 @@
 # Instruction loading integration report
 
-This report covers the bounded instruction-loading patch from the baseline at `b028384e46c7847de84f9270b0f10ca3dbb0a082`. Counts are Unicode code points. They are static source and required-read measurements, not token, cache, latency, invocation, runtime-read, or model-compliance measurements.
+This report covers the bounded instruction-loading patch from the baseline at `b028384e46c7847de84f9270b0f10ca3dbb0a082`. Counts are Unicode code points. They are static source and required-read measurements from that patch, not token, cache, latency, invocation, runtime-read, or model-compliance measurements. Later contract clarifications and dated runtime observations are identified separately rather than silently recalculating these historical tables.
 
 ## Changes and retained boundaries
 
@@ -51,7 +51,7 @@ The generated role comparison used the same `/baseline/agents-pipeline-support` 
 | S06 prompt-only, skill | art root: 7,311 | art root: 3,069 |
 | S06 prompt-only, direct leaf | art leaf: 7,937 | art leaf: 2,903 |
 | S07 full art, skill | art root: 7,311 | root + full reference: 8,026 |
-| S07 full art, direct leaf | art leaf: 7,937 | leaf + full reference: 7,860 |
+| S07 full art, direct leaf | art leaf: 7,937 | leaf + full reference: 7,860 (historical static measurement) |
 | S10 compact desktop concept, skill | UI/UX root: 6,663 | UI/UX root: 3,564 |
 | S10 compact desktop concept, direct leaf | UI/UX leaf: 6,383 | UI/UX leaf: 3,621 |
 | S11 durable file bundle, skill | root + protocol + schema: 67,822 | root + protocol + schema: 64,723 |
@@ -63,6 +63,12 @@ The generated role comparison used the same `/baseline/agents-pipeline-support` 
 | S12 formal gate | audit root: 5,838 | audit root: 5,590 |
 
 For S11, the 16,055-character example is read only when structural guidance is needed. A communication-focused durable branch enters through the communication skill root, then selects its template and rubric only for full/scored work. For local UI work, the 9,147-character layout/style playbook is selected when choosing a correction strategy, layout archetype, or visual style; the 4,581-character checklist supports the detailed state and anti-slop pass. Only unavailable rendered QA adds the 5,225-character rubric. A path selecting all three references totals 26,752 characters before and 26,509 after. S12 conditionally adds the 1,561-character Chrome reference and/or 1,408-character Windows reference; missing required mobile evidence still yields an incomplete or `not_evaluable` gate.
+
+### S07 direct-entry read contract clarification
+
+The intended direct `art-director` read set is the leaf plus `skills/artgen-scaffold/references/full-handoff.md`. The leaf is self-contained and does not additionally require `skills/artgen-scaffold/SKILL.md` solely to perform the same role. When a higher-priority instruction or explicit invocation of `artgen-scaffold` requires the skill root, the intended read set conditionally includes the root as well; test or execution evidence must retain that mandatory read and must not describe it as eliminated. This reporting does not add prose to the selected asset output. Prompt-only still reads no full-handoff reference and returns exactly one fenced `text` block without surrounding prose.
+
+The dated runtime measurement is different from that conditional intended set. On 2026-09-12 with installed v0.37.3, both the managed-role Sol medium S07 run and the isolated Astra low CLI S07 run opened the approximately 3,069-character installed skill root plus the full-handoff reference in one command. Both outputs were correct. Visible tool calls cannot prove why the root was chosen, so this report records no causal diagnosis and does not recast the isolated CLI run as managed-role evidence.
 
 ## Verification and delivery
 

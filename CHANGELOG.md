@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.4] - 2026-09-15
+
+### Changed
+
+- Added the instruction-only `child_result_display=auto|always|exceptions` presentation preference while preserving trace, anomaly, recovery, and acceptance behavior.
+- Clarified the direct `art-director` S07 read contract so redundant root reads are conditional while higher-priority root-read requirements remain intact.
+
 ## [0.37.3] - 2026-09-12
 
 ### Changed

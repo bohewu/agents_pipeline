@@ -61,8 +61,9 @@ No case below was run in this patch. The source contracts were reviewed statical
 - Prerequisites: Enough scope information to define the icon family; unresolved required fields are recorded as assumptions or narrow questions.
 - Expected: Preserve all seven full-handoff sections, aligned IDs and version markers, naming/output guidance, manual checks, external package, and the final Direct Use Prompt.
 - Failure conditions: Substitutes prompt-only output; omits or renames required sections or identifiers; claims assets were generated.
-- Static required-read expectation: skill entry reads `skills/artgen-scaffold/SKILL.md` and then `references/full-handoff.md`; direct `art-director` entry reads the leaf and then the same full-handoff reference. The leaf does not require a second read of the skill root.
-- Status: `not run` (static review only).
+- Static required-read expectation: skill entry reads `skills/artgen-scaffold/SKILL.md` and then `references/full-handoff.md`. A direct `art-director` entry reads the leaf and then the same full-handoff reference without additionally opening the skill root solely to perform that role. If a higher-priority instruction or explicit invocation of `artgen-scaffold` requires the root, that read remains mandatory and must be recorded in test or execution evidence rather than counted as eliminated. This evidence does not add prose to the selected seven-section or prompt-only product output.
+- Historical runtime observation (2026-09-12, installed v0.37.3): both the managed-role Sol medium run and the isolated Astra low CLI run opened the approximately 3,069-character installed skill root plus the full-handoff reference in one command, and both outputs satisfied the seven-section contract. The visible calls do not establish why the root was selected, so this observation records measured behavior rather than a cause or the intended conditional read set.
+- Current clarification status: `not re-run` (static review only); the separate dated observation above records the historical v0.37.3 runs.
 
 ## S08 — Actual image generation
 

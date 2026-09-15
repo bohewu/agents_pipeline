@@ -164,6 +164,17 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 installed_ui_skill,
             )
             self.assertNotIn("../../protocols/", installed_ui_skill)
+            installed_art_director = (
+                home / ".codex" / "agents" / "art-director.toml"
+            ).read_text(encoding="utf-8")
+            self.assertIn(
+                "SKILL.md` solely to perform the same role",
+                installed_art_director,
+            )
+            self.assertIn(
+                "Treat the root read as mandatory in any requested or required execution evidence",
+                installed_art_director,
+            )
 
     def test_explicit_custom_global_target_requires_explicit_user_skill_root(
         self,

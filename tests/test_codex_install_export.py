@@ -160,7 +160,11 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("create no workflow artifacts", managed_block)
         self.assertIn("resolver or selector conflicts stop dispatch", managed_block)
         self.assertIn("For every child result shown to the user", managed_block)
-        self.assertIn("role/model/effort selection line", managed_block)
+        self.assertIn(
+            "`child_result_display=auto|always|exceptions` policy", managed_block
+        )
+        self.assertIn("preserve mandatory trace and acceptance rules", managed_block)
+        self.assertIn("terminal-blocker states", managed_block)
         self.assertIn(
             "Use the smallest implementation and verification sufficient",
             managed_block,
@@ -359,6 +363,11 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("Before any managed child dispatch", managed_block)
         self.assertIn("REASONING_POLICY.md", managed_block)
         self.assertIn("For every child result shown to the user", managed_block)
+        self.assertIn(
+            "`child_result_display=auto|always|exceptions` policy", managed_block
+        )
+        self.assertIn("preserve mandatory trace and acceptance rules", managed_block)
+        self.assertIn("terminal-blocker states", managed_block)
         self.assertIn(
             "Use the smallest implementation and verification sufficient",
             managed_block,

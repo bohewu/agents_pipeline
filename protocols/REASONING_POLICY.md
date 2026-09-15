@@ -514,8 +514,34 @@ follows the same contract in memory and writes no status artifact. Searches
 fail closed when the Codex home, a parent directory, or a candidate trace is
 reached through a symlink, Windows junction, or other path redirection.
 
-For every terminal child result surfaced to the user, print one compact adjacent
-selection line before the result summary:
+Child-result presentation is controlled by the conversational
+`child_result_display=auto|always|exceptions` preference. This is an in-session
+presentation preference, not a CLI flag or persisted configuration. It defaults
+to `auto`. If the user supplies an invalid value, report that visibly and use
+`auto`; do not persist any value across sessions unless the user explicitly asks
+for persistence.
+
+- `auto` may suppress only a normal adjacent selection line, and only when the
+  user or runtime explicitly confirms that the current client is the official
+  Codex Desktop UI and that UI natively displays the child model. Codex CLI and
+  unknown client capability retain the full line.
+- `always` emits the full adjacent selection line for every child and overrides
+  `auto` suppression.
+- `exceptions` is an explicit user choice to suppress normal lines independent
+  of client UI capability while retaining every exceptional line or warning.
+
+A result is normal only when trace evidence matches the registered role and
+expected model, supplies an effective effort matching the dispatched effort,
+and the decision is neither degraded nor conflicted and used no recovery
+attempt. Inherit and shadow decisions are not silently treated as enforced.
+The Desktop UI's model label is not evidence of effective effort. Presentation
+never changes the mandatory trace attempt, resolver update, acceptance rules,
+or role/model/effort verification.
+
+Missing, unverified, unknown, mismatched, degraded, or conflicted role, model,
+or effort states, every recovery attempt, and every error or terminal blocker
+remain visible under all three preferences. When a selection line is required,
+print one compact adjacent line before the result summary:
 
 ```text
 reviewer · model=gpt-5.6-sol (verified) · effort=xhigh (effective)
@@ -525,8 +551,8 @@ Use the registered role name. Show `(verified)` only when `model_matches = true`
 otherwise show the configured model as `(unverified)` or `model=unknown`. Show
 `(effective)` only when the trace supplied `effective_effort`; otherwise label the
 effort `(requested)` or `(inherited; unverified)` as applicable. A mismatch must be
-visible and continues to follow the workflow's acceptance rules. Emit one selection
-line per child dispatch, including repeated dispatches of the same role. Never merge
+visible and continues to follow the workflow's acceptance rules. Emit one required
+selection line per child dispatch, including repeated dispatches of the same role. Never merge
 multiple dispatches by slash-joining effort values such as `effort=max/high`. If a
 single child has different requested, dispatched, or effective values, show separate
 named fields, for example:

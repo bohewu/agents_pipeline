@@ -71,9 +71,11 @@ CAPABILITY_RECOVERY_TEMPLATE = (
     "binding, and existing counter rules unchanged."
 )
 CHILD_RESULT_SELECTION_LABEL_LINE = (
-    "For every child result shown to the user, emit the protocol-defined adjacent "
-    "role/model/effort selection line and distinguish verified or effective values "
-    "from requested, inherited, unknown, or unverified values."
+    "For every child result shown to the user, apply the protocol-defined conversational "
+    "`child_result_display=auto|always|exceptions` policy. Defer suppression decisions "
+    "to that policy, preserve mandatory trace and acceptance rules, and always show "
+    "missing, unverified, unknown, mismatched, degraded, conflicted, recovery, error, "
+    "and terminal-blocker states."
 )
 MINIMAL_DELIVERY_LINE = (
     "Use the smallest implementation and verification sufficient for the stated "
