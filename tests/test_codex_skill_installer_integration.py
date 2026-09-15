@@ -91,6 +91,16 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                         "`prompt`",
                     ):
                         self.assertIn(entry_label, full_handoff)
+                    self.assertIn(
+                        "a non-empty `prompt` containing the full reusable prompt text",
+                        full_handoff,
+                    )
+                    self.assertIn(
+                        "a `prompt_reference` that explicitly targets this response's "
+                        "Reusable Prompt or Direct Use Prompt for the same `prompt_id` "
+                        "and `version_marker`",
+                        full_handoff,
+                    )
                 if name in WORKFLOW_SKILLS:
                     mode = name.removeprefix("run-")
                     if name == "run-adaptive":

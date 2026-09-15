@@ -82,6 +82,12 @@ List what a human must confirm before generation or reuse.
 ### External Handoff Package
 
 Bundle the same records without inventing alternate IDs or execution metadata.
+The reusable prompt record must retain the same `prompt_id` and `version_marker` and include either:
+
+- a non-empty `prompt` containing the full reusable prompt text; or
+- a `prompt_reference` that explicitly targets this response's Reusable Prompt or Direct Use Prompt for the same `prompt_id` and `version_marker`.
+
+A bare prompt ID, subject list, placeholder, or vague reference is insufficient.
 
 ### Direct Use Prompt
 
@@ -124,6 +130,7 @@ Confirm that:
 - all seven sections appear in order and `Direct Use Prompt` is last
 - style and dimensions are explicit and all inferred values use `Assumption: ...`
 - IDs and version markers align, including inside the External Handoff Package
+- the External Handoff Package reusable prompt record includes the full non-empty prompt or an explicit same-response prompt reference for the same prompt ID and version
 - the direct-use prompt closely matches the reusable prompt and needs no Codex-specific wrapper
 - suggested outputs remain independently reviewable and use relative paths
 - no image, provider, file, automation, or execution claim was made

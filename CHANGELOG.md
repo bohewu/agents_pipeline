@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.5] - 2026-09-15
+
+### Fixed
+
+- Require the artgen scaffold's External Handoff Package reusable prompt record to carry the full prompt or an explicit same-response reference with matching ID and version.
+
 ## [0.37.4] - 2026-09-15
 
 ### Changed
