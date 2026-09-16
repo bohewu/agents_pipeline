@@ -45,6 +45,7 @@
             "type": "string",
             "enum": [
               "executor",
+              "executor-strong",
               "peon",
               "generalist",
               "doc-writer"

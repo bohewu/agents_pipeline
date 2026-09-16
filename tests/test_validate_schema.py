@@ -9,10 +9,214 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VALIDATOR = REPO_ROOT / "tools" / "validate-schema.py"
+RESOLVER_SPEC = importlib.util.spec_from_file_location(
+    "validate_schema_agent_model_profiles",
+    REPO_ROOT / "scripts" / "agent_model_profiles.py",
+)
+assert RESOLVER_SPEC is not None and RESOLVER_SPEC.loader is not None
+RESOLVER = importlib.util.module_from_spec(RESOLVER_SPEC)
+sys.modules[RESOLVER_SPEC.name] = RESOLVER
+RESOLVER_SPEC.loader.exec_module(RESOLVER)
 
 
 @unittest.skipUnless(importlib.util.find_spec("jsonschema"), "jsonschema is not installed")
 class ValidateSchemaFormatTest(unittest.TestCase):
+    def test_executor_strong_policy_decision_status_and_task_roles_validate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            profile = RESOLVER.load_profile(
+                "balanced", REPO_ROOT / "tools" / "agent-profiles", "codex"
+            )
+            model_set = RESOLVER.load_model_set(
+                "openai-luna-sol-astra",
+                REPO_ROOT / "runtimes" / "codex" / "model-sets",
+                "codex",
+            )
+            configuration = RESOLVER.resolve_workspace_configurations(
+                ["executor-strong"], profile, model_set
+            )["executor-strong"]
+            resolved = subprocess.run(
+                [
+                    "node",
+                    (REPO_ROOT / "tools" / "reasoning-policy.js").as_posix(),
+                    "--input-json",
+                    json.dumps(
+                        {
+                            "role": "executor-strong",
+                            "mode": "adaptive",
+                            "task_intent": "execute",
+                            "reasoning_signals": [
+                                "cross_module",
+                                "non_local_invariant",
+                            ],
+                            "selector_available": True,
+                            "resolved_configuration": configuration,
+                        }
+                    ),
+                    "--compact",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            decision = json.loads(resolved.stdout)
+            payloads = {
+                "reasoning-policy.schema.json": json.loads(
+                    (REPO_ROOT / "protocols" / "reasoning-policy.json").read_text(
+                        encoding="utf-8"
+                    )
+                ),
+                "reasoning-decision.schema.json": decision,
+                "agent-status.schema.json": {
+                    "run_id": "run-executor-strong-schema",
+                    "agent_id": "executor-strong-01",
+                    "agent": "executor-strong",
+                    "status": "starting",
+                    "created_at": "2026-09-16T02:00:00.000Z",
+                    "updated_at": "2026-09-16T02:00:01.000Z",
+                    "reasoning": decision,
+                    "resolved_configuration": configuration,
+                },
+                "task-list.schema.json": {
+                    "protocol_version": "1.0",
+                    "tasks": [
+                        {
+                            "id": "T1",
+                            "summary": "Strong task",
+                            "description": "Execute a difficult implementation.",
+                            "primary_output": "implementation",
+                            "owner_hint": "executor-strong",
+                            "risk": "medium",
+                            "complexity": "M",
+                            "definition_of_done": ["Behavior is verified."],
+                            "dependencies": [],
+                        }
+                    ],
+                },
+                "flow-task-list.schema.json": {
+                    "protocol_version": "1.0",
+                    "tasks": [
+                        {
+                            "id": "T1",
+                            "summary": "Strong flow task",
+                            "description": "Execute a difficult implementation.",
+                            "primary_output": "implementation",
+                            "assigned_agent": "executor-strong",
+                            "risk": "medium",
+                            "verification": "strong",
+                            "review_required": True,
+                            "repair_budget": 2,
+                            "resource_class": "process",
+                            "definition_of_done": ["Behavior is verified."],
+                            "atomic": True,
+                        }
+                    ],
+                },
+            }
+
+            for schema_name, payload in payloads.items():
+                with self.subTest(schema=schema_name):
+                    payload_path = root / f"{schema_name}.payload.json"
+                    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            VALIDATOR.as_posix(),
+                            "--schema",
+                            (REPO_ROOT / "protocols" / "schemas" / schema_name).as_posix(),
+                            "--input",
+                            payload_path.as_posix(),
+                            "--require-jsonschema",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(
+                        result.returncode,
+                        0,
+                        result.stdout + result.stderr,
+                    )
+
+    def test_debugger_policy_decision_and_agent_status_validate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            resolved = subprocess.run(
+                [
+                    "node",
+                    (REPO_ROOT / "tools" / "reasoning-policy.js").as_posix(),
+                    "--input-json",
+                    json.dumps(
+                        {
+                            "role": "debugger",
+                            "mode": "adaptive",
+                            "task_intent": "diagnose",
+                            "model_tier": "strong",
+                            "selector_available": True,
+                            "observed_effective_effort": "xhigh",
+                        }
+                    ),
+                    "--compact",
+                ],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            decision = json.loads(resolved.stdout)
+            decision_path = root / "debugger-reasoning-decision.json"
+            decision_path.write_text(json.dumps(decision), encoding="utf-8")
+            status_path = root / "debugger-agent-status.json"
+            status_path.write_text(
+                json.dumps(
+                    {
+                        "run_id": "run-debugger-schema",
+                        "agent_id": "debugger-01",
+                        "agent": "debugger",
+                        "status": "done",
+                        "created_at": "2026-09-16T01:00:00.000Z",
+                        "updated_at": "2026-09-16T01:00:01.000Z",
+                        "reasoning": decision,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            cases = (
+                (
+                    "reasoning-policy.schema.json",
+                    REPO_ROOT / "protocols" / "reasoning-policy.json",
+                ),
+                ("reasoning-decision.schema.json", decision_path),
+                ("agent-status.schema.json", status_path),
+            )
+            for schema_name, payload_path in cases:
+                with self.subTest(schema=schema_name):
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            VALIDATOR.as_posix(),
+                            "--schema",
+                            (
+                                REPO_ROOT / "protocols" / "schemas" / schema_name
+                            ).as_posix(),
+                            "--input",
+                            payload_path.as_posix(),
+                            "--require-jsonschema",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(
+                        result.returncode,
+                        0,
+                        result.stdout + result.stderr,
+                    )
+
     def test_capability_recovery_policy_and_fixtures(self) -> None:
         cases = [
             (

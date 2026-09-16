@@ -1531,6 +1531,22 @@ class CodexInstallExportTest(unittest.TestCase):
             self.assertEqual(install.returncode, 0, install.stderr)
 
             support_root = target / INSTALL_MODULE.SUPPORT_TREE_DIRNAME
+            debugger_role = (target / "agents" / "debugger.toml").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("This exported subagent is a leaf worker", debugger_role)
+            self.assertTrue(
+                (support_root / "protocols" / "DEBUGGER_DELEGATION.md").is_file()
+            )
+            strong_role = (target / "agents" / "executor-strong.toml").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("This exported subagent is a leaf worker", strong_role)
+            self.assertIn(
+                f"{support_root.as_posix()}/agents/executor.md",
+                strong_role,
+            )
+            self.assertTrue((support_root / "agents" / "executor.md").is_file())
             status_help = subprocess.run(
                 [
                     "node",

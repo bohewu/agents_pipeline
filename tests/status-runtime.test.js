@@ -159,7 +159,7 @@ function matchingLowTrace(agentId) {
   };
 }
 
-function lsaV2ResolvedConfiguration({ modelTier = "standard", recovery = false } = {}) {
+function lsaV2ResolvedConfiguration({ role = "executor", modelTier = "standard", recovery = false } = {}) {
   const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
   const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
   return {
@@ -172,7 +172,7 @@ function lsaV2ResolvedConfiguration({ modelTier = "standard", recovery = false }
       digest: projection.digest
     },
     role_binding: {
-      role: "executor",
+      role,
       model_tier: modelTier,
       model: modelSet.tiers[modelTier],
       mapping_digest: modelSet.mapping_digest
@@ -189,8 +189,12 @@ function lsaV2ResolvedConfiguration({ modelTier = "standard", recovery = false }
   };
 }
 
-function lsaV2RunConfiguration() {
-  const resolved = lsaV2ResolvedConfiguration();
+function lsaV2RunConfiguration({ roles = { executor: "standard" } } = {}) {
+  const resolvedConfigurations = Object.fromEntries(Object.entries(roles).map(([role, modelTier]) => [
+    role,
+    lsaV2ResolvedConfiguration({ role, modelTier })
+  ]));
+  const resolved = Object.values(resolvedConfigurations)[0];
   const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
   const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
   return {
@@ -208,7 +212,7 @@ function lsaV2RunConfiguration() {
       model_set: resolved.model_set,
       reasoning_projection: resolved.reasoning_projection
     },
-    resolved_configurations: { executor: resolved }
+    resolved_configurations: resolvedConfigurations
   };
 }
 
@@ -2018,6 +2022,185 @@ test("configured legacy decisions and approved recovery envelopes retain their s
   assert.equal(canonical.resolved_configuration.provenance.override.target_model_tier, "strong");
   assert.equal(canonical.reasoning.enforcement_status, "shadow");
   assert.equal(canonical.trace_evidence, undefined);
+});
+
+test("AgentStatus accepts a matching debugger diagnosis decision", () => {
+  const reasoning = resolveReasoning({
+    role: "debugger",
+    mode: "adaptive",
+    task_intent: "diagnose",
+    model_tier: "strong",
+    selector_available: true,
+    observed_effective_effort: "xhigh"
+  });
+  const canonical = canonicalizeAgentStatus({
+    run_id: "run-debugger-status",
+    agent_id: "debugger-01",
+    agent: "debugger",
+    status: "done",
+    created_at: "2026-09-16T01:00:00.000Z",
+    updated_at: "2026-09-16T01:00:01.000Z",
+    reasoning
+  });
+
+  assert.equal(canonical.agent, "debugger");
+  assert.equal(canonical.reasoning.role, "debugger");
+  assert.equal(canonical.reasoning.reasoning_class, "deep");
+});
+
+test("executor-strong admission preserves first-attempt identity and allows only same-role retries", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-executor-strong-"));
+  t.after(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  const runtime = new StatusRuntime();
+  const runId = "run-executor-strong-admission";
+  const configuration = lsaV2RunConfiguration({
+    roles: { executor: "standard", "executor-strong": "strong" }
+  });
+  const envelope = { output_root: tempRoot, run_id: runId };
+  await runtime.applyEvent("run.started", {
+    ...envelope,
+    orchestrator: "orchestrator-flow",
+    user_prompt: "Preserve executor attempt identity",
+    configuration,
+    flags: {
+      reasoning_mode: "adaptive",
+      reasoning_policy_version: "3",
+      reasoning_ceiling: "max"
+    },
+    timestamp: "2026-09-16T02:00:00.000Z"
+  });
+  await runtime.applyEvent("tasks.registered", {
+    ...envelope,
+    tasks: [
+      { task_id: "first-strong", summary: "First strong execution", status: "ready" },
+      { task_id: "ordinary-first", summary: "Reject relabel", status: "ready" },
+      { task_id: "diagnostic-first", summary: "Ignore diagnostic helper", status: "ready" }
+    ],
+    timestamp: "2026-09-16T02:00:01.000Z"
+  });
+
+  const strongConfiguration = configuration.resolved_configurations["executor-strong"];
+  const strongReasoning = resolveReasoning({
+    role: "executor-strong",
+    mode: "adaptive",
+    task_intent: "execute",
+    reasoning_signals: ["cross_module", "non_local_invariant"],
+    selector_available: true,
+    resolved_configuration: strongConfiguration
+  });
+  await assert.rejects(runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "unbound-strong-worker",
+    agent: "executor-strong",
+    attempt: 1,
+    reasoning: strongReasoning,
+    resolved_configuration: strongConfiguration,
+    timestamp: "2026-09-16T02:00:59.000Z"
+  }), /requires canonical task history/);
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "strong-worker",
+    agent: "executor-strong",
+    task_id: "first-strong",
+    attempt: 1,
+    reasoning: strongReasoning,
+    resolved_configuration: strongConfiguration,
+    timestamp: "2026-09-16T02:01:00.000Z"
+  });
+  let firstTask = await readJson(path.join(
+    tempRoot, runId, "status", "tasks", "first-strong.json"
+  ));
+  let firstAgent = await readJson(path.join(
+    tempRoot, runId, "status", "agents", `${firstTask.agent_ref.agent_id}.json`
+  ));
+  assert.equal(firstAgent.agent, "executor-strong");
+  assert.equal(firstAgent.attempt, 1);
+  assert.equal(firstTask.retry_opportunities_used, undefined);
+  assert.equal(firstTask.capability_recovery_used, undefined);
+
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: "strong-worker",
+    task_id: "first-strong",
+    attempt: 1,
+    status: "failed",
+    timestamp: "2026-09-16T02:01:01.000Z"
+  });
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "strong-worker",
+    agent: "executor-strong",
+    task_id: "first-strong",
+    attempt: 2,
+    reasoning: strongReasoning,
+    resolved_configuration: strongConfiguration,
+    timestamp: "2026-09-16T02:01:02.000Z"
+  });
+  firstTask = await readJson(path.join(
+    tempRoot, runId, "status", "tasks", "first-strong.json"
+  ));
+  firstAgent = await readJson(path.join(
+    tempRoot, runId, "status", "agents", `${firstTask.agent_ref.agent_id}.json`
+  ));
+  assert.equal(firstAgent.agent, "executor-strong");
+  assert.equal(firstAgent.attempt, 2);
+
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "ordinary-worker",
+    agent: "executor",
+    task_id: "ordinary-first",
+    attempt: 1,
+    timestamp: "2026-09-16T02:02:00.000Z"
+  });
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: "ordinary-worker",
+    task_id: "ordinary-first",
+    attempt: 1,
+    status: "failed",
+    timestamp: "2026-09-16T02:02:01.000Z"
+  });
+  await assert.rejects(runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "fresh-strong-worker",
+    agent: "executor-strong",
+    task_id: "ordinary-first",
+    attempt: 1,
+    reasoning: strongReasoning,
+    resolved_configuration: strongConfiguration,
+    timestamp: "2026-09-16T02:02:02.000Z"
+  }), /cannot replace a prior executor or generalist execution attempt/);
+
+  await runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "diagnostic-worker",
+    agent: "debugger",
+    task_id: "diagnostic-first",
+    attempt: 1,
+    timestamp: "2026-09-16T02:03:00.000Z"
+  });
+  await runtime.applyEvent("agent.finished", {
+    ...envelope,
+    agent_id: "diagnostic-worker",
+    task_id: "diagnostic-first",
+    attempt: 1,
+    status: "done",
+    timestamp: "2026-09-16T02:03:01.000Z"
+  });
+  await assert.doesNotReject(runtime.applyEvent("agent.started", {
+    ...envelope,
+    agent_id: "post-diagnostic-strong",
+    agent: "executor-strong",
+    task_id: "diagnostic-first",
+    attempt: 1,
+    reasoning: strongReasoning,
+    resolved_configuration: strongConfiguration,
+    timestamp: "2026-09-16T02:03:02.000Z"
+  }));
 });
 
 test("terminal agent attempts emit content-free local reasoning observations", async (t) => {

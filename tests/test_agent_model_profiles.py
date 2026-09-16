@@ -74,21 +74,21 @@ class AgentModelProfilesTest(unittest.TestCase):
                 tier: list(frugal.models.values()).count(tier)
                 for tier in RESOLVER.REQUIRED_TIERS
             },
-            {"mini": 15, "standard": 26, "strong": 4},
+            {"mini": 15, "standard": 27, "strong": 5},
         )
         self.assertEqual(
             {
                 tier: list(balanced.models.values()).count(tier)
                 for tier in RESOLVER.REQUIRED_TIERS
             },
-            {"mini": 9, "standard": 31, "strong": 5},
+            {"mini": 9, "standard": 28, "strong": 10},
         )
         self.assertEqual(
             {
                 tier: list(premium.models.values()).count(tier)
                 for tier in RESOLVER.REQUIRED_TIERS
             },
-            {"mini": 9, "standard": 16, "strong": 20},
+            {"mini": 9, "standard": 16, "strong": 22},
         )
 
         for role in (
@@ -110,6 +110,86 @@ class AgentModelProfilesTest(unittest.TestCase):
             self.assertEqual(premium.models[role], "mini")
         self.assertEqual(premium.models["executor"], "standard")
         self.assertEqual(premium.recovery_ceiling_tiers["executor"], "strong")
+
+        for profile in (frugal, balanced, premium):
+            self.assertEqual(profile.models["executor-strong"], "strong")
+        for role in (
+            "analysis-correctness",
+            "analysis-numerics",
+            "analysis-robustness",
+        ):
+            self.assertEqual(frugal.models[role], "standard")
+            self.assertEqual(balanced.models[role], "strong")
+            self.assertEqual(premium.models[role], "strong")
+
+    def test_executor_strong_resolves_with_unchanged_lsa_v2_identity(self) -> None:
+        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
+        model_set = RESOLVER.load_model_set(
+            "openai-luna-sol-astra",
+            REPO_ROOT / "runtimes" / "codex" / "model-sets",
+            "codex",
+        )
+
+        for name in ("frugal", "balanced", "premium"):
+            with self.subTest(profile=name):
+                profile = RESOLVER.load_profile(name, profiles_dir, "codex")
+                configuration = RESOLVER.resolve_workspace_configurations(
+                    ["executor-strong"], profile, model_set
+                )["executor-strong"]
+                self.assertEqual(configuration["role_binding"]["model_tier"], "strong")
+                self.assertEqual(configuration["role_binding"]["model"], "gpt-6-astra")
+                self.assertEqual(
+                    configuration["model_set"]["mapping_digest"],
+                    "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
+                )
+                self.assertEqual(
+                    configuration["reasoning_projection"],
+                    {
+                        "id": "lsa-efficiency-v2",
+                        "version": "2",
+                        "policy_version": "3",
+                        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
+                    },
+                )
+
+    def test_debugger_profile_tiers_resolve_through_the_unchanged_lsa_v2_mapping(self) -> None:
+        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
+        model_set = RESOLVER.load_model_set(
+            "openai-luna-sol-astra",
+            REPO_ROOT / "runtimes" / "codex" / "model-sets",
+            "codex",
+        )
+        expected = {
+            "frugal": ("standard", "gpt-5.6-sol"),
+            "balanced": ("strong", "gpt-6-astra"),
+            "premium": ("strong", "gpt-6-astra"),
+        }
+
+        for name, (tier, model) in expected.items():
+            with self.subTest(profile=name):
+                profile = RESOLVER.load_profile(name, profiles_dir, "codex")
+                configuration = RESOLVER.resolve_workspace_configurations(
+                    ["debugger"], profile, model_set
+                )["debugger"]
+                self.assertEqual(configuration["role_binding"]["model_tier"], tier)
+                self.assertEqual(configuration["role_binding"]["model"], model)
+                self.assertEqual(
+                    configuration["model_set"],
+                    {
+                        "id": "openai-luna-sol-astra",
+                        "version": "2",
+                        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
+                    },
+                )
+                self.assertEqual(
+                    configuration["reasoning_projection"],
+                    {
+                        "id": "lsa-efficiency-v2",
+                        "version": "2",
+                        "policy_version": "3",
+                        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
+                    },
+                )
 
     def test_builtin_recovery_ceiling_mappings(self) -> None:
         profiles_dir = REPO_ROOT / "tools" / "agent-profiles"

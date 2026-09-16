@@ -31,6 +31,13 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 # REASONING-AWARE BATCHING
 
 - Preserve each task's `task_intent`, `intent_baseline_class`, `classification_source`, legacy `reasoning_class`, and `reasoning_signals` from TaskList.
+- Apply `protocols/INITIAL_STRONG_ROUTING.md` when considering
+  `executor-strong`. The handoff context must include the actual profile-manager
+  status and resolved role configurations plus canonical TaskStatus and every
+  started or terminal AgentStatus record and the orchestrator-owned in-memory dispatch record for
+  each task. Never accept a caller-provided `is_first_attempt`, `use_strong`, or
+  similar boolean as execution-history proof. Keep this context outside the
+  DispatchPlan JSON output.
 - Preserve `validation_infrastructure` authorization unchanged. Routing cannot add, remove, or infer this authority.
 - Do not combine different task intents in a batch. Set each batch's intent/baseline/source from its task intent, `reasoning_class` to the highest class among its tasks, and `reasoning_signals` to the sorted union of their signals.
 - Intent metadata is an additive, backward-compatible DispatchPlan extension. Do not change a DispatchPlan `protocol_version` because of policy v2.
@@ -39,6 +46,13 @@ Given TaskList, create DispatchPlan that minimizes cost/time while keeping quali
 
 # EXECUTOR SELECTION HINTS
 
+- Select `executor-strong` automatically only when the shared initial-strong
+  protocol proves every profile, exact-binding, no-prior-implementation, and
+  concrete difficult-deep-signal condition. `multi_file`, `cross_module`, task
+  size, risk, or `deep` alone is insufficient. If context is absent or
+  unverified, preserve the existing `executor` or `generalist` assignment and
+  the original reasoning class/signals. An explicit strong requirement with an
+  unavailable binding is a routing conflict, not permission to downgrade.
 - Prefer `market-researcher` for tasks that explicitly require external web research, competitor/comparable scans, pricing collection, or benchmark sourcing.
 - Prefer `doc-writer` for final human-friendly reports/specs/checklists built from completed research.
 - Prefer `generalist` for mixed synthesis tasks that combine research findings with strategy/recommendations.

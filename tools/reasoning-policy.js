@@ -84,6 +84,7 @@ const FIXED_ROLE_GROUPS = Object.freeze({
     "committee-judge",
     "committee-qa",
     "committee-security",
+    "debugger",
     "ux-judge",
     "ux-task-flow"
   ])
@@ -114,6 +115,12 @@ const CANONICAL_ROLE_POLICIES = Object.freeze({
     strict: false
   }])),
   "committee-security": {
+    mode: "fixed",
+    reasoning_class: "deep",
+    minimum_model_tier: "strong",
+    strict: false
+  },
+  "executor-strong": {
     mode: "fixed",
     reasoning_class: "deep",
     minimum_model_tier: "strong",
@@ -1198,6 +1205,12 @@ function validatePolicy(policy) {
   assert(
     policy.role_policies["committee-security"].minimum_model_tier === "strong",
     "role_policies.committee-security must require minimum model tier strong"
+  );
+  assert(
+    policy.role_policies["executor-strong"].mode === "fixed"
+      && policy.role_policies["executor-strong"].reasoning_class === "deep"
+      && policy.role_policies["executor-strong"].minimum_model_tier === "strong",
+    "role_policies.executor-strong must remain fixed deep with minimum model tier strong"
   );
   for (const role of ["doc-writer", "executor", "generalist"]) {
     const rolePolicy = policy.role_policies[role];

@@ -37,6 +37,8 @@ function defaultCleanupStatus(resourceClass) {
   return resourceClass === "light" ? "not_required" : resourceClass ? "pending" : undefined;
 }
 
+const ORDINARY_EXECUTION_ROLES = new Set(["executor", "generalist"]);
+
 class StatusProjector {
   applyEvent(state, eventName, payload) {
     const timestamp = payload.timestamp || nowIso();
@@ -363,6 +365,19 @@ class StatusProjector {
       (payload.recovery_stage === undefined) === (payload.recovery_claim_id === undefined),
       "Recovery agent start requires both recovery_stage and recovery_claim_id"
     );
+    if (payload.agent === "executor-strong") {
+      assert(
+        payload.task_id && state.tasks.has(payload.task_id),
+        "executor-strong requires canonical task history"
+      );
+      const priorOrdinaryExecution = Array.from(state.agents.values()).find((agent) => (
+        agent.task_id === payload.task_id && ORDINARY_EXECUTION_ROLES.has(agent.agent)
+      ));
+      assert(
+        priorOrdinaryExecution === undefined,
+        "executor-strong cannot replace a prior executor or generalist execution attempt for the same task"
+      );
+    }
     const existingEntry = this.findMatchingAgentEntry(state, payload, { allowAmbiguousActive: false });
     if (payload.recovery_stage !== undefined) {
       assert(!existingEntry, "A claimed recovery attempt cannot be started more than once");

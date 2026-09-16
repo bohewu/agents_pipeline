@@ -28,8 +28,8 @@ class RuntimeCase:
 
 
 RUNTIME_CASES = (
-    RuntimeCase("claude", 45, "sonnet"),
-    RuntimeCase("copilot", 55, "GPT-5.5"),
+    RuntimeCase("claude", 47, "sonnet"),
+    RuntimeCase("copilot", 57, "GPT-5.5"),
 )
 
 

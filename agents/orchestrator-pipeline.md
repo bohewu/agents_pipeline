@@ -79,6 +79,7 @@ These rules apply to **all agents**.
 | atomizer | Atomic task DAG | Implementation |
 | router | Cost-aware assignment | Changing tasks |
 | executor | Task execution | Scope expansion |
+| executor-strong | Difficult initial task execution under the shared admission contract | Scope expansion or role switching |
 | doc-writer | Documentation outputs | Implementation |
 | peon | Low-cost execution | Scope expansion |
 | generalist | Mixed-scope execution | Scope expansion |
@@ -332,6 +333,18 @@ lifecycle payload, including reviewer and recovery attempts, and require the
 same configuration on resume before further dispatch. A recovery destination may
 differ only through the approved capability-recovery override returned by the profile.
 
+Apply `protocols/INITIAL_STRONG_ROUTING.md` before routing or spawning an
+implementation task. Forward the actual saved profile status and role bindings
+plus canonical TaskStatus and started or terminal AgentStatus records and the current
+orchestrator-owned dispatch record to `router`; do not accept a caller-supplied
+first-attempt boolean as history. Automatic `executor-strong` requires every
+shared profile, exact-binding, new-attempt, and concrete difficult-deep-signal
+condition. Missing or unverified context preserves the existing role and
+reasoning class; an explicit unavailable strong requirement conflicts. Requery
+profile status and reread canonical plus in-memory task history immediately
+before spawn. Initial strong execution is a normal first attempt, not recovery,
+and changes no recovery, retry, or repair counter.
+
 In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
 and apply it without passing a model. If selector unavailability produces a
@@ -361,6 +374,22 @@ trace evidence. Matching effort enforces the policy contract;
 selector and inheritance.
 Only matching adaptive role, model, and effort trace evidence permits an
 `enforced` result; `shadow` and `inherit` observations remain unapplied.
+
+## BOUNDED DEBUGGER DELEGATION
+
+Apply `protocols/DEBUGGER_DELEGATION.md` before broad orchestrator-led causal
+investigation. Keep a clear localized defect with its original executor. When
+quick triage leaves an uncertain, cross-module, non-local, or
+conflicting-evidence cause, dispatch `@debugger` before broad investigation and
+resolve it with `task_intent = diagnose` through the shared resolver. For a
+diagnosis prompted by a failed task, require Materiality Gate admission first.
+Bind `agent.started` through `agent.finished` to the original
+`task_id` and an explicit attempt, atomically incrementing that task's existing
+`retry_opportunities_used` before the spawn. A later executor re-dispatch uses
+the next existing opportunity. Reuse a terminal diagnostic result on resume;
+diagnosis never resets counters, bypasses a hard stop, creates a task or retry
+lane, or grants repair, recovery, or model-uplift eligibility. Known harness
+and operational failures stay in their existing bounded handling.
 
 ## MATERIALITY AND CAPABILITY RECOVERY
 
@@ -478,7 +507,7 @@ Use this gate for `DevSpec`:
 - Stage 2 (Repo Scout): @repo-scout
 - Stage 3 (Atomicization): @atomizer
 - Stage 4 (Routing): @router
-- Stage 5 (Execution + optional validation): @executor / @peon / @generalist / @doc-writer / @test-runner
+- Stage 5 (Execution + optional validation): @executor / @executor-strong / @peon / @generalist / @doc-writer / @test-runner; conditional task-attached diagnosis: @debugger
 - Stage 6 (Review): @reviewer
 - Stage 7 (Retry Loop): Orchestrator-owned (no subagent)
 - Stage 8 (Compression, opt-in): @compressor for non-trivial runs; trivial successful runs may emit `context-pack.json` inline (only if `compress_mode = true`)
@@ -497,11 +526,18 @@ Stage 3: @atomizer -> `task-list.json` (atomic DAG) using ProblemSpec, PlanOutli
   - For legacy 1.0 artifacts, reconcile blocking criteria against the persisted original request or pre-workflow repository evidence, normalize omitted `validation_infrastructure` to `{ "authorized": false }`, and do not require absent 1.1 fields
   - Generated test plans, DoD items, repo findings, and reviewer notes cannot authorize validation infrastructure or create product scope
   - Pure git helper actions such as `git status`, `git add`, `git commit`, or `git push` MUST NOT appear in `task-list.json` unless version-control work is the user's primary requested deliverable
-Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + resource and policy-v2 intent/reasoning metadata); then enrich task status files with routing fields such as `assigned_executor`, dependencies, `task_intent`, intent-baseline/source metadata, legacy `reasoning_class`, `reasoning_signals`, `resource_class`, `max_parallelism`, and `teardown_required`. When multiple tasks change together, prefer one status CLI call with `--event batch` plus a shared run envelope instead of one process per task. Always refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids.
+Stage 4: @router -> `dispatch-plan.json` (agent assignment + batching + resource and policy-v2 intent/reasoning metadata). Supply the shared initial-strong routing context outside the JSON artifact: exact saved profile status/resolved bindings, canonical task and terminal agent attempt records, and the orchestrator-owned dispatch record. The router may assign `executor-strong` only when the shared contract is fully proved. Then enrich task status files with routing fields such as `assigned_executor`, dependencies, `task_intent`, intent-baseline/source metadata, legacy `reasoning_class`, `reasoning_signals`, `resource_class`, `max_parallelism`, and `teardown_required`. When multiple tasks change together, prefer one status CLI call with `--event batch` plus a shared run envelope instead of one process per task. Always refresh `run-status.json` with `dispatch_plan_path`, updated counts, and any active/ready task ids.
 Stage 5: Execute batches + optional validation:
 
-- If `test_only = false`, dispatch tasks to @executor / @peon / @generalist / @doc-writer as specified
-- For every task-worker handoff (`@executor`, `@peon`, `@generalist`, or `@doc-writer`), include an explicit bounded execution profile. Derive verification and repair rigor from task `risk` / `complexity`, while the independent reasoning policy uses `reasoning_class` / `reasoning_signals`:
+- If `test_only = false`, dispatch tasks to @executor / @executor-strong / @peon / @generalist / @doc-writer as specified
+- Immediately before an `executor-strong` spawn, repeat the shared profile,
+  exact-binding, and no-prior-implementation checks against current status and
+  canonical plus in-memory history. Preserve the implementation role after a
+  task starts: a failed `executor` or `generalist` task cannot switch to
+  `executor-strong`, while a task begun by `executor-strong` keeps that role on
+  every permitted Stage 7 redispatch. `executor-strong` is not eligible for
+  model capability recovery.
+- For every task-worker handoff (`@executor`, `@executor-strong`, `@peon`, `@generalist`, or `@doc-writer`), include an explicit bounded execution profile. Derive verification and repair rigor from task `risk` / `complexity`, while the independent reasoning policy uses `reasoning_class` / `reasoning_signals`:
   - low risk + S complexity -> `verification = basic`, `repair_budget = 1`
   - medium risk or M complexity -> `verification = basic`, `repair_budget = 2`
   - high risk or L complexity -> `verification = strong`, `repair_budget = 2`

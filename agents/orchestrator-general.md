@@ -64,7 +64,9 @@ These rules apply to **all agents**.
 | doc-writer | Documentation outputs | Implementation |
 | generalist | Mixed-scope execution | Scope expansion |
 | peon | Low-cost execution | Scope expansion |
+| debugger | Bounded root-cause diagnosis | Product edits, scope or retry decisions |
 | executor | Atomic task execution with bounded risk and verification controls | Scope expansion |
+| executor-strong | Difficult initial task execution under the shared admission contract | Scope expansion or role switching |
 | test-runner | Test/build/lint verification | Code changes |
 | reviewer | Lightweight quality gate review | Direct fixes |
 | summarizer | User summary | Technical decisions |
@@ -115,6 +117,34 @@ For an eligible workspace profile, retain the exact role
 envelope to the resolver and local trace expectation, and preserve it in run
 status before any resume or later dispatch.
 
+Apply `protocols/INITIAL_STRONG_ROUTING.md` before routing or spawning an
+implementation task. Forward the actual preflight profile status and resolved
+role configurations plus canonical TaskStatus and started or terminal AgentStatus records and
+the orchestrator-owned in-memory dispatch record to `router`; do not substitute
+a caller-supplied first-attempt boolean. Automatic `executor-strong` requires
+every shared profile, exact-binding, new-attempt, and concrete
+difficult-deep-signal condition. Missing or unverified context preserves the
+existing `executor` or `generalist` role and reasoning class; an explicit
+unavailable strong requirement conflicts. Requery status and recheck the saved
+binding and canonical plus in-memory history immediately before spawn. Initial
+strong execution is a normal first attempt without recovery provenance,
+uplift, or counter changes. General has no retry lane: after any implementation
+attempt starts, it cannot switch roles, and `executor-strong` is not eligible
+for model capability recovery.
+
+## BOUNDED DEBUGGER DELEGATION
+
+Apply `protocols/DEBUGGER_DELEGATION.md`. Quick triage may preserve the failure
+signature, classify the failure, and perform direct structural lookup. Keep a
+clear localized defect with its original executor. If the cause remains
+uncertain, crosses modules or a non-local invariant, or has conflicting
+evidence, dispatch `@debugger` before the current agent performs a broad causal
+investigation. Resolve it with `task_intent = diagnose` through the shared
+resolver. Keep the result in the original work item and preserve General's
+no-retry rule; diagnosis does not authorize another execution attempt, reset a
+counter or hard stop, or create repair, recovery, or model-uplift eligibility.
+Known harness and operational failures use their existing bounded handling.
+
 # CONFIRM / VERBOSE PROTOCOL
 
 - `confirm_mode`: pause after each stage with `Proceed? [yes / feedback / abort]`. Update status to `waiting_for_user`. On abort: checkpoint and stop. Suppressed by `full_auto_mode`.
@@ -130,7 +160,7 @@ status before any resume or later dispatch.
 - Stage 1 (Plan Outline): @planner
 - Stage 2 (Atomicization): @atomizer
 - Stage 3 (Routing): @router
-- Stage 4 (Execution): @doc-writer / @generalist / @peon / @executor / @test-runner / @reviewer
+- Stage 4 (Execution): @doc-writer / @generalist / @peon / @executor / @executor-strong / @test-runner / @reviewer
 - Stage 5 (Summary): @summarizer
 
 All intermediate artifacts are written to `<output_dir>/general/`.
@@ -158,11 +188,16 @@ Rules:
 
 Generate DispatchPlan optimized for cost/time while preserving quality.
 
+Supply the shared initial-strong routing handoff context outside the
+DispatchPlan JSON. The router may select `executor-strong` only when the full
+shared contract is proved.
+
 Guidance:
 - Prefer `@market-researcher` for explicit external web research tasks such as competitor scans, pricing collection, benchmark gathering, or market signal collection.
 - Prefer `@doc-writer` / `@peon` for mechanical writing/formatting tasks.
 - Prefer `@generalist` for mixed-scope tasks that combine repo edits, docs, and analysis.
-- Use `@executor` when the work still needs bounded execution or stronger verification than `@doc-writer`, `@peon`, or `@generalist` can provide.
+- Prefer `@debugger` only for bounded root-cause diagnosis admitted by the shared debugger delegation contract; it never implements the recommended fix.
+- Use `@executor` when the work still needs bounded execution or stronger verification than `@doc-writer`, `@peon`, or `@generalist` can provide. Use `@executor-strong` only after shared initial-strong admission.
 - Prefer `@test-runner` for focused test/build/lint verification after code changes.
 - Prefer `@reviewer` for higher-risk code changes when a lightweight quality gate is justified; reviewer handoffs from this general flow MUST include `mode = ad_hoc` plus explicit review targets unless a TaskList is intentionally supplied.
 
@@ -180,6 +215,11 @@ When the pipeline asks for file outputs (memo/plan/spec/checklist/SOP/analysis),
 ## Stage 4 — Execution (delegated)
 
 Dispatch each task exactly once according to DispatchPlan.
+
+Immediately before an `executor-strong` spawn, repeat the current profile,
+exact-binding, and no-prior-implementation checks. If any check no longer
+passes, retain ordinary automatic routing or report an explicit strong-binding
+conflict as required; never relabel an already attempted task.
 
 If an executor reports BLOCKED:
 - Record blocker and continue remaining tasks.

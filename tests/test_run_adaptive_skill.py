@@ -404,7 +404,7 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("`repair_budget = 2`", pipeline)
         self.assertNotIn("`repair_budget = 0`", pipeline)
         self.assertIn(
-            "For every task-worker handoff (`@executor`, `@peon`, `@generalist`, or `@doc-writer`)",
+            "For every task-worker handoff (`@executor`, `@executor-strong`, `@peon`, `@generalist`, or `@doc-writer`)",
             pipeline,
         )
         self.assertIn("tool calls and operational failures never consume", pipeline)

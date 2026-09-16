@@ -184,6 +184,11 @@
       "reasoning_class": "routine",
       "strict": false
     },
+    "debugger": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "strict": false
+    },
     "doc-writer": {
       "mode": "adaptive",
       "floor_class": "routine",
@@ -196,6 +201,12 @@
       "floor_class": "routine",
       "target_class": "deliberative",
       "ceiling_class": "deep",
+      "strict": false
+    },
+    "executor-strong": {
+      "mode": "fixed",
+      "reasoning_class": "deep",
+      "minimum_model_tier": "strong",
       "strict": false
     },
     "flow-splitter": {

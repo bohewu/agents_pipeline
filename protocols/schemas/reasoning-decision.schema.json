@@ -444,6 +444,7 @@
         "committee-architect",
         "committee-judge",
         "committee-qa",
+        "debugger",
         "ux-judge",
         "ux-task-flow"
       ]
@@ -466,8 +467,10 @@
         "committee-qa",
         "committee-security",
         "compressor",
+        "debugger",
         "doc-writer",
         "executor",
+        "executor-strong",
         "flow-splitter",
         "generalist",
         "handoff-writer",
@@ -506,6 +509,10 @@
         },
         {
           "if": { "properties": { "role": { "const": "committee-security" } } },
+          "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalCommitteeSecurityRolePolicy" } } }
+        },
+        {
+          "if": { "properties": { "role": { "const": "executor-strong" } } },
           "then": { "properties": { "role_policy": { "$ref": "#/$defs/canonicalCommitteeSecurityRolePolicy" } } }
         },
         {
@@ -821,6 +828,23 @@
           "then": {
             "properties": {
               "reasoning_class": { "enum": ["deliberative", "deep", "assurance"] }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              { "not": { "properties": { "enforcement_status": { "const": "conflict" } } } },
+              { "properties": { "role": { "const": "executor-strong" } } }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reasoning_class": { "const": "deep" },
+              "minimum_model_tier": { "const": "strong" },
+              "model_tier": { "const": "strong" },
+              "selected_model_tier": { "const": "strong" },
+              "requires_model_escalation": { "const": false }
             }
           }
         },

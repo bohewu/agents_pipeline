@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.6] - 2026-09-16
+
+### Added
+
+- Added a diagnosis-only `debugger` role with bounded delegation and balanced correctness, robustness, and numerics strong routing.
+- Added the thin shared `executor-strong` role and profile-owned first-attempt routing for difficult healthy LSA balanced and premium tasks while preserving ordinary routing, task history, recovery eligibility and budgets, model-set and projection identities, and main-session control.
+
+### Fixed
+
+- Compared canonical role names and filenames in sorted form so `executor` and `executor-strong` install and materialize profiles consistently.
+
 ## [0.37.5] - 2026-09-15
 
 ### Fixed

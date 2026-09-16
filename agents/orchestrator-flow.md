@@ -71,7 +71,9 @@ Flow-Full:
 | repo-scout | Repo discovery | Design decisions |
 | specifier | Scope framing | Implementation |
 | flow-splitter | Max-5 task decomposition | Implementation |
+| debugger | Bounded root-cause diagnosis | Product edits, scope or retry decisions |
 | executor | Task execution | Scope expansion |
+| executor-strong | Difficult initial task execution under the shared admission contract | Scope expansion or role switching |
 | handoff-writer | Handoff artifact generation | Scope expansion |
 | kanban-manager | Root-tracked kanban sync | Scope expansion |
 | doc-writer | Documentation outputs | Implementation |
@@ -271,6 +273,18 @@ at run start. Include that saved configuration in each resolver call, every
 agent lifecycle payload, and `run.resumed`; reject a changed configuration before
 later dispatch. The recovery envelope may differ only through the approved
 capability-recovery override returned by the profile.
+
+Apply `protocols/INITIAL_STRONG_ROUTING.md` before assigning or spawning an
+implementation task. Forward the actual saved profile status and role bindings
+plus canonical TaskStatus/AgentStatus attempt records and the current
+orchestrator-owned dispatch record to `flow-splitter`; do not replace history
+with a caller-supplied boolean. Automatic `executor-strong` requires every
+shared profile, exact-binding, new-attempt, and concrete difficult-deep-signal
+condition. Missing or unverified context preserves the existing role and
+reasoning class; an explicit unavailable strong requirement conflicts. Requery
+profile status and reread canonical plus in-memory task history immediately
+before spawn. Initial strong execution is a normal first attempt, not recovery,
+and changes no recovery, retry, or repair counter.
 Before resolution, verify that the assigned role policy ceiling accepts the
 task class. `peon` is fixed-routine and may receive only `routine` tasks;
 reroute a higher-class task to `executor`, `generalist`, `doc-writer`, or
@@ -314,6 +328,19 @@ Only matching adaptive role, model, and effort trace evidence permits an
 `enforced` result; `shadow` and `inherit` observations remain unapplied.
 
 ## MATERIALITY AND CAPABILITY RECOVERY
+
+Apply `protocols/DEBUGGER_DELEGATION.md` before broad orchestrator-led causal
+investigation. A clear localized defect stays with its original executor. An
+uncertain, cross-module, non-local, or conflicting-evidence cause may use
+`@debugger` only after quick triage and, for a failed task, Materiality Gate
+admission. Resolve that child with `task_intent = diagnose` through the shared
+resolver. Attach its lifecycle to the original `task_id`; for post-failure
+diagnosis, persist `flow_recovery_used` before the spawn and keep diagnosis plus
+any admitted same-task executor re-dispatch inside the one existing Flow
+recovery pass. Reuse the terminal diagnostic result on resume. It cannot reset
+counters, bypass a hard stop, create another task, or open repair, recovery, or
+model-uplift eligibility. Known harness and operational failures stay in their
+existing bounded handling.
 
 Apply `protocols/MATERIALITY_GATE.md` before every repair, reviewer re-review, or
 Flow recovery. Admit work only when the unmet original requirement, concrete evidence,
@@ -415,7 +442,7 @@ spent counters but cannot claim another LSA stage.
 - Stage 0 (Repo Scout, optional): @repo-scout
 - Stage 1 (Problem Spec): @specifier
 - Stage 2 (Flow Task Split): @flow-splitter
-- Stage 3 (Dispatch & Execution): @executor / @doc-writer / @peon / @generalist
+- Stage 3 (Dispatch & Execution): @executor / @executor-strong / @doc-writer / @peon / @generalist; conditional task-attached diagnosis: @debugger
 - Stage 4 (Synthesis): Orchestrator-owned (no subagent)
 - Stage 4.5 (Review, optional): @reviewer
 - Optional terminal helpers: @handoff-writer / @kanban-manager / @peon
@@ -437,6 +464,10 @@ Stage 1 — Problem Spec (@specifier)
 
 Stage 2 — Flow Task Split (@flow-splitter)
 - Produce AT MOST 5 tasks.
+- Include the shared initial-strong routing handoff context described in the
+  reasoning dispatch protocol. It stays outside `task-list.json`; the splitter
+  may emit `assigned_agent = executor-strong` only when the shared contract is
+  fully proved.
 - Persist the result to `<run_output_dir>/flow/task-list.json`.
 - The output must conform to `protocols/schemas/flow-task-list.schema.json`.
 - Pure git helper actions such as `git status`, `git add`, `git commit`, or `git push` MUST NOT appear in the `FlowTaskList` unless version-control work is the user's primary requested deliverable.
@@ -467,6 +498,13 @@ Stage 3 — Dispatch & Execution
   - parallel_tasks (all atomic = true, no shared mutable context, and resource-safe to co-run)
   - sequential_tasks (if ordering is required or the task is resource-heavy)
 - Default behavior is one orchestrator dispatch per task. Work inside that dispatch may use the separate operational and local-repair bounds below.
+- Immediately before an `executor-strong` spawn, repeat the shared profile,
+  exact-binding, and no-prior-implementation checks against current status and
+  canonical plus in-memory history. Preserve the implementation role after a
+  task starts: a failed `executor` or `generalist` task cannot switch to
+  `executor-strong`, while a task begun by `executor-strong` keeps that role on
+  every permitted repair or Flow redispatch. `executor-strong` is not eligible
+  for model capability recovery.
 - Tool/CLI/environment failures may retry within the Materiality Gate's bounded operational handling without implementation/content changes or repair-budget use; if the same infrastructure signature occurs twice consecutively, report a blocker. Deterministic verification failures proven to be caused by the implementation use a repair cycle; harness failures do not.
 - A task-local self-iteration loop (for example test -> fix -> rerun) is allowed inside the SAME task when it stays within the assigned `repair_budget` and Definition of Done. The first implementation/content attempt is free; each later modify -> verify cycle consumes one unit.
 - Stop when the budget is exhausted, scope expands, or two product repair attempts make no progress. A repeated `product_failure` signature is conclusive after three attempts; harness/infrastructure failures use the stricter two-failure stop above. Report retry/repair counters and the last signature.

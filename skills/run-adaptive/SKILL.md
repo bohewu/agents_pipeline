@@ -244,6 +244,17 @@ projection and behavior. Simple retains the preflight only in memory; adaptive
 evidence is applied only when role, model, and effort match, while shadow and
 inherit remain unapplied.
 
+For initial implementation-role selection, preserve the complete current
+profile status and resolved role configurations and apply
+`protocols/INITIAL_STRONG_ROUTING.md` through the selected Simple, Flow, or
+Pipeline workflow. Forward canonical task and started or terminal agent records and the
+controller's in-memory dispatch record; never convert them to a caller-supplied
+first-attempt boolean. Adaptive does not select `executor-strong` from route,
+preset, task size, risk, or `deep` alone. The selected workflow must repeat the
+exact binding and history checks immediately before spawn. Initial strong
+execution is normal execution, not capability recovery, and it does not change
+the main-session model or effort.
+
 ## Route policy mapping
 
 ### Simple
@@ -337,6 +348,11 @@ When `prompt_mode = off`:
 2. Apply the route mapping above while retaining the normalized run policy in the Adaptive controller.
 3. Adopt the selected definition in the current/main agent. Do not spawn the selected primary orchestrator merely to enter its mode.
 4. Obey all selected workflow hard constraints, delegation, task bounds, verification, cleanup, status, reasoning, and final-report requirements. Let effective Codex configuration select actual role models/tiers and resolve every child through the formal shared resolver as intent -> class -> selected capability -> effort. The resolver selects effort only: never change the current/main agent or dynamically route a model. The sole exception is a Flow/Pipeline child recovery that fully satisfies `protocols/CAPABILITY_RECOVERY.md`: on Codex only, its one recovery spawn may pass the profile-resolved raw model and must verify that model and effort by child trace before acceptance. Other runtime exports conflict rather than inventing model routing; shadow may only compute a proven tier policy without spawning. In the final response, match the user's language and translate internal agent/protocol output into ordinary engineering language unless protocol details were requested.
+5. Preserve the selected route's `protocols/DEBUGGER_DELEGATION.md` boundary.
+   Adaptive may perform quick triage, but when diagnosis is admitted it must let
+   that route dispatch `@debugger` with `task_intent = diagnose` before broad
+   main-agent causal investigation. Adaptive does not add a diagnostic retry,
+   reset a route counter, or repeat a terminal diagnostic attempt on resume.
 
 ## Terminal UX gate
 

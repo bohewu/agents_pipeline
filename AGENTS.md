@@ -50,12 +50,14 @@ For the conceptual UI/UX layer, use `ui-ux-designer`; see `protocols/UI_UX_WORKF
 | art-director | Convert raw 2D asset requests into concise briefs and reusable prompts | subagent | hidden |
 | ui-ux-designer | Convert bounded UI/UX requests into conceptual workflow briefs, communication-first redesign guidance, surface maps, and handoff notes | subagent | hidden |
 | executor | Execute one atomic task with bounded verification and repair controls | subagent | hidden |
+| executor-strong | Execute one difficult atomic task through the shared executor contract on a profile-owned strong binding | subagent | hidden |
 | doc-writer | Documentation specialist for design/spec/checklist/analysis outputs | subagent | hidden |
 | peon | Low-cost executor for mechanical or repetitive tasks | subagent | hidden |
 | generalist | General-purpose executor for mixed-scope tasks | subagent | hidden |
 | test-runner | Run tests/builds/linters and collect evidence | subagent | hidden |
 | reviewer | Review outputs and enforce quality gates | subagent | hidden |
 | compressor | Compress repo decisions into ContextPack | subagent | hidden |
+| debugger | On-demand diagnosis specialist for difficult, uncertain, cross-module, or conflicting-evidence failures | subagent | hidden |
 | handoff-writer | Produce run-local handoff artifacts for a fresh session | subagent | hidden |
 | kanban-manager | Manage the root-tracked todo ledger and kanban render | subagent | hidden |
 | session-guide-writer | Create or refresh the root-tracked session guide | subagent | hidden |

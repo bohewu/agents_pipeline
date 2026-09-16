@@ -97,6 +97,20 @@ For a healthy eligible workspace profile, retain the exact preflight
 that envelope in each resolver call and trace expectation. Simple keeps this
 in-memory only and never writes workflow status artifacts.
 
+Before choosing an implementation role, apply
+`protocols/INITIAL_STRONG_ROUTING.md`. Pass the actual preflight profile status,
+resolved role configurations, and Simple's orchestrator-owned in-memory
+dispatch record into the decision; never substitute a caller-supplied
+first-attempt boolean. Automatic `executor-strong` requires every shared
+profile, exact-binding, new-attempt, and concretely evidenced difficult-deep
+condition. Missing or unverified context, ordinary work, and every negative
+boundary retain the existing `executor` or `generalist` routing without
+lowering reasoning class. An explicit strong requirement with no eligible exact
+binding is a conflict. Immediately before spawn, requery profile status and
+recheck the saved binding and in-memory history. The initial strong spawn is a
+normal first execution attempt with no recovery provenance, uplift, or counter
+change.
+
 Before resolution, verify that the selected role policy ceiling accepts the
 work item's class. `peon` is fixed-routine and may receive only `routine` work;
 reroute higher classes to `executor`, `generalist`, `doc-writer`, or another
@@ -152,13 +166,21 @@ claim that the selector was applied.
 4. Dispatch independent work items in batches capped by `max_parallel`.
 5. Dispatch dependent work sequentially and pass prior results into later prompts.
 6. Use `@repo-scout` for focused discovery when target files are unclear.
-7. Use `@executor` for bounded code changes.
-8. Use `@generalist` for mixed code/docs/analysis tasks.
-9. Use `@peon` for mechanical repetitive edits only when their highest reasoning class is `routine`.
-10. Use `@doc-writer` for pure docs deliverables.
-11. Use `@test-runner` for tests, builds, linters, and smoke checks.
-12. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc`, explicit review targets, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and required verification.
-13. Pass validation-infrastructure authorization explicitly; omit or false means the worker cannot create or expand it, and no failed check or reviewer can add that authority later.
+7. Apply `protocols/DEBUGGER_DELEGATION.md` for bounded diagnosis. Keep a clear
+   localized defect with its original executor; when quick triage leaves an
+   uncertain, cross-module, non-local, or conflicting-evidence cause, dispatch
+   `@debugger` before doing a broad causal investigation in the current agent.
+   Resolve it with `task_intent = diagnose` through the shared resolver. The
+   diagnostic attempt stays inside Simple's existing one narrow same-scope
+   recovery sequence and is never a new retry or model-recovery lane.
+8. Use `@executor` for bounded code changes, or `@executor-strong` only after
+   the shared initial-strong routing contract is fully admitted.
+9. Use `@generalist` for mixed code/docs/analysis tasks.
+10. Use `@peon` for mechanical repetitive edits only when their highest reasoning class is `routine`.
+11. Use `@doc-writer` for pure docs deliverables.
+12. Use `@test-runner` for tests, builds, linters, and smoke checks.
+13. Use `@reviewer` only for explicit review requests or high-risk changed targets; reviewer handoffs MUST include `mode = ad_hoc`, explicit review targets, scoped requirements, explicit non-goals or out-of-scope constraints when supplied, and required verification.
+14. Pass validation-infrastructure authorization explicitly; omit or false means the worker cannot create or expand it, and no failed check or reviewer can add that authority later.
 
 # OPTIONAL DIRECT REVIEW
 
@@ -184,7 +206,12 @@ every non-review role use their own normal policy decisions.
 - Prefer doing the work over producing orchestration artifacts.
 - Keep subagent prompts narrow and outcome-oriented.
 - Ask for clarification only when proceeding would risk destructive or wrong-scope changes.
-- Do not run broad retries. If a subagent fails, attempt one narrow recovery only when the fix is obvious; otherwise report the blocker.
+- Do not run broad retries. After a subagent failure, use only the single existing narrow same-scope recovery sequence. If the fix is obvious, return it to the original executor subject to the Materiality Gate and remaining repair/recovery budgets. When quick triage instead leaves a materially uncertain cause that passes Materiality admission, dispatch at most one bounded `@debugger` diagnosis in memory under step 7 before any broad current-agent causal investigation. Admit a repair only when that result identifies an actionable same-scope fix and the Materiality Gate plus remaining repair/recovery budgets permit it; otherwise report the blocker. The diagnosis and any admitted repair share that single recovery sequence, create no workflow artifact or additional retry/recovery lane, and a second failure stops.
+- Preserve the implementation role after an attempt starts. A failed
+  `executor` or `generalist` attempt cannot become a fresh
+  `executor-strong` attempt; an initial `executor-strong` task stays on that
+  role for its one permitted same-task repair. Capability recovery remains
+  unavailable to Simple and never applies to `executor-strong`.
 - Apply `protocols/MATERIALITY_GATE.md` before every repair, re-review, or narrow recovery. Budgets are upper bounds, not quotas; `optional_notes` never seeds work.
 - Preserve user and concurrent-agent changes. Never revert unrelated work.
 - For code changes, require evidence from the implementing subagent and run `@test-runner` when verification is non-trivial.

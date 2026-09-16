@@ -225,6 +225,98 @@ test("task intents resolve through class, model capability, and effort determini
   }
 });
 
+test("debugger diagnose dispatch stays fixed deep through the existing lsa v2 projection", () => {
+  for (const modelTier of ["standard", "strong"]) {
+    const decision = resolveReasoning({
+      role: "debugger",
+      mode: "adaptive",
+      task_intent: "diagnose",
+      selector_available: true,
+      resolved_configuration: versionedConfiguration({
+        projectionId: "lsa-efficiency-v2",
+        modelSetId: "openai-luna-sol-astra",
+        role: "debugger",
+        modelTier
+      })
+    });
+
+    assert.equal(decision.role_policy.mode, "fixed", modelTier);
+    assert.equal(decision.reasoning_class, "deep", modelTier);
+    assert.equal(decision.effective_class, "deep", modelTier);
+    assert.equal(decision.dispatch_effort, "high", modelTier);
+    assert.equal(decision.recovery_boost, false, modelTier);
+    assert.equal(decision.reasoning_projection.id, "lsa-efficiency-v2", modelTier);
+    assert.equal(decision.model_set.id, "openai-luna-sol-astra", modelTier);
+  }
+});
+
+test("executor-strong stays fixed deep on its native strong binding without capability uplift", () => {
+  const resolvedConfiguration = versionedConfiguration({
+    projectionId: "lsa-efficiency-v2",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor-strong",
+    modelTier: "strong"
+  });
+  const first = resolveReasoning({
+    role: "executor-strong",
+    mode: "adaptive",
+    task_intent: "execute",
+    reasoning_signals: ["cross_module", "non_local_invariant"],
+    selector_available: true,
+    resolved_configuration: resolvedConfiguration
+  });
+
+  assert.deepEqual(first.role_policy, {
+    mode: "fixed",
+    reasoning_class: "deep",
+    minimum_model_tier: "strong",
+    strict: false
+  });
+  assert.equal(first.reasoning_class, "deep");
+  assert.equal(first.model_tier, "strong");
+  assert.equal(first.dispatch_effort, "high");
+  assert.equal(first.recovery_boost, false);
+  assert.equal(first.resolved_configuration, undefined);
+
+  const sameRoleEffortRetry = resolveReasoning({
+    role: "executor-strong",
+    mode: "adaptive",
+    task_intent: "execute",
+    reasoning_signals: ["cross_module", "non_local_invariant"],
+    prior_failure_type: "reasoning_failure",
+    prior_effective_class: "deep",
+    prior_observed_effective_effort: "high",
+    selector_available: true,
+    resolved_configuration: resolvedConfiguration
+  });
+  assert.equal(sameRoleEffortRetry.model_tier, "strong");
+  assert.equal(sameRoleEffortRetry.recovery_boost, true);
+  assert.equal(sameRoleEffortRetry.dispatch_effort, "max");
+
+  const forgedUplift = versionedConfiguration({
+    projectionId: "lsa-efficiency-v2",
+    modelSetId: "openai-luna-sol-astra",
+    role: "executor-strong",
+    modelTier: "strong",
+    provenance: {
+      source: "workspace_profile",
+      override: {
+        kind: "capability_recovery",
+        version: "1",
+        source_model_tier: "standard",
+        target_model_tier: "strong"
+      }
+    }
+  });
+  assert.throws(() => resolveReasoning({
+    role: "executor-strong",
+    mode: "adaptive",
+    task_intent: "execute",
+    selector_available: true,
+    resolved_configuration: forgedUplift
+  }), /limited to executor and generalist/);
+});
+
 test("formal assurance requires and records strong max runtime evidence", () => {
   const decision = resolveReasoning({
     role: "reviewer",

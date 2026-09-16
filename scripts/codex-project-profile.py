@@ -509,7 +509,7 @@ def validate_global_install(
     files = data.get("managed_agent_files")
     if not isinstance(files, list) or not all(isinstance(item, str) for item in files):
         raise ProjectProfileError("managed_agent_files must be an array of strings.")
-    expected_files = [f"agents/{name}.toml" for name in names]
+    expected_files = sorted(f"agents/{name}.toml" for name in names)
     if sorted(files) != expected_files:
         raise ProjectProfileError("Global Codex managed agent names/files do not correspond.")
     agents_dir = global_target / "agents"
@@ -945,7 +945,7 @@ def _validate_merged_config(text: str) -> None:
 
 
 def _safe_project_agent_files(value: Any, agent_names: Sequence[str]) -> list[str]:
-    expected = [f"agents/{name}.toml" for name in sorted(agent_names)]
+    expected = sorted(f"agents/{name}.toml" for name in agent_names)
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ProjectProfileError("managed_agent_files must be an array of strings.")
     if sorted(value) != expected or len(value) != len(set(value)):
@@ -1232,7 +1232,7 @@ def _render_workspace_roles(
             detail = completed.stderr.strip() or completed.stdout.strip()
             raise ProjectProfileError(f"Codex workspace profile export failed: {detail}")
         generated = sorted((staging / "agents").glob("*.toml"))
-        generated_names = [path.stem for path in generated]
+        generated_names = sorted(path.stem for path in generated)
         expected_names = sorted(global_agent_names)
         if generated_names != expected_names:
             raise ProjectProfileError(

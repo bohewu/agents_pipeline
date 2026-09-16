@@ -122,9 +122,11 @@ Fixed roles are semantic capability bounds, not default suggestions:
   `committee-product`, `flow-splitter`, `market-researcher`, `planner`,
   `router`, `specifier`, `ux-copy-trust`, `ux-novice`,
   `ux-visual-hierarchy`.
-- Fixed `deep`: every `analysis-*` role, `committee-architect`,
-  `committee-judge`, `committee-qa`, `committee-security`, `ux-judge`, and
-  `ux-task-flow`. `committee-security` additionally requires `strong`.
+- Fixed `deep`: `debugger`, `executor-strong`, every `analysis-*` role,
+  `committee-architect`, `committee-judge`, `committee-qa`,
+  `committee-security`, `ux-judge`, and `ux-task-flow`. `committee-security`
+  and `executor-strong` additionally require `strong`; `executor-strong`
+  retains the shared executor task contract.
 
 `doc-writer`, `executor`, and `generalist` are adaptive
 `routine/deliberative/deep`; their target is only the legacy fallback, never a
@@ -142,6 +144,18 @@ root, compatibility, model-floor, class-requirement, and effort-projection
 objects. A fixed role or adaptive ceiling conflict
 requires reassignment to a compatible configured role; the resolver never
 clips the class.
+
+### Debugger dispatch
+
+`debugger` is an on-demand diagnosis-only role governed by
+`protocols/DEBUGGER_DELEGATION.md`. Dispatch it with `task_intent = diagnose`
+through the same central resolver as every other child. Preserve diagnostic
+signals such as `ambiguous_root_cause`, `cross_module`, and
+`non_local_invariant`; the fixed role policy and saved profile determine the
+existing projection without workflow-local effort tables or raw-model pins.
+This resolution applies only to the child. It does not prescribe or change the
+current/main session model or effort, and a diagnostic result does not create
+repair, retry, recovery, or uplift eligibility.
 
 ### Legacy artifacts
 

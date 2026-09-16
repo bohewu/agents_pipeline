@@ -95,6 +95,68 @@ class RuntimeModelExporterTest(unittest.TestCase):
         self.assertIn("This exported subagent is a leaf worker", subagent_body)
         self.assertNotIn("This exported subagent is a leaf worker", primary_body)
 
+    def test_codex_export_auto_discovers_model_neutral_debugger_as_a_leaf(self) -> None:
+        debugger = next(
+            agent
+            for agent in CODEX.parse_source_agents(REPO_ROOT / "agents")
+            if agent.name == "debugger"
+        )
+
+        self.assertEqual(debugger.kind, "subagent")
+        self.assertEqual(debugger.fm_keys, {"name", "description", "kind"})
+        self.assertNotIn("gpt-", debugger.body)
+        for required_contract in (
+            "Diagnosis only. Do not edit product code",
+            "Do not spawn, delegate to, or message another agent",
+            "Do not expand the caller's scope or decide acceptance",
+            '"established_causes"',
+            '"hypotheses"',
+            '"relevant_locations"',
+            '"minimal_repair_recommendation"',
+            '"minimal_verification_recommendation"',
+        ):
+            self.assertIn(required_contract, debugger.body)
+        exported = CODEX.build_role_config(
+            debugger,
+            CODEX.adapt_body(
+                debugger.name,
+                debugger.body,
+                False,
+                agent_kind=debugger.kind,
+            ),
+        )
+        self.assertIn("This exported subagent is a leaf worker", exported)
+        self.assertNotIn("\nmodel =", exported)
+        self.assertNotIn("reasoning_effort", exported)
+
+    def test_executor_strong_export_is_thin_model_neutral_and_rewrites_shared_contract(self) -> None:
+        role = next(
+            agent
+            for agent in CODEX.parse_source_agents(REPO_ROOT / "agents")
+            if agent.name == "executor-strong"
+        )
+
+        self.assertEqual(role.kind, "subagent")
+        self.assertEqual(role.fm_keys, {"name", "description", "kind"})
+        self.assertNotIn("gpt-", role.body)
+        self.assertIn("agents/executor.md", role.body)
+        self.assertNotIn("# EXECUTION PROFILE", role.body)
+        adapted = CODEX.adapt_body(
+            role.name,
+            role.body,
+            False,
+            agent_kind=role.kind,
+            support_root_ref="/tmp/installed-agents-pipeline",
+        )
+        exported = CODEX.build_role_config(role, adapted)
+        self.assertIn("This exported subagent is a leaf worker", exported)
+        self.assertIn(
+            "/tmp/installed-agents-pipeline/agents/executor.md",
+            exported,
+        )
+        self.assertNotIn("\nmodel =", exported)
+        self.assertNotIn("reasoning_effort", exported)
+
     def test_codex_profile_writes_role_model_only(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             root = Path(temp_dir_name)

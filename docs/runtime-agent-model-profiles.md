@@ -1,6 +1,6 @@
 # Runtime Agent Model Profiles
 
-Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers. The effective profile/runtime selects the normal role model and proves its logical tier. The versioned child-spawn resolver reads the matching registered reasoning projection to validate capability and select effort. Profiles do not contain or emit effort settings, but they may bound one temporary `executor`/`generalist` recovery tier.
+Agent model profiles are optional runtime projections. Canonical agent Markdown never pins a model, provider, or reasoning effort. Profiles map roles to the neutral tiers `mini`, `standard`, and `strong`; a runtime model set maps those tiers to runtime model identifiers. The effective profile/runtime selects the normal role model and proves its logical tier. The versioned child-spawn resolver reads the matching registered reasoning projection to validate capability and select effort. Profiles do not contain or emit effort settings. They may provide the exact strong binding for the model-neutral `executor-strong` initial role and separately bound one temporary `executor`/`generalist` recovery tier.
 
 The runtime installation is global-first, but Codex model selection is workspace-only:
 
@@ -121,6 +121,35 @@ pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspa
 
 The manifest saves the selected profile, catalog mapping identity, projection identity, and each resolved role binding. A resumed run must use the saved profile, mapping, and projection; changing workspace configuration stops later dispatch rather than hot-reloading a running workflow. Existing manifest-v2 Luna/Terra/Sol overlays are recognized as pinned legacy state and are never silently resolved through the newer same-named `openai` catalog. Run `set` again to intentionally refresh a workspace.
 
+### Initial strong implementation routing
+
+`executor-strong` is a model-neutral execution role for a genuinely difficult
+new implementation attempt. Its source does not name Astra or another runtime
+model. Under an exact current LSA workspace configuration, balanced or premium
+may expose a saved `executor-strong` binding at the neutral `strong` tier. The
+workflow may select that role automatically only when all conditions in
+`protocols/INITIAL_STRONG_ROUTING.md` are proved: healthy eligible current
+profile status, exact saved strong binding and configuration identities, no
+prior implementation attempt for the task, and concrete difficult deep-signal
+evidence. Task size, multiple files, `cross_module`, risk, or `deep` alone does
+not qualify.
+
+The router receives the actual profile status/resolved bindings and canonical
+task/agent attempt history, not a caller-supplied first-attempt boolean. The
+current/main orchestrator rechecks both immediately before spawn. Missing or
+unverified context keeps existing automatic `executor` or `generalist` routing
+and preserves reasoning classification. If a user explicitly requires strong
+execution and the binding is unavailable, the workflow reports a conflict
+instead of claiming a weaker run satisfied it.
+
+This initial role selection uses the normal first execution attempt. It does
+not consume capability recovery, change counters or budgets, request a model
+uplift, or control the main-session model or effort. A failed ordinary
+executor task cannot switch roles and reappear as a fresh attempt. A task that
+starts on `executor-strong` retains that role on permitted redispatches, and
+model recovery remains available only to `executor` and `generalist` under the
+separate recovery contract below.
+
 Applying `openai-luna-sol-astra` writes the current LSA v2 identity, but does not enable capability recovery `auto`. Direct Flow and Pipeline remain `off` by default. Use the workflow's existing preset or explicit `--capability-recovery=auto` together with adaptive reasoning when intentionally exercising the v2 shortcut.
 
 `uniform`, inherited, ineligible, and unknown configurations do not prove a tier or projection. They use existing unknown/legacy behavior; model names are never used to guess a tier. `clear` removes the workspace overlay and returns roles to parent-session inheritance. It does not select Sol or the legacy catalog.
@@ -215,7 +244,7 @@ Codex workspace profiles inherit global `agents.max_concurrent_threads_per_sessi
 
 ### Profile-aware workflow skills
 
-The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. Manifest-backed skills adopt the globally installed orchestrator workflow and never manually trust a raw workspace role; `$run-adaptive` selects one of the existing Simple, Flow, or Pipeline definitions in place. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. Prompt-only Adaptive generation warns instead of dispatching. A healthy but ineligible layer warns and uses global routing. A healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters. Only `adaptive` requests an effort selector and may call a projection applied after matching child-trace evidence. `shadow` computes a proposed result only; `inherit` does not apply a selector. Neither mode proves that a projection ran.
+The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. Manifest-backed skills adopt the globally installed orchestrator workflow and never manually trust a raw workspace role; `$run-adaptive` selects one of the existing Simple, Flow, or Pipeline definitions in place. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. Prompt-only Adaptive generation warns instead of dispatching. A healthy but ineligible layer warns and uses global routing. A healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters. Initial `executor-strong` selection additionally follows the shared profile, history, and difficulty gates above and is rechecked immediately before spawn. Only `adaptive` requests an effort selector and may call a projection applied after matching child-trace evidence. `shadow` computes a proposed result only; `inherit` does not apply a selector. Neither mode proves that a projection ran.
 
 The managed `use <mode>` forms remain compatibility aliases for manifest-backed modes. `$run-adaptive` intentionally has no compatibility alias or role. There is no `$run-goal` skill.
 
@@ -266,12 +295,14 @@ Attempting `set` or `clear` with workspace scope for Claude Code or Copilot fail
 
 ## Profile and model-set inputs
 
-- `tools/agent-profiles/*.json` maps agent names to `mini`, `standard`, and `strong`, plus optional `recovery_ceiling_tiers` for `executor` and `generalist`.
+- `tools/agent-profiles/*.json` maps agent names, including the model-neutral
+  `executor-strong` role, to `mini`, `standard`, and `strong`, plus optional
+  `recovery_ceiling_tiers` for `executor` and `generalist`.
 - `runtimes/codex/model-sets/*.json` maps tiers to Codex `model` values plus optional `model_provider` metadata describing the expected parent provider. Codex roles inherit that parent provider; the metadata is not emitted as a role override.
 - `runtimes/claude/model-sets/*.json` maps tiers to Claude Code aliases.
 - `runtimes/copilot/model-sets/*.json` maps tiers to Copilot model-picker names or priority lists.
 
-Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. General dynamic model routing, downgrade, reviewer model uplift, and current/main-agent changes remain forbidden. `protocols/CAPABILITY_RECOVERY.md` defines the sole exception: one profile-approved tier step for an `executor` or `generalist` child after repeated material reasoning failure. Local Codex workflows verify the recovered child model and effort from bounded trace metadata.
+Profiles declare `"runtime": "neutral"`; model sets remain runtime-specific. These profiles never control reasoning effort. In particular, the Codex exporter does not write `model_reasoning_effort`; `protocols/REASONING_POLICY.md` resolves child-spawn effort independently. Policy v2 and direct Simple/Flow/Pipeline entry points default to inherit mode, while fresh `$run-adaptive` execution selects adaptive mode by default. A healthy eligible profile's role tier is an input to that resolver, not an effort assignment. General dynamic model routing, downgrade, reviewer model uplift, and current/main-agent changes remain forbidden. `protocols/INITIAL_STRONG_ROUTING.md` defines bounded first-attempt role selection through an already saved binding; it is not an uplift. `protocols/CAPABILITY_RECOVERY.md` separately defines the sole model-uplift exception: one profile-approved tier step for an `executor` or `generalist` child after repeated material reasoning failure. Local Codex workflows verify the selected or recovered child model and effort from bounded trace metadata.
 
 The built-in profiles keep upstream control and final judgment stronger than bounded leaf work:
 

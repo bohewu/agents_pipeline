@@ -11,6 +11,13 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 
 - Required inputs are `ProblemSpec` and any explicit flow constraints in the handoff.
 - Optional `RepoFindings` may refine task boundaries or reduce hallucination risk.
+- The orchestrator must also forward the actual profile-manager status and
+  resolved role configurations plus the task's canonical TaskStatus and every
+  started or terminal AgentStatus record and its orchestrator-owned in-memory dispatch record when
+  `executor-strong` could be considered. Apply
+  `protocols/INITIAL_STRONG_ROUTING.md`; do not accept a caller-supplied
+  first-attempt or strong-routing boolean as history evidence. This is handoff
+  context, not a new FlowTaskList field.
 - Do NOT create more than 5 tasks.
 - Do NOT create DAGs or hidden prerequisite chains.
 - Do NOT expand scope beyond the provided goal, scope, constraints, and explicit assumptions.
@@ -22,7 +29,14 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
 - If more than 5 tasks seem necessary, merge only low-risk tasks that naturally belong together.
 - Keep each task to one primary output and one clear Definition of Done.
 - Include non-empty `trace_ids` pointing to the sourced ProblemSpec acceptance criteria that authorize the task. A generated check alone is not a source id.
-- Prefer `executor` for implementation or mixed implementation/verification work.
+- Prefer `executor` for implementation or mixed implementation/verification
+  work. Select `executor-strong` automatically only when the shared
+  initial-strong protocol proves every profile, exact-binding,
+  no-prior-implementation, and concrete difficult-deep-signal condition.
+  `multi_file`, `cross_module`, task size, risk, or `deep` alone is
+  insufficient. Missing or unverified context preserves the existing role and
+  full reasoning class/signals; an explicit strong requirement with an
+  unavailable binding is a conflict rather than a silent downgrade.
 - Prefer `doc-writer` for pure documentation/spec/checklist outputs.
 - Prefer `peon` only for clearly mechanical work whose highest applicable
   `reasoning_class` is `routine`. Multi-step, cross-module, deep-signal, or
@@ -68,7 +82,7 @@ Produce a max-5 FlowTaskList. Keep tasks atomic, execution-ready, and dependency
       "summary": "",
       "description": "",
       "primary_output": "design | plan | spec | checklist | analysis | implementation",
-      "assigned_agent": "executor | doc-writer | peon | generalist",
+      "assigned_agent": "executor | executor-strong | doc-writer | peon | generalist",
       "risk": "low | medium | high",
       "task_intent": "execute | inspect | diagnose | design | review",
       "intent_baseline_class": "routine | deliberative",
