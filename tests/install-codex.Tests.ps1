@@ -317,7 +317,7 @@ Describe "install-codex.ps1 direct workspace materialization" {
         $LASTEXITCODE | Should -Be 0
 
         @(Get-ChildItem -LiteralPath (Join-Path $targetPath "agents") -Filter "*.toml" -File).Count |
-            Should -Be 45
+            Should -Be 47
         Test-Path -LiteralPath (Join-Path $targetPath "config.toml") -PathType Leaf |
             Should -BeTrue
         $workspaceConfig = Get-Content -LiteralPath (Join-Path $targetPath "config.toml") -Raw
@@ -371,7 +371,7 @@ Describe "install-codex.ps1 workspace profile overlay" {
 
             $localCodex = Join-Path $workspace ".codex"
             @(Get-ChildItem -LiteralPath (Join-Path $localCodex "agents") -Filter "*.toml" -File).Count |
-                Should -Be 45
+                Should -Be 47
             (Get-Content -LiteralPath (Join-Path $localCodex "agents/executor.toml") -Raw) |
                 Should -Match '(?m)^model\s*='
             Test-Path -LiteralPath (Join-Path $localCodex "config.toml") -PathType Leaf |

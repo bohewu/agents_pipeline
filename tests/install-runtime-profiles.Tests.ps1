@@ -4,13 +4,13 @@ BeforeAll {
     $runtimeCases = @(
         @{
             Runtime = "claude"
-            Count = 45
+            Count = 47
             Installer = Join-Path $repoRoot "scripts/install-claude.ps1"
             NoRunner = $true
         },
         @{
             Runtime = "copilot"
-            Count = 55
+            Count = 57
             Installer = Join-Path $repoRoot "scripts/install-copilot.ps1"
             NoRunner = $false
         }

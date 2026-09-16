@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.37.7] - 2026-09-16
+
+### Fixed
+
+- Corrected cross-platform role-count expectations to include the added `debugger` and `executor-strong` roles.
+
 ## [0.37.6] - 2026-09-16
 
 ### Added

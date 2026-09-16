@@ -335,7 +335,7 @@ jobs:
           assert status["profile"] is None, status
           assert status["model_set"] is None, status
           roles = sorted((Path.home() / ".codex" / "agents").glob("*.toml"))
-          assert len(roles) == 45, roles
+          assert len(roles) == 47, roles
           for role_path in roles:
               with role_path.open("rb") as handle:
                   role = tomllib.load(handle)
@@ -363,7 +363,7 @@ jobs:
           workspace = Path(os.environ["WORKSPACE"])
           assert status["health"] == "ok", status
           assert status["profile_eligibility"] == "ineligible", status
-          assert len(list((workspace / ".codex" / "agents").glob("*.toml"))) == 45
+          assert len(list((workspace / ".codex" / "agents").glob("*.toml"))) == 47
           assert not (workspace / ".codex" / "agents-pipeline").exists()
           PY
           test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 11
