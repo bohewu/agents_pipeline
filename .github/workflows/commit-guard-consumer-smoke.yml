@@ -17,3 +17,68 @@ jobs:
       base_sha: ${{ github.event.pull_request.base.sha }}
       head_sha: ${{ github.event.pull_request.head.sha }}
       profile: strict
+
+  synthetic-block:
+    name: synthetic block stays redacted
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout independently pinned scanner
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          repository: bohewu/agents_pipeline
+          ref: 6fb21877a8f7a05115c9c3210ef5feadfe75f2fb
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+          path: trusted-guard
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Require a synthetic credential to block without value disclosure
+        shell: bash
+        env:
+          GUARD_ENTRY: ${{ github.workspace }}/trusted-guard/tools/commit-guard.js
+        run: |
+          set -euo pipefail
+          fixture="$RUNNER_TEMP/commit-guard-synthetic-block"
+          mkdir -p "$fixture"
+          cd "$fixture"
+          git init --quiet
+          git config user.name "Commit Guard smoke"
+          git config user.email "commit-guard-smoke@example.invalid"
+          printf '%s\n' 'clean' > README.md
+          git add README.md
+          git commit --quiet -m base
+          base_sha="$(git rev-parse HEAD)"
+
+          key_name=pass
+          key_name="${key_name}word"
+          synthetic_value=Synthetic-Action
+          synthetic_value="${synthetic_value}-Smoke-A93!"
+          printf '%s = "%s"\n' "$key_name" "$synthetic_value" > fixture.conf
+          git add fixture.conf
+          git commit --quiet -m synthetic
+          head_sha="$(git rev-parse HEAD)"
+
+          set +e
+          node "$GUARD_ENTRY" check \
+            --range "$base_sha..$head_sha" \
+            --policy-source cli --profile strict --engine builtin --format json \
+            > "$RUNNER_TEMP/commit-guard-result.json"
+          guard_exit=$?
+          set -e
+          test "$guard_exit" -eq 1
+
+          export SYNTHETIC_VALUE="$synthetic_value"
+          node -e '
+            const fs = require("fs");
+            const result = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/commit-guard-result.json", "utf8"));
+            if (result.status !== "blocked") process.exit(1);
+            if (!result.findings.some((finding) => finding.rule === "SEC_CREDENTIAL_LITERAL" && finding.action === "block")) process.exit(1);
+            if (JSON.stringify(result).includes(process.env.SYNTHETIC_VALUE)) process.exit(1);
+          '
+          echo "strict scanner blocked the synthetic credential and kept its value redacted"
