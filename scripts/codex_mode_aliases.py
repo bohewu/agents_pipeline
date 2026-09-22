@@ -87,6 +87,12 @@ VALIDATION_COST_GUARD_LINE = (
     "cannot expand scope, and validation infrastructure remains forbidden unless the "
     "original request or a pre-existing repository contract authorized it before dispatch."
 )
+COMMIT_GUARD_TEMPLATE = (
+    "Before any authorized commit or push, including orchestrator helper actions, read "
+    "`{commit_guard}` and follow it. Invoke its deterministic guard directly; hook presence "
+    "does not replace the check. A passing check never grants commit/push permission, and "
+    "an explicit no-commit instruction remains binding."
+)
 MODE_ALIAS_DO_NOT_SPAWN_LINE = (
     "Do NOT first spawn the same-named orchestrator role just to enter the mode."
 )
@@ -303,6 +309,7 @@ def build_mode_summary_lines(
     reasoning_policy = f"{support_root}/protocols/REASONING_POLICY.md"
     materiality_gate = f"{support_root}/protocols/MATERIALITY_GATE.md"
     capability_recovery = f"{support_root}/protocols/CAPABILITY_RECOVERY.md"
+    commit_guard = f"{support_root}/protocols/COMMIT_GUARD.md"
     return [
         MODE_ALIAS_PATTERN_FAMILY_LINE,
         MODE_ALIAS_ADOPT_LINE,
@@ -318,6 +325,7 @@ def build_mode_summary_lines(
         CHILD_RESULT_SELECTION_LABEL_LINE,
         MINIMAL_DELIVERY_LINE,
         VALIDATION_COST_GUARD_LINE,
+        COMMIT_GUARD_TEMPLATE.format(commit_guard=commit_guard),
         MATERIALITY_AND_GOAL_TEMPLATE.format(materiality_gate=materiality_gate),
         CAPABILITY_RECOVERY_TEMPLATE.format(
             capability_recovery=capability_recovery

@@ -1,0 +1,92 @@
+name: Commit Guard
+
+on:
+  workflow_call:
+    inputs:
+      base_sha:
+        description: "Accepted base commit, or EMPTY for a deliberate all-ancestry scan"
+        required: true
+        type: string
+      head_sha:
+        description: "Exact candidate commit in the caller repository"
+        required: true
+        type: string
+      tool_repository:
+        description: "Trusted, readable owner/repository containing agents_pipeline"
+        required: true
+        type: string
+      tool_sha:
+        description: "Reviewed immutable scanner commit in tool_repository"
+        required: true
+        type: string
+      profile:
+        description: "Explicit profile; protect caller workflow/pins from unreviewed changes"
+        required: false
+        default: strict
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate immutable inputs
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          TOOL_SHA: ${{ inputs.tool_sha }}
+          TOOL_REPOSITORY: ${{ inputs.tool_repository }}
+          GUARD_PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          [[ "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$TOOL_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$BASE_SHA" == EMPTY || "$BASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          [[ "$TOOL_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$GUARD_PROFILE" == strict || "$GUARD_PROFILE" == legacy-ratchet || "$GUARD_PROFILE" == audit ]]
+
+      - name: Checkout candidate data without executing candidate code
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ inputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+          lfs: false
+          path: candidate
+
+      - name: Checkout independently pinned scanner
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          repository: ${{ inputs.tool_repository }}
+          ref: ${{ inputs.tool_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+          path: trusted-guard
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Scan every incoming commit using trusted CLI policy
+        working-directory: candidate
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          GUARD_PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+            BASE_SHA=EMPTY
+          fi
+          node ../trusted-guard/tools/commit-guard.js check \
+            --range "$BASE_SHA..$HEAD_SHA" \
+            --policy-source cli --profile "$GUARD_PROFILE" --engine builtin --format json
