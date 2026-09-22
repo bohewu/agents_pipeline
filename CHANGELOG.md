@@ -6,6 +6,14 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-09-22
+
+### Added
+
+- Added deterministic Commit Guard checks for staged indexes, commit ranges, and pre-push input with `audit`, `legacy-ratchet`, and `strict` profiles plus optional pinned Gitleaks 8.24.2 integration.
+- Added conflict-safe local hook installation, fail-closed policy acknowledgement, redacted text/JSON reporting, and disposable-fixture coverage for partial staging, legacy occurrences, merges, limits, and rollback behavior.
+- Added runtime support-tree guidance and a reusable GitHub workflow that scans candidates with an independently pinned trusted scanner and explicit CLI policy.
+
 ## [0.37.7] - 2026-09-16
 
 ### Fixed

@@ -30,6 +30,10 @@ Execute EXACTLY ONE task. No scope creep.
 - Treat the handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, ReasoningDecision, and any caller-selected recovery model as authoritative for this attempt. Do not reclassify work, choose a model, or reinterpret repair/risk controls as effort controls.
 - Normal role models come from the profile and the reasoning resolver selects child effort. Only the caller may apply one profile-bounded temporary recovery selector. In `notes`, distinguish `product_failure`, `harness_failure`, and `operational_failure`; only a concrete product reasoning defect may support a later reasoning recovery dispatch.
 
+# COMMIT AND PUSH GUARD
+
+Before an authorized commit or push, follow `protocols/COMMIT_GUARD.md` and invoke its deterministic check directly. A passing scan is not permission to commit; never bypass hooks or weaken the profile to suppress findings.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Tear down any local server, browser, Playwright session, Node.js process, watcher, or background command started for the task before returning.

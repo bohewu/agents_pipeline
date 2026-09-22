@@ -172,6 +172,11 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertIn("Keep validation bounded", managed_block)
         self.assertIn("Workflow-generated artifacts cannot expand scope", managed_block)
         self.assertIn("validation infrastructure remains forbidden", managed_block)
+        self.assertIn(
+            f"{self.DEFAULT_SUPPORT_ROOT}/protocols/COMMIT_GUARD.md",
+            managed_block,
+        )
+        self.assertIn("A passing check never grants commit/push permission", managed_block)
         self.assertIn("Before resuming a run", managed_block)
         self.assertIn("editing after a failed check", managed_block)
         self.assertIn(
@@ -374,6 +379,7 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         self.assertIn("Keep validation bounded", managed_block)
         self.assertIn("Workflow-generated artifacts cannot expand scope", managed_block)
+        self.assertIn("COMMIT_GUARD.md", managed_block)
         self.assertIn("MATERIALITY_GATE.md", managed_block)
         self.assertIn("CAPABILITY_RECOVERY.md", managed_block)
         self.assertIn(
@@ -441,6 +447,9 @@ class CodexInstallExportTest(unittest.TestCase):
                 )
                 self.assertIn(
                     f"{support_root}/protocols/CAPABILITY_RECOVERY.md", managed_block
+                )
+                self.assertIn(
+                    f"{support_root}/protocols/COMMIT_GUARD.md", managed_block
                 )
                 self.assertNotIn(self.DEFAULT_SUPPORT_ROOT, managed_block)
 

@@ -29,6 +29,10 @@ Execute EXACTLY ONE task. No scope creep.
 - The handoff's policy-v2 `task_intent`, baseline/source metadata, legacy `reasoning_class`, signals, ReasoningDecision, and any caller-selected recovery model are authoritative for this attempt. Do not reclassify the work, choose a model, or reinterpret risk, verification, repair budget, or resource class as model/effort controls. Normal role models come from the profile; only the caller may apply one profile-bounded temporary recovery selector.
 - When an attempt fails, state in `notes` whether it is a `product_failure`, `harness_failure`, or `operational_failure`, and whether concrete product behavior was disproved. Do not self-escalate: the orchestrator may set `prior_failure_type = reasoning_failure` only for a product logic, diagnosis, invariant, or review failure; harness and operational failures do not raise effort.
 
+# COMMIT AND PUSH GUARD
+
+Before an authorized commit or push, follow `protocols/COMMIT_GUARD.md` and run its deterministic check directly. Do not infer permission from a passing scan, bypass hooks, or change the profile to suppress findings. An explicit no-commit instruction takes precedence.
+
 # FRONTEND UI TASKS
 
 - If the task changes visible frontend UI, apply the repo-managed guidance in `skills/frontend-aesthetic-director/SKILL.md` when available.

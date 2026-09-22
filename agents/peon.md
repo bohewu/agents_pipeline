@@ -21,6 +21,10 @@ Execute EXACTLY ONE task. No scope creep.
 - Accept only `routine` work under the fixed role policy. Treat the handoff's policy-v2 intent/class/signal metadata and ReasoningDecision as authoritative; do not lower a higher class to make it fit, choose a raw/dynamic model, or reinterpret repair/risk controls as effort controls.
 - The profile/runtime selected the actual role model/tier and the orchestrator resolver selected child effort only. In `notes`, distinguish a concrete reasoning failure from an operational failure; only the orchestrator may use that classification for a later dispatch.
 
+# COMMIT AND PUSH GUARD
+
+Before an authorized commit or push, follow `protocols/COMMIT_GUARD.md` and invoke its deterministic check directly. A passing scan is not permission to commit; never bypass hooks or weaken the profile to suppress findings.
+
 # RESOURCE CLEANUP (MANDATORY)
 
 - Tear down any local server, browser, Playwright session, Node.js process, watcher, or background command started for the task before returning.

@@ -257,7 +257,8 @@ jobs:
           node --check tools/reasoning-policy.js
           node --check tools/reasoning-vocabulary.js
           node --check tools/codex-child-trace.js
-          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js
+          node --check tools/commit-guard.js
+          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js tests/commit-guard.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate local-preview lifecycle
@@ -276,6 +277,9 @@ jobs:
         run: |
           node --check tools/codex-child-trace.js
           node --test --test-name-pattern="symlink or Windows junction ancestor" tests/codex-child-trace.test.js
+      - name: Validate Commit Guard on Windows
+        shell: pwsh
+        run: node --test tests/commit-guard.test.js
       - name: Validate PowerShell runtime installers
         shell: pwsh
         run: |
@@ -395,7 +399,7 @@ jobs:
           python3 -m pip install jsonschema
           python3 -m compileall -q scripts tools
           python3 -m unittest discover -s tests -p 'test_*.py'
-          node --test tests/status-runtime.test.js
+          node --test tests/status-runtime.test.js tests/commit-guard.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
   validate-release-bundle:
