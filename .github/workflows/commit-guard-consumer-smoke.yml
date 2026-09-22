@@ -1,0 +1,19 @@
+name: Commit Guard consumer smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    uses: bohewu/agents_pipeline/.github/workflows/commit-guard.yml@6fb21877a8f7a05115c9c3210ef5feadfe75f2fb
+    permissions:
+      contents: read
+    with:
+      tool_repository: bohewu/agents_pipeline
+      tool_sha: 6fb21877a8f7a05115c9c3210ef5feadfe75f2fb
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      profile: strict
