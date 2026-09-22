@@ -170,13 +170,15 @@ test("personal paths across Windows, escaped JSON, POSIX, WSL and file URIs are 
   }
 });
 test("current workspace root is detected while ordinary deployment paths are not blocked", t => {
-  const f = fixture(t); f.write("note.md", `location=${f.cwd}/build\n`); f.stage("note.md");
+  const f = fixture(t); const root = f.git(["rev-parse", "--show-toplevel"]);
+  f.write("note.md", `location=${root}/build\n`); f.stage("note.md");
   assert.ok(rules(f.scan()).includes("PATH_CURRENT_MACHINE"));
   f.write("note.md", "/etc/nginx/nginx.conf\n/var/lib/postgresql\n/app/config\nC:/Program Files/dotnet\n"); f.stage("note.md");
   assert.equal(f.scan().exit, 0);
 });
 test("legacy fingerprints the complete current-machine path", t => {
-  const f = fixture(t); const oldPath = `${f.cwd}/old-location`; const newPath = `${f.cwd}/new-location`;
+  const f = fixture(t); const root = f.git(["rev-parse", "--show-toplevel"]);
+  const oldPath = `${root}/old-location`; const newPath = `${root}/new-location`;
   f.write("note.md", `location=${oldPath}\n`); f.stage("note.md"); f.commit();
   f.write("note.md", `# shifted\r\nlocation=${oldPath}\r\n`); f.stage("note.md");
   assert.equal(f.scan("legacy-ratchet").exit, 0);
