@@ -1,0 +1,19 @@
+name: Commit Guard setup-node v7 smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    uses: bohewu/agents_pipeline/.github/workflows/commit-guard.yml@7ca108ea38052b86b93823c96d55e06e821cd04f
+    permissions:
+      contents: read
+    with:
+      tool_repository: bohewu/agents_pipeline
+      tool_sha: 7ca108ea38052b86b93823c96d55e06e821cd04f
+      base_sha: ${{ github.event.pull_request.base.sha }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      profile: strict
