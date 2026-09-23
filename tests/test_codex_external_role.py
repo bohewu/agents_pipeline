@@ -1,0 +1,539 @@
+from __future__ import annotations
+
+import importlib.util
+import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest import mock
+
+
+TOOL = Path(__file__).resolve().parents[1] / "tools/codex-external-role.py"
+SPEC = importlib.util.spec_from_file_location("codex_external_role", TOOL)
+assert SPEC and SPEC.loader
+external = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(external)
+
+THREAD = "01a0cd95-4be4-7862-981a-7011b9d331a7"
+INSTRUCTIONS = "# ROLE\nRead only.\n"
+
+
+class ExternalRoleTests(unittest.TestCase):
+    def test_cli_reports_resolution_conflict_as_json(self) -> None:
+        output = io.StringIO()
+        with mock.patch.object(external, "resolve_role", side_effect=external.ResolutionConflict("tier conflict")), \
+             redirect_stdout(output):
+            code = external.main(["resolve-role", "--role", "planner", "--task-intent", "design"])
+        self.assertEqual(code, 3)
+        self.assertEqual(json.loads(output.getvalue())["status"], "conflicted")
+
+        output = io.StringIO()
+        with mock.patch.object(external, "resolve_role", return_value={
+            "status": "ready", "dispatch_supported": False,
+        }), redirect_stdout(output):
+            code = external.main(["resolve-role", "--role", "reviewer", "--task-intent", "review"])
+        self.assertEqual(code, 0)
+        self.assertFalse(json.loads(output.getvalue())["dispatch_supported"])
+
+    def test_resolve_uses_saved_binding_and_reasoning_resolver(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            roles = workspace / ".codex/agents"
+            roles.mkdir(parents=True)
+            source = workspace / "agents-pipeline/agents"
+            source.mkdir(parents=True)
+            (source / "repo-scout.md").write_text(
+                "---\nname: repo-scout\nkind: subagent\n---\n", encoding="utf-8",
+            )
+            (roles / "repo-scout.toml").write_text(
+                'name = "repo-scout"\nmodel = "gpt-6-luna"\n'
+                'developer_instructions = "# ROLE\\nRead only.\\n"\n',
+                encoding="utf-8",
+            )
+            config = {
+                "provenance": {"source": "workspace_profile"},
+                "role_binding": {"role": "repo-scout", "model": "gpt-6-luna", "model_tier": "mini"},
+                "model_set": {"id": "openai"},
+                "reasoning_projection": {"id": "openai-gpt6-v1"},
+            }
+            status = {
+                "configured": True, "health": "ok", "profile_eligibility": "eligible",
+                "catalog_state": "current", "configuration_compatibility": "current",
+                "workspace": str(workspace), "roles_dir": str(roles), "profile": "balanced",
+                "global_target": str(workspace),
+                "resolved_configurations": {"repo-scout": config},
+            }
+            decision = {
+                "conflict": None, "enforcement_status": "requested",
+                "dispatch_effort": "high", "effective_class": "routine",
+            }
+            with mock.patch.object(external, "_json_command", side_effect=[status, decision]) as command:
+                resolved = external.resolve_role(workspace, "repo-scout", ["local_scope"])
+            self.assertEqual(resolved["requested_model"], "gpt-6-luna")
+            self.assertEqual(resolved["requested_effort"], "high")
+            self.assertTrue(resolved["dispatch_supported"])
+            self.assertEqual(resolved["enforcement_status"], "requested")
+            request = json.loads(command.call_args_list[1].args[0][3])
+            self.assertEqual(request["resolved_configuration"], config)
+            self.assertEqual(request["reasoning_signals"], ["local_scope"])
+
+            (source / "reviewer.md").write_text(
+                "---\nname: reviewer\nkind: subagent\n---\n", encoding="utf-8",
+            )
+            (roles / "reviewer.toml").write_text(
+                'name = "reviewer"\nmodel = "gpt-6-astra"\n'
+                'developer_instructions = "# ROLE\\nRead only.\\n"\n',
+                encoding="utf-8",
+            )
+            reviewer_config = {
+                **config,
+                "role_binding": {"role": "reviewer", "model": "gpt-6-astra", "model_tier": "strong"},
+            }
+            status["resolved_configurations"]["reviewer"] = reviewer_config
+            deep = {**decision, "effective_class": "deep"}
+            with mock.patch.object(external, "_json_command", side_effect=[status, deep]) as command:
+                resolved = external.resolve_role(workspace, "reviewer", ["local_scope"], "review", "ad-hoc-review")
+            self.assertTrue(resolved["dispatch_supported"])
+            self.assertEqual(json.loads(command.call_args_list[1].args[0][3])["dispatch_context"], "ad-hoc-review")
+            assurance = {**decision, "effective_class": "assurance"}
+            with mock.patch.object(external, "_json_command", side_effect=[status, assurance]):
+                resolved = external.resolve_role(workspace, "reviewer", ["formal_accept_reject"], "review", "ad-hoc-review")
+            self.assertFalse(resolved["dispatch_supported"])
+
+    def test_resolution_rejects_unhealthy_profile_and_other_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            with mock.patch.object(external, "_json_command", return_value={"configured": True, "health": "incomplete"}):
+                with self.assertRaisesRegex(external.EvidenceError, "health"):
+                    external.resolve_role(workspace, "repo-scout", [])
+            source = workspace / "agents-pipeline/agents"
+            source.mkdir(parents=True)
+            (source / "orchestrator-simple.md").write_text(
+                "---\nname: orchestrator-simple\nkind: primary\n---\n", encoding="utf-8",
+            )
+            with self.assertRaisesRegex(external.EvidenceError, "managed leaf"):
+                external._verify_leaf_source({"global_target": str(workspace)}, "orchestrator-simple")
+            (source / "planner.md").write_text(
+                "---\nname: planner\nkind: subagent\n---\n", encoding="utf-8",
+            )
+            external._verify_leaf_source({"global_target": str(workspace)}, "planner")
+
+    def test_independent_root_evidence_matches_and_detects_wrong_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            trace = home / "sessions/2026/09/23" / f"rollout-{THREAD}.jsonl"
+            trace.parent.mkdir(parents=True)
+            role = home / "repo-scout.toml"
+            role.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "role": "repo-scout", "workspace": "/work/repo",
+                "requested_model": "gpt-6-luna", "requested_effort": "high",
+                "role_config": str(role),
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            records = [
+                {"type": "session_meta", "payload": {
+                    "id": THREAD, "source": "exec", "cwd": "/work/repo", "model_provider": "openai",
+                }},
+                {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "turn-1"}},
+                {"type": "turn_context", "payload": {
+                    "turn_id": "turn-1", "cwd": "/work/repo", "model": "gpt-6-luna", "effort": "high",
+                    "sandbox_policy": {"type": "read-only"}, "approval_policy": "never",
+                }},
+                {"type": "response_item", "payload": {
+                    "role": "developer", "content": [{"type": "input_text", "text": INSTRUCTIONS}],
+                    "internal_chat_message_metadata_passthrough": {"turn_id": "turn-1"},
+                }},
+                {"type": "event_msg", "payload": {"type": "task_complete", "turn_id": "turn-1"}},
+            ]
+            trace.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+            matched = external.inspect_exec(trace, THREAD, resolution, home)
+            self.assertEqual(matched["verification_status"], "matched")
+            self.assertFalse(matched["native_managed_child"])
+
+            records[2]["payload"]["model"] = "gpt-6-sol"
+            trace.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+            mismatch = external.inspect_exec(trace, THREAD, resolution, home)
+            self.assertEqual(mismatch["verification_status"], "mismatch")
+            self.assertFalse(mismatch["checks"]["model"])
+
+            records[2]["payload"]["model"] = "gpt-6-luna"
+            records.append({"type": "turn_context", "payload": {"turn_id": "turn-2"}})
+            trace.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+            resumed = external.inspect_exec(trace, THREAD, resolution, home)
+            self.assertFalse(resumed["checks"]["single_turn"])
+
+    def test_trace_path_must_be_under_sessions_without_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            outside = home / "outside.jsonl"
+            outside.write_text("", encoding="utf-8")
+            with self.assertRaisesRegex(external.EvidenceError, "sessions"):
+                external._plain_trace_path(outside, home)
+            sessions = home / "sessions"
+            sessions.mkdir()
+            link = sessions / f"{THREAD}.jsonl"
+            try:
+                link.symlink_to(outside)
+            except OSError:
+                if os.name != "nt":
+                    raise
+            else:
+                with self.assertRaisesRegex(external.EvidenceError, "links or reparse points"):
+                    external._plain_trace_path(link, home)
+
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_windows_junctions_cannot_escape_trace_or_target_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / f"rollout-{THREAD}.jsonl").write_text("", encoding="utf-8")
+            (outside / "target.py").write_text("x = 1\n", encoding="utf-8")
+            home = root / "codex-home"
+            (home / "sessions").mkdir(parents=True)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            for link in (home / "sessions" / "2026", workspace / "linked"):
+                subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link), str(outside)],
+                    check=True, capture_output=True,
+                )
+            with self.assertRaisesRegex(external.EvidenceError, "reparse points"):
+                external._plain_trace_path(home / "sessions" / "2026" / f"rollout-{THREAD}.jsonl", home)
+            with self.assertRaisesRegex(external.EvidenceError, "reparse points"):
+                external._verify_repo_paths(workspace, ["linked/target.py"])
+
+    def test_dispatch_task_contract_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            task_file = Path(temporary) / "task.json"
+            task_file.write_text(json.dumps({
+                "task": "Locate the current version files", "reasoning_signals": ["local_scope"],
+            }), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file)["task"], "Locate the current version files")
+            task_file.write_text(json.dumps({"task": "x", "model": "gpt-6-astra"}), encoding="utf-8")
+            with self.assertRaisesRegex(external.EvidenceError, "Repo-scout task"):
+                external._read_task(task_file)
+
+    def test_planner_task_and_output_require_existing_contract_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            task_file = Path(temporary) / "task.json"
+            spec = {
+                "goal": "Document the release", "scope": {"in": [], "out": []},
+                "constraints": [], "acceptance_criteria": [], "assumptions": [],
+            }
+            task_file.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["fully_specified"],
+                "problem_spec": spec,
+            }), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "planner")["problem_spec"], spec)
+            task_file.write_text(json.dumps({
+                "task_intent": "inspect", "reasoning_signals": [], "problem_spec": spec,
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(external.EvidenceError, "design intent"):
+                external._read_task(task_file, "planner")
+
+            outline = {"milestones": ["Draft"], "dependencies": {"Publish": ["Draft"]},
+                       "deliverables": ["Release notes"]}
+            events = [
+                {"type": "thread.started", "thread_id": THREAD},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(outline)}},
+                {"type": "turn.completed", "usage": {}},
+            ]
+            raw = "\n".join(json.dumps(event) for event in events).encode()
+            self.assertEqual(external._parse_events(raw, "planner")[2], outline)
+
+    def test_event_parser_requires_one_completed_turn_and_role_shape(self) -> None:
+        output = {field: [] for field in external.REPO_SCOUT_FIELDS}
+        records = [
+            {"type": "thread.started", "thread_id": THREAD},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+            {"type": "turn.completed", "usage": {"input_tokens": 10}},
+        ]
+        raw = "\n".join(json.dumps(record) for record in records).encode()
+        thread, usage, result = external._parse_events(raw)
+        self.assertEqual(thread, THREAD)
+        self.assertEqual(usage["input_tokens"], 10)
+        self.assertEqual(result, output)
+        records.append({"type": "turn.completed"})
+        with self.assertRaisesRegex(external.EvidenceError, "one completed turn"):
+            external._parse_events("\n".join(json.dumps(record) for record in records).encode())
+
+    def test_dispatch_derives_model_and_effort_without_task_override(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            task_file = home / "task.json"
+            task_file.write_text(json.dumps({
+                "task": "Find VERSION", "reasoning_signals": ["fully_specified", "local_scope"],
+            }), encoding="utf-8")
+            role_file = home / "repo-scout.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(home), "role_config": str(role_file),
+                "requested_model": "gpt-6-luna", "requested_effort": "high",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            output = {field: [] for field in external.REPO_SCOUT_FIELDS}
+            events = [
+                {"type": "thread.started", "thread_id": THREAD},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+                {"type": "turn.completed", "usage": {"input_tokens": 10}},
+            ]
+            raw = "\n".join(json.dumps(event) for event in events).encode()
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-luna",
+                        "observed_effort": "high", "checks": {"model": True}}
+            with mock.patch.object(external, "resolve_role", return_value=resolution) as resolve, \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")) as run, \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "repo-scout", task_file, 30, home)
+            self.assertEqual(result["status"], "verified")
+            resolve.assert_called_once_with(home, "repo-scout", ["fully_specified", "local_scope"], "inspect", None)
+            argv = run.call_args.args[0]
+            self.assertEqual(argv[argv.index("-m") + 1], "gpt-6-luna")
+            self.assertIn('model_reasoning_effort="high"', argv)
+            self.assertIn("--ignore-user-config", argv)
+            self.assertIn("agents.enabled=false", argv)
+            self.assertIn("read-only", argv)
+
+            planner_task = home / "planner-task.json"
+            planner_task.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["fully_specified"],
+                "problem_spec": {"goal": "Plan a change", "scope": {"in": [], "out": []},
+                                 "constraints": [], "acceptance_criteria": [], "assumptions": []},
+            }), encoding="utf-8")
+            outline = {"milestones": [], "dependencies": {}, "deliverables": []}
+            events[1]["item"]["text"] = json.dumps(outline)
+            planner_raw = "\n".join(json.dumps(event) for event in events).encode()
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, planner_raw, b"")) as planner_run, \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                external.dispatch_role(home, "planner", planner_task, 30, home)
+            self.assertNotIn("--output-schema", planner_run.call_args.args[0])
+            self.assertIn("milestones and deliverables must be arrays of strings", planner_run.call_args.args[1])
+
+    def test_reviewer_task_targets_and_result_invariants(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / "target.py").write_text("x = 1\n", encoding="utf-8")
+            task_file = workspace / "task.json"
+            task = {
+                "task_intent": "review", "review_kind": "ad_hoc",
+                "reasoning_signals": ["local_scope"],
+                "targets": ["target.py"], "criteria": ["Check correctness"],
+            }
+            task_file.write_text(json.dumps(task), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "reviewer"), task)
+            external._verify_repo_paths(workspace, task["targets"])
+            with self.assertRaisesRegex(external.EvidenceError, "traversal"):
+                external._verify_repo_paths(workspace, ["../target.py"])
+            with self.assertRaisesRegex(external.EvidenceError, "repo-relative"):
+                external._verify_repo_paths(workspace, ["C:outside.txt"], allow_new=True)
+            try:
+                (workspace / "link.py").symlink_to(workspace / "target.py")
+            except OSError:
+                if os.name != "nt":
+                    raise
+            else:
+                with self.assertRaisesRegex(external.EvidenceError, "links or reparse points"):
+                    external._verify_repo_paths(workspace, ["link.py"])
+            task["review_kind"] = "formal"
+            task_file.write_text(json.dumps(task), encoding="utf-8")
+            with self.assertRaisesRegex(external.EvidenceError, "ad_hoc"):
+                external._read_task(task_file, "reviewer")
+
+        def events(result: dict) -> bytes:
+            return "\n".join(json.dumps(event) for event in (
+                {"type": "thread.started", "thread_id": THREAD},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(result)}},
+                {"type": "turn.completed", "usage": {}},
+            )).encode()
+
+        passed = {"overall_status": "pass", "issues": [], "required_followups": [], "optional_notes": []}
+        failed = {"overall_status": "fail", "issues": ["[logic][P2] target.py:1 — wrong value"],
+                  "required_followups": ["[logic] Correct target.py:1"], "optional_notes": []}
+        self.assertEqual(external._parse_events(events(passed), "reviewer")[2], passed)
+        self.assertEqual(external._parse_events(events(failed), "reviewer")[2], failed)
+        passed["required_followups"] = ["fix something"]
+        with self.assertRaisesRegex(external.EvidenceError, "reviewer result shape"):
+            external._parse_events(events(passed), "reviewer")
+
+    def test_reviewer_dispatch_uses_ad_hoc_context_and_marks_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "target.py").write_text("x = 1\n", encoding="utf-8")
+            task_file = home / "task.json"
+            task_file.write_text(json.dumps({
+                "task_intent": "review", "review_kind": "ad_hoc",
+                "reasoning_signals": ["local_scope"], "targets": ["target.py"],
+                "criteria": ["Check correctness"],
+            }), encoding="utf-8")
+            role_file = home / "reviewer.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(home), "role_config": str(role_file),
+                "requested_model": "gpt-6-astra", "requested_effort": "high",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            output = {"overall_status": "pass", "issues": [], "required_followups": [], "optional_notes": []}
+            raw = "\n".join(json.dumps(event) for event in (
+                {"type": "thread.started", "thread_id": THREAD},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+                {"type": "turn.completed", "usage": {"input_tokens": 10}},
+            )).encode()
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-astra",
+                        "observed_effort": "high", "checks": {"model": True}}
+            with mock.patch.dict(os.environ, {"SystemRoot": "C:\\Windows", "TEMP": "C:\\Temp"}), \
+                 mock.patch.object(external, "resolve_role", return_value=resolution) as resolve, \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")) as run, \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "reviewer", task_file, 30, home)
+            resolve.assert_called_once_with(home, "reviewer", ["local_scope"], "review", "ad-hoc-review")
+            self.assertIn("--output-schema", run.call_args.args[0])
+            self.assertIn('model_reasoning_effort="high"', run.call_args.args[0])
+            self.assertIn('"mode": "ad_hoc"', run.call_args.args[1])
+            self.assertEqual(run.call_args.args[4]["SystemRoot"], "C:\\Windows")
+            self.assertEqual(run.call_args.args[4]["TEMP"], "C:\\Temp")
+            self.assertEqual(result["result"], output)
+            self.assertEqual(result["review_kind"], "ad_hoc")
+            self.assertFalse(result["formal_assurance"])
+
+    def test_executor_requires_explicit_write_and_checks_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            (home / "target.py").write_text("x = 1\n", encoding="utf-8")
+            task_file = home / "task.json"
+            task = {
+                "task_id": "atomic-1", "task_intent": "execute",
+                "reasoning_signals": ["local_scope", "implementation_choice"],
+                "task": "Update target.py", "allowed_paths": ["target.py"],
+                "acceptance_criteria": ["Target is updated"], "verification": ["python3 -m py_compile target.py"],
+            }
+            task_file.write_text(json.dumps(task), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "executor"), task)
+            external._verify_repo_paths(home, ["new.py"], allow_new=True)
+            with mock.patch.object(external, "_clean_worktree_head") as preflight:
+                with self.assertRaisesRegex(external.EvidenceError, "--allow-write"):
+                    external.dispatch_role(home, "executor", task_file, 30, home)
+            preflight.assert_not_called()
+
+            role_file = home / "executor.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(home), "role_config": str(role_file),
+                "requested_model": "gpt-6-sol", "requested_effort": "medium",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            output = {
+                "task_id": "atomic-1", "status": "done", "changes": ["target.py updated"],
+                "evidence": ["syntax check passed"], "operational_retries_used": 0,
+                "repair_attempts_used": 0, "last_failure_signature": "", "notes": "", "followups": [],
+            }
+            raw = "\n".join(json.dumps(event) for event in (
+                {"type": "thread.started", "thread_id": THREAD},
+                {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+                {"type": "turn.completed", "usage": {"input_tokens": 10}},
+            )).encode()
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-sol",
+                        "observed_effort": "medium", "checks": {"sandbox_policy": True}}
+            with mock.patch.object(external, "resolve_role", return_value=resolution) as resolve, \
+                 mock.patch.object(external, "_clean_worktree_head", return_value="baseline"), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")) as run, \
+                 mock.patch.object(external, "_changed_paths", return_value=["target.py"]) as changes, \
+                 mock.patch.object(external, "_git_output", return_value=b"baseline\n"), \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "executor", task_file, 30, home, allow_write=True)
+            self.assertEqual(resolve.call_count, 2)
+            self.assertEqual(resolve.call_args.args, (home, "executor", task["reasoning_signals"], "execute", None))
+            changes.assert_called_once_with(home, "baseline")
+            self.assertIn("workspace-write", run.call_args.args[0])
+            self.assertIn("--output-schema", run.call_args.args[0])
+            self.assertTrue(result["scope_compliant"])
+            self.assertEqual(result["status"], "verified")
+
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external, "_clean_worktree_head", return_value="baseline"), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")), \
+                 mock.patch.object(external, "_changed_paths", return_value=["outside.py"]), \
+                 mock.patch.object(external, "_git_output", return_value=b"baseline\n"), \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "executor", task_file, 30, home, allow_write=True)
+            self.assertFalse(result["scope_compliant"])
+            self.assertEqual(result["status"], "unverified")
+
+            changed_resolution = {**resolution, "requested_effort": "high"}
+            with mock.patch.object(external, "resolve_role", side_effect=[resolution, changed_resolution]), \
+                 mock.patch.object(external, "_clean_worktree_head", return_value="baseline"), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")), \
+                 mock.patch.object(external, "_changed_paths", return_value=["target.py"]), \
+                 mock.patch.object(external, "_git_output", return_value=b"baseline\n"), \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "executor", task_file, 30, home, allow_write=True)
+            self.assertFalse(result["profile_stable"])
+            self.assertEqual(result["status"], "unverified")
+
+    def test_git_scope_reports_both_sides_of_a_rename(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+            (workspace / "old.py").write_text("x = 1\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(workspace), "add", "old.py"], check=True)
+            subprocess.run([
+                "git", "-C", str(workspace), "-c", "user.name=Test",
+                "-c", "user.email=test@example.invalid", "commit", "-qm", "baseline",
+            ], check=True)
+            head = external._clean_worktree_head(workspace)
+            (workspace / "old.py").write_text("x = 2\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(workspace), "add", "old.py"], check=True)
+            (workspace / "old.py").write_text("x = 1\n", encoding="utf-8")
+            self.assertEqual(external._changed_paths(workspace, head), ["old.py"])
+            subprocess.run(["git", "-C", str(workspace), "add", "old.py"], check=True)
+            self.assertEqual(external._clean_worktree_head(workspace), head)
+            (workspace / "old.py").rename(workspace / "new.py")
+            subprocess.run(["git", "-C", str(workspace), "add", "-A"], check=True)
+            self.assertEqual(external._changed_paths(workspace, head), ["new.py", "old.py"])
+            with self.assertRaisesRegex(external.EvidenceError, "clean Git worktree"):
+                external._clean_worktree_head(workspace)
+
+    def test_timeout_terminates_descendant_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "descendant-survived"
+            child = (
+                "import pathlib,time; time.sleep(1.5); "
+                f"pathlib.Path({str(marker)!r}).write_text('alive')"
+            )
+            parent = (
+                "import subprocess,sys,time; "
+                "subprocess.Popen([sys.executable,'-c',sys.argv[1]]); "
+                "print('started',flush=True); time.sleep(10)"
+            )
+            with self.assertRaisesRegex(external.EvidenceError, "timed out"):
+                external._limited_process(
+                    [sys.executable, "-c", parent, child], "", Path(temporary), 1, os.environ.copy(),
+                )
+            time.sleep(2)
+            self.assertFalse(marker.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
