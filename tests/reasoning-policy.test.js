@@ -54,14 +54,14 @@ function versionedConfiguration({
 
 function lsaRecoveryContext(overrides = {}) {
   const source = versionedConfiguration({
-    projectionId: "lsa-efficiency-v2",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor",
     modelTier: "standard"
   });
   const target = versionedConfiguration({
-    projectionId: "lsa-efficiency-v2",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor",
     modelTier: "strong",
     provenance: {
@@ -233,8 +233,8 @@ test("debugger diagnose dispatch stays fixed deep through the existing lsa v2 pr
       task_intent: "diagnose",
       selector_available: true,
       resolved_configuration: versionedConfiguration({
-        projectionId: "lsa-efficiency-v2",
-        modelSetId: "openai-luna-sol-astra",
+        projectionId: "openai-gpt6-v1",
+        modelSetId: "openai",
         role: "debugger",
         modelTier
       })
@@ -245,15 +245,15 @@ test("debugger diagnose dispatch stays fixed deep through the existing lsa v2 pr
     assert.equal(decision.effective_class, "deep", modelTier);
     assert.equal(decision.dispatch_effort, "high", modelTier);
     assert.equal(decision.recovery_boost, false, modelTier);
-    assert.equal(decision.reasoning_projection.id, "lsa-efficiency-v2", modelTier);
-    assert.equal(decision.model_set.id, "openai-luna-sol-astra", modelTier);
+    assert.equal(decision.reasoning_projection.id, "openai-gpt6-v1", modelTier);
+    assert.equal(decision.model_set.id, "openai", modelTier);
   }
 });
 
 test("executor-strong stays fixed deep on its native strong binding without capability uplift", () => {
   const resolvedConfiguration = versionedConfiguration({
-    projectionId: "lsa-efficiency-v2",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor-strong",
     modelTier: "strong"
   });
@@ -294,8 +294,8 @@ test("executor-strong stays fixed deep on its native strong binding without capa
   assert.equal(sameRoleEffortRetry.dispatch_effort, "max");
 
   const forgedUplift = versionedConfiguration({
-    projectionId: "lsa-efficiency-v2",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor-strong",
     modelTier: "strong",
     provenance: {
@@ -1654,123 +1654,24 @@ test("default policy path remains inside the repository protocol tree", () => {
   assert.equal(path.basename(path.dirname(DEFAULT_POLICY_PATH)), "protocols");
 });
 
-test("versioned registry keeps legacy v2 exact while projecting the Astra reviewer", () => {
-  const legacy = resolveReasoning({
-    role: "reviewer",
-    mode: "adaptive",
-    task_intent: "review",
-    model_tier: "strong",
-    selector_available: true
-  });
-  const legacyConfiguration = resolveReasoning({
-    role: "reviewer",
-    mode: "adaptive",
-    task_intent: "review",
-    model_tier: "strong",
-    selector_available: true,
-    resolved_configuration: versionedConfiguration({
-      projectionId: "legacy-v2",
-      modelSetId: "openai-legacy",
-      role: "reviewer",
-      modelTier: "strong"
-    })
-  });
-  const { reasoning_projection, model_set, ...legacyBehavior } = legacyConfiguration;
-  assert.deepEqual(legacyBehavior, legacy);
-  assert.equal(legacyConfiguration.schema_version, "2.0");
-  assert.equal(legacyConfiguration.dispatch_effort, "xhigh");
-  assert.equal(reasoning_projection.id, "legacy-v2");
-  assert.equal(model_set.id, "openai-legacy");
-
+test("active projection calibrates Astra review and rejects retired configurations", () => {
   const reviewer = resolveReasoning({
-    role: "reviewer",
-    mode: "adaptive",
-    task_intent: "review",
-    selector_available: true,
+    role: "reviewer", mode: "adaptive", task_intent: "review", selector_available: true,
     resolved_configuration: versionedConfiguration({
-      projectionId: "openai-reviewer-v1",
-      modelSetId: "openai",
-      role: "reviewer",
-      modelTier: "strong"
+      projectionId: "openai-gpt6-v1", modelSetId: "openai", role: "reviewer", modelTier: "strong"
     })
   });
   assert.equal(reviewer.schema_version, "3.0");
-  assert.equal(reviewer.reasoning_projection.id, "openai-reviewer-v1");
   assert.equal(reviewer.dispatch_effort, "high");
-
-  const executor = resolveReasoning({
-    role: "executor",
-    mode: "adaptive",
-    task_intent: "design",
-    reasoning_signals: ["cross_module"],
-    selector_available: true,
-    resolved_configuration: versionedConfiguration({
-      projectionId: "openai-reviewer-v1",
-      modelSetId: "openai",
-      role: "executor",
-      modelTier: "strong"
-    })
-  });
-  assert.equal(executor.dispatch_effort, "xhigh");
-
-  const baselineRecovery = resolveReasoning({
-    role: "executor",
-    mode: "adaptive",
-    task_intent: "design",
-    reasoning_signals: ["cross_module"],
-    model_tier: "strong",
-    selector_available: true,
-    prior_failure_type: "reasoning_failure"
-  });
-  const projectedRecovery = resolveReasoning({
-    role: "executor",
-    mode: "adaptive",
-    task_intent: "design",
-    reasoning_signals: ["cross_module"],
-    selector_available: true,
-    prior_failure_type: "reasoning_failure",
-    resolved_configuration: versionedConfiguration({
-      projectionId: "openai-reviewer-v1",
-      modelSetId: "openai",
-      role: "executor",
-      modelTier: "strong"
-    })
-  });
-  assert.equal(projectedRecovery.dispatch_effort, baselineRecovery.dispatch_effort);
-  assert.equal(projectedRecovery.recovery_boost, true);
-
-  const baselineSelectorGap = resolveReasoning({
-    role: "executor",
-    mode: "adaptive",
-    task_intent: "diagnose",
-    model_tier: "strong",
-    selector_available: false
-  });
-  const projectedSelectorGap = resolveReasoning({
-    role: "executor",
-    mode: "adaptive",
-    task_intent: "diagnose",
-    selector_available: false,
-    resolved_configuration: versionedConfiguration({
-      projectionId: "openai-reviewer-v1",
-      modelSetId: "openai",
-      role: "executor",
-      modelTier: "strong"
-    })
-  });
-  const {
-    schema_version: ignoredSchemaVersion,
-    policy_version: ignoredPolicyVersion,
-    reasoning_projection: ignoredProjection,
-    model_set: ignoredModelSet,
-    ...projectedBehavior
-  } = projectedSelectorGap;
-  const {
-    schema_version: ignoredBaselineSchemaVersion,
-    policy_version: ignoredBaselinePolicyVersion,
-    ...baselineBehavior
-  } = baselineSelectorGap;
-  assert.deepEqual(projectedBehavior, baselineBehavior);
+  const retired = structuredClone(reviewer.model_set);
+  retired.version = "3";
+  assert.throws(() => resolveReasoning({
+    role: "reviewer", mode: "adaptive", task_intent: "review", selector_available: true,
+    resolved_configuration: {
+      ...versionedConfiguration({projectionId: "openai-gpt6-v1", modelSetId: "openai", role: "reviewer", modelTier: "strong"}),
+      model_set: retired
+    }
+  }), /model set|digest|binding/i);
 });
 
 test("lsa v3 uses the approved Luna, Sol, and Astra effort matrix", () => {
@@ -1793,8 +1694,8 @@ test("lsa v3 uses the approved Luna, Sol, and Astra effort matrix", () => {
       reasoning_signals: signals,
       selector_available: true,
       resolved_configuration: versionedConfiguration({
-        projectionId: "lsa-efficiency-v1",
-        modelSetId: "openai-luna-sol-astra",
+        projectionId: "openai-gpt6-v1",
+        modelSetId: "openai",
         role,
         modelTier: tier
       })
@@ -1806,8 +1707,8 @@ test("lsa v3 uses the approved Luna, Sol, and Astra effort matrix", () => {
 
 test("versioned projections fail closed on bad metadata, unavailable effort, and a missing selector", () => {
   const configuration = versionedConfiguration({
-    projectionId: "lsa-efficiency-v1",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor",
     modelTier: "strong"
   });
@@ -1867,8 +1768,8 @@ test("versioned projections fail closed on bad metadata, unavailable effort, and
 
 test("versioned same-model recovery raises real effort and destination recovery reprojects", () => {
   const solConfiguration = versionedConfiguration({
-    projectionId: "lsa-efficiency-v1",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor",
     modelTier: "standard"
   });
@@ -1887,8 +1788,8 @@ test("versioned same-model recovery raises real effort and destination recovery 
   assert.ok(retry.reasons.includes("same_model_effort_increase"));
 
   const astraConfiguration = versionedConfiguration({
-    projectionId: "lsa-efficiency-v1",
-    modelSetId: "openai-luna-sol-astra",
+    projectionId: "openai-gpt6-v1",
+    modelSetId: "openai",
     role: "executor",
     modelTier: "strong",
     provenance: {
@@ -2195,24 +2096,16 @@ test("rejected LSA v2 recovery stages cannot fall through to generic max", () =>
   assert.equal(ordinarySourceRetry.recovery_boost, true);
 });
 
-test("LSA v2 normal routing matches v1 when recovery context is absent", () => {
-  for (const projectionId of ["lsa-efficiency-v1", "lsa-efficiency-v2"]) {
-    const decision = resolveReasoning({
-      role: "executor",
-      mode: "adaptive",
-      task_intent: "design",
-      reasoning_signals: ["cross_module"],
-      selector_available: true,
-      resolved_configuration: versionedConfiguration({
-        projectionId,
-        modelSetId: "openai-luna-sol-astra",
-        role: "executor",
-        modelTier: "standard"
-      })
-    });
-    assert.equal(decision.dispatch_effort, "high", projectionId);
-    assert.equal(decision.recovery_boost, false, projectionId);
-  }
+test("normal GPT-6 routing remains deep/high without recovery context", () => {
+  const decision = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "design",
+    reasoning_signals: ["cross_module"], selector_available: true,
+    resolved_configuration: versionedConfiguration({
+      projectionId: "openai-gpt6-v1", modelSetId: "openai", role: "executor", modelTier: "standard"
+    })
+  });
+  assert.equal(decision.dispatch_effort, "high");
+  assert.equal(decision.recovery_boost, false);
 });
 
 test("projection registry remains inside the repository protocol tree", () => {

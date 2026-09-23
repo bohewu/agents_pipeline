@@ -17,8 +17,8 @@ const { loadProjectionRegistry } = require("../tools/reasoning-policy");
 const PROJECTION_REGISTRY = loadProjectionRegistry();
 
 function versionedConfiguration({ modelTier, recovery = false }) {
-  const projection = PROJECTION_REGISTRY.projections.find((entry) => entry.id === "lsa-efficiency-v2");
-  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  const projection = PROJECTION_REGISTRY.projections.find((entry) => entry.id === "openai-gpt6-v1");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai");
   return {
     schema_version: 1,
     model_set: {

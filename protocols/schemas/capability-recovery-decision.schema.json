@@ -353,8 +353,8 @@
           "type": "object",
           "required": ["id", "version", "mapping_digest"],
           "properties": {
-            "id": { "const": "openai-luna-sol-astra" },
-            "version": { "const": "2" },
+            "id": { "const": "openai" },
+            "version": { "const": "4" },
             "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
           },
           "additionalProperties": false
@@ -363,8 +363,8 @@
           "type": "object",
           "required": ["id", "version", "policy_version", "digest"],
           "properties": {
-            "id": { "const": "lsa-efficiency-v2" },
-            "version": { "const": "2" },
+            "id": { "const": "openai-gpt6-v1" },
+            "version": { "const": "1" },
             "policy_version": { "const": "3" },
             "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
           },

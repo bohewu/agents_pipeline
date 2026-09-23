@@ -2,7 +2,7 @@
 
 Capability recovery is a bounded child-only fallback for repeated material
 reasoning failures. The default path remains effort-first. The exact
-`lsa-efficiency-v2` strategy adds one narrower exception for qualified execution
+`openai-gpt6-v1` projection carries the LSA v2 strategy for qualified execution
 recovery; it does not change other projections. Capability recovery is separate
 from the reasoning-effort resolver:
 
@@ -34,7 +34,7 @@ Direct Simple, Flow, and Pipeline runs default to `off`. Fresh Adaptive
 and `interactive` default to `off`. An explicit flag overrides the preset, and
 resume keeps the persisted effective mode.
 
-Selecting the `openai-luna-sol-astra` model set does not enable `auto`. The
+Selecting the `openai` model set does not enable `auto`. The
 workflow preset or explicit flag still owns the mode.
 
 Simple does not perform model recovery. Its Adaptive wrapper may still use the
@@ -132,7 +132,7 @@ before the workflow stops and reports the blocker.
 
 The `lsa-qualified-execution-v2@2` strategy applies only when all normal trust,
 health, profile ceiling, selector, budget, and materiality checks pass and the
-saved configuration exactly verifies `lsa-efficiency-v2@2`. The workflow must
+saved configuration exactly verifies `openai-gpt6-v1@1`. The workflow must
 be Flow, Pipeline, or Adaptive routed to one of them, with reasoning `adaptive`
 and capability recovery `auto`. The role must be `executor` or `generalist`.
 
@@ -201,7 +201,7 @@ it is not a second profile uplift request.
 ## Reviewer boundary
 
 Reviewer recovery is effort-only. Policy-v2 ordinary review uses strong plus
-`xhigh`; the verified `openai-reviewer-v1` Astra reviewer projection calibrates
+`xhigh`; the verified `openai-gpt6-v1` projection calibrates
 ordinary deep review to `high`. An explicit `--review=max`, a workflow-selected material
 security/data-integrity review, or reviewer reasoning recovery may request
 strong plus `max` while remaining deep. Formal acceptance/rejection alone uses

@@ -38,7 +38,8 @@ proved:
    work retain their existing roles.
 3. Current-workspace status is verified, `health = ok`,
    `profile_eligibility = eligible`, `catalog_state = current`, and the named
-   profile is `balanced` or `premium` under the installed LSA configuration.
+   profile is `balanced` or `premium` under the installed `openai@4` /
+   `openai-gpt6-v1@1` configuration.
 4. The saved configuration contains an exact `executor-strong` role binding
    with `model_tier = strong`, workspace-profile provenance, and the same saved
    model-set mapping and reasoning-projection identities as the run.
@@ -59,7 +60,7 @@ proved:
 
 Task size, `multi_file`, `cross_module`, a high-risk label, or a `deep` label
 alone is insufficient. Do not manufacture another signal or lower the task's
-reasoning class to make a role fit. A frugal profile, another model set or
+reasoning class to make a role fit. A frugal profile, a retired model set or
 projection, an inherited or uniform profile, an ordinary task, or insufficient
 difficulty evidence retains existing automatic routing.
 

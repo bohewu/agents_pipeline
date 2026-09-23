@@ -105,7 +105,7 @@ class ValidateOrchestratorContractsTest(unittest.TestCase):
             narrow continuation run
             full fresh run
             Do not create a `run-goal`
-            `lsa-efficiency-v2`
+            `openai-gpt6-v1`
             `resolveLsaRecoveryStage`
             does not infer a stage, duplicate the ladder
             """,

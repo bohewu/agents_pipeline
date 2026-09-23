@@ -178,7 +178,7 @@ class AgentProfileInteractionTests(unittest.TestCase):
                 stdout=NonTtyStringIO(),
             )
 
-    def test_non_tty_set_and_install_alias_require_complete_choices(self) -> None:
+    def test_non_tty_set_and_install_alias_default_to_the_only_codex_catalog(self) -> None:
         for action in ("set", "install"):
             base = [action, "--runtime", "codex", "--asset-root", str(REPO_ROOT)]
             with self.subTest(action=action, missing="profile"), self.assertRaisesRegex(
@@ -189,13 +189,19 @@ class AgentProfileInteractionTests(unittest.TestCase):
                     stdin=NonTtyStringIO(),
                     stdout=NonTtyStringIO(),
                 )
-            with self.subTest(action=action, missing="model-set"), self.assertRaisesRegex(
-                PROFILE.ProfileError, "pass --model-set explicitly"
-            ):
-                PROFILE.resolve_request(
+            with self.subTest(action=action, default="openai"):
+                request = PROFILE.resolve_request(
                     parse(*base, "--profile", "balanced"),
                     stdin=NonTtyStringIO(),
                     stdout=NonTtyStringIO(),
+                )
+                self.assertEqual(request.model_set, "openai")
+            with self.subTest(action=action, retired=True), self.assertRaisesRegex(
+                PROFILE.ProfileError, "retired.*--model-set openai"
+            ):
+                PROFILE.resolve_request(
+                    parse(*base, "--profile", "balanced", "--model-set", "openai-legacy"),
+                    stdin=NonTtyStringIO(), stdout=NonTtyStringIO(),
                 )
 
     def test_resolve_recovery_requires_agent_and_model_tier(self) -> None:

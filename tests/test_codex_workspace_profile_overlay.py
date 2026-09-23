@@ -35,6 +35,53 @@ def load_project_profile_module():
 PROJECT_PROFILE = load_project_profile_module()
 
 
+def pin_retired_manifest(workspace: Path, *, model_set: str, projection_id: str) -> None:
+    """Materialize a frozen old binding in an isolated workspace fixture."""
+    registry = json.loads((
+        REPO_ROOT / "tests/fixtures/retired-reasoning-projections.json"
+    ).read_text(encoding="utf-8"))
+    projection = next(p for p in registry["projections"] if p["id"] == projection_id)
+    mapping = next(m for m in projection["model_sets"] if m["id"] == model_set)
+    identity = {
+        "schema_version": 1,
+        "model_set": {key: mapping[key] for key in ("id", "version", "mapping_digest")},
+        "reasoning_projection": {
+            key: projection[key]
+            for key in ("id", "version", "policy_version", "digest")
+        },
+    }
+    manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    original_set = manifest["model_set"]
+    manifest.update({
+        "source_version": "0.0.0", "asset_digest": "0" * 64,
+        "model_set": model_set, "model_mapping": mapping,
+        "configuration_identity": identity,
+    })
+    for role, configuration in manifest["resolved_configurations"].items():
+        binding = configuration["role_binding"]
+        previous_model = binding["model"]
+        tier = binding["model_tier"]
+        override = mapping["role_overrides"].get(role)
+        old_model = override["model"] if override else mapping["tiers"][tier]
+        configuration["model_set"] = identity["model_set"]
+        configuration["reasoning_projection"] = identity["reasoning_projection"]
+        binding.update(model=old_model, mapping_digest=mapping["mapping_digest"])
+        role_path = workspace / ".codex" / "agents" / f"{role}.toml"
+        content = role_path.read_text(encoding="utf-8")
+        assert f'model = "{previous_model}"' in content
+        role_path.write_text(content.replace(
+            f'model = "{previous_model}"', f'model = "{old_model}"'
+        ), encoding="utf-8")
+        manifest["agent_sha256"][role] = PROJECT_PROFILE._sha256_file(role_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if model_set != original_set:
+        config_path = workspace / ".codex" / "config.toml"
+        config_path.write_text(config_path.read_text(encoding="utf-8").replace(
+            f'# model_set = "{original_set}"', f'# model_set = "{model_set}"'
+        ), encoding="utf-8")
+
+
 @unittest.skipUnless(shutil.which("bash"), "Bash is required for Codex install smoke tests")
 class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
     maxDiff = None
@@ -329,8 +376,8 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 workspace, codex_home, status
             )
             expected_balanced_models = {
-                "peon": "gpt-5.6-luna",
-                "generalist": "gpt-5.6-terra",
+                "peon": "gpt-6-luna",
+                "generalist": "gpt-6-sol",
                 "reviewer": "gpt-6-astra",
             }
             for role_name, expected_model in expected_balanced_models.items():
@@ -396,7 +443,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             cleared = self.workspace_status(wrapper, workspace, env=env)
             self.assertFalse(cleared["installed"])
 
-    def test_workspace_model_set_switches_persist_projection_identity_and_clear(self) -> None:
+    def test_current_openai_identity_recovery_and_clear(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
             home = root / "home"
@@ -404,73 +451,61 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             env = self.isolated_environment(home)
             codex_home, wrapper = self.install_global_codex(home, env)
             self.set_project_trust(codex_home, workspace, "trusted")
-
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-luna-sol-astra",
-            )
-            first_status = self.workspace_status(wrapper, workspace, env=env)
-            self.assertEqual(first_status["health"], "ok")
-            self.assertEqual(first_status["configuration_compatibility"], "current")
-            self.assertEqual(
-                first_status["configuration_identity"]["reasoning_projection"]["id"],
-                "lsa-efficiency-v2",
-            )
-            self.assertEqual(
-                first_status["resolved_configurations"]["reviewer"]["role_binding"]["model"],
-                "gpt-6-astra",
-            )
+            self.run_profile(wrapper, "set", workspace, env=env)
+            status = self.workspace_status(wrapper, workspace, env=env)
+            self.assertEqual(status["health"], "ok")
+            self.assertEqual(status["catalog_state"], "current")
+            self.assertEqual(status["configuration_identity"]["model_set"]["version"], "4")
+            self.assertEqual(status["configuration_identity"]["reasoning_projection"]["id"], "openai-gpt6-v1")
+            self.assertEqual(status["resolved_configurations"]["reviewer"]["role_binding"]["model"], "gpt-6-astra")
             manifest = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
-            first_manifest = manifest.read_bytes()
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-luna-sol-astra",
-            )
-            self.assertEqual(manifest.read_bytes(), first_manifest)
-            recovery = json.loads(
-                self.resolve_recovery(wrapper, workspace, env=env).stdout
-            )
-            self.assertEqual(
-                recovery["resolved_configuration"]["reasoning_projection"],
-                first_status["configuration_identity"]["reasoning_projection"],
-            )
-            self.assertEqual(
-                recovery["resolved_configuration"]["role_binding"],
-                {
-                    "role": "executor",
-                    "model_tier": "strong",
-                    "model": "gpt-6-astra",
-                    "mapping_digest": first_status["model_mapping"]["mapping_digest"],
-                },
-            )
-
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-legacy",
-            )
-            legacy_status = self.workspace_status(wrapper, workspace, env=env)
-            self.assertEqual(
-                legacy_status["configuration_identity"]["reasoning_projection"]["id"],
-                "legacy-v2",
-            )
-            self.assertEqual(
-                legacy_status["resolved_configurations"]["reviewer"]["role_binding"]["model"],
-                "gpt-5.6-sol",
-            )
-            self.run_profile(wrapper, "clear", workspace, env=env)
+            before = manifest.read_bytes()
+            self.run_profile(wrapper, "set", workspace, env=env)
+            self.assertEqual(manifest.read_bytes(), before)
+            recovery = json.loads(self.resolve_recovery(wrapper, workspace, env=env).stdout)
+            self.assertEqual(recovery["resolved_configuration"]["role_binding"]["model"], "gpt-6-astra")
+            rejected = self.run_profile(wrapper, "set", workspace, env=env, model_set="openai-legacy", expected=2)
+            self.assertIn("retired", rejected.stderr)
+            self.assertEqual(manifest.read_bytes(), before)
             self.run_profile(wrapper, "clear", workspace, env=env)
             self.assertFalse(manifest.exists())
 
-    def test_saved_lsa_v1_workspace_stays_pinned_until_explicit_v2_set(self) -> None:
+    def test_retired_v3_manifests_are_diagnostic_and_require_explicit_refresh(self) -> None:
+        for model_set, projection_id in (
+            ("openai", "openai-reviewer-v1"),
+            ("openai-luna-sol-astra", "lsa-efficiency-v1"),
+            ("openai-luna-sol-astra", "lsa-efficiency-v2"),
+            ("openai-legacy", "legacy-v2"),
+        ):
+            with self.subTest(model_set=model_set, projection_id=projection_id), tempfile.TemporaryDirectory() as temp_name:
+                root = Path(temp_name)
+                home = root / "home"
+                workspace = root / "project"
+                env = self.isolated_environment(home)
+                codex_home, wrapper = self.install_global_codex(home, env)
+                self.set_project_trust(codex_home, workspace, "trusted")
+                self.run_profile(wrapper, "set", workspace, env=env)
+                pin_retired_manifest(workspace, model_set=model_set, projection_id=projection_id)
+                retired = self.workspace_status(wrapper, workspace, env=env)
+                self.assertEqual(retired["health"], "ok")
+                self.assertEqual(retired["catalog_state"], "pinned")
+                self.assertEqual(retired["configuration_compatibility"], "retired")
+                self.assertEqual(retired["configuration_identity"]["reasoning_projection"]["id"], projection_id)
+                blocked = self.resolve_recovery(wrapper, workspace, env=env, expected=2)
+                self.assertIn("requires the current workspace profile catalog", blocked.stderr)
+                role_path = workspace / ".codex/agents/executor.toml"
+                role_path.write_text(role_path.read_text(encoding="utf-8") + "# modified\n", encoding="utf-8")
+                rejected_clear = self.run_profile(wrapper, "clear", workspace, env=env, expected=2)
+                self.assertIn("modified project-local Codex role", rejected_clear.stderr)
+                self.assertTrue(role_path.exists())
+                self.run_profile(wrapper, "set", workspace, env=env)
+                refreshed = self.workspace_status(wrapper, workspace, env=env)
+                self.assertEqual(refreshed["catalog_state"], "current")
+                self.assertEqual(refreshed["configuration_identity"]["reasoning_projection"]["id"], "openai-gpt6-v1")
+                self.run_profile(wrapper, "clear", workspace, env=env)
+                self.assertEqual(self.workspace_status(wrapper, workspace, env=env)["catalog_state"], "inherit")
+
+    def test_v2_openai_manifest_remains_conservative_without_old_catalog(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
             root = Path(temp_name)
             home = root / "home"
@@ -478,150 +513,20 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             env = self.isolated_environment(home)
             codex_home, wrapper = self.install_global_codex(home, env)
             self.set_project_trust(codex_home, workspace, "trusted")
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-luna-sol-astra",
-            )
-
-            registry = json.loads(
-                (
-                    codex_home
-                    / "agents-pipeline"
-                    / "protocols"
-                    / "reasoning-projections.json"
-                ).read_text(encoding="utf-8")
-            )
-            v1 = next(
-                projection
-                for projection in registry["projections"]
-                if projection["id"] == "lsa-efficiency-v1"
-            )
-            v1_mapping = v1["model_sets"][0]
-            v1_identity = {
-                "schema_version": 1,
-                "model_set": {
-                    key: v1_mapping[key]
-                    for key in ("id", "version", "mapping_digest")
-                },
-                "reasoning_projection": {
-                    key: v1[key]
-                    for key in ("id", "version", "policy_version", "digest")
-                },
-            }
+            self.run_profile(wrapper, "set", workspace, env=env)
             manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest["source_version"] = "0.0.0"
-            manifest["asset_digest"] = "0" * 64
-            manifest["model_mapping"] = v1_mapping
-            manifest["configuration_identity"] = v1_identity
-            for configuration in manifest["resolved_configurations"].values():
-                configuration["model_set"] = v1_identity["model_set"]
-                configuration["reasoning_projection"] = v1_identity[
-                    "reasoning_projection"
-                ]
-                configuration["role_binding"]["mapping_digest"] = v1_mapping[
-                    "mapping_digest"
-                ]
-            manifest_path.write_text(
-                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-                encoding="utf-8",
-            )
-
-            pinned = self.workspace_status(wrapper, workspace, env=env)
-            self.assertEqual(pinned["health"], "ok")
-            self.assertEqual(pinned["catalog_state"], "pinned")
-            self.assertEqual(
-                pinned["configuration_identity"]["reasoning_projection"]["id"],
-                "lsa-efficiency-v1",
-            )
-            self.assertEqual(
-                pinned["resolved_configurations"]["executor"]["role_binding"],
-                {
-                    "role": "executor",
-                    "model_tier": "standard",
-                    "model": "gpt-5.6-sol",
-                    "mapping_digest": v1_mapping["mapping_digest"],
-                },
-            )
-            blocked = self.resolve_recovery(wrapper, workspace, env=env, expected=2)
-            self.assertIn("requires the current workspace profile catalog", blocked.stderr)
-
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-luna-sol-astra",
-            )
-            v2_manifest = manifest_path.read_bytes()
-            current = self.workspace_status(wrapper, workspace, env=env)
-            self.assertEqual(current["catalog_state"], "current")
-            self.assertEqual(
-                current["configuration_identity"]["reasoning_projection"]["id"],
-                "lsa-efficiency-v2",
-            )
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-luna-sol-astra",
-            )
-            self.assertEqual(manifest_path.read_bytes(), v2_manifest)
-
-    def test_v2_openai_manifest_uses_verified_pinned_legacy_mapping(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_name:
-            root = Path(temp_name)
-            home = root / "home"
-            workspace = root / "project"
-            env = self.isolated_environment(home)
-            codex_home, wrapper = self.install_global_codex(home, env)
-            self.set_project_trust(codex_home, workspace, "trusted")
-            self.run_profile(
-                wrapper,
-                "set",
-                workspace,
-                env=env,
-                model_set="openai-legacy",
-            )
-
-            manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            manifest.update({"version": 2, "model_set": "openai"})
-            for key in (
-                "configuration_identity",
-                "model_mapping",
-                "resolved_configurations",
-            ):
+            manifest["version"] = 2
+            for key in ("configuration_identity", "model_mapping", "resolved_configurations"):
                 manifest.pop(key)
-            manifest_path.write_text(
-                json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-            )
-            config_path = workspace / ".codex" / "config.toml"
-            config_path.write_text(
-                config_path.read_text(encoding="utf-8").replace(
-                    '# model_set = "openai-legacy"', '# model_set = "openai"'
-                ),
-                encoding="utf-8",
-            )
-
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
             status = self.workspace_status(wrapper, workspace, env=env)
-            self.assertEqual(status["health"], "ok")
             self.assertEqual(status["catalog_state"], "pinned")
+            self.assertEqual(status["health"], "incomplete")
             self.assertEqual(status["configuration_compatibility"], "pinned_legacy")
-            self.assertEqual(status["model_set"], "openai")
-            self.assertEqual(
-                status["configuration_identity"]["model_set"]["id"], "openai-legacy"
-            )
-            reviewer = status["resolved_configurations"]["reviewer"]
-            self.assertEqual(reviewer["role_binding"]["model"], "gpt-5.6-sol")
-            self.assertEqual(reviewer["provenance"], {"source": "pinned_legacy", "override": None})
-
-            recovery = self.resolve_recovery(wrapper, workspace, env=env, expected=2)
-            self.assertIn("requires the current workspace profile catalog", recovery.stderr)
+            self.assertIsNone(status["configuration_identity"])
+            self.run_profile(wrapper, "set", workspace, env=env)
+            self.assertEqual(self.workspace_status(wrapper, workspace, env=env)["catalog_state"], "current")
 
     def test_v3_manifest_missing_resolved_configuration_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -669,7 +574,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 "set",
                 workspace,
                 env=env,
-                model_set="openai-luna-sol-astra",
+                model_set="openai",
             )
 
             manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
@@ -680,7 +585,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 {
                     "role": "executor",
                     "model_tier": "standard",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-sol",
                     "mapping_digest": manifest["model_mapping"]["mapping_digest"],
                 },
             )
@@ -693,7 +598,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                     encoding="utf-8"
                 )
             )
-            self.assertEqual(executor_role["model"], "gpt-5.6-sol")
+            self.assertEqual(executor_role["model"], "gpt-6-sol")
 
             status = self.run_command(
                 [
@@ -726,7 +631,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 "set",
                 workspace,
                 env=env,
-                model_set="openai-luna-sol-astra",
+                model_set="openai",
             )
 
             manifest_path = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
@@ -979,7 +884,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 workspace, codex_home, workspace_status
             )
             peon = tomllib.loads(local_roles["peon"].read_text(encoding="utf-8"))
-            self.assertEqual(peon["model"], "gpt-5.6-luna")
+            self.assertEqual(peon["model"], "gpt-6-luna")
 
     def test_codex_status_and_workspace_preflight_require_capability_protocols(self) -> None:
         with tempfile.TemporaryDirectory() as temp_name:
@@ -1319,7 +1224,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                     "base_model_tier": "standard",
                     "requested_model_tier": "strong",
                     "recovery_ceiling_model_tier": "strong",
-                    "model": "gpt-5.6-sol",
+                    "model": "gpt-6-astra",
                     "model_provider": "openai",
                 },
             )
@@ -1328,8 +1233,8 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 {
                     "role": "executor",
                     "model_tier": "strong",
-                    "model": "gpt-5.6-sol",
-                    "mapping_digest": "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f",
+                    "model": "gpt-6-astra",
+                    "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8",
                 },
             )
             self.assertEqual(
@@ -1353,7 +1258,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             self.assertEqual(premium_resolution["profile"], "premium")
             self.assertEqual(premium_resolution["base_model_tier"], "standard")
             self.assertEqual(premium_resolution["requested_model_tier"], "strong")
-            self.assertEqual(premium_resolution["model"], "gpt-5.6-sol")
+            self.assertEqual(premium_resolution["model"], "gpt-6-astra")
 
             rejected = self.resolve_recovery(wrapper, frugal, env=env, expected=2)
             self.assertIn("exceeds ceiling tier 'standard'", rejected.stderr)

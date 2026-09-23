@@ -54,7 +54,10 @@ class CodexInstallExportTest(unittest.TestCase):
         "without a profile reports global inheritance and may continue. If status "
         "cannot be verified or a configured profile's `health` is not `ok`, stop "
         "before dispatch and ask the user to rerun workspace `set` or `clear`; "
-        "never bypass an unhealthy or orphaned profile. If a configured profile's "
+        "never bypass an unhealthy or orphaned profile. A configured profile "
+        "with `catalog_state` other than `current` is pinned or retired; stop "
+        "before dispatch and require an explicit workspace `set --model-set "
+        "openai` or `clear`. If a configured profile's "
         "`profile_eligibility` is not `eligible`, warn that Codex is ignoring the "
         "workspace layer and continue with global role routing."
     )
@@ -1438,6 +1441,9 @@ class CodexInstallExportTest(unittest.TestCase):
             )
             (source / "VERSION").write_text("0.28.0\n", encoding="utf-8")
             (source / "README.md").write_text("do not copy", encoding="utf-8")
+            source_catalogs = source / "runtimes/codex/model-sets"
+            source_catalogs.mkdir(parents=True)
+            (source_catalogs / "openai.json").write_text("{}\n", encoding="utf-8")
             (source / "protocols" / "contract.md").write_text(
                 "See `./protocols/schemas/example.json`.\n"
                 "Run `node tools/status-event.js --help`.\n"
@@ -1446,9 +1452,13 @@ class CodexInstallExportTest(unittest.TestCase):
             )
             INSTALL_MODULE.sync_support_tree(source, target)
             (target / "stale.txt").write_text("stale", encoding="utf-8")
+            installed_catalogs = target / "runtimes/codex/model-sets"
+            for name in ("openai-legacy.json", "openai-luna-sol-astra.json"):
+                (installed_catalogs / name).write_text("{}\n", encoding="utf-8")
             INSTALL_MODULE.sync_support_tree(source, target)
 
             self.assertFalse((target / "stale.txt").exists())
+            self.assertEqual([p.name for p in installed_catalogs.glob("*.json")], ["openai.json"])
             self.assertFalse((target / "README.md").exists())
             self.assertTrue((target / "AGENTS.md").is_file())
             self.assertEqual(
@@ -1607,7 +1617,7 @@ class CodexInstallExportTest(unittest.TestCase):
             lsa_v2 = next(
                 projection
                 for projection in installed_registry["projections"]
-                if projection["id"] == "lsa-efficiency-v2"
+                if projection["id"] == "openai-gpt6-v1"
             )
             self.assertEqual(
                 lsa_v2["recovery_strategy"]["id"],
@@ -1619,13 +1629,17 @@ class CodexInstallExportTest(unittest.TestCase):
                     / "runtimes"
                     / "codex"
                     / "model-sets"
-                    / "openai-luna-sol-astra.json"
+                    / "openai.json"
                 ).read_text(encoding="utf-8")
             )
-            self.assertEqual(installed_lsa_catalog["version"], "2")
+            self.assertEqual(installed_lsa_catalog["version"], "4")
+            self.assertEqual(
+                sorted(path.name for path in (support_root / "runtimes/codex/model-sets").glob("*.json")),
+                ["openai.json"],
+            )
             self.assertEqual(
                 installed_lsa_catalog["reasoning_projection"]["id"],
-                "lsa-efficiency-v2",
+                "openai-gpt6-v1",
             )
 
             installed_list = subprocess.run(
@@ -1647,7 +1661,7 @@ class CodexInstallExportTest(unittest.TestCase):
             lsa_listing = next(
                 model_set
                 for model_set in listed["model_sets"]
-                if model_set["name"] == "openai-luna-sol-astra"
+                if model_set["name"] == "openai"
             )
             self.assertEqual(
                 lsa_listing["tiers"],
@@ -2294,16 +2308,16 @@ class CodexInstallExportTest(unittest.TestCase):
             "Use `protocols/PIPELINE_PROTOCOL.md` and `skills/frontend-aesthetic-director/SKILL.md`.\n"
         )
         rewritten = EXPORT_MODULE.rewrite_neutral_refs(
-            body, "/home/test/.codex/agents-pipeline"
+            body, "/tmp/agents-pipeline-support"
         )
         self.assertIn(
             "# Source: C:/repo/agents/orchestrator-pipeline.md", rewritten
         )
         self.assertIn(
-            "`/home/test/.codex/agents-pipeline/protocols/PIPELINE_PROTOCOL.md`", rewritten
+            "`/tmp/agents-pipeline-support/protocols/PIPELINE_PROTOCOL.md`", rewritten
         )
         self.assertIn(
-            "`/home/test/.codex/agents-pipeline/skills/frontend-aesthetic-director/SKILL.md`", rewritten
+            "`/tmp/agents-pipeline-support/skills/frontend-aesthetic-director/SKILL.md`", rewritten
         )
 
     def test_build_export_command_forwards_neutral_manifest_and_support_root(self) -> None:
@@ -2315,12 +2329,12 @@ class CodexInstallExportTest(unittest.TestCase):
             Path(".codex"),
             strict=True,
             job_max_runtime_seconds=None,
-            resolve_support_refs_to=Path("/home/test/.codex/agents-pipeline"),
+            resolve_support_refs_to=Path("/tmp/agents-pipeline-support"),
         )
         self.assertIn("--modes-file", command)
         self.assertIn("modes.json", command)
         self.assertIn("--resolve-support-refs-to", command)
-        self.assertIn("/home/test/.codex/agents-pipeline", command)
+        self.assertIn("/tmp/agents-pipeline-support", command)
 
     def test_build_export_command_forwards_model_profile_flags(self) -> None:
         command = INSTALL_MODULE.build_export_command(

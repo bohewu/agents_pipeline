@@ -14,6 +14,7 @@ definitions and adopt that definition in the current/main agent.
 1. Remove only the `$run-adaptive` token and preserve the remaining request and flags as raw input.
 2. Always query the installed global profile manager for current-workspace JSON status before routing or execution. A normal workspace without a profile reports global inheritance and may continue.
    - For normal execution, if status cannot be verified or a configured profile's `health` is not `ok`, stop and ask the user to rerun workspace `set` or `clear`; never dispatch through an unhealthy or orphaned profile.
+   - If a configured profile's `catalog_state` is not `current`, stop normal dispatch and require an explicit `set --model-set openai` refresh or `clear` after reviewing status.
    - If a configured profile's `profile_eligibility` is not `eligible`, warn that Codex is ignoring the workspace layer and continue with global role routing.
    - In `prompt_mode = on`, profile problems are warnings because no dispatch occurs. Include the repair requirement beside the generated prompt.
 3. Resolve the global definition root as `${CODEX_HOME:-$HOME/.codex}/agents/`. Never manually adopt a raw workspace role. Effective Codex configuration controls trusted workspace role routing.
@@ -233,14 +234,14 @@ An explicit `--route=simple|flow|pipeline` pins the route. If the pinned workflo
 cannot safely complete the task, stop and report the required route rather than
 silently overriding it.
 
-Before any managed wrapper or core child spawn, query the workspace profile. For
-an eligible profile, retain the exact selected-role `resolved_configuration` from
+Before any managed wrapper or core child spawn, query the workspace profile. For a healthy, eligible profile with `catalog_state = current`,
+retain the exact selected-role `resolved_configuration` from
 the selected versioned model set and registered reasoning projection, including
 its configuration identity, version, and digest. Pass that same envelope to the
 formal shared resolver and trace expectations, persist it with Flow/Pipeline run
 state, and require the same lock on resume. The resolver selects effort only, so
-normal dispatch omits a raw model; `openai-legacy` retains its registered v2
-projection and behavior. Simple retains the preflight only in memory; adaptive
+normal dispatch omits a raw model. A pinned or retired catalog requires explicit
+workspace `set --model-set openai` or `clear` before dispatch. Simple retains the preflight only in memory; adaptive
 evidence is applied only when role, model, and effort match, while shadow and
 inherit remain unapplied.
 
@@ -291,7 +292,7 @@ the Flow core. Flow supports the scout, commit, review (including `--review=max`
 reasoning, output-dir, resume, confirm/verbose, autopilot, and full-auto controls directly.
 Forward normalized `--capability-recovery=off|shadow|auto` and persist it with
 `preset_mode` and `ux_gate_threshold` beside the expanded effective flags in the Flow checkpoint.
-When the selected Flow run has an exact saved `lsa-efficiency-v2` configuration,
+When the selected Flow run has an exact saved `openai-gpt6-v1` configuration,
 leave shortcut qualification, the shared `resolveLsaRecoveryStage` decision, canonical
 failure history, claim-before-spawn accounting, and trace verification to Flow's
 existing recovery/status path. Adaptive forwards the saved configuration and persisted
@@ -307,7 +308,7 @@ Preserve `--review=max` so Pipeline can enforce the reviewer-only spawn override
 `review_mode = off` conflicts with Pipeline's hard gate, so stop rather than weaken review. Persist `preset_mode`,
 `capability_recovery_mode`, and `ux_gate_threshold` beside the expanded effective
 flags in the Pipeline checkpoint.
-For an exact saved `lsa-efficiency-v2` Pipeline run, preserve the same canonical
+For an exact saved `openai-gpt6-v1` Pipeline run, preserve the same canonical
 recovery state and let Pipeline call the shared `resolveLsaRecoveryStage` path before
 its legacy deep/max recovery dispatch. Adaptive does not turn fixture or prompt claims
 into failure history, selector support, an uplift, or a completed retry.

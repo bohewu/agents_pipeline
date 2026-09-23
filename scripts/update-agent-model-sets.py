@@ -7,6 +7,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import stat
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -90,50 +91,16 @@ def build_codex_openai(_data: object | None, _path: Path) -> dict:
     return {
         **_build_codex_catalog(
             name="openai",
-            version="3",
-            description=(
-                "OpenAI standard set: Luna/Terra/Sol, with Astra for the proven "
-                "strong reviewer."
-            ),
+            version="4",
+            description="OpenAI GPT-6 Luna/Sol/Astra model set.",
             tiers={
-            "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
-            "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
-            "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
+            "mini": {"model": "gpt-6-luna", "model_provider": "openai"},
+            "standard": {"model": "gpt-6-sol", "model_provider": "openai"},
+            "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
             },
-            projection_id="openai-reviewer-v1",
-            role_overrides={
-                "reviewer": {"expected_tier": "strong", "model": "gpt-6-astra"}
-            },
+            projection_id="openai-gpt6-v1",
         )
     }
-
-
-def build_codex_openai_luna_sol_astra(_data: object | None, _path: Path) -> dict:
-    return _build_codex_catalog(
-        name="openai-luna-sol-astra",
-        version="2",
-        description="Experimental Luna/Sol/Astra model set with versioned recovery semantics.",
-        tiers={
-            "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
-            "standard": {"model": "gpt-5.6-sol", "model_provider": "openai"},
-            "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
-        },
-        projection_id="lsa-efficiency-v2",
-    )
-
-
-def build_codex_openai_legacy(_data: object | None, _path: Path) -> dict:
-    return _build_codex_catalog(
-        name="openai-legacy",
-        version="2",
-        description="Legacy Luna/Terra/Sol model set with the v2 effort projection.",
-        tiers={
-            "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
-            "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
-            "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
-        },
-        projection_id="legacy-v2",
-    )
 
 
 def build_copilot_default(_data: object | None, _path: Path) -> dict:
@@ -165,16 +132,6 @@ MANAGED_MODEL_SETS = (
         build_codex_openai,
     ),
     ManagedModelSet(
-        "codex",
-        REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json",
-        build_codex_openai_legacy,
-    ),
-    ManagedModelSet(
-        "codex",
-        REPO_ROOT / "runtimes/codex/model-sets/openai-luna-sol-astra.json",
-        build_codex_openai_luna_sol_astra,
-    ),
-    ManagedModelSet(
         "copilot",
         REPO_ROOT / "runtimes/copilot/model-sets/default.json",
         build_copilot_default,
@@ -186,6 +143,10 @@ MANAGED_MODEL_SETS = (
     ),
 )
 MANAGED_MODEL_SET_ORDER = ("codex", "copilot", "claude")
+RETIRED_CODEX_CATALOGS = {
+    "openai-legacy.json": "4afd156225bcb28617ed3d167c51fac0e8c95eaf3e67bb9a85cd39f0661c2269",
+    "openai-luna-sol-astra.json": "022cc952533041fb6c5b7ee141787f67ca146672ea6f8a7d357c5fa02d86ec49",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -231,16 +192,39 @@ def output_path(
     return root / model_set.path.name
 
 
+def linklike_component(path: Path) -> Path | None:
+    """Reject links and Windows reparse points anywhere on an output path."""
+
+    absolute = path.absolute()
+    for component in (absolute, *absolute.parents):
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(metadata.st_mode) or (
+            getattr(metadata, "st_file_attributes", 0)
+            & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        ):
+            return component
+    return None
+
+
 def main() -> int:
     args = parse_args()
     managed = selected_model_sets(args.provider)
     stale = False
+    blocked = False
     for model_set in managed:
         path = output_path(
             model_set,
             args.model_set_dir,
             all_providers=args.provider == "all",
         )
+        if linklike_component(path) is not None or (path.exists() and not path.is_file()):
+            print(f"Unsafe managed catalog requires manual review: {path}", file=sys.stderr)
+            stale = True
+            blocked = True
+            continue
         expected = render_json(model_set.builder(None, path))
         current = path.read_text(encoding="utf-8") if path.exists() else ""
         if current == expected:
@@ -263,7 +247,31 @@ def main() -> int:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(expected, encoding="utf-8")
             print(f"Updated {path}")
-    return 1 if args.check and stale else 0
+    if args.provider in ("codex", "all"):
+        catalog_dir = output_path(
+            next(item for item in managed if item.runtime == "codex"),
+            args.model_set_dir,
+            all_providers=args.provider == "all",
+        ).parent
+        for filename, expected_hash in RETIRED_CODEX_CATALOGS.items():
+            path = catalog_dir / filename
+            if not path.exists() and not path.is_symlink():
+                continue
+            stale = True
+            if linklike_component(path) is not None or not path.is_file():
+                print(f"Unsafe retired catalog requires manual removal: {path}", file=sys.stderr)
+                blocked = True
+                continue
+            if hashlib.sha256(path.read_bytes()).hexdigest() != expected_hash:
+                print(f"Unrecognized retired catalog requires manual review: {path}", file=sys.stderr)
+                blocked = True
+                continue
+            if args.check or args.dry_run:
+                print(f"Retired managed catalog remains: {path}")
+            else:
+                path.unlink()
+                print(f"Removed retired managed catalog: {path}")
+    return 1 if (args.check and stale) or (blocked and not args.dry_run) else 0
 
 
 if __name__ == "__main__":

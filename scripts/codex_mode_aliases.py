@@ -33,7 +33,10 @@ WORKSPACE_PROFILE_PREFLIGHT_LINE = (
     "profile reports global inheritance and may continue. If status cannot be "
     "verified or a configured profile's `health` is not `ok`, stop before dispatch "
     "and ask the user to rerun workspace `set` or `clear`; never bypass an unhealthy "
-    "or orphaned profile. If a configured profile's `profile_eligibility` is not "
+    "or orphaned profile. A configured profile with `catalog_state` other than "
+    "`current` is pinned or retired; stop before dispatch and require an explicit "
+    "workspace `set --model-set openai` or `clear`. If a configured profile's "
+    "`profile_eligibility` is not "
     "`eligible`, warn that Codex is ignoring the workspace layer and continue with "
     "global role routing."
 )

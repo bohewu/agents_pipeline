@@ -408,7 +408,7 @@ infrastructure signature occurs twice consecutively, stop and report the blocker
 
 Call `node tools/capability-recovery.js` only after the same concrete material
 `reasoning_failure` repeats for the same `executor` or `generalist` task. For an exact
-saved `lsa-efficiency-v2` configuration, assemble `lsa_recovery_context` only from the
+saved `openai-gpt6-v1` configuration, assemble `lsa_recovery_context` only from the
 canonical TaskStatus failure history and referenced terminal AgentStatus resolved
 bindings and verified traces, obtain the profile-approved target with
 `resolve-recovery`, and call the shared `resolveLsaRecoveryStage` path in

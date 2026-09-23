@@ -93,39 +93,24 @@ Workspace `set` uses the globally installed exporter, neutral agent sources, sel
 
 ### Versioned Codex model sets
 
-Named Codex profiles select one registered catalog/projection pair. The catalog selects the role model; the matching projection selects child effort after the central resolver has classified the task. It is not a per-run cost-routing switch.
+Codex has one active built-in catalog: `openai@4`, with `gpt-6-luna` at mini, `gpt-6-sol` at standard, and `gpt-6-astra` at strong. Its `openai-gpt6-v1@1` projection preserves the LSA v2 normal effort matrix: Luna routine `high` and deliberative `xhigh`; Sol routine/deliberative `medium` and deep `high`; Astra routine/deliberative `low`, deep `high`, and formal assurance `max` with strict enforcement. Deep still requires at least standard tier. The central resolver owns effort; provider remains inherited from the parent session.
 
-| Model set | Tier mapping | Projection and normal limits |
-| --- | --- | --- |
-| `openai` | Luna / Terra / Sol | `openai-reviewer-v1` (policy v3). A named `reviewer` proven `strong` uses Astra; an ordinary adaptive deep review requests `high`. Other roles retain the normal Luna/Terra/Sol mapping. |
-| `openai-luna-sol-astra` | Luna / Sol / Astra | `lsa-efficiency-v2` (policy v3). Its normal matrix is unchanged from v1: Astra `low` is limited to adaptive `routine` and `deliberative` work, normal `deep` remains `high`, and formal assurance remains strong + `max` + strict. Its versioned recovery strategy adds only the qualified execution path described below. |
-| `openai-legacy` | Luna / Terra / Sol | `legacy-v2` (policy v2), including the previous Sol reviewer and ordinary deep-review `xhigh` behavior. |
-
-Use one of these mutually exclusive commands in a workspace after the matching global support bundle has been deployed:
+After an explicitly approved global support update, refresh each chosen workspace while preserving its existing profile name:
 
 ```bash
-profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
-
+profile_tool="${CODEX_HOME:-$HOME/.codex}/agents-pipeline/scripts/agent-profile.sh"
+bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
 bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai
-bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai-luna-sol-astra
-bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace /path/to/project --model-set openai-legacy
+bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
 ```
 
-```powershell
-$ProfileTool = "$HOME\.codex\agents-pipeline\scripts\agent-profile.ps1"
-
-pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspace C:\src\project --model-set openai
-pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspace C:\src\project --model-set openai-luna-sol-astra
-pwsh -File $ProfileTool set balanced --runtime codex --scope workspace --workspace C:\src\project --model-set openai-legacy
-```
-
-The manifest saves the selected profile, catalog mapping identity, projection identity, and each resolved role binding. A resumed run must use the saved profile, mapping, and projection; changing workspace configuration stops later dispatch rather than hot-reloading a running workflow. Existing manifest-v2 Luna/Terra/Sol overlays are recognized as pinned legacy state and are never silently resolved through the newer same-named `openai` catalog. Run `set` again to intentionally refresh a workspace.
+Replace `balanced` with that workspace's existing `frugal`, `balanced`, or `premium` selection. With the sole built-in catalog, a named Codex profile may omit `--model-set`; an explicit `--model-set openai` remains supported. The old `openai-luna-sol-astra` and `openai-legacy` names cannot be selected. A saved `openai@3` manifest is also retired despite sharing the current name. `status` reports a complete retired overlay as `catalog_state: pinned` and `configuration_compatibility: retired`; new dispatch and recovery require `current`. `clear` returns to inheritance, not to another catalog. A refreshed profile takes effect in a new session/run, never by hot-reloading a running one.
 
 ### Initial strong implementation routing
 
 `executor-strong` is a model-neutral execution role for a genuinely difficult
 new implementation attempt. Its source does not name Astra or another runtime
-model. Under an exact current LSA workspace configuration, balanced or premium
+model. Under an exact current `openai@4` workspace configuration, balanced or premium
 may expose a saved `executor-strong` binding at the neutral `strong` tier. The
 workflow may select that role automatically only when all conditions in
 `protocols/INITIAL_STRONG_ROUTING.md` are proved: healthy eligible current
@@ -150,7 +135,7 @@ starts on `executor-strong` retains that role on permitted redispatches, and
 model recovery remains available only to `executor` and `generalist` under the
 separate recovery contract below.
 
-Applying `openai-luna-sol-astra` writes the current LSA v2 identity, but does not enable capability recovery `auto`. Direct Flow and Pipeline remain `off` by default. Use the workflow's existing preset or explicit `--capability-recovery=auto` together with adaptive reasoning when intentionally exercising the v2 shortcut.
+Applying `openai` writes the current GPT-6 LSA identity, but does not enable capability recovery `auto`. Direct Flow and Pipeline remain `off` by default. Use the workflow's existing preset or explicit `--capability-recovery=auto` together with adaptive reasoning when intentionally exercising the v2 shortcut.
 
 `uniform`, inherited, ineligible, and unknown configurations do not prove a tier or projection. They use existing unknown/legacy behavior; model names are never used to guess a tier. `clear` removes the workspace overlay and returns roles to parent-session inheritance. It does not select Sol or the legacy catalog.
 
@@ -184,52 +169,13 @@ bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh" resolve-recovery \
 
 This action is read-only. It accepts only `executor` or `generalist`, requires a tier above that role's normal tier and no higher than its profile ceiling, and returns the raw model solely from the installed model set. Uniform, inherited, unhealthy, ineligible, or pinned-catalog profiles are rejected; rerun workspace `set` before recovering from an older pinned catalog.
 
-For the LSA v2 exception, the shared recovery decision additionally requires an exact saved v2 identity and role bindings, a verified Sol deep/high-or-higher trace, and canonical evidence that the same material reasoning failure repeated without meaningful progress. It may then use the one approved uplift for Astra deep/medium and continue on that same binding through high and max within the existing retry budget. A first isolated Sol high failure does not qualify, and Sol max remains available on the legacy and unqualified paths. Reviewer, security, judge, native-Astra, Simple, ordinary ad-hoc, explicit pin, strict, assurance, off, and inherit behavior is unchanged. Shadow computes a candidate only.
+For the LSA v2 recovery algorithm, the shared decision requires an exact saved `openai@4` / `openai-gpt6-v1@1` identity and role bindings, a verified Sol deep/high-or-higher trace, and canonical evidence that the same material reasoning failure repeated without meaningful progress. It may then use the one approved uplift for Astra deep/medium and continue on that same binding through high and max within the existing retry budget. A first isolated Sol high failure does not qualify; unqualified legal recovery retains the effort-first path. Reviewer, security, judge, native-Astra, Simple, ordinary ad-hoc, explicit pin, strict, assurance, off, and inherit behavior is unchanged. Shadow computes a candidate only.
 
-### Deploy LSA v2 (v0.37.0 or later)
+### Deployment and live verification
 
-LSA v2 is included starting with `v0.37.0`; the older `v0.36.2` bundle retains LSA v1. Install the new release bundle or an equivalent source checkout, then explicitly refresh the target workspace and start a new Codex session/run:
+Source changes alone do not update the installed support bundle. After the operator approves a global install, inspect global and workspace status, explicitly refresh only chosen workspaces with their existing profile names, and begin a new session/run. A current status proves configuration integrity and trust eligibility; a matching child trace is required to prove the actual model and effective effort. Availability of GPT-6 models depends on account rollout and client support. Do not fall back to an old catalog and label the new configuration verified.
 
-```bash
-cd /path/to/agents_pipeline
-bash scripts/install-codex.sh
-
-profile_tool="$HOME/.codex/agents-pipeline/scripts/agent-profile.sh"
-bash "$profile_tool" status --runtime codex --scope global --json
-bash "$profile_tool" set balanced --runtime codex --scope workspace \
-  --workspace /path/to/project --model-set openai-luna-sol-astra
-bash "$profile_tool" status --runtime codex --scope workspace \
-  --workspace /path/to/project --json
-```
-
-Confirm `health: ok`, `profile_eligibility: eligible`, `catalog_state: current`, and the `lsa-efficiency-v2` configuration identity. Status proves configuration only. A matching child trace is still required to verify an applied model and effort. Updating support or running `set` does not alter an already running session/run.
-
-There is no historical projection selector. Re-running `set --model-set openai-luna-sol-astra` on current support selects v2; `clear` returns to parent-session inheritance, while `openai` and `openai-legacy` select different configurations. None of those operations selects LSA v1.
-
-For a real v1 rollback or comparison, preserve an old v1 workspace without re-running `set`, or use a fixed old release bundle in an isolated Codex home and a separate workspace:
-
-```bash
-legacy_bundle=/path/to/extracted/agents-pipeline-bundle-v0.36.2
-legacy_codex_home=/path/to/isolated/codex-home
-legacy_workspace=/path/to/isolated/v1-workspace
-
-bash "$legacy_bundle/scripts/install-codex.sh" --target "$legacy_codex_home"
-CODEX_HOME="$legacy_codex_home" \
-  bash "$legacy_codex_home/agents-pipeline/scripts/agent-profile.sh" set balanced \
-  --runtime codex --scope workspace --workspace "$legacy_workspace" \
-  --model-set openai-luna-sol-astra
-CODEX_HOME="$legacy_codex_home" \
-  bash "$legacy_codex_home/agents-pipeline/scripts/agent-profile.sh" status \
-  --runtime codex --scope workspace --workspace "$legacy_workspace" --json
-```
-
-Start the comparison session with `CODEX_HOME="$legacy_codex_home" codex` from that isolated workspace. Do not point the old support bundle at a current v2 workspace or treat a pinned incompatibility as a successful rollback.
-
-Workspace role hashes, source-version provenance, and the role-input digest distinguish a release-only upgrade from an actual catalog change. Workspace `status` keeps `catalog_state: current` across a global agents_pipeline upgrade when the agent, profile, model-set, exporter, and catalog inputs are unchanged, even though the manifest retains its older `source_version`. It reports `pinned` when those role-generating inputs changed and returns to `current` after `set` refreshes the workspace roles. An upgrade never silently rewrites a project's selected roles. The JSON status shows configured catalog and projection evidence; it is not evidence of an actual child model or effort.
-
-A `pinned` result does not by itself mean the model mapping or projection changed: a shared exporter, role source, or other role-input hash can also pin the workspace while the catalog digest stays the same. Compare the saved and installed configuration identities and digests when describing the change. Existing pinned/trust/health gates still apply; recovery remains blocked until an intentional `set` refreshes the workspace when current-catalog evidence is required.
-
-Codex applies `.codex/config.toml` only for a trusted project. The profile manager never changes global project trust. Workspace `set` and `status` read the explicit global `projects.<path>.trust_level` value and report `project_trust` plus `profile_eligibility`; file `health` remains a separate integrity result. `eligible` means the trust gate is open, not that arbitrary preserved project settings passed Codex's complete semantic parser. For `unknown` or `untrusted`, trust the project through Codex's normal prompt and rerun `status`. Official behavior is documented under [project config files](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml).
+Historical LSA v1/v2 manifests remain readable only for retirement diagnosis and explicit `set`/`clear` migration. Previously saved checkpoints are not automatically upgraded. For historical comparison, use a separately selected old release bundle and an isolated Codex home and workspace.
 
 ### Workspace status and clear
 
@@ -244,7 +190,7 @@ Codex workspace profiles inherit global `agents.max_concurrent_threads_per_sessi
 
 ### Profile-aware workflow skills
 
-The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. Manifest-backed skills adopt the globally installed orchestrator workflow and never manually trust a raw workspace role; `$run-adaptive` selects one of the existing Simple, Flow, or Pipeline definitions in place. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, or non-`ok` file health stops before dispatch and asks for workspace `set` or `clear`. Prompt-only Adaptive generation warns instead of dispatching. A healthy but ineligible layer warns and uses global routing. A healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters. Initial `executor-strong` selection additionally follows the shared profile, history, and difficulty gates above and is rechecked immediately before spawn. Only `adaptive` requests an effort selector and may call a projection applied after matching child-trace evidence. `shadow` computes a proposed result only; `inherit` does not apply a selector. Neither mode proves that a projection ran.
+The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee` skills are installed globally once. Manifest-backed skills adopt the globally installed orchestrator workflow and never manually trust a raw workspace role; `$run-adaptive` selects one of the existing Simple, Flow, or Pipeline definitions in place. Every invocation queries current-workspace status: no configured profile means global inheritance, while unverifiable status, orphaned managed config, non-`ok` file health, or a non-current catalog stops before dispatch and asks for workspace `set --model-set openai` or `clear`. Prompt-only Adaptive generation warns instead of dispatching. A current, healthy but ineligible layer warns and uses global routing. A current, healthy, eligible layer makes the workspace-local role/model files available to Codex; runtime role selection remains owned by the active Codex surface and must be verified from the spawned child's role and model when it matters. Initial `executor-strong` selection additionally follows the shared profile, history, and difficulty gates above and is rechecked immediately before spawn. Only `adaptive` requests an effort selector and may call a projection applied after matching child-trace evidence. `shadow` computes a proposed result only; `inherit` does not apply a selector. Neither mode proves that a projection ran.
 
 The managed `use <mode>` forms remain compatibility aliases for manifest-backed modes. `$run-adaptive` intentionally has no compatibility alias or role. There is no `$run-goal` skill.
 

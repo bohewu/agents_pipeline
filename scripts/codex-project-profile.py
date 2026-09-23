@@ -55,6 +55,14 @@ CACHE_MANIFEST_VERSION = 2
 SUPPORTED_CACHE_MANIFEST_VERSIONS = (1, CACHE_MANIFEST_VERSION)
 SUPPORTED_GLOBAL_MANIFEST_VERSIONS = (2, 3, 4)
 SUPPORTED_SUPPORT_MARKER_VERSIONS = (1, 2, 3)
+# Read-only identities for previously issued overlays. These do not make a
+# retired catalog selectable or eligible for a new dispatch.
+RETIRED_CODEX_IDENTITIES = frozenset({
+    ("openai", "3", "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f", "openai-reviewer-v1", "1", "3", "sha256:35c72783f0670fe227ff2db8c53af77995c4532cfdd7983b6efc7f6db99f07c7"),
+    ("openai-luna-sol-astra", "1", "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9", "lsa-efficiency-v1", "1", "3", "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"),
+    ("openai-luna-sol-astra", "2", "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0", "lsa-efficiency-v2", "2", "3", "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e"),
+    ("openai-legacy", "2", "sha256:fa0bd154138c11c5425b72401f256f92004d0b146f655044c9284bbb38782d75", "legacy-v2", "2", "2", "sha256:1340af9f44d75abe6311da36c7aa5b22b27b713c5b4706ec0ea720810d604279"),
+})
 SUPPORT_COMMON_REQUIRED_DIRS = (
     "agents",
     "protocols",
@@ -622,6 +630,14 @@ def _selection_from_manifest(
     raise ProjectProfileError(f"{label} has unsupported mode {mode!r}.")
 
 
+def _is_retired_configuration(mapping: Mapping[str, Any], projection: Mapping[str, Any]) -> bool:
+    return (
+        mapping.get("id"), mapping.get("version"), mapping.get("mapping_digest"),
+        projection.get("id"), projection.get("version"),
+        projection.get("policy_version"), projection.get("digest"),
+    ) in RETIRED_CODEX_IDENTITIES
+
+
 def _cache_is_reusable(
     path: Path,
     *,
@@ -1076,11 +1092,11 @@ def _validate_project_manifest_v3(
             raise ProjectProfileError(
                 f"Project profile manifest resolved model does not match its pinned mapping for {role}."
             )
-    if asset_root is not None:
-        if mapping["id"] != selected_model_set:
-            raise ProjectProfileError(
-                "Project profile manifest model mapping does not match the selected model set."
-            )
+    if mapping["id"] != selected_model_set:
+        raise ProjectProfileError(
+            "Project profile manifest model mapping does not match the selected model set."
+        )
+    if not _is_retired_configuration(mapping, projection):
         try:
             validate_model_mapping_projection(
                 mapping,
@@ -1091,6 +1107,7 @@ def _validate_project_manifest_v3(
             raise ProjectProfileError(
                 f"Project profile manifest cannot bind to the central registry: {exc}"
             ) from exc
+    if asset_root is not None:
         agents_dir = _validated_project_dir(workspace) / "agents"
         if agents_dir.is_dir():
             for role in names:
@@ -1442,88 +1459,23 @@ def _legacy_v2_status(
     global_names: Sequence[str],
     source_version: str,
 ) -> dict[str, Any]:
-    """Report only a verified v2 Luna/Terra/Sol overlay as pinned legacy state."""
+    """Diagnose a v2 overlay without reviving its retired catalog binding."""
 
     profile, model_set, uniform_model = _selection_from_manifest(
         data, label="Project profile manifest"
     )
-    if uniform_model is not None or model_set != "openai":
-        return {
-            "configured": True,
-            "catalog_state": "pinned",
-            "configuration_compatibility": "pinned_unknown",
-            "global_installed": True,
-            "global_target": str(global_target),
-            "health": "incomplete",
-            "installed": True,
-            "managed_generated_count": 0,
-            "managed_generated_files": [],
-            "manifest": str(manifest_path),
-            "missing_generated_files": ["project:legacy-profile-layout"],
-            "mode": data.get("mode"),
-            "model_set": data.get("model_set"),
-            "model_mapping": None,
-            "profile": data.get("profile"),
-            "runtime": "codex",
-            "scope": "workspace",
-            "source_version": source_version,
-            "target": str(workspace / ".codex"),
-            "uniform_model": data.get("uniform_model"),
-            "workspace": str(workspace),
-            "configuration_identity": None,
-            "resolved_configurations": {},
-            **_eligibility_metadata(global_target, workspace, configured=True),
-        }
     names, managed_files, hashes = _validate_project_manifest_v2(data, workspace=workspace)
-    try:
-        legacy_set = load_model_set(
-            "openai-legacy", asset_root / "runtimes" / "codex" / "model-sets", "codex"
-        )
-        validate_model_set_projection(legacy_set)
-        mapping = model_mapping_snapshot(legacy_set)
-        legacy_profile = load_profile(
-            str(profile), asset_root / "tools" / "agent-profiles", "codex"
-        )
-        expected_configurations = resolve_workspace_configurations(
-            names, legacy_profile, legacy_set
-        )
-    except ValueError as exc:
-        raise ProjectProfileError(f"Legacy project mapping is unavailable: {exc}") from exc
     project_dir = _validated_project_dir(workspace)
     agents_dir = _validate_project_agents_dir(project_dir)
-    missing: list[str] = []
-    configurations: dict[str, Any] = {}
-    if not agents_dir.is_dir():
-        missing.append("agents")
-    else:
-        for name in names:
-            role_path = agents_dir / f"{name}.toml"
-            if _is_linklike(role_path) or not role_path.is_file():
-                missing.append(f"agents/{name}.toml")
-                continue
-            if _sha256_file(role_path) != hashes[name]:
-                missing.append(f"agents/{name}.toml:sha256")
-                continue
-            try:
-                role = tomllib.loads(role_path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
-                missing.append(f"agents/{name}.toml:invalid")
-                continue
-            expected = expected_configurations[name]["role_binding"]
-            expected_model = expected["model"]
-            expected_tier = expected["model_tier"]
-            if role.get("model") != expected_model:
-                missing.append(f"agents/{name}.toml:legacy-model")
-                continue
-            configurations[name] = resolved_configuration(
-                legacy_set,
-                role=name,
-                model_tier=expected_tier,
-                model_setting={"model": expected_model},
-                provenance={"source": "pinned_legacy", "override": None},
-            )
+    missing = ["project:legacy-profile-layout"]
     if names != sorted(global_names):
         missing.append("project:agent-catalog")
+    for name in names:
+        role_path = agents_dir / f"{name}.toml"
+        if _is_linklike(role_path) or not role_path.is_file():
+            missing.append(f"agents/{name}.toml")
+        elif _sha256_file(role_path) != hashes[name]:
+            missing.append(f"agents/{name}.toml:sha256")
     config_path = project_dir / "config.toml"
     _validate_leaf(config_path, "Project Codex config")
     if not config_path.is_file():
@@ -1536,44 +1488,34 @@ def _legacy_v2_status(
         if block is None:
             missing.append("project:managed-profile-block")
         elif block.strip() != _build_block(
-            agents_dir=agents_dir,
-            agent_names=names,
-            profile=profile,
-            model_set=model_set,
-            uniform_model=uniform_model,
+            agents_dir=agents_dir, agent_names=names, profile=profile,
+            model_set=model_set, uniform_model=uniform_model,
         ).strip():
             missing.append("project:managed-profile-block-mismatch")
-    identity = None
-    if len(configurations) == len(names):
-        sample = next(iter(configurations.values()))
-        identity = {
-            key: sample[key]
-            for key in ("schema_version", "model_set", "reasoning_projection")
-        }
     return {
         "configured": True,
         "catalog_state": "pinned",
         "configuration_compatibility": "pinned_legacy",
-        "configuration_identity": identity,
+        "configuration_identity": None,
         "global_installed": True,
         "global_target": str(global_target),
-        "health": "ok" if not missing else "incomplete",
+        "health": "incomplete",
         "installed": True,
         "managed_generated_count": len(managed_files),
         "managed_generated_files": managed_files,
         "manifest": str(manifest_path),
         "missing_generated_files": missing,
-        "mode": "profile",
+        "mode": data.get("mode"),
         "model_set": model_set,
-        "model_mapping": mapping,
-        "profile": profile,
-        "resolved_configurations": configurations,
+        "model_mapping": None,
+        "profile": data.get("profile"),
+        "resolved_configurations": {},
         "roles_dir": str(agents_dir),
         "runtime": "codex",
         "scope": "workspace",
         "source_version": source_version,
         "target": str(workspace / ".codex"),
-        "uniform_model": None,
+        "uniform_model": uniform_model,
         "workspace": str(workspace),
         **_eligibility_metadata(global_target, workspace, configured=True),
     }
@@ -1685,22 +1627,30 @@ def read_status(
             **_eligibility_metadata(global_target, workspace, configured=True),
         }
 
-    expected_asset_digest = _asset_digest(
-        asset_root,
-        profile=profile,
-        model_set=model_set,
-        uniform_model=uniform_model,
-    )
-    profile_inputs_current = data.get("asset_digest") == expected_asset_digest
-    if not profile_inputs_current and source_version != current_source_version:
-        recorded_version_digest = _asset_digest(
+    retired = False
+    if uniform_model is None:
+        mapping = data.get("model_mapping")
+        identity = data.get("configuration_identity")
+        projection = identity.get("reasoning_projection") if isinstance(identity, dict) else None
+        retired = isinstance(mapping, dict) and isinstance(projection, dict) and _is_retired_configuration(mapping, projection)
+    profile_inputs_current = False
+    if not retired:
+        expected_asset_digest = _asset_digest(
             asset_root,
             profile=profile,
             model_set=model_set,
             uniform_model=uniform_model,
-            version_override=source_version,
         )
-        profile_inputs_current = data.get("asset_digest") == recorded_version_digest
+        profile_inputs_current = data.get("asset_digest") == expected_asset_digest
+        if not profile_inputs_current and source_version != current_source_version:
+            recorded_version_digest = _asset_digest(
+                asset_root,
+                profile=profile,
+                model_set=model_set,
+                uniform_model=uniform_model,
+                version_override=source_version,
+            )
+            profile_inputs_current = data.get("asset_digest") == recorded_version_digest
     names, managed_files, hashes = _validate_project_manifest_v3(
         data,
         workspace=workspace,
@@ -1718,7 +1668,7 @@ def read_status(
                 missing.append(f"agents/{name}.toml")
             elif _sha256_file(role) != hashes[name]:
                 missing.append(f"agents/{name}.toml:sha256")
-    if source_version == current_source_version and not profile_inputs_current:
+    if source_version == current_source_version and not profile_inputs_current and not retired:
         missing.append("project:profile-input-digest")
     if not config_path.is_file():
         missing.append("project:.codex/config.toml")
@@ -1744,11 +1694,11 @@ def read_status(
         "configured": True,
         "catalog_state": (
             "current"
-            if names == global_names and profile_inputs_current
+            if names == global_names and profile_inputs_current and not retired
             else "pinned"
         ),
         "configuration_compatibility": (
-            "current" if names == global_names and profile_inputs_current else "pinned"
+            "retired" if retired else ("current" if names == global_names and profile_inputs_current else "pinned")
         ),
         "configuration_identity": data.get("configuration_identity"),
         "global_installed": True,
@@ -1818,6 +1768,10 @@ def clear_profile(*, workspace: Path, dry_run: bool) -> dict[str, Any]:
     owned_paths = [project_dir / relative for relative in managed_files]
     for path in owned_paths:
         _validate_leaf(path, "Project-local Codex role")
+        if path.is_file() and _sha256_file(path) != _hashes[path.stem]:
+            raise ProjectProfileError(
+                f"Refusing to clear a modified project-local Codex role: {path}; rerun 'set' to repair it."
+            )
     if not dry_run:
         affected = [*owned_paths, config_path, manifest_path]
         snapshots = {path: _snapshot_file(path) for path in affected}

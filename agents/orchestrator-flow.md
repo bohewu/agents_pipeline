@@ -356,7 +356,7 @@ refreeze, recertification, or reasoning/model recovery. Stop and report a blocke
 the same harness or infrastructure signature occurs twice consecutively.
 
 Run reasoning-effort recovery before model capability recovery for every admitted
-material reasoning redispatch. For an exact saved `lsa-efficiency-v2` configuration,
+material reasoning redispatch. For an exact saved `openai-gpt6-v1` configuration,
 first assemble `lsa_recovery_context` from the canonical TaskStatus failure history
 and the referenced terminal AgentStatus resolved bindings and verified traces, obtain
 the profile-approved target with `resolve-recovery`, and call the shared

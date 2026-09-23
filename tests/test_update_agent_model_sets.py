@@ -21,18 +21,17 @@ def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def run_updater(*args: str) -> int:
+    with patch.object(sys, "argv", ["update-agent-model-sets.py", *args]), patch(
+        "sys.stdout", new_callable=io.StringIO
+    ), patch("sys.stderr", new_callable=io.StringIO):
+        return UPDATER.main()
+
+
 class UpdateAgentModelSetsTest(unittest.TestCase):
     def test_builders_match_bundled_catalogs(self) -> None:
         cases = (
             (UPDATER.build_codex_openai, REPO_ROOT / "runtimes/codex/model-sets/openai.json"),
-            (
-                UPDATER.build_codex_openai_legacy,
-                REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json",
-            ),
-            (
-                UPDATER.build_codex_openai_luna_sol_astra,
-                REPO_ROOT / "runtimes/codex/model-sets/openai-luna-sol-astra.json",
-            ),
             (UPDATER.build_copilot_default, REPO_ROOT / "runtimes/copilot/model-sets/default.json"),
             (UPDATER.build_claude_default, REPO_ROOT / "runtimes/claude/model-sets/default.json"),
         )
@@ -42,122 +41,107 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
                 self.assertEqual(built, read_json(path))
                 self.assertEqual(UPDATER.render_json(built), path.read_text(encoding="utf-8"))
 
-    def test_codex_uses_luna_terra_sol(self) -> None:
+    def test_only_openai_gpt6_is_builtin_for_codex(self) -> None:
+        directory = REPO_ROOT / "runtimes/codex/model-sets"
+        self.assertEqual([path.name for path in directory.glob("*.json")], ["openai.json"])
+        catalog = read_json(directory / "openai.json")
+        self.assertEqual(catalog["version"], "4")
+        self.assertEqual(catalog["reasoning_projection"]["id"], "openai-gpt6-v1")
+        self.assertEqual(catalog["role_overrides"], {})
         self.assertEqual(
-            UPDATER.build_codex_openai(None, Path("openai.json"))["tiers"],
-            {
-                "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
-                "standard": {"model": "gpt-5.6-terra", "model_provider": "openai"},
-                "strong": {"model": "gpt-5.6-sol", "model_provider": "openai"},
-            },
+            {tier: value["model"] for tier, value in catalog["tiers"].items()},
+            {"mini": "gpt-6-luna", "standard": "gpt-6-sol", "strong": "gpt-6-astra"},
         )
+        self.assertEqual({v["model_provider"] for v in catalog["tiers"].values()}, {"openai"})
 
-    def test_codex_catalogs_bind_the_current_registered_projections(self) -> None:
-        expected = {
-            "openai": ("3", "openai-reviewer-v1", "gpt-6-astra"),
-            "openai-legacy": ("2", "legacy-v2", None),
-            "openai-luna-sol-astra": ("2", "lsa-efficiency-v2", None),
-        }
-        for name, (version, projection, reviewer_model) in expected.items():
-            with self.subTest(name=name):
-                catalog = read_json(
-                    REPO_ROOT / "runtimes" / "codex" / "model-sets" / f"{name}.json"
-                )
-                self.assertEqual(catalog["version"], version)
-                self.assertEqual(catalog["reasoning_projection"]["id"], projection)
-                self.assertRegex(catalog["mapping_digest"], r"^sha256:[0-9a-f]{64}$")
-                override = catalog["role_overrides"].get("reviewer")
-                self.assertEqual(
-                    None if override is None else override["model"], reviewer_model
-                )
-
-    def test_lsa_v2_changes_only_the_versioned_lsa_catalog(self) -> None:
-        self.assertEqual(
-            read_json(REPO_ROOT / "runtimes/codex/model-sets/openai.json")[
-                "mapping_digest"
-            ],
-            "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f",
-        )
-        self.assertEqual(
-            read_json(REPO_ROOT / "runtimes/codex/model-sets/openai-legacy.json")[
-                "mapping_digest"
-            ],
-            "sha256:fa0bd154138c11c5425b72401f256f92004d0b146f655044c9284bbb38782d75",
-        )
-        lsa = UPDATER.build_codex_openai_luna_sol_astra(
-            None, Path("openai-luna-sol-astra.json")
-        )
-        self.assertEqual(
-            lsa["tiers"],
-            {
-                "mini": {"model": "gpt-5.6-luna", "model_provider": "openai"},
-                "standard": {"model": "gpt-5.6-sol", "model_provider": "openai"},
-                "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
-            },
-        )
-        self.assertEqual(
-            lsa["mapping_digest"],
-            "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
-        )
-        self.assertEqual(
-            lsa["reasoning_projection"]["digest"],
-            "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
-        )
-
-    def test_runtime_defaults_are_static(self) -> None:
-        self.assertEqual(
-            UPDATER.build_copilot_default(None, Path("default.json"))["tiers"],
-            {
-                "mini": "GPT-5 mini",
-                "standard": "GPT-5.5",
-                "strong": ["GPT-5.5", "Claude Opus 4.8"],
-            },
-        )
-        self.assertEqual(
-            UPDATER.build_claude_default(None, Path("default.json"))["tiers"],
-            {"mini": "haiku", "standard": "sonnet", "strong": "opus"},
-        )
-
-    def test_all_mirrors_neutral_runtime_layout(self) -> None:
+    def test_all_mirrors_runtime_layout_and_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            argv = [
-                "update-agent-model-sets.py",
-                "--provider",
-                "all",
-                "--model-set-dir",
-                temp_dir,
-            ]
-            with patch.object(sys, "argv", argv), patch("sys.stdout", new_callable=io.StringIO):
-                self.assertEqual(UPDATER.main(), 0)
+            args = ("--provider", "all", "--model-set-dir", temp_dir)
+            self.assertEqual(run_updater(*args), 0)
             root = Path(temp_dir)
-            expected = {
-                "runtimes/codex/model-sets/openai.json": "codex",
-                "runtimes/codex/model-sets/openai-legacy.json": "codex",
-                "runtimes/codex/model-sets/openai-luna-sol-astra.json": "codex",
-                "runtimes/copilot/model-sets/default.json": "copilot",
-                "runtimes/claude/model-sets/default.json": "claude",
-            }
-            for relative, runtime in expected.items():
-                self.assertEqual(read_json(root / relative)["runtime"], runtime)
-            with patch.object(sys, "argv", [*argv, "--check"]), patch(
-                "sys.stdout", new_callable=io.StringIO
-            ):
-                self.assertEqual(UPDATER.main(), 0)
+            self.assertEqual(
+                sorted(p.relative_to(root).as_posix() for p in root.rglob("*.json")),
+                [
+                    "runtimes/claude/model-sets/default.json",
+                    "runtimes/codex/model-sets/openai.json",
+                    "runtimes/copilot/model-sets/default.json",
+                ],
+            )
+            self.assertEqual(run_updater(*args, "--check"), 0)
+            self.assertEqual(run_updater(*args), 0)
+
+    def test_retired_managed_catalogs_are_reported_and_removed_only_on_write(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            args = ("--provider", "codex", "--model-set-dir", temp_dir)
+            self.assertEqual(run_updater(*args), 0)
+            retired = root / "openai-luna-sol-astra.json"
+            retired.write_bytes((
+                REPO_ROOT / "tests/fixtures/retired-codex-model-sets/openai-luna-sol-astra.json"
+            ).read_bytes())
+            self.assertEqual(run_updater(*args, "--check"), 1)
+            self.assertTrue(retired.exists())
+            self.assertEqual(run_updater(*args, "--dry-run"), 0)
+            self.assertTrue(retired.exists())
+            self.assertEqual(run_updater(*args), 0)
+            self.assertFalse(retired.exists())
+            self.assertEqual(run_updater(*args, "--check"), 0)
+
+    def test_unknown_catalog_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            args = ("--provider", "codex", "--model-set-dir", temp_dir)
+            self.assertEqual(run_updater(*args), 0)
+            custom = root / "custom.json"
+            custom.write_text("{}\n", encoding="utf-8")
+            retired_name_custom = root / "openai-legacy.json"
+            retired_name_custom.write_text("{}\n", encoding="utf-8")
+            self.assertEqual(run_updater(*args), 1)
+            self.assertTrue(custom.exists())
+            self.assertTrue(retired_name_custom.exists())
+            self.assertEqual(run_updater(*args, "--check"), 1)
 
     def test_check_reports_stale_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "openai.json"
             path.write_text("{}\n", encoding="utf-8")
-            argv = [
-                "update-agent-model-sets.py",
-                "--provider",
-                "codex",
-                "--model-set-dir",
-                temp_dir,
-                "--check",
-            ]
-            with patch.object(sys, "argv", argv), patch("sys.stdout", new_callable=io.StringIO):
-                self.assertEqual(UPDATER.main(), 1)
+            self.assertEqual(run_updater("--provider", "codex", "--model-set-dir", temp_dir, "--check"), 1)
+            self.assertEqual(path.read_text(encoding="utf-8"), "{}\n")
+
+    def test_active_catalog_symlink_is_not_followed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target = root / "outside.json"
+            target.write_text("{}\n", encoding="utf-8")
+            catalog_dir = root / "catalogs"
+            catalog_dir.mkdir()
+            (catalog_dir / "openai.json").symlink_to(target)
+            self.assertEqual(
+                run_updater("--provider", "codex", "--model-set-dir", str(catalog_dir)), 1
+            )
+            self.assertEqual(target.read_text(encoding="utf-8"), "{}\n")
+
+    def test_retired_cleanup_does_not_follow_symlinked_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            target_dir = root / "target"
+            nested_dir = target_dir / "catalogs"
+            nested_dir.mkdir(parents=True)
+            retired = nested_dir / "openai-legacy.json"
+            original = (
+                REPO_ROOT / "tests/fixtures/retired-codex-model-sets/openai-legacy.json"
+            ).read_bytes()
+            retired.write_bytes(original)
+            linked_parent = root / "linked"
+            linked_parent.symlink_to(target_dir, target_is_directory=True)
+            self.assertEqual(
+                run_updater(
+                    "--provider", "codex", "--model-set-dir", str(linked_parent / "catalogs")
+                ),
+                1,
+            )
+            self.assertEqual(retired.read_bytes(), original)
+            self.assertFalse((nested_dir / "openai.json").exists())
 
 
 if __name__ == "__main__":

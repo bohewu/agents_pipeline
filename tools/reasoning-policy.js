@@ -38,10 +38,7 @@ const REASONING_SIGNAL_SET = new Set(REASONING_SIGNALS);
 const SAFE_MODEL_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const PROJECTION_IDS = Object.freeze([
-  "legacy-v2",
-  "openai-reviewer-v1",
-  "lsa-efficiency-v1",
-  "lsa-efficiency-v2"
+  "openai-gpt6-v1"
 ]);
 
 const EXIT_CODES = {
@@ -386,13 +383,14 @@ function validateProjectionRegistry(registry) {
         "role_effort_overrides",
         "model_sets"
       ];
-    if (projection.id === "lsa-efficiency-v2") projectionKeys.push("recovery_strategy");
+    if (projection.id === "openai-gpt6-v1") projectionKeys.push("recovery_strategy");
     assertExactKeys(
       projection,
       projectionKeys,
       "Reasoning projection"
     );
     assert(PROJECTION_IDS.includes(projection.id), `Unsupported reasoning projection: ${projection.id}`);
+    assert(projection.version === "1" && projection.policy_version === "3", "Active reasoning projection identity is unsupported");
     assert(!seen.has(projection.id), `Reasoning projection ${projection.id} must be unique`);
     seen.add(projection.id);
     assert(typeof projection.version === "string" && SAFE_POLICY_VERSION.test(projection.version), `Projection ${projection.id} version must be bounded`);
@@ -427,15 +425,23 @@ function validateProjectionRegistry(registry) {
         }
       }
     }
-    if (projection.id === "lsa-efficiency-v2") {
+    if (projection.id === "openai-gpt6-v1") {
       validateRecoveryStrategy(projection.recovery_strategy, projection);
     } else {
       assert(projection.recovery_strategy === undefined, `projection ${projection.id} must not declare a recovery_strategy`);
     }
-    assert(Array.isArray(projection.model_sets) && projection.model_sets.length > 0, `projection ${projection.id} requires model bindings`);
+    assert(Array.isArray(projection.model_sets) && projection.model_sets.length === 1, `projection ${projection.id} requires one model binding`);
     const modelSetIds = new Set();
     for (const modelSet of projection.model_sets) {
       validateModelSetBinding(modelSet, projection);
+      assert(modelSet.id === "openai" && modelSet.version === "4", "Active model set identity is unsupported");
+      assert(
+        modelSet.tiers.mini === "gpt-6-luna" &&
+          modelSet.tiers.standard === "gpt-6-sol" &&
+          modelSet.tiers.strong === "gpt-6-astra",
+        "Active model tiers are unsupported"
+      );
+      assert(Object.keys(modelSet.role_overrides).length === 0, "Active model set must not override roles");
       assert(!modelSetIds.has(modelSet.id), `projection ${projection.id} must not repeat model set ${modelSet.id}`);
       modelSetIds.add(modelSet.id);
     }
@@ -664,8 +670,8 @@ function resolveLsaRecoveryStage(rawInput, registry = loadProjectionRegistry()) 
   }, registry);
   const strategy = sourceContext.projection.recovery_strategy;
   assert(
-    sourceContext.projection.id === "lsa-efficiency-v2" && strategy,
-    "LSA recovery requires the exact lsa-efficiency-v2 source projection"
+    sourceContext.projection.id === "openai-gpt6-v1" && strategy,
+    "LSA recovery requires the exact openai-gpt6-v1 source projection"
   );
   assert(
     targetContext.projection.id === sourceContext.projection.id
@@ -1522,9 +1528,8 @@ function resolveReasoning(
   const projection = input.projectionContext?.projection || null;
   const effortPolicy = projection || policy;
   const isNewProjection = Boolean(input.projectionContext?.isNew);
-  const isEfficiencyProjection = ["lsa-efficiency-v1", "lsa-efficiency-v2"].includes(projection?.id);
-  const isCalibratedProjection = isEfficiencyProjection
-    || (projection?.id === "openai-reviewer-v1" && input.role === "reviewer");
+  const isEfficiencyProjection = projection?.id === "openai-gpt6-v1";
+  const isCalibratedProjection = isEfficiencyProjection;
   const rolePolicy = policy.role_policies[input.role] || policy.default_role_policy;
   const role = roleBounds(rolePolicy);
   const contextPolicy = input.dispatchContext ? policy.dispatch_contexts[input.dispatchContext] : undefined;

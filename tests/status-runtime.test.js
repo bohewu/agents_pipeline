@@ -49,8 +49,8 @@ async function setMtime(filePath, seconds) {
 }
 
 function currentExecutorConfiguration({ modelTier = "strong", recovery = null } = {}) {
-  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v1");
-  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "openai-gpt6-v1");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai");
   return {
     schema_version: 1,
     model_set: {
@@ -101,45 +101,6 @@ function currentRunConfiguration({ modelTier = "strong" } = {}) {
   };
 }
 
-function legacyRunConfiguration() {
-  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "legacy-v2");
-  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-legacy");
-  const resolved = {
-    schema_version: 1,
-    model_set: { id: modelSet.id, version: modelSet.version, mapping_digest: modelSet.mapping_digest },
-    reasoning_projection: {
-      id: projection.id,
-      version: projection.version,
-      policy_version: projection.policy_version,
-      digest: projection.digest
-    },
-    role_binding: {
-      role: "executor",
-      model_tier: "standard",
-      model: modelSet.tiers.standard,
-      mapping_digest: modelSet.mapping_digest
-    },
-    provenance: { source: "pinned_legacy", override: null }
-  };
-  return {
-    profile: "balanced",
-    configuration_compatibility: "pinned_legacy",
-    model_mapping: {
-      id: modelSet.id,
-      version: modelSet.version,
-      tiers: modelSet.tiers,
-      role_overrides: modelSet.role_overrides,
-      mapping_digest: modelSet.mapping_digest
-    },
-    configuration_identity: {
-      schema_version: 1,
-      model_set: resolved.model_set,
-      reasoning_projection: resolved.reasoning_projection
-    },
-    resolved_configurations: { executor: resolved }
-  };
-}
-
 function matchingLowTrace(agentId) {
   return {
     schema_version: "1.4",
@@ -160,8 +121,8 @@ function matchingLowTrace(agentId) {
 }
 
 function lsaV2ResolvedConfiguration({ role = "executor", modelTier = "standard", recovery = false } = {}) {
-  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
-  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "openai-gpt6-v1");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai");
   return {
     schema_version: 1,
     model_set: { id: modelSet.id, version: modelSet.version, mapping_digest: modelSet.mapping_digest },
@@ -195,8 +156,8 @@ function lsaV2RunConfiguration({ roles = { executor: "standard" } } = {}) {
     lsaV2ResolvedConfiguration({ role, modelTier })
   ]));
   const resolved = Object.values(resolvedConfigurations)[0];
-  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "lsa-efficiency-v2");
-  const modelSet = projection.model_sets.find((entry) => entry.id === "openai-luna-sol-astra");
+  const projection = loadProjectionRegistry().projections.find((entry) => entry.id === "openai-gpt6-v1");
+  const modelSet = projection.model_sets.find((entry) => entry.id === "openai");
   return {
     profile: "balanced",
     configuration_compatibility: "current",
@@ -1936,7 +1897,7 @@ test("configured adaptive dispatch persists its exact low-effort decision and ma
   assert.deepEqual(agent.resolved_configuration, configuration.resolved_configurations.executor);
   assert.equal(agent.reasoning.dispatch_effort, "low");
   assert.equal(agent.trace_evidence.effort_matches, true);
-  assert.equal(observation.reasoning.model_set.id, "openai-luna-sol-astra");
+  assert.equal(observation.reasoning.model_set.id, "openai");
   assert.equal(observation.trace_evidence.effective_effort, "low");
 
   const changed = JSON.parse(JSON.stringify(configuration));
@@ -1991,19 +1952,13 @@ test("configured adaptive dispatch rejects a low-to-medium trace mismatch withou
   assert.equal(await fs.readFile(path.join(tempRoot, runId, "status", "agents", `${agentId}.json`), "utf8"), before);
 });
 
-test("configured legacy decisions and approved recovery envelopes retain their saved compatibility boundary", () => {
-  const legacyConfiguration = legacyRunConfiguration();
-  const legacyDecision = resolveReasoning({
+test("retired configurations cannot enter new decisions and recovery envelopes stay bound", () => {
+  const current = currentExecutorConfiguration({modelTier: "standard"});
+  const retired = {...current, model_set: {...current.model_set, version: "3"}};
+  assert.throws(() => resolveReasoning({
     role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
-    resolved_configuration: legacyConfiguration.resolved_configurations.executor
-  });
-  assert.equal(legacyDecision.schema_version, "2.0");
-  assert.doesNotThrow(() => canonicalizeAgentStatus({
-    run_id: "run-legacy-config", agent_id: "legacy-executor", agent: "executor", status: "done",
-    created_at: "2026-09-05T01:02:00.000Z", updated_at: "2026-09-05T01:02:01.000Z",
-    resolved_configuration: legacyConfiguration.resolved_configurations.executor,
-    reasoning: legacyDecision
-  }, legacyConfiguration));
+    resolved_configuration: retired
+  }), /model set|digest|binding/i);
 
   const runConfiguration = currentRunConfiguration({ modelTier: "standard" });
   const recovery = {

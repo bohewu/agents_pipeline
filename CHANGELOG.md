@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-09-23
+
+### Changed
+
+- Made `openai@4` the sole built-in Codex catalog with GPT-6 Luna/Sol/Astra and `openai-gpt6-v1@1`, preserving the LSA v2 effort and qualified recovery rules.
+- Retired the other Codex catalogs from selection and generation while retaining bounded status and explicit migration support for saved workspace overlays.
+
 ## [0.38.0] - 2026-09-22
 
 ### Added

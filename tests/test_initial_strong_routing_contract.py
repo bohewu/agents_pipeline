@@ -72,7 +72,7 @@ class InitialStrongRoutingContractTest(unittest.TestCase):
 
         for preserved_boundary in (
             "frugal profile",
-            "another model set or projection",
+            "a retired model set or projection",
             "explicitly selected the ordinary executor path, Sol",
             "retain the workflow's existing `executor` or `generalist` choice",
             "explicitly requires strong execution",

@@ -22,7 +22,10 @@
   "conflict": null,
   "conflict_reason": null,
   "recovery_stage": {
-    "strategy": { "id": "lsa-qualified-execution-v2", "version": "2" },
+    "strategy": {
+      "id": "lsa-qualified-execution-v2",
+      "version": "2"
+    },
     "status": "requested",
     "stage": "strong-medium",
     "previous_stage": "source-qualified",
@@ -31,41 +34,44 @@
     "uses_model_uplift": true,
     "source": {
       "model_set": {
-        "id": "openai-luna-sol-astra",
-        "version": "2",
-        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0"
+        "id": "openai",
+        "version": "4",
+        "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8"
       },
       "reasoning_projection": {
-        "id": "lsa-efficiency-v2",
-        "version": "2",
+        "id": "openai-gpt6-v1",
+        "version": "1",
         "policy_version": "3",
-        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e"
+        "digest": "sha256:b7834fdb8dd7112a506691e4b40a2b5cc0e534c27b5d35958d1376e50f8ac6aa"
       },
       "role_binding": {
         "role": "executor",
         "model_tier": "standard",
-        "model": "gpt-5.6-sol",
-        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0"
+        "model": "gpt-6-sol",
+        "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8"
       },
-      "provenance": { "source": "workspace_profile", "override": null }
+      "provenance": {
+        "source": "workspace_profile",
+        "override": null
+      }
     },
     "target": {
       "model_set": {
-        "id": "openai-luna-sol-astra",
-        "version": "2",
-        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0"
+        "id": "openai",
+        "version": "4",
+        "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8"
       },
       "reasoning_projection": {
-        "id": "lsa-efficiency-v2",
-        "version": "2",
+        "id": "openai-gpt6-v1",
+        "version": "1",
         "policy_version": "3",
-        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e"
+        "digest": "sha256:b7834fdb8dd7112a506691e4b40a2b5cc0e534c27b5d35958d1376e50f8ac6aa"
       },
       "role_binding": {
         "role": "executor",
         "model_tier": "strong",
         "model": "gpt-6-astra",
-        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0"
+        "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8"
       },
       "provenance": {
         "source": "workspace_profile",
@@ -78,8 +84,15 @@
       }
     },
     "latest_verified_effort": "high",
-    "retry_claim": { "expected_used": 1, "next_used": 2, "max": 3 },
-    "uplift_claim": { "expected_used": false, "next_used": true },
+    "retry_claim": {
+      "expected_used": 1,
+      "next_used": 2,
+      "max": 3
+    },
+    "uplift_claim": {
+      "expected_used": false,
+      "next_used": true
+    },
     "reason": "qualified_initial_uplift",
     "conflict": null,
     "conflict_reason": null

@@ -28,7 +28,7 @@ class ValidateSchemaFormatTest(unittest.TestCase):
                 "balanced", REPO_ROOT / "tools" / "agent-profiles", "codex"
             )
             model_set = RESOLVER.load_model_set(
-                "openai-luna-sol-astra",
+                "openai",
                 REPO_ROOT / "runtimes" / "codex" / "model-sets",
                 "codex",
             )

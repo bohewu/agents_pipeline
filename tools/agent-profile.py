@@ -654,6 +654,18 @@ def resolve_request(
             if uniform_model:
                 raise ProfileError("--uniform-model is only valid with the uniform profile.")
             model_sets = list_model_sets(runtime, model_set_dir)
+            if runtime == "codex" and model_set in ("openai-legacy", "openai-luna-sol-astra"):
+                raise ProfileError(
+                    f"Model set '{model_set}' is retired. Use --model-set openai, "
+                    "then start a new session."
+                )
+            if (
+                model_set is None
+                and runtime == "codex"
+                and args.model_set_dir is None
+                and [value["name"] for value in model_sets] == ["openai"]
+            ):
+                model_set = "openai"
             model_set = require_or_choose(
                 model_set,
                 name="model_set",

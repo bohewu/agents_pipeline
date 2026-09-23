@@ -38,8 +38,7 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
                 self.assertIn("formal shared resolver", text)
                 self.assertIn("trace expectations", text)
                 self.assertIn("normal dispatch omits a raw model", text)
-                self.assertIn("`openai-legacy`", text)
-                self.assertIn("v2", text)
+                self.assertIn("`catalog_state", text)
 
     def test_adaptive_is_skill_only_and_routes_to_existing_workflows(self) -> None:
         text = SKILL.read_text(encoding="utf-8")
@@ -137,7 +136,7 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("balanced`,\n`careful`, and `interactive` default it to `off`", adaptive)
         self.assertIn("persisted effective mode remains", adaptive)
         self.assertIn("Do not create a `run-goal`", adaptive)
-        self.assertIn("exact saved `lsa-efficiency-v2` configuration", adaptive)
+        self.assertIn("exact saved `openai-gpt6-v1` configuration", adaptive)
         self.assertIn("shared `resolveLsaRecoveryStage`", adaptive)
         self.assertIn("does not infer a stage, duplicate the ladder", adaptive)
         self.assertIn("Simple MUST NOT perform\nexecution model recovery", simple)

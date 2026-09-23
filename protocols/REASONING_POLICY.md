@@ -208,17 +208,13 @@ semantics; they never infer a projection from a model name.
 
 | Projection | Applicable binding | Routine | Deliberative | Deep | Assurance |
 |---|---|---|---|---|---|
-| `legacy-v2` | `openai-legacy` | v2 | v2 | v2 | v2 |
-| `openai-reviewer-v1` | Astra, strong `reviewer` | v2 | v2 | `high` | `max`, strict |
-| `lsa-efficiency-v1` | Luna mini / Sol standard / Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
-| `lsa-efficiency-v2` | Luna mini / Sol standard / Astra strong | same as LSA v1 | same as LSA v1 | same as LSA v1 | same as LSA v1 |
+| `openai-gpt6-v1` | GPT-6 Luna mini / Sol standard / Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
 
 Only v3 projection decisions accept `low`. They carry the selected
-`reasoning_projection` and model-set identity. A legacy-v2 decision generated
-from a verified configuration carries the same identity while retaining its
-v2 behavior; callers with no configuration remain byte-compatible v2. The
-normal `openai-reviewer-v1` recovery path remains v2-equivalent for every
-non-reviewer. Its reviewer-specific deep calibration never weakens explicit
+`reasoning_projection` and model-set identity. Callers with no saved
+configuration retain the base policy-v2 behavior; retired configurations do
+not resolve through the active registry. The normal `openai-gpt6-v1` path
+retains the LSA v2 matrix. Its reviewer deep calibration never weakens explicit
 `xhigh`/`max`, high-consequence review, reviewer recovery, or assurance.
 
 ### Deep compatibility exception
@@ -344,7 +340,7 @@ capability recovery policy. It may select one higher profile-approved tier for
 an `executor` or `generalist`, reproject normal effort for that tier, and
 consume an existing retry opportunity.
 
-For an exact saved `lsa-efficiency-v2` configuration, both resolvers consume
+For an exact saved `openai-gpt6-v1` configuration, both resolvers consume
 the same `lsa_recovery_context` and `resolveLsaRecoveryStage()` decision before
 the generic deep/max boost. A verified standard-tier Sol deep/high-or-higher
 source may request strong-tier Astra deep/medium only after canonical history
@@ -458,13 +454,14 @@ and a successful spawn prove only `requested`, not `enforced`.
 When the user explicitly requests a registered managed role outside a
 `$run-*` workflow, use this policy as a lightweight spawn preflight rather than
 adopting a workflow. Query current-workspace profile status first. A configured,
-healthy, eligible profile keeps its registered role routing, but supplies a logical
+healthy, eligible profile with `catalog_state = current` keeps its registered role routing, but supplies a logical
 model tier only when the profile/runtime proves that tier. A uniform raw-model
 profile or any other unprovable mapping keeps eligible workspace role routing and
 passes tier `unknown`; never infer a tier from the model slug. An unconfigured
 workspace or an ineligible profile uses global role routing with tier `unknown`,
 with a warning for the ineligible case. Unverifiable or unhealthy status stops
-the dispatch.
+the dispatch. A configured pinned or retired catalog also stops dispatch until
+an explicit workspace `set --model-set openai` or `clear`.
 
 Classify only the bounded requested task, resolve it with `mode = adaptive`, and
 pass the non-null `dispatch_effort` as `reasoning_effort`. Never choose effort
@@ -558,7 +555,7 @@ remain visible under all three preferences. When a selection line is required,
 print one compact adjacent line before the result summary:
 
 ```text
-reviewer · model=gpt-5.6-sol (verified) · effort=xhigh (effective)
+reviewer · model=gpt-6-astra (verified) · effort=high (effective)
 ```
 
 Use the registered role name. Show `(verified)` only when `model_matches = true`;
@@ -572,7 +569,7 @@ single child has different requested, dispatched, or effective values, show sepa
 named fields, for example:
 
 ```text
-executor · model=gpt-5.6-sol (unverified) · requested=max · dispatch=high
+executor · model=gpt-6-sol (unverified) · requested=max · dispatch=high
 ```
 
 Do not ask the child to self-report runtime metadata, repeat the child body, or

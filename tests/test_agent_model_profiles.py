@@ -122,74 +122,31 @@ class AgentModelProfilesTest(unittest.TestCase):
             self.assertEqual(balanced.models[role], "strong")
             self.assertEqual(premium.models[role], "strong")
 
-    def test_executor_strong_resolves_with_unchanged_lsa_v2_identity(self) -> None:
+    def test_active_openai_binds_existing_profile_tiers_to_gpt6(self) -> None:
         profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
         model_set = RESOLVER.load_model_set(
-            "openai-luna-sol-astra",
-            REPO_ROOT / "runtimes" / "codex" / "model-sets",
-            "codex",
-        )
-
-        for name in ("frugal", "balanced", "premium"):
-            with self.subTest(profile=name):
-                profile = RESOLVER.load_profile(name, profiles_dir, "codex")
-                configuration = RESOLVER.resolve_workspace_configurations(
-                    ["executor-strong"], profile, model_set
-                )["executor-strong"]
-                self.assertEqual(configuration["role_binding"]["model_tier"], "strong")
-                self.assertEqual(configuration["role_binding"]["model"], "gpt-6-astra")
-                self.assertEqual(
-                    configuration["model_set"]["mapping_digest"],
-                    "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
-                )
-                self.assertEqual(
-                    configuration["reasoning_projection"],
-                    {
-                        "id": "lsa-efficiency-v2",
-                        "version": "2",
-                        "policy_version": "3",
-                        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
-                    },
-                )
-
-    def test_debugger_profile_tiers_resolve_through_the_unchanged_lsa_v2_mapping(self) -> None:
-        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
-        model_set = RESOLVER.load_model_set(
-            "openai-luna-sol-astra",
-            REPO_ROOT / "runtimes" / "codex" / "model-sets",
-            "codex",
+            "openai", REPO_ROOT / "runtimes/codex/model-sets", "codex"
         )
         expected = {
-            "frugal": ("standard", "gpt-5.6-sol"),
+            "frugal": ("standard", "gpt-6-sol"),
             "balanced": ("strong", "gpt-6-astra"),
             "premium": ("strong", "gpt-6-astra"),
         }
-
-        for name, (tier, model) in expected.items():
+        for name, (debugger_tier, debugger_model) in expected.items():
             with self.subTest(profile=name):
                 profile = RESOLVER.load_profile(name, profiles_dir, "codex")
-                configuration = RESOLVER.resolve_workspace_configurations(
-                    ["debugger"], profile, model_set
-                )["debugger"]
-                self.assertEqual(configuration["role_binding"]["model_tier"], tier)
-                self.assertEqual(configuration["role_binding"]["model"], model)
-                self.assertEqual(
-                    configuration["model_set"],
-                    {
-                        "id": "openai-luna-sol-astra",
-                        "version": "2",
-                        "mapping_digest": "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0",
-                    },
+                configurations = RESOLVER.resolve_workspace_configurations(
+                    ["peon", "executor", "reviewer", "debugger", "executor-strong"],
+                    profile, model_set,
                 )
-                self.assertEqual(
-                    configuration["reasoning_projection"],
-                    {
-                        "id": "lsa-efficiency-v2",
-                        "version": "2",
-                        "policy_version": "3",
-                        "digest": "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e",
-                    },
-                )
+                self.assertEqual(configurations["debugger"]["role_binding"]["model_tier"], debugger_tier)
+                self.assertEqual(configurations["debugger"]["role_binding"]["model"], debugger_model)
+                self.assertEqual(configurations["executor-strong"]["role_binding"]["model"], "gpt-6-astra")
+                self.assertEqual(configurations["executor"]["role_binding"]["model"], "gpt-6-sol")
+                self.assertEqual(configurations["peon"]["role_binding"]["model"], "gpt-6-luna")
+                self.assertEqual(configurations["reviewer"]["role_binding"]["model"], "gpt-6-astra")
+                self.assertEqual(configurations["reviewer"]["reasoning_projection"]["id"], "openai-gpt6-v1")
+                self.assertEqual(configurations["reviewer"]["model_set"]["version"], "4")
 
     def test_builtin_recovery_ceiling_mappings(self) -> None:
         profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
@@ -198,112 +155,23 @@ class AgentModelProfilesTest(unittest.TestCase):
             "balanced": {"executor": "strong", "generalist": "strong"},
             "premium": {"executor": "strong", "generalist": "strong"},
         }
-
         for name, ceilings in expected.items():
             with self.subTest(profile=name):
                 profile = RESOLVER.load_profile(name, profiles_dir, "codex")
                 self.assertEqual(profile.recovery_ceiling_tiers, ceilings)
 
-    def test_versioned_codex_catalogs_resolve_only_the_strong_reviewer_override(self) -> None:
-        profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
-        model_set_dir = REPO_ROOT / "runtimes" / "codex" / "model-sets"
-        profile = RESOLVER.load_profile("balanced", profiles_dir, "codex")
-        expected = {
-            "openai": ("gpt-6-astra", "gpt-5.6-terra", "openai-reviewer-v1"),
-            "openai-legacy": ("gpt-5.6-sol", "gpt-5.6-terra", "legacy-v2"),
-            "openai-luna-sol-astra": (
-                "gpt-6-astra",
-                "gpt-5.6-sol",
-                "lsa-efficiency-v2",
-            ),
-        }
-        for name, (reviewer, executor, projection) in expected.items():
-            with self.subTest(name=name):
-                model_set = RESOLVER.load_model_set(name, model_set_dir, "codex")
-                settings = RESOLVER.resolve_agent_model_settings(
-                    ["reviewer", "executor"], profile, model_set
-                )
-                self.assertEqual(settings["reviewer"]["model"], reviewer)
-                self.assertEqual(settings["executor"]["model"], executor)
-                configurations = RESOLVER.resolve_workspace_configurations(
-                    ["reviewer", "executor"], profile, model_set
-                )
-                self.assertEqual(
-                    configurations["reviewer"]["reasoning_projection"]["id"],
-                    projection,
-                )
-                self.assertEqual(
-                    configurations["reviewer"]["role_binding"]["model"], reviewer
-                )
-
-    def test_lsa_v2_strategy_is_digest_bound_and_v1_identity_still_resolves(self) -> None:
-        registry = json.loads(
-            (REPO_ROOT / "protocols" / "reasoning-projections.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        self.assertEqual(
-            [projection["id"] for projection in registry["projections"]],
-            [
-                "legacy-v2",
-                "openai-reviewer-v1",
-                "lsa-efficiency-v1",
-                "lsa-efficiency-v2",
-            ],
-        )
-        v1 = registry["projections"][2]
-        v2 = registry["projections"][3]
-        self.assertEqual(
-            v1["digest"],
-            "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690",
-        )
-        self.assertEqual(
-            v1["model_sets"][0]["mapping_digest"],
-            "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9",
-        )
-        for key in (
-            "effort_order",
-            "global_floor",
-            "model_floors",
-            "class_requirements",
-            "role_effort_overrides",
-        ):
-            self.assertEqual(v2[key], v1[key], key)
-        self.assertEqual(
-            v2["recovery_strategy"],
-            {
-                "id": "lsa-qualified-execution-v2",
-                "version": "2",
-                "eligible_roles": ["executor", "generalist"],
-                "source": {
-                    "model_tier": "standard",
-                    "reasoning_class": "deep",
-                    "minimum_verified_effort": "high",
-                },
-                "target": {
-                    "model_tier": "strong",
-                    "reasoning_class": "deep",
-                    "initial_effort": "medium",
-                },
-                "next_efforts": {"medium": "high", "high": "max", "max": None},
-            },
-        )
-        self.assertEqual(
-            v2["digest"],
-            RESOLVER._sha256_digest(
-                {key: value for key, value in v2.items() if key != "digest"}
-            ),
-        )
-
-        v1_mapping = v1["model_sets"][0]
-        RESOLVER.validate_model_mapping_projection(
-            v1_mapping,
-            {
-                key: v1[key]
-                for key in ("id", "version", "policy_version", "digest")
-            },
-            label="saved LSA v1 workspace",
-        )
+    def test_only_one_active_projection_is_digest_bound(self) -> None:
+        registry = json.loads((REPO_ROOT / "protocols/reasoning-projections.json").read_text(encoding="utf-8"))
+        self.assertEqual([p["id"] for p in registry["projections"]], ["openai-gpt6-v1"])
+        projection = registry["projections"][0]
+        self.assertEqual(projection["version"], "1")
+        self.assertEqual(projection["policy_version"], "3")
+        self.assertEqual(projection["recovery_strategy"]["id"], "lsa-qualified-execution-v2")
+        self.assertEqual(projection["recovery_strategy"]["next_efforts"], {"medium": "high", "high": "max", "max": None})
+        self.assertEqual(projection["digest"], RESOLVER._sha256_digest({k: v for k, v in projection.items() if k != "digest"}))
+        model_set = RESOLVER.load_model_set("openai", REPO_ROOT / "runtimes/codex/model-sets", "codex")
+        RESOLVER.validate_model_set_projection(model_set)
+        self.assertEqual(projection["model_sets"], [RESOLVER.model_mapping_snapshot(model_set)])
 
     def test_installed_resolver_accepts_updater_catalog_from_custom_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -354,7 +222,7 @@ class AgentModelProfilesTest(unittest.TestCase):
                 settings,
                 {
                     "reviewer": {"model": "gpt-6-astra", "model_provider": "openai"},
-                    "executor": {"model": "gpt-5.6-terra", "model_provider": "openai"},
+                    "executor": {"model": "gpt-6-sol", "model_provider": "openai"},
                 },
             )
 
@@ -368,8 +236,10 @@ class AgentModelProfilesTest(unittest.TestCase):
             model_set = RESOLVER.load_model_set(
                 "openai", REPO_ROOT / "runtimes/codex/model-sets", "codex"
             )
-            with self.assertRaisesRegex(ValueError, "define that role"):
-                RESOLVER.resolve_agent_model_settings(["executor"], profile, model_set)
+            self.assertEqual(
+                RESOLVER.resolve_agent_model_settings(["executor"], profile, model_set),
+                {"executor": {"model": "gpt-6-sol", "model_provider": "openai"}},
+            )
 
             invalid = model_set_payload("codex", codex_tiers())
             invalid.update(
