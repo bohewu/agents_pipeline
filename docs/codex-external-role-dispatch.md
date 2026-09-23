@@ -103,7 +103,11 @@ A scope or profile violation returns `unverified` and the changed paths for
 inspection; the dispatcher does not discard those edits. The path list guides
 the worker and checks its final Git changes, including untracked files but not
 ignored files; it is not a filesystem sandbox limited to those files. Use a disposable worktree when
-trying an untrusted task. Each worktree needs its own profile and trust check.
+trying an untrusted task. Each worktree needs its own profile and effective-trust check.
+For a linked worktree, Codex may resolve trust through its verified main Git checkout rather than
+an entry for the worktree path. The profile manager accepts that only when Codex `config/read`
+confirms the worktree's own `.codex` layer is enabled; it does not copy the source profile or grant
+trust. If the Codex probe is unavailable or inconclusive, dispatch remains blocked.
 `status: verified` checks execution provenance and final path scope;
 `result.status` and independent tests/review determine task quality.
 

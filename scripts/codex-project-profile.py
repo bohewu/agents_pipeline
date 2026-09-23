@@ -7,12 +7,15 @@ import argparse
 import hashlib
 import json
 import os
+import queue
 import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -392,10 +395,121 @@ def _project_trust_state(global_target: Path, workspace: Path) -> str:
     return trust_level if trust_level in ("trusted", "untrusted") else "unknown"
 
 
+def _codex_project_layer_active(global_target: Path, workspace: Path) -> bool:
+    """Ask Codex whether this linked checkout's own config layer is enabled."""
+    dot_git = workspace / ".git"
+    try:
+        metadata = dot_git.lstat()
+    except OSError:
+        return False
+    if not stat.S_ISREG(metadata.st_mode):
+        return False
+    executable = shutil.which("codex")
+    if executable is None:
+        return False
+
+    env = {**os.environ, "CODEX_HOME": str(global_target)}
+    try:
+        process = subprocess.Popen(
+            [executable, "app-server", "--listen", "stdio://"],
+            cwd=workspace, env=env, stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, encoding="utf-8",
+        )
+    except OSError:
+        return False
+
+    messages: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def read_responses() -> None:
+        try:
+            assert process.stdout is not None
+            while line := process.stdout.readline(2 * 1024 * 1024 + 1):
+                if len(line) > 2 * 1024 * 1024:
+                    break
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    break
+                if isinstance(value, dict) and value.get("id") in (1, 2):
+                    messages.put(value)
+        finally:
+            messages.put(None)
+
+    reader = threading.Thread(target=read_responses, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + 5
+
+    def exchange(request: dict[str, Any]) -> dict[str, Any] | None:
+        assert process.stdin is not None
+        process.stdin.write(json.dumps(request) + "\n")
+        process.stdin.flush()
+        while (remaining := deadline - time.monotonic()) > 0:
+            try:
+                response = messages.get(timeout=remaining)
+            except queue.Empty:
+                break
+            if response is None:
+                break
+            if response.get("id") == request["id"]:
+                return response
+        return None
+
+    try:
+        initialized = exchange({
+            "id": 1, "method": "initialize",
+            "params": {"clientInfo": {"name": "agents-pipeline-profile", "version": "1"}},
+        })
+        if not isinstance(initialized, dict) or "result" not in initialized:
+            return False
+        assert process.stdin is not None
+        process.stdin.write('{"method":"initialized"}\n')
+        process.stdin.flush()
+        response = exchange({
+            "id": 2, "method": "config/read",
+            "params": {"cwd": str(workspace), "includeLayers": True},
+        })
+        if not isinstance(response, dict):
+            return False
+        result = response.get("result")
+        if not isinstance(result, dict) or not isinstance(result.get("layers"), list):
+            return False
+        expected = (workspace / ".codex").resolve(strict=True)
+        return any(
+            isinstance(layer, dict)
+            and isinstance(layer.get("name"), dict)
+            and layer["name"].get("type") == "project"
+            and layer.get("disabledReason") is None
+            and isinstance(layer["name"].get("dotCodexFolder"), str)
+            and Path(layer["name"]["dotCodexFolder"]).resolve(strict=True) == expected
+            for layer in result["layers"]
+        )
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
+        return False
+    finally:
+        if process.poll() is None:
+            try:
+                process.terminate()
+            except ProcessLookupError:
+                pass
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+        reader.join(timeout=1)
+        if process.stdin is not None:
+            process.stdin.close()
+        if process.stdout is not None:
+            process.stdout.close()
+
+
 def _eligibility_metadata(
     global_target: Path, workspace: Path, *, configured: bool
 ) -> dict[str, str]:
     trust = _project_trust_state(global_target, workspace)
+    if configured and trust == "unknown" and _codex_project_layer_active(global_target, workspace):
+        trust = "trusted"
     if not configured:
         eligibility = "not_configured"
     else:
