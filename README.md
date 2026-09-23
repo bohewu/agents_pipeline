@@ -11,6 +11,7 @@ Codex-first multi-agent workflow assets with a runtime-neutral source core and b
 - [Workspace trust and eligibility](#workspace-trust-and-eligibility)
 - [Modes and Pipeline entry points](#modes)
 - [Runtime profile details](docs/runtime-agent-model-profiles.md#codex-workspace-profile)
+- [GPT-6 routing guidance](docs/codex-gpt6-routing-guidance.md)
 - [Compatibility matrix](COMPATIBILITY.md#runtime-profile-manager-compatibility)
 - [Explicit full workspace materialization](docs/developer-install.md#explicit-workspace-materialization-compatibility)
 
@@ -70,7 +71,7 @@ Bootstrap installers download the pinned neutral release bundle, verify its chec
 
 ### Codex (recommended)
 
-Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-child reasoning-effort selection.
+Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-child reasoning-effort selection. For current GPT-6 Sol/Luna operation and routing evaluation, use Codex CLI 0.156.1 or newer as the recommended baseline; this does not replace the older minimum for the repository's core V2 feature contract.
 
 Windows (PowerShell):
 

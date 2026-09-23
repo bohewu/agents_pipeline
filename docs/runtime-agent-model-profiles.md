@@ -95,6 +95,8 @@ Workspace `set` uses the globally installed exporter, neutral agent sources, sel
 
 Codex has one active built-in catalog: `openai@4`, with `gpt-6-luna` at mini, `gpt-6-sol` at standard, and `gpt-6-astra` at strong. Its `openai-gpt6-v1@1` projection preserves the LSA v2 normal effort matrix: Luna routine `high` and deliberative `xhigh`; Sol routine/deliberative `medium` and deep `high`; Astra routine/deliberative `low`, deep `high`, and formal assurance `max` with strict enforcement. Deep still requires at least standard tier. The central resolver owns effort; provider remains inherited from the parent session.
 
+The workspace profile does not choose the already-running current/main model. For the current operational recommendation, staged tuning order, and controlled comparison rules for GPT-6, see [Codex GPT-6 routing guidance](codex-gpt6-routing-guidance.md). That guidance does not change the catalog or projection above.
+
 After an explicitly approved global support update, refresh each chosen workspace while preserving its existing profile name:
 
 ```bash
@@ -194,13 +196,13 @@ The formal `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-g
 
 The managed `use <mode>` forms remain compatibility aliases for manifest-backed modes. `$run-adaptive` intentionally has no compatibility alias or role. There is no `$run-goal` skill.
 
-### Manual v3 smoke and comparison guidance
+### Manual GPT-6 smoke and comparison guidance
 
-Do not run a live Astra smoke until the support bundle is deployed, the account confirms model availability, and a fresh test workspace and new session/run are ready. Then verify separately: the standard `openai` strong reviewer requests and observes Astra `high`; the experimental set resolves its three tiers; and a legal bounded strong planner example requests and observes Astra `low`. A deep reviewer must stay deep; do not lower its class merely to exercise `low`.
+Do not run a live Astra smoke until the support bundle is deployed, the account confirms model availability, and a fresh test workspace and new session/run are ready. Under a current healthy eligible `openai@4` profile, verify representative mini, standard, and strong bindings independently; for example, a balanced profile can use a mini helper, ordinary standard executor, and strong reviewer. A deep reviewer must stay deep; do not lower its class merely to exercise a cheaper effort or model.
 
 Treat a missing model entitlement, quota, selector capability, or mismatched trace as a failed or unverified smoke. Do not substitute Sol and report an Astra success. Status is configuration evidence only; an adaptive projection is applied only when the real child trace matches the resolved role, model, and effective effort.
 
-Keep two comparisons separate. A pure-model comparison fixes the repository snapshot, scope, evidence, effort, and speed so a later model cannot read earlier findings. A set comparison may vary model and effort, and must report the result as a configuration comparison. Record available time, actual usage, valid findings, false positives, and rework; write unavailable usage as `unknown`. Do not infer subscription credits or billing from public price lists, and do not add telemetry, a paid evaluation job, or automatic model ranking for this manual check.
+Keep pure-model and configuration comparisons separate. Fix the repository snapshot, scope, evidence, acceptance criteria, and relevant runtime settings so a later model cannot read earlier findings. Record available time, actual usage when exposed, valid findings, false positives, retries, and rework; write unavailable usage as `unknown`. Do not infer subscription credits from public API price lists, and do not add telemetry, a paid evaluation job, or automatic model ranking for this manual check. The current comparison matrix and adoption criteria live in [Codex GPT-6 routing guidance](codex-gpt6-routing-guidance.md).
 
 For the LSA recovery comparison, use exactly three independent fresh sessions/runs: the preserved v1 Sol max control in its isolated workspace, the qualified v2 Astra medium attempt, and the qualified same-uplift Astra high continuation. Fix the repository commit, task scope, prompt, input artifacts, acceptance criteria, evidence available at start, runtime permissions, and time limit. Do not let a later session read another session's findings. Record whether the intended role/model/effort trace matched, the task result, valid findings, false positives, rework, elapsed time, and actual usage when the runtime exposes it; otherwise record usage as `unknown`. Keep these observations local to the comparison and do not automatically turn them into new repair work. No live comparison was run for this change.
 
