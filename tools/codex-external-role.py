@@ -131,7 +131,7 @@ def resolve_role(
     ):
         if status.get(key) != expected:
             raise EvidenceError(f"Workspace profile {key} is not {expected!r}")
-    if status.get("workspace") != str(workspace):
+    if Path(status["workspace"]).resolve(strict=True) != workspace:
         raise EvidenceError("Workspace status refers to another directory")
     _verify_leaf_source(status, role)
     config = (status.get("resolved_configurations") or {}).get(role)
@@ -203,14 +203,8 @@ def resolve_role(
 def _plain_trace_path(file: Path, codex_home: Path) -> Path:
     home = codex_home.resolve(strict=True)
     absolute = Path(os.path.abspath(file))
-    try:
-        relative = absolute.relative_to(home)
-    except ValueError as exc:
-        raise EvidenceError("Trace must be within CODEX_HOME") from exc
-    if not relative.parts or relative.parts[0] not in {"sessions", "archived_sessions"}:
-        raise EvidenceError("Trace must be under Codex sessions")
-    current = home
-    for part in relative.parts:
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
         current = current / part
         try:
             entry = current.lstat()
@@ -218,9 +212,16 @@ def _plain_trace_path(file: Path, codex_home: Path) -> Path:
             raise EvidenceError("Trace path cannot be read") from exc
         if _is_link_or_reparse(entry):
             raise EvidenceError("Trace path cannot contain links or reparse points")
-    if not stat.S_ISREG(absolute.stat().st_mode) or absolute.suffix != ".jsonl":
+    canonical = absolute.resolve(strict=True)
+    try:
+        relative = canonical.relative_to(home)
+    except ValueError as exc:
+        raise EvidenceError("Trace must be within CODEX_HOME") from exc
+    if not relative.parts or relative.parts[0] not in {"sessions", "archived_sessions"}:
+        raise EvidenceError("Trace must be under Codex sessions")
+    if not stat.S_ISREG(canonical.stat().st_mode) or canonical.suffix != ".jsonl":
         raise EvidenceError("Trace must be a regular JSONL file")
-    return absolute
+    return canonical
 
 
 def _is_link_or_reparse(entry: os.stat_result) -> bool:
