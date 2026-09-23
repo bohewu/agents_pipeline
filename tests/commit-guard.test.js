@@ -263,6 +263,23 @@ test("new refs scan all ancestry, deletions scan nothing, unknown remote objects
   assert.equal(f.cli(["check", "--pre-push"], `refs/heads/main ${tip} refs/heads/main ${"f".repeat(40)}\n`).exit, 2);
   assert.equal(f.cli(["check", "--pre-push"], "malformed\n").exit, 3);
 });
+test("new tag at an updated branch tip uses the branch's outgoing boundary", t => {
+  const f = fixture(t); const base = f.clean();
+  f.write("readme.md", "release\n"); f.stage("readme.md"); const tip = f.commit();
+  f.git(["tag", "-a", "v1.0.0", "-m", "release", tip]);
+  const tagOid = f.git(["rev-parse", "refs/tags/v1.0.0"]);
+  const input = `refs/tags/v1.0.0 ${tagOid} refs/tags/v1.0.0 ${ZERO}\nrefs/heads/main ${tip} refs/heads/main ${base}\n`;
+  const r = f.cli(["check", "--pre-push", "--profile", "strict"], input);
+  assert.equal(r.exit, 0); assert.equal(r.result.checked_commits, 1);
+  assert.equal(r.result.checked_files, 1);
+  const tagOnly = f.cli(["check", "--pre-push", "--profile", "strict"], input.split("\n")[0] + "\n");
+  assert.equal(tagOnly.exit, 0); assert.equal(tagOnly.result.checked_commits, 2);
+  f.write("config.txt", credential(SECRET_A)); f.stage("config.txt"); const unsafe = f.commit();
+  const unsafeInput = `refs/tags/v1.0.1 ${unsafe} refs/tags/v1.0.1 ${ZERO}\nrefs/heads/main ${unsafe} refs/heads/main ${tip}\n`;
+  const blocked = f.cli(["check", "--pre-push", "--profile", "strict"], unsafeInput);
+  assert.equal(blocked.exit, 1); assert.equal(blocked.result.checked_commits, 1);
+  assertRedacted(blocked);
+});
 test("multi-ref outgoing commits are combined and duplicates do not multiply findings", t => {
   const f = fixture(t); const base = f.clean();
   f.write("config.txt", credential(SECRET_A)); f.stage("config.txt"); const tip = f.commit();

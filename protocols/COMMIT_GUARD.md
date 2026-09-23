@@ -89,13 +89,15 @@ range's accepted BASE policy is fixed for that range. A secret added and then
 removed before a push is still a finding in the intermediate commit.
 
 Pre-push consumes each `local-ref local-oid remote-ref remote-oid` line. Deletions
-introduce no content. Multiple refs are combined. For a new remote ref, the
-conservative fallback is all ancestry of its tip: this can rediscover historical
-legacy debt and blocks when limits are exceeded. There is no automatic trusted
-baseline for a first push. For legacy adoption on a new remote branch, an operator
-must plan the explicit audited boundary; the tool does not infer trust or silently
-exclude local outgoing branches. Missing remote objects and shallow history fail
-closed instead of scanning an incomplete range.
+introduce no content. Multiple refs are combined. A new tag at exactly the same
+commit as a branch updated in the same push uses that branch's known remote base;
+the branch's outgoing commits are scanned once. Other new remote refs fall back to
+all ancestry of the tip: this can rediscover historical legacy debt and blocks
+when limits are exceeded. There is no automatic trusted baseline for a first
+push. For legacy adoption on a new remote branch, an operator must plan the
+explicit audited boundary; the tool does not infer trust or silently exclude
+local outgoing branches. Missing remote objects and shallow history fail closed
+instead of scanning an incomplete range.
 
 ## Policy and local hooks
 

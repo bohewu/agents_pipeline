@@ -12,15 +12,28 @@ function parseRange(cwd, value) {
 function pushRanges(cwd, input) {
   if (Buffer.byteLength(input) > 65536) fail(3, "Pre-push input exceeds its limit.");
   const ranges = [];
+  const updatedBranches = [];
   for (const line of input.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const fields = line.trim().split(/\s+/);
     if (fields.length !== 4 || !isOid(fields[1]) || !isOid(fields[3])) fail(3, "Malformed pre-push ref input.");
     if (/^0+$/.test(fields[1])) continue; // Ref deletion introduces no objects.
-    ranges.push({
+    const range = {
       tip: resolveCommit(cwd, fields[1]),
       base: /^0+$/.test(fields[3]) ? null : resolveCommit(cwd, fields[3])
-    });
+    };
+    ranges.push(range);
+    if (fields[2].startsWith("refs/heads/") && range.base) updatedBranches.push(range);
+    if (fields[2].startsWith("refs/tags/") && !range.base) range.newTag = true;
+  }
+  // A new tag at the same commit as an updated remote branch introduces no
+  // commits beyond that branch's audited outgoing range.
+  for (const range of ranges) {
+    if (range.newTag) {
+      const branch = updatedBranches.find(candidate => candidate.tip === range.tip);
+      if (branch) range.base = branch.base;
+      delete range.newTag;
+    }
   }
   return ranges;
 }

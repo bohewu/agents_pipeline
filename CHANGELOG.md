@@ -12,6 +12,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 - Documented the current Codex GPT-6 operating baseline and staged routing-tuning plan: keep existing Luna/Sol/Astra child mappings, prefer Sol/medium on Standard speed for long-lived main orchestration, verify worktree/runtime/child traces after Codex upgrades, and require controlled repo-specific evidence before future routing changes.
 
+### Fixed
+
+- Allowed a new release tag at the same commit as a branch updated in the same push to share that branch's known remote Commit Guard boundary; other new refs retain the all-ancestry check.
+
 ## [0.39.0] - 2026-09-23
 
 ### Changed
