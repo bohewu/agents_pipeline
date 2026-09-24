@@ -1,6 +1,8 @@
 import importlib.util
 import io
 import json
+import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +25,23 @@ MODULE = load_module()
 
 
 class RuntimeSupportSyncTest(unittest.TestCase):
+    def run_main(self, source: Path, target: Path, *options: str) -> tuple[int, str]:
+        output = io.StringIO()
+        with mock.patch.object(
+            sys, "argv", [str(SCRIPT_PATH), "--source-root", str(source),
+                          "--target-root", str(target), *options]
+        ), mock.patch.object(MODULE.sys, "stdout", output), mock.patch.object(
+            MODULE.sys, "stderr", io.StringIO()
+        ):
+            result = MODULE.main()
+        return result, output.getvalue()
+
+    def target_snapshot(self, target: Path) -> dict[str, bytes | None]:
+        return {
+            str(path.relative_to(target)): None if path.is_dir() else path.read_bytes()
+            for path in target.rglob("*")
+        }
+
     def make_source(self, root: Path) -> Path:
         source = root / "source"
         for dirname in MODULE.SUPPORT_DIRS:
@@ -137,6 +156,80 @@ class RuntimeSupportSyncTest(unittest.TestCase):
             )
             self.assertIn("python3 scripts/local-helper.py", skill)
             self.assertNotIn(f"{target.as_posix()}/scripts/local-helper.py", skill)
+
+    def test_check_current_and_stale_tree_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "runtime" / "agents-pipeline"
+
+            result, output = self.run_main(source, target, "--check")
+            self.assertEqual(result, 1)
+            self.assertIn("Stale", output)
+            self.assertFalse(target.parent.exists())
+
+            MODULE.sync_support_tree(source, target, dry_run=False)
+            baseline = self.target_snapshot(target)
+            result, output = self.run_main(source, target, "--check")
+            self.assertEqual(result, 0)
+            self.assertIn("Current", output)
+            self.assertEqual(self.target_snapshot(target), baseline)
+
+            changes = {
+                "missing file": lambda: (target / "VERSION").unlink(),
+                "changed bytes": lambda: (target / "VERSION").write_bytes(b"changed\n"),
+                "extra file": lambda: (target / "extra.txt").write_bytes(b"extra\n"),
+                "marker mismatch": lambda: (target / MODULE.MARKER_FILE).write_bytes(b"{}\n"),
+                "rewritten content": lambda: (target / "agents" / "orchestrator-flow.md").write_bytes(b"old path\n"),
+            }
+            for label, change in changes.items():
+                with self.subTest(label=label):
+                    MODULE.sync_support_tree(source, target, dry_run=False)
+                    change()
+                    before = self.target_snapshot(target)
+                    sibling_names = {path.name for path in target.parent.iterdir()}
+                    result, output = self.run_main(source, target, "--check")
+                    self.assertEqual(result, 1)
+                    self.assertIn("Stale", output)
+                    self.assertEqual(self.target_snapshot(target), before)
+                    self.assertEqual(
+                        {path.name for path in target.parent.iterdir()}, sibling_names
+                    )
+
+    def test_check_detects_target_specific_root_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            first = root / "runtime-a"
+            second = root / "runtime-b"
+            MODULE.sync_support_tree(source, first, dry_run=False)
+            shutil.copytree(first, second)
+            before = self.target_snapshot(second)
+
+            result, output = self.run_main(source, second, "--check")
+
+            self.assertEqual(result, 1)
+            self.assertIn("Stale", output)
+            self.assertEqual(self.target_snapshot(second), before)
+
+    def test_check_dry_run_and_mutual_exclusion(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            root = Path(temp_dir_name)
+            source = self.make_source(root)
+            target = root / "missing-parent" / "agents-pipeline"
+
+            result, output = self.run_main(source, target, "--dry-run")
+            self.assertEqual(result, 0)
+            self.assertIn("Dry run", output)
+            self.assertFalse(target.parent.exists())
+            with mock.patch.object(
+                sys, "argv", [str(SCRIPT_PATH), "--source-root", str(source),
+                              "--target-root", str(target), "--check", "--dry-run"]
+            ):
+                with self.assertRaises(SystemExit) as raised:
+                    MODULE.main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertFalse(target.parent.exists())
 
     def test_sync_rejects_shell_active_target_before_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:

@@ -266,6 +266,36 @@ def populate_staging(source_root: Path, staging_root: Path, target_root: Path) -
     )
 
 
+def trees_match(expected: Path, actual: Path) -> bool:
+    if is_linklike(actual) or not actual.is_dir():
+        return False
+    expected_entries = {entry.name: entry for entry in expected.iterdir()}
+    actual_entries = {entry.name: entry for entry in actual.iterdir()}
+    if expected_entries.keys() != actual_entries.keys():
+        return False
+    for name, expected_entry in expected_entries.items():
+        actual_entry = actual_entries[name]
+        if is_linklike(actual_entry):
+            return False
+        if expected_entry.is_dir():
+            if not trees_match(expected_entry, actual_entry):
+                return False
+        elif not actual_entry.is_file() or expected_entry.read_bytes() != actual_entry.read_bytes():
+            return False
+    return True
+
+
+def check_support_tree(source_root: Path, target_root: Path) -> bool:
+    target_root = Path(validate_generated_shell_path(target_root, "Support target"))
+    validate_source(source_root)
+    validate_nonoverlapping_roots(source_root, target_root)
+    validate_existing_target(target_root)
+    with tempfile.TemporaryDirectory(prefix="runtime-support-check-") as temporary:
+        candidate = Path(temporary)
+        populate_staging(source_root, candidate, target_root)
+        return trees_match(candidate, target_root)
+
+
 def sync_support_tree(source_root: Path, target_root: Path, *, dry_run: bool) -> None:
     target_root = Path(
         validate_generated_shell_path(target_root, "Support target")
@@ -347,12 +377,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-root", required=True)
     parser.add_argument("--target-root", required=True)
-    parser.add_argument("--dry-run", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--check", action="store_true")
     args = parser.parse_args()
 
     try:
         source_root = Path(args.source_root).expanduser().resolve()
         target_root = resolve_target(args.target_root)
+        if args.check:
+            if check_support_tree(source_root, target_root):
+                print(f"Current: support tree already synchronized at {target_root}")
+                return 0
+            print(f"Stale: support tree would require synchronization at {target_root}")
+            return 1
         sync_support_tree(source_root, target_root, dry_run=args.dry_run)
     except (OSError, RuntimeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
