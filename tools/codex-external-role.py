@@ -462,7 +462,8 @@ def _clean_worktree_head(workspace: Path) -> str:
 
 
 def _worktree_common_dir(workspace: Path) -> str:
-    if Path(os.fsdecode(_git_output(workspace, "rev-parse", "--show-toplevel")).strip()).resolve(strict=True) != workspace:
+    top_level = Path(os.fsdecode(_git_output(workspace, "rev-parse", "--show-toplevel")).strip())
+    if not os.path.samefile(top_level, workspace):
         raise EvidenceError("Executor workspace must be the Git worktree root")
     value = Path(os.fsdecode(_git_output(workspace, "rev-parse", "--git-common-dir")).strip())
     canonical = (workspace / value).resolve(strict=True) if not value.is_absolute() else value.resolve(strict=True)
@@ -475,22 +476,34 @@ def _account_home() -> Path:
         from ctypes import wintypes
 
         try:
-            current_token = ctypes.windll.kernel32.GetCurrentProcessToken
+            current_process = ctypes.windll.kernel32.GetCurrentProcess
+            open_process_token = ctypes.windll.advapi32.OpenProcessToken
             profile_dir = ctypes.windll.userenv.GetUserProfileDirectoryW
+            close_handle = ctypes.windll.kernel32.CloseHandle
         except (AttributeError, OSError) as exc:
             raise EvidenceError("OS account profile directory is unavailable") from exc
-        current_token.argtypes = ()
-        current_token.restype = wintypes.HANDLE
+        current_process.argtypes = ()
+        current_process.restype = wintypes.HANDLE
+        open_process_token.argtypes = (wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE))
+        open_process_token.restype = wintypes.BOOL
         profile_dir.argtypes = (wintypes.HANDLE, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
         profile_dir.restype = wintypes.BOOL
-        size = wintypes.DWORD(0)
-        profile_dir(current_token(), None, ctypes.byref(size))
-        if not 1 <= size.value <= 32768:
+        close_handle.argtypes = (wintypes.HANDLE,)
+        close_handle.restype = wintypes.BOOL
+        token = wintypes.HANDLE()
+        if not open_process_token(current_process(), 0x0008, ctypes.byref(token)):
             raise EvidenceError("OS account profile directory is unavailable")
-        buffer = ctypes.create_unicode_buffer(size.value)
-        if not profile_dir(current_token(), buffer, ctypes.byref(size)):
-            raise EvidenceError("OS account profile directory is unavailable")
-        home = buffer.value
+        try:
+            size = wintypes.DWORD(0)
+            profile_dir(token, None, ctypes.byref(size))
+            if not 1 <= size.value <= 32768:
+                raise EvidenceError("OS account profile directory is unavailable")
+            buffer = ctypes.create_unicode_buffer(size.value)
+            if not profile_dir(token, buffer, ctypes.byref(size)):
+                raise EvidenceError("OS account profile directory is unavailable")
+            home = buffer.value
+        finally:
+            close_handle(token)
     else:
         import pwd
 
