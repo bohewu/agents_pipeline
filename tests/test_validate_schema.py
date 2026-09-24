@@ -1465,5 +1465,72 @@ class ValidateSchemaFormatTest(unittest.TestCase):
             self.assertEqual(invalid.returncode, 1)
 
 
+    def test_external_dispatch_evidence_schema_rejects_conflicting_effort_and_mixed_provenance(self) -> None:
+        schemas = REPO_ROOT / "protocols" / "schemas"
+        checks = {name: True for name in (
+            "approval_never", "completed", "effort", "independent_root", "model",
+            "provider", "role_instructions", "sandbox_policy", "single_turn",
+            "thread_id", "workspace",
+        )}
+        external = {
+            "schema_version": 1,
+            "surface": "independent_codex_exec_root",
+            "status": "verified",
+            "thread_id": "123e4567-e89b-42d3-a456-426614174222",
+            "role": "repo-scout",
+            "requested_model": "gpt-6-luna",
+            "observed_model": "gpt-6-luna",
+            "requested_effort": "high",
+            "observed_effort": "high",
+            "native_managed_child": False,
+            "checks": checks,
+        }
+        native = {
+            "schema_version": "1.4", "runtime": "codex", "agent_id": None,
+            "trace_found": False, "agent_role": None, "model": None,
+            "model_matches": None, "effective_effort": None,
+            "role_matches": None, "effort_matches": None,
+            "parent_trace_found": False, "parent_effective_effort": None,
+            "inheritance_consistent": None, "selector_evidence": None,
+        }
+
+        def validate(schema: str, payload: dict) -> int:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "payload.json"
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                result = subprocess.run([
+                    sys.executable, VALIDATOR.as_posix(),
+                    "--schema", (schemas / schema).as_posix(),
+                    "--input", path.as_posix(), "--require-jsonschema",
+                ], capture_output=True, text=True, check=False)
+                self.assertIn(result.returncode, (0, 1), result.stderr)
+                return result.returncode
+
+        self.assertEqual(validate("external-dispatch-evidence.schema.json", external), 0)
+        self.assertEqual(validate("external-dispatch-evidence.schema.json", {
+            **external, "observed_effort": "medium",
+        }), 1)
+
+        agent = {
+            "run_id": "external-run", "agent_id": "external-leaf",
+            "agent": "repo-scout", "status": "starting",
+            "created_at": "2026-09-24T01:00:00Z",
+            "updated_at": "2026-09-24T01:00:00Z",
+        }
+        self.assertEqual(validate("agent-status.schema.json", agent), 0)
+        self.assertEqual(validate("agent-status.schema.json", {
+            **agent, "trace_evidence": native,
+            "external_dispatch_evidence": external,
+        }), 1)
+
+        observation = json.loads((REPO_ROOT / "protocols" / "examples" /
+                                  "reasoning-observation.valid.json").read_text(encoding="utf-8"))
+        self.assertEqual(validate("reasoning-observation.schema.json", observation), 0)
+        self.assertEqual(validate("reasoning-observation.schema.json", {
+            **observation, "trace_evidence": native,
+            "external_dispatch_evidence": external,
+        }), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

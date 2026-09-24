@@ -186,6 +186,9 @@
     "trace_evidence": {
       "$ref": "codex-child-trace.schema.json"
     },
+    "external_dispatch_evidence": {
+      "$ref": "external-dispatch-evidence.schema.json"
+    },
     "failure_evidence": {
       "type": "object",
       "required": [
@@ -266,6 +269,7 @@
     ]
   },
   "allOf": [
+    { "not": { "required": ["trace_evidence", "external_dispatch_evidence"] } },
     {
       "if": {
         "properties": {
@@ -458,7 +462,11 @@
         }
       },
       "then": {
-        "required": ["resolved_configuration", "trace_evidence"],
+        "required": ["resolved_configuration"],
+        "oneOf": [
+          { "required": ["trace_evidence"] },
+          { "required": ["external_dispatch_evidence"] }
+        ],
         "properties": {
           "trace_evidence": {
             "required": ["trace_found", "role_matches", "model_matches", "effort_matches"],

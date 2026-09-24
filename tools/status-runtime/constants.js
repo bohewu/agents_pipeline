@@ -170,6 +170,7 @@ const AGENT_KEY_ORDER = [
   "recovery_claim_id",
   "recovery_runtime_support",
   "trace_evidence",
+  "external_dispatch_evidence",
   "failure_evidence",
   "result_summary",
   "evidence_refs",
@@ -224,7 +225,8 @@ const REASONING_OBSERVATION_KEY_ORDER = [
   "outcome",
   "wall_time_ms",
   "reasoning",
-  "trace_evidence"
+  "trace_evidence",
+  "external_dispatch_evidence"
 ];
 
 const REASONING_OBSERVATION_DECISION_KEY_ORDER = REASONING_DECISION_KEY_ORDER.filter(

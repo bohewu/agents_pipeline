@@ -1911,6 +1911,78 @@ test("configured adaptive dispatch persists its exact low-effort decision and ma
   }), /incompatible with the saved run configuration/);
 });
 
+test("configured external root dispatch persists enforced reasoning without claiming a native child trace", async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-external-root-"));
+  t.after(() => fs.rm(tempRoot, { recursive: true, force: true }));
+  const runtime = new StatusRuntime();
+  const runId = "external-root";
+  const configuration = currentRunConfiguration();
+  const resolved = configuration.resolved_configurations.executor;
+  const requested = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "execute",
+    selector_available: true, resolved_configuration: resolved
+  });
+  const enforced = resolveReasoning({
+    role: "executor", mode: "adaptive", task_intent: "execute",
+    selector_available: true, observed_effective_effort: requested.dispatch_effort,
+    resolved_configuration: resolved
+  });
+  const external = {
+    schema_version: 1, surface: "independent_codex_exec_root", status: "verified",
+    thread_id: "123e4567-e89b-42d3-a456-426614174222", role: "executor",
+    requested_model: resolved.role_binding.model,
+    observed_model: resolved.role_binding.model,
+    requested_effort: requested.dispatch_effort,
+    observed_effort: requested.dispatch_effort,
+    native_managed_child: false,
+    checks: Object.fromEntries([
+      "approval_never", "completed", "effort", "independent_root", "model",
+      "provider", "role_instructions", "sandbox_policy", "single_turn",
+      "thread_id", "workspace"
+    ].map((key) => [key, true]))
+  };
+  await runtime.applyEvent("run.started", {
+    output_root: tempRoot, run_id: runId, orchestrator: "orchestrator-flow",
+    user_prompt: "Record an independent external dispatch", configuration,
+    flags: { reasoning_mode: "adaptive", reasoning_policy_version: "3", reasoning_ceiling: "max" }
+  });
+  await runtime.applyEvent("agent.started", {
+    output_root: tempRoot, run_id: runId, agent_id: "external-executor",
+    agent: "executor", reasoning: requested, resolved_configuration: resolved
+  });
+  await assert.rejects(runtime.applyEvent("agent.finished", {
+    output_root: tempRoot, run_id: runId, agent_id: "external-executor",
+    status: "done", reasoning: enforced,
+    external_dispatch_evidence: { ...external, observed_model: "gpt-6-sol" }
+  }), /external dispatch model must match request|External dispatch evidence must match/);
+  const result = await runtime.applyEvent("agent.finished", {
+    output_root: tempRoot, run_id: runId, agent_id: "external-executor",
+    status: "done", reasoning: enforced, external_dispatch_evidence: external
+  });
+  const agent = await readJson(path.join(tempRoot, runId, "status", "agents", "external-executor.json"));
+  const observation = await readJson(path.join(tempRoot, runId, "observations", "reasoning", "external-executor.json"));
+  assert.equal(result.agent_count, 1);
+  assert.equal(agent.reasoning.enforcement_status, "enforced");
+  assert.equal(agent.trace_evidence, undefined);
+  assert.equal(agent.external_dispatch_evidence.thread_id, external.thread_id);
+  assert.equal(observation.external_dispatch_evidence.thread_id, external.thread_id);
+  assert.throws(() => canonicalizeReasoningObservation({
+    ...observation,
+    external_dispatch_evidence: { ...external, role: "reviewer" }
+  }), /external dispatch observation must match reasoning role, model, and effort/);
+  assert.throws(() => canonicalizeReasoningObservation({
+    ...observation,
+    external_dispatch_evidence: {
+      ...external, requested_model: "gpt-6-sol", observed_model: "gpt-6-sol"
+    }
+  }), /external dispatch observation must match reasoning role, model, and effort/);
+  await assert.rejects(runtime.applyEvent("agent.finished", {
+    output_root: tempRoot, run_id: runId, agent_id: "external-executor",
+    status: "done", reasoning: enforced, external_dispatch_evidence: external,
+    trace_evidence: matchingLowTrace("123e4567-e89b-42d3-a456-426614174222")
+  }), /cannot mix native and external trace evidence/);
+});
+
 test("configured adaptive dispatch rejects a low-to-medium trace mismatch without rewriting the agent", async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "status-runtime-configured-mismatch-"));
   t.after(async () => {

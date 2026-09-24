@@ -175,3 +175,23 @@ should cover those two lifecycle points without creating a second
 orchestration engine. Other native Flow roles and flags remain outside this
 entry. Do not label this a complete external Flow workflow or claim native
 `$run-flow` parity.
+
+A later read-only lifecycle exercise at `bfd9a597774eafffb950cf0b03256c8a24c59e95`
+started a new external Flow status run and emitted `agent.started` before a
+real `repo-scout` dispatch. After observing the `codex exec` child process, the
+coordinator process was terminated with `SIGKILL`; the detached dispatcher
+completed and returned a verified `gpt-6-luna / high` result. A separate
+resumer checked the saved configuration, source HEAD, dispatcher result, and
+checkpoint; `run.resumed` marked the in-flight agent stale. It did not launch
+a second leaf, then emitted `agent.finished` and `run.finished` from the
+verified result. The final run contains one done agent and a content-free
+reasoning observation. Run evidence is kept outside the repository.
+
+That exercise exposed and closed a status compatibility gap: version 3
+`enforced` reasoning previously required a native child trace, while external
+dispatch verifies an independent Codex root. The status writer now accepts a
+separate bounded `external_dispatch_evidence` record matching the saved role,
+model, and effort. It rejects mixed native/external evidence. The exercise
+proves coordinator process interruption and read-only leaf reconciliation;
+it does not prove loss of the MCP transport, writable executor attempt replay,
+or full native Flow parity.

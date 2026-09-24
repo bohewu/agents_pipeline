@@ -175,6 +175,14 @@ AgentStatus reasoning is restricted to the managed role catalog and requires
 `agent` to equal the embedded reasoning role. The resolver's default adaptive
 policy remains available for unlisted in-memory decisions and content-free
 observations, but those roles must be registered before AgentStatus persistence.
+For an external leaf, emit `agent.started` before dispatch with the saved role
+binding and requested ReasoningDecision. After `status=verified`, copy the
+dispatch result's bounded identity, requested/observed model and effort, and
+verification checks into `external_dispatch_evidence` on `agent.finished`.
+The writer requires this evidence to match the role binding and enforced
+effort. It is distinct from `trace_evidence`, which describes a native Codex
+child; neither field is proof of task quality. Keep the complete dispatcher
+result outside the status records for independent inspection.
 Policy-v2 reasoning accepts only the three managed dispatch contexts. Legacy
 schema-v1 shadow/adaptive reasoning retains its non-null `effective_class`
 invariant; null remains specific to legacy inherit mode.

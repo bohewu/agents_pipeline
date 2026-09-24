@@ -37,7 +37,7 @@ const {
   minimumReasoningClassForSignals
 } = require("../reasoning-vocabulary");
 const REASONING_POLICY = require("../../protocols/reasoning-policy.json");
-const { projectedNormalEffort, resolveProjection } = require("../reasoning-policy");
+const { loadProjectionRegistry, projectedNormalEffort, resolveProjection } = require("../reasoning-policy");
 const {
   assert,
   ensureEnum,
@@ -72,6 +72,11 @@ const TRACE_KEY_ORDER = [
   "parent_effective_effort",
   "inheritance_consistent",
   "selector_evidence"
+];
+const EXTERNAL_DISPATCH_CHECKS = [
+  "approval_never", "completed", "effort", "independent_root", "model",
+  "provider", "role_instructions", "sandbox_policy", "single_turn",
+  "thread_id", "workspace"
 ];
 
 function canonicalizeCompletedStages(stages) {
@@ -558,6 +563,32 @@ function canonicalizeTraceEvidence(trace) {
     assert(result.parent_trace_found === false, "trace_evidence.parent_trace_found must be false when trace is not found");
   }
   return orderedObject(result, TRACE_KEY_ORDER);
+}
+
+function canonicalizeExternalDispatchEvidence(evidence) {
+  const keys = ["schema_version", "surface", "status", "thread_id", "role",
+    "requested_model", "observed_model", "requested_effort", "observed_effort",
+    "native_managed_child", "checks"];
+  assertExactKeys(evidence, keys, "external_dispatch_evidence");
+  assert(evidence.schema_version === 1, "external_dispatch_evidence.schema_version must be 1");
+  assert(evidence.surface === "independent_codex_exec_root", "external dispatch must be an independent Codex exec root");
+  assert(evidence.status === "verified", "external dispatch evidence must be verified");
+  assert(typeof evidence.thread_id === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(evidence.thread_id), "external dispatch thread_id must be a UUID");
+  assert(typeof evidence.role === "string" && SAFE_REASONING_IDENTIFIER.test(evidence.role), "external dispatch role is invalid");
+  for (const field of ["requested_model", "observed_model"]) {
+    assert(typeof evidence[field] === "string" && SAFE_MODEL_IDENTIFIER.test(evidence[field]), `external dispatch ${field} is invalid`);
+  }
+  for (const field of ["requested_effort", "observed_effort"]) {
+    assert(V3_EFFORTS.includes(evidence[field]), `external dispatch ${field} is invalid`);
+  }
+  assert(evidence.native_managed_child === false, "external dispatch must not claim native managed child routing");
+  assertExactKeys(evidence.checks, EXTERNAL_DISPATCH_CHECKS, "external_dispatch_evidence.checks");
+  for (const field of EXTERNAL_DISPATCH_CHECKS) {
+    assert(evidence.checks[field] === true, `external dispatch ${field} must be verified`);
+  }
+  assert(evidence.requested_model === evidence.observed_model, "external dispatch model must match request");
+  assert(evidence.requested_effort === evidence.observed_effort, "external dispatch effort must match request");
+  return orderedObject({ ...evidence, checks: orderedObject(evidence.checks, EXTERNAL_DISPATCH_CHECKS) }, keys);
 }
 
 function canonicalizeReasoningSignals(signals, label = "reasoning_signals", allowEmpty = false) {
@@ -1260,20 +1291,46 @@ function canonicalizeReasoningObservation(observation) {
   if (observation.trace_evidence !== undefined) {
     result.trace_evidence = canonicalizeTraceEvidence(observation.trace_evidence);
   }
+  if (observation.external_dispatch_evidence !== undefined) {
+    result.external_dispatch_evidence = canonicalizeExternalDispatchEvidence(observation.external_dispatch_evidence);
+  }
+  assert(!(result.trace_evidence && result.external_dispatch_evidence), "reasoning observation cannot mix native and external trace evidence");
   if (
     result.schema_version === "3.0"
       && result.reasoning.mode === "adaptive"
       && result.reasoning.enforcement_status === "enforced"
   ) {
-    assert(result.trace_evidence !== undefined, "enforced version 3 observation requires matching trace evidence");
-    assert(
+    assert(result.trace_evidence !== undefined || result.external_dispatch_evidence !== undefined,
+      "enforced version 3 observation requires matching trace evidence");
+    assert(result.external_dispatch_evidence !== undefined || (
       result.trace_evidence.trace_found
         && result.trace_evidence.role_matches === true
         && result.trace_evidence.model_matches === true
         && result.trace_evidence.effort_matches === true
-        && result.trace_evidence.effective_effort === result.reasoning.dispatch_effort,
+        && result.trace_evidence.effective_effort === result.reasoning.dispatch_effort),
       "enforced version 3 observation requires matching adaptive trace evidence"
     );
+    if (result.external_dispatch_evidence) {
+      const external = result.external_dispatch_evidence;
+      const reasoning = result.reasoning;
+      const projection = loadProjectionRegistry().projections.find((entry) =>
+        entry.id === reasoning.reasoning_projection?.id
+          && entry.version === reasoning.reasoning_projection?.version
+          && entry.digest === reasoning.reasoning_projection?.digest
+          && entry.policy_version === reasoning.reasoning_projection?.policy_version);
+      const modelSet = projection?.model_sets.find((entry) =>
+        entry.id === reasoning.model_set?.id
+          && entry.version === reasoning.model_set?.version
+          && entry.mapping_digest === reasoning.model_set?.mapping_digest);
+      assert(modelSet, "external dispatch observation requires a registered model set");
+      const override = modelSet.role_overrides[reasoning.role];
+      const model = override?.model || modelSet.tiers[reasoning.model_tier];
+      assert(external.role === reasoning.role
+        && external.observed_model === model
+        && (!override || override.model_tier === reasoning.model_tier)
+        && external.observed_effort === reasoning.dispatch_effort,
+      "external dispatch observation must match reasoning role, model, and effort");
+    }
   }
 
   return orderedObject(result, REASONING_OBSERVATION_KEY_ORDER);
@@ -1504,17 +1561,24 @@ function validateAgentConfiguration(agentStatus, runConfiguration) {
       && agentStatus.reasoning.enforcement_status === "enforced"
   ) {
     const trace = agentStatus.trace_evidence;
-    assert(trace !== undefined, "Enforced version 3 reasoning requires matching trace evidence");
-    assert(
+    const external = agentStatus.external_dispatch_evidence;
+    assert(trace !== undefined || external !== undefined, "Enforced version 3 reasoning requires matching trace evidence");
+    assert(external !== undefined || (
       trace.trace_found
         && trace.agent_role === agentStatus.agent
         && trace.model === agentStatus.resolved_configuration.role_binding.model
         && trace.effective_effort === agentStatus.reasoning.dispatch_effort
         && trace.role_matches === true
         && trace.model_matches === true
-        && trace.effort_matches === true,
+        && trace.effort_matches === true),
       "Enforced version 3 reasoning requires matching adaptive trace evidence"
     );
+    if (external) {
+      assert(external.role === agentStatus.agent
+        && external.observed_model === agentStatus.resolved_configuration.role_binding.model
+        && external.observed_effort === agentStatus.reasoning.dispatch_effort,
+      "External dispatch evidence must match role, model, and effort");
+    }
   }
   if (agentStatus.recovery_stage?.status === "verified") {
     const trace = agentStatus.trace_evidence;
@@ -1862,6 +1926,10 @@ function canonicalizeAgentStatus(agentStatus, runConfiguration = undefined) {
   if (agentStatus.trace_evidence !== undefined) {
     result.trace_evidence = canonicalizeTraceEvidence(agentStatus.trace_evidence);
   }
+  if (agentStatus.external_dispatch_evidence !== undefined) {
+    result.external_dispatch_evidence = canonicalizeExternalDispatchEvidence(agentStatus.external_dispatch_evidence);
+  }
+  assert(!(result.trace_evidence && result.external_dispatch_evidence), "AgentStatus cannot mix native and external trace evidence");
   if (agentStatus.failure_evidence !== undefined) {
     result.failure_evidence = canonicalizeFailureEvidence(agentStatus.failure_evidence);
     assert(
