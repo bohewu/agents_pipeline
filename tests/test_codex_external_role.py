@@ -263,6 +263,18 @@ class ExternalRoleTests(unittest.TestCase):
             with self.assertRaisesRegex(external.EvidenceError, "Repo-scout task"):
                 external._read_task(task_file)
 
+            executor_task = {
+                "task_id": "metadata-path", "task_intent": "execute",
+                "reasoning_signals": ["local_scope"], "task": "Update one file",
+                "allowed_paths": [], "acceptance_criteria": ["File updated"], "verification": [],
+            }
+            for target in (".GIT/config", ".CODEX/config.toml"):
+                with self.subTest(target=target):
+                    executor_task["allowed_paths"] = [target]
+                    task_file.write_text(json.dumps(executor_task), encoding="utf-8")
+                    with self.assertRaisesRegex(external.EvidenceError, "metadata"):
+                        external._read_task(task_file, "executor")
+
     def test_planner_task_and_output_require_existing_contract_shape(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             task_file = Path(temporary) / "task.json"
@@ -736,6 +748,34 @@ class ExternalRoleTests(unittest.TestCase):
                 self.assertTrue(conflict.exception.outcome_uncertain)
                 self.assertEqual(len(launches), 1)
 
+    def test_started_receipt_write_failure_replays_as_started(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, task_file, resolution, _raw = executor_fixture(root)
+            original_record = external.ExecutorAttempt.record
+
+            def fail_started(attempt: object, status: str, execution_started: str, **details: object) -> None:
+                if status == "started":
+                    raise OSError("receipt write failed")
+                original_record(attempt, status, execution_started, **details)
+
+            def launched(_argv: object, _prompt: str, *_args: object, on_started: object) -> None:
+                on_started(45678)
+                self.fail("The started callback unexpectedly returned")
+
+            with mock.patch.object(external, "_attempt_state_root", return_value=root / "state" / "dispatch"), \
+                 mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"), \
+                 mock.patch.object(external.ExecutorAttempt, "record", fail_started), \
+                 mock.patch.object(external, "_limited_process", side_effect=launched):
+                with self.assertRaises(external.DispatchFailure) as failed:
+                    external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                self.assertEqual(failed.exception.execution_started, "yes")
+                replay = external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                self.assertEqual(replay["status"], "uncertain")
+                self.assertEqual(replay["execution_started"], "yes")
+                self.assertEqual(replay["process_id"], 45678)
+
     def test_attempt_receipt_rejects_drift_corruption_and_worktree_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -920,6 +960,36 @@ class ExternalRoleTests(unittest.TestCase):
             self.assertEqual(started, [True])
             time.sleep(2)
             self.assertFalse(marker.exists())
+
+    def test_start_callback_failure_terminates_descendant_process(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            started = root / "parent-started"
+            survived = root / "descendant-survived"
+            child = (
+                "import pathlib,time; time.sleep(1.5); "
+                f"pathlib.Path({str(survived)!r}).write_text('alive')"
+            )
+            parent = (
+                "import pathlib,subprocess,sys,time; "
+                "subprocess.Popen([sys.executable,'-c',sys.argv[1]]); "
+                "pathlib.Path(sys.argv[2]).write_text('started'); time.sleep(10)"
+            )
+
+            def fail_after_start(_pid: int) -> None:
+                deadline = time.monotonic() + 3
+                while not started.exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(started.exists())
+                raise external.EvidenceError("receipt write failed")
+
+            with self.assertRaisesRegex(external.EvidenceError, "receipt write failed"):
+                external._limited_process(
+                    [sys.executable, "-c", parent, child, str(started)], "", root, 10,
+                    os.environ.copy(), on_started=fail_after_start,
+                )
+            time.sleep(2)
+            self.assertFalse(survived.exists())
 
 
 if __name__ == "__main__":

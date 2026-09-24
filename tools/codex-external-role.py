@@ -401,7 +401,7 @@ def _read_task(file: Path, role: str = "repo-scout", raw: bytes | None = None) -
             isinstance(path, str) and 1 <= len(path) <= 240 for path in task["allowed_paths"]
         ):
             raise EvidenceError("Executor allowed_paths must be 1 to 12 bounded paths")
-        if any(path.split("/")[0] in {".git", ".codex"} for path in task["allowed_paths"]):
+        if any(path.split("/", 1)[0].casefold() in {".git", ".codex"} for path in task["allowed_paths"]):
             raise EvidenceError("Executor cannot write Git or Codex routing metadata")
         if not isinstance(task["acceptance_criteria"], list) or not 1 <= len(task["acceptance_criteria"]) <= 8 or not all(
             isinstance(criterion, str) and 1 <= len(criterion) <= 500 for criterion in task["acceptance_criteria"]
@@ -715,8 +715,6 @@ def _limited_process(
         start_new_session=os.name != "nt",
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
-    if on_started is not None:
-        on_started(process.pid)
     buffers = [bytearray(), bytearray()]
     overflow = threading.Event()
     cleanup_failed = threading.Event()
@@ -748,6 +746,24 @@ def _limited_process(
                     process.kill()
                 except ProcessLookupError:
                     pass
+
+    if on_started is not None:
+        try:
+            on_started(process.pid)
+        except BaseException as exc:
+            stop_tree()
+            try:
+                process.communicate(timeout=5)
+            except (OSError, subprocess.TimeoutExpired):
+                cleanup_failed.set()
+                try:
+                    process.kill()
+                    process.wait(timeout=5)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+            if cleanup_failed.is_set():
+                raise EvidenceError("Codex startup failed; process-tree cleanup unverified") from exc
+            raise
 
     def drain(stream: Any, buffer: bytearray, limit: int) -> None:
         while chunk := stream.read(4096):
@@ -1020,10 +1036,10 @@ def _dispatch_role(
         state["phase"] = "execution"
 
         def mark_started(process_id: int | None = None) -> None:
+            state["execution_started"] = "yes"
             if attempt is not None:
                 state["process_id"] = process_id or "unknown"
                 attempt.record("started", "yes", process_id=process_id or "unknown")
-            state["execution_started"] = "yes"
 
         if attempt is not None:
             if _task_bytes(task_file) != raw_task:
