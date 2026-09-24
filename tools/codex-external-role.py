@@ -36,6 +36,10 @@ REPO_SCOUT_FIELDS = (
     "entry_points", "key_files", "relevant_patterns",
     "constraints_found", "risk_notes", "open_questions",
 )
+PROBLEM_SPEC_FIELDS = (
+    "protocol_version", "goal", "scope", "constraints", "acceptance_criteria",
+    "assumptions",
+)
 REPO_SCOUT_SCHEMA = {
     "type": "object",
     "properties": {field: {"type": "array", "items": {"type": "string"}} for field in REPO_SCOUT_FIELDS},
@@ -242,6 +246,10 @@ def resolve_role(
                 and decision["effective_class"] == "routine")
             or (role == "debugger" and task_intent == "diagnose" and dispatch_context is None
                 and decision["effective_class"] == "deep")
+            or (role in {"specifier", "flow-splitter"} and task_intent == "design"
+                and dispatch_context is None and decision["effective_class"] == "deliberative")
+            or (role == "doc-writer" and task_intent == "design" and dispatch_context is None
+                and decision["effective_class"] in {"deliberative", "deep"})
         ),
         "workspace": str(workspace),
         "profile": status["profile"],
@@ -393,6 +401,33 @@ def _task_bytes(file: Path) -> bytes:
     return raw
 
 
+def _valid_problem_spec(value: Any) -> bool:
+    return (
+        isinstance(value, dict) and set(value) == set(PROBLEM_SPEC_FIELDS)
+        and value["protocol_version"] == "1.1"
+        and isinstance(value["goal"], str) and bool(value["goal"].strip())
+        and isinstance(value["scope"], dict) and set(value["scope"]) == {"in", "out"}
+        and all(isinstance(value["scope"][field], list)
+                and all(isinstance(item, str) for item in value["scope"][field])
+                for field in ("in", "out"))
+        and all(isinstance(value[field], list)
+                and all(isinstance(item, str) for item in value[field])
+                for field in ("constraints", "assumptions"))
+        and isinstance(value["acceptance_criteria"], list)
+        and bool(value["acceptance_criteria"])
+        and all(isinstance(item, dict)
+                and {"id", "statement", "source"} <= set(item)
+                and set(item) <= {"id", "statement", "source", "source_ref"}
+                and isinstance(item["id"], str) and re.fullmatch(r"ac-[a-z0-9._-]+", item["id"])
+                and isinstance(item["statement"], str) and bool(item["statement"].strip())
+                and isinstance(item["source"], str)
+                and item["source"] in {"explicit_user", "existing_contract", "necessary_compatibility"}
+                and (item["source"] == "explicit_user"
+                     or isinstance(item.get("source_ref"), str) and bool(item["source_ref"].strip()))
+                for item in value["acceptance_criteria"])
+    )
+
+
 def _read_task(file: Path, role: str = "repo-scout", raw: bytes | None = None) -> dict[str, Any]:
     try:
         task = json.loads((raw if raw is not None else _task_bytes(file)).decode("utf-8"))
@@ -415,6 +450,33 @@ def _read_task(file: Path, role: str = "repo-scout", raw: bytes | None = None) -
             raise EvidenceError("Planner requires a ProblemSpec object")
         if not isinstance(spec["goal"], str) or not spec["goal"].strip():
             raise EvidenceError("ProblemSpec goal is required")
+    elif role == "specifier":
+        if set(task) != {"task_intent", "reasoning_signals", "request"} or task["task_intent"] != "design":
+            raise EvidenceError("Specifier task requires a source request, signals, and design intent")
+        if not isinstance(task["request"], str) or not 1 <= len(task["request"]) <= 4000:
+            raise EvidenceError("Specifier request must contain 1 to 4000 characters")
+    elif role == "flow-splitter":
+        if set(task) != {"task_intent", "reasoning_signals", "problem_spec", "flow_constraints"} or task["task_intent"] != "design":
+            raise EvidenceError("Flow-splitter task requires ProblemSpec, constraints, signals, and design intent")
+        if not _valid_problem_spec(task["problem_spec"]):
+            raise EvidenceError("Flow-splitter requires a source-aware ProblemSpec 1.1 object")
+        if not isinstance(task["flow_constraints"], list) or len(task["flow_constraints"]) > 8 or not all(
+            isinstance(item, str) and 1 <= len(item) <= 500 for item in task["flow_constraints"]
+        ):
+            raise EvidenceError("Flow constraints must be at most eight bounded strings")
+    elif role == "doc-writer":
+        if set(task) != {"task_id", "task_intent", "reasoning_signals", "task", "primary_output", "acceptance_criteria"} or task["task_intent"] != "design":
+            raise EvidenceError("Doc-writer task requires design intent, task, output, signals, and criteria")
+        if not isinstance(task["task_id"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", task["task_id"]):
+            raise EvidenceError("Doc-writer requires a bounded task_id")
+        if not isinstance(task["primary_output"], str) or task["primary_output"] not in {"design", "plan", "spec", "checklist", "analysis"}:
+            raise EvidenceError("Doc-writer requires a documentation primary_output")
+        if not isinstance(task["task"], str) or not 1 <= len(task["task"]) <= 4000:
+            raise EvidenceError("Doc-writer task text must contain 1 to 4000 characters")
+        if not isinstance(task["acceptance_criteria"], list) or not 1 <= len(task["acceptance_criteria"]) <= 8 or not all(
+            isinstance(criterion, str) and 1 <= len(criterion) <= 500 for criterion in task["acceptance_criteria"]
+        ):
+            raise EvidenceError("Doc-writer acceptance_criteria must be 1 to 8 bounded strings")
     elif role == "reviewer":
         if set(task) != {"task_intent", "review_kind", "reasoning_signals", "targets", "criteria"}:
             raise EvidenceError("Reviewer task requires intent, kind, signals, targets, and criteria")
@@ -897,6 +959,16 @@ def _parse_events(raw: bytes, role: str = "repo-scout") -> tuple[str, dict[str, 
                 result = item.get("text")
     if thread_id is None or completed != 1 or not isinstance(result, str):
         raise EvidenceError("Codex did not return one completed turn and a final message")
+    artifact = None
+    if role == "doc-writer" and "=== ARTIFACT:" in result:
+        match = re.search(
+            r"(?m)^=== ARTIFACT: ([A-Za-z0-9][A-Za-z0-9._-]{0,127}\.md) ===\r?\n([\s\S]+?)\r?\n=== END ARTIFACT ===(?:\r?\n|$)",
+            result,
+        )
+        if match is None:
+            raise EvidenceError("Doc-writer artifact block is malformed")
+        artifact = {"filename": match.group(1), "content": match.group(2)}
+        result = (result[:match.start()] + result[match.end():]).strip()
     try:
         output = json.loads(result)
     except json.JSONDecodeError as exc:
@@ -943,7 +1015,7 @@ def _parse_events(raw: bytes, role: str = "repo-scout") -> tuple[str, dict[str, 
                     for field in DEBUGGER_FIELDS
                     if field not in {"status", "evidence", "established_causes", "hypotheses", "relevant_locations"})
         )
-    elif role == "executor":
+    elif role in {"executor", "doc-writer"}:
         valid = (
             isinstance(output, dict) and set(output) == set(EXECUTOR_FIELDS)
             and isinstance(output["task_id"], str)
@@ -955,9 +1027,14 @@ def _parse_events(raw: bytes, role: str = "repo-scout") -> tuple[str, dict[str, 
             and isinstance(output["last_failure_signature"], str)
             and isinstance(output["notes"], str)
         )
-    else:
+        if valid and role == "doc-writer":
+            valid = output["status"] != "done" or (
+                artifact is not None and artifact["filename"].startswith(output["task_id"] + "-")
+                and bool(artifact["content"].strip())
+            )
+    elif role == "planner":
         valid = (
-            role == "planner" and isinstance(output, dict)
+            isinstance(output, dict)
             and {"milestones", "dependencies", "deliverables"} <= set(output)
             and set(output) <= {"protocol_version", "milestones", "dependencies", "deliverables"}
             and all(isinstance(output[field], list) and all(isinstance(value, str) for value in output[field])
@@ -971,8 +1048,27 @@ def _parse_events(raw: bytes, role: str = "repo-scout") -> tuple[str, dict[str, 
                 and re.fullmatch(r"[0-9]+\.[0-9]+", output["protocol_version"]) is not None
             ))
         )
+    elif role == "specifier":
+        valid = _valid_problem_spec(output)
+    elif role == "flow-splitter":
+        valid = (
+            isinstance(output, dict) and set(output) in ({"tasks"}, {"protocol_version", "tasks"})
+            and ("protocol_version" not in output or output["protocol_version"] == "1.0")
+            and isinstance(output["tasks"], list) and 1 <= len(output["tasks"]) <= 5
+            and all(isinstance(item, dict)
+                    and isinstance(item.get("id"), str) and bool(item["id"])
+                    and isinstance(item.get("assigned_agent"), str)
+                    and item["assigned_agent"] in {"executor", "doc-writer", "peon", "generalist"}
+                    and isinstance(item.get("trace_ids"), list) and bool(item["trace_ids"])
+                    and all(isinstance(trace_id, str) and trace_id for trace_id in item["trace_ids"])
+                    for item in output["tasks"])
+        )
+    else:
+        valid = False
     if not valid:
         raise EvidenceError(f"Codex final message did not match the {role} result shape")
+    if role == "doc-writer" and artifact is not None:
+        output["artifact"] = artifact
     return thread_id, usage if isinstance(usage, dict) else {}, output
 
 
@@ -1071,6 +1167,31 @@ def _dispatch_role(
             "Do not use objects as milestone entries."
         )
         input_payload = {"ProblemSpec": task["problem_spec"]}
+    elif role == "specifier":
+        output_contract = (
+            "Extract only source-aware ProblemSpec 1.1 JSON. Preserve requirement authority; "
+            "do not propose a solution or add assumptions as blocking criteria."
+        )
+        input_payload = {"original_request": task["request"]}
+    elif role == "flow-splitter":
+        output_contract = (
+            "Return only FlowTaskList JSON with at most five tasks and no DAG. "
+            "Do not select executor-strong: exact binding and canonical first-attempt history "
+            "were not supplied for initial-strong admission. The caller must validate the "
+            "result against flow-task-list.schema.json before registration."
+        )
+        input_payload = {"ProblemSpec": task["problem_spec"], "flow_constraints": task["flow_constraints"]}
+    elif role == "doc-writer":
+        output_contract = (
+            "Produce the role's JSON result and, when done, exactly one named Markdown artifact "
+            "using the role's required ARTIFACT delimiters. For this Flow task, the artifact "
+            "filename must be <task_id>-<short-name>.md. Do not write repository files."
+        )
+        input_payload = {
+            "task_id": task["task_id"], "task_intent": "design",
+            "description": task["task"], "primary_output": task["primary_output"],
+            "definition_of_done": task["acceptance_criteria"],
+        }
     elif role == "reviewer":
         output_contract = (
             "Perform only an ad hoc review, not a Pipeline gate or formal assurance. "
@@ -1180,6 +1301,8 @@ def _dispatch_role(
         state["thread_id"] = thread_id
     if role == "executor" and output["task_id"] != task["task_id"]:
         raise EvidenceError("Executor result task_id differs from the requested task")
+    if role == "doc-writer" and output["task_id"] != task["task_id"]:
+        raise EvidenceError("Doc-writer result task_id differs from the requested task")
     trace = _find_trace(codex_home, thread_id)
     evidence = inspect_exec(trace, thread_id, resolution, codex_home) if attempt is None else inspect_exec(
         trace, thread_id, resolution, codex_home, attempt.attempt_id,

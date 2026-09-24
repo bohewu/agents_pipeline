@@ -6,7 +6,7 @@ distinct from the native `$run-simple` workflow.
 
 `tools/codex-external-role.py` lets an external orchestrator resolve a registered
 Codex leaf role without an LLM call. It can execute `repo-scout`, `planner`,
-`test-runner`, `debugger`, and a bounded ad hoc `reviewer` as fresh, read-only
+`specifier`, `flow-splitter`, `doc-writer`, `test-runner`, `debugger`, and a bounded ad hoc `reviewer` as fresh, read-only
 `codex exec` roots. It can also execute one atomic `executor` task with explicit
 write opt-in. The current
 workspace must have a healthy, eligible, current OpenAI profile. The tool reads its saved role
@@ -44,6 +44,21 @@ rules. For `debugger`, supply `task_intent: diagnose`, `reasoning_signals`, a
 bounded `question`, one to eight evidence strings, and one to twelve existing
 repo-relative file `targets`. Its diagnosis is read-only and cannot admit a
 repair or restart a stopped task.
+For a Flow planning-stage experiment, `specifier` accepts `task_intent: design`,
+`reasoning_signals`, and the original bounded `request`. `flow-splitter`
+accepts design intent, signals, a source-aware ProblemSpec 1.1 object, and up to
+eight `flow_constraints` strings. Its output is limited to five tasks and
+cannot select `executor-strong` without the required first-attempt evidence.
+These leaf results must still pass the existing ProblemSpec and FlowTaskList
+schema validators before any status registration or task dispatch. See
+[external Flow planning feasibility](external-flow-planning-feasibility.md).
+For a Flow documentation task, `doc-writer` accepts design intent, signals, a
+bounded `task_id` and `task`, `primary_output` (`design`, `plan`, `spec`,
+`checklist`, or `analysis`), and one to eight `acceptance_criteria`. It runs
+read-only. A completed result must contain the role's named Markdown artifact;
+for this Flow entry its filename must follow `<task_id>-<short-name>.md`.
+The dispatcher returns its filename and content inside `result.artifact` for
+the external orchestrator to inspect and persist outside the repository.
 The dispatcher's verified status attests the selected role, model, effort, and
 trace, not the truth of a helper's reported check or diagnosis. Inspect the
 reported commands and evidence; rerun an important check independently.

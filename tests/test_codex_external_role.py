@@ -151,6 +151,9 @@ class ExternalRoleTests(unittest.TestCase):
             for role, intent, model, tier, classification in (
                 ("test-runner", "inspect", "gpt-6-luna", "mini", "routine"),
                 ("debugger", "diagnose", "gpt-6-astra", "strong", "deep"),
+                ("specifier", "design", "gpt-6-sol", "standard", "deliberative"),
+                ("flow-splitter", "design", "gpt-6-sol", "standard", "deliberative"),
+                ("doc-writer", "design", "gpt-6-sol", "standard", "deep"),
             ):
                 (source / f"{role}.md").write_text(
                     f"---\nname: {role}\nkind: subagent\n---\n", encoding="utf-8",
@@ -168,7 +171,10 @@ class ExternalRoleTests(unittest.TestCase):
                 ]):
                     resolved = external.resolve_role(workspace, role, ["local_scope"], intent)
                 self.assertTrue(resolved["dispatch_supported"])
-                wrong_class = "deliberative" if role == "test-runner" else "assurance"
+                wrong_class = {
+                    "test-runner": "deliberative", "debugger": "assurance",
+                    "specifier": "deep", "flow-splitter": "deep", "doc-writer": "assurance",
+                }[role]
                 with mock.patch.object(external, "_json_command", side_effect=[
                     status, {**decision, "effective_class": wrong_class},
                 ]):
@@ -329,6 +335,142 @@ class ExternalRoleTests(unittest.TestCase):
             ]
             raw = "\n".join(json.dumps(event) for event in events).encode()
             self.assertEqual(external._parse_events(raw, "planner")[2], outline)
+
+    def test_flow_planning_leaves_keep_source_authority_and_bounded_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            task_file = workspace / "task.json"
+            problem_spec = {
+                "protocol_version": "1.1", "goal": "Add a bounded option",
+                "scope": {"in": ["One script"], "out": []}, "constraints": [],
+                "acceptance_criteria": [{"id": "ac-option", "statement": "Option works", "source": "explicit_user"}],
+                "assumptions": [],
+            }
+            task_file.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["local_scope"],
+                "request": "Add one bounded option",
+            }), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "specifier")["request"], "Add one bounded option")
+            task_file.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["local_scope"],
+                "problem_spec": problem_spec, "flow_constraints": ["At most five tasks"],
+            }), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "flow-splitter")["problem_spec"], problem_spec)
+            invalid_spec = {**problem_spec, "acceptance_criteria": [
+                {"id": "ac-option", "statement": "Option works", "source": "existing_contract"},
+            ]}
+            task_file.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["local_scope"],
+                "problem_spec": invalid_spec, "flow_constraints": [],
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(external.EvidenceError, "source-aware ProblemSpec"):
+                external._read_task(task_file, "flow-splitter")
+            task_file.write_text(json.dumps({
+                "task_intent": "design", "reasoning_signals": ["local_scope"],
+                "problem_spec": problem_spec, "flow_constraints": ["At most five tasks"],
+            }), encoding="utf-8")
+
+            def events(result: dict) -> bytes:
+                return "\n".join(json.dumps(event) for event in (
+                    {"type": "thread.started", "thread_id": THREAD},
+                    {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(result)}},
+                    {"type": "turn.completed", "usage": {}},
+                )).encode()
+
+            self.assertEqual(external._parse_events(events(problem_spec), "specifier")[2], problem_spec)
+            unsourced = {**problem_spec, "acceptance_criteria": [
+                {"id": "ac-option", "statement": "Option works", "source": "existing_contract"},
+            ]}
+            with self.assertRaisesRegex(external.EvidenceError, "specifier result shape"):
+                external._parse_events(events(unsourced), "specifier")
+
+            task_list = {"protocol_version": "1.0", "tasks": [
+                {"id": "f1", "assigned_agent": "executor", "trace_ids": ["ac-option"]},
+            ]}
+            self.assertEqual(external._parse_events(events(task_list), "flow-splitter")[2], task_list)
+            strong = {"protocol_version": "1.0", "tasks": [
+                {"id": "f1", "assigned_agent": "executor-strong", "trace_ids": ["ac-option"]},
+            ]}
+            with self.assertRaisesRegex(external.EvidenceError, "flow-splitter result shape"):
+                external._parse_events(events(strong), "flow-splitter")
+            with self.assertRaisesRegex(external.EvidenceError, "flow-splitter result shape"):
+                external._parse_events(events({"tasks": task_list["tasks"] * 6}), "flow-splitter")
+
+            role_file = workspace / "role.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(workspace), "role_config": str(role_file),
+                "requested_model": "gpt-6-sol", "requested_effort": "medium",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-sol",
+                        "observed_effort": "medium", "checks": {"model": True}}
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, events(task_list), b"")) as run, \
+                 mock.patch.object(external, "_find_trace", return_value=workspace / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(workspace, "flow-splitter", task_file, 30, workspace)
+            self.assertEqual(result["status"], "verified")
+            self.assertIn("read-only", run.call_args.args[0])
+            self.assertNotIn("--output-schema", run.call_args.args[0])
+            self.assertIn("Do not select executor-strong", run.call_args.args[1])
+
+    def test_read_only_doc_writer_requires_named_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            task_file = Path(temporary) / "task.json"
+            task_file.write_text(json.dumps({
+                "task_id": "f1", "task_intent": "design", "reasoning_signals": ["multi_step"],
+                "task": "Write one bounded plan", "primary_output": "plan",
+                "acceptance_criteria": ["Plan states the verified steps"],
+            }), encoding="utf-8")
+            self.assertEqual(external._read_task(task_file, "doc-writer")["task_id"], "f1")
+            result = {
+                "task_id": "f1", "status": "done", "changes": [], "evidence": [],
+                "operational_retries_used": 0, "repair_attempts_used": 0,
+                "last_failure_signature": "", "notes": "", "followups": [],
+            }
+
+            def events(message: str) -> bytes:
+                return "\n".join(json.dumps(event) for event in (
+                    {"type": "thread.started", "thread_id": THREAD},
+                    {"type": "item.completed", "item": {"type": "agent_message", "text": message}},
+                    {"type": "turn.completed", "usage": {}},
+                )).encode()
+
+            artifact = "=== ARTIFACT: f1-plan.md ===\n# Plan\nOne step.\n=== END ARTIFACT ==="
+            parsed = external._parse_events(events(json.dumps(result) + "\n" + artifact), "doc-writer")[2]
+            self.assertEqual(parsed["artifact"], {"filename": "f1-plan.md", "content": "# Plan\nOne step."})
+            with self.assertRaisesRegex(external.EvidenceError, "doc-writer result shape"):
+                external._parse_events(events(json.dumps(result)), "doc-writer")
+            with self.assertRaisesRegex(external.EvidenceError, "doc-writer result shape"):
+                external._parse_events(events(json.dumps(result) + "\n" + artifact.replace("f1-plan", "other-plan")), "doc-writer")
+            with self.assertRaisesRegex(external.EvidenceError, "doc-writer result shape"):
+                external._parse_events(events(json.dumps(result) + "\n" + artifact.replace("f1-plan", "plan-f1")), "doc-writer")
+
+            workspace = Path(temporary)
+            role_file = workspace / "role.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(workspace), "role_config": str(role_file),
+                "requested_model": "gpt-6-sol", "requested_effort": "high",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-sol",
+                        "observed_effort": "high", "checks": {"model": True}}
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, events(json.dumps(result) + "\n" + artifact), b"")) as run, \
+                 mock.patch.object(external, "_find_trace", return_value=workspace / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                dispatched = external.dispatch_role(workspace, "doc-writer", task_file, 30, workspace)
+            self.assertEqual(dispatched["status"], "verified")
+            self.assertEqual(dispatched["result"]["artifact"]["filename"], "f1-plan.md")
+            self.assertIn("read-only", run.call_args.args[0])
+            self.assertNotIn("--output-schema", run.call_args.args[0])
+            self.assertIn("filename must be <task_id>-<short-name>.md", run.call_args.args[1])
 
     def test_event_parser_requires_one_completed_turn_and_role_shape(self) -> None:
         output = {field: [] for field in external.REPO_SCOUT_FIELDS}
