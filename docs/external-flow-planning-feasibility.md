@@ -90,10 +90,32 @@ result is accepted. On resume, read the checkpoint and validated
 `flow/task-list.json` before deciding which stage to skip. A `run.resumed`
 event does not itself make that orchestration decision.
 
-The next execution experiment needs an honestly decomposed two-task request,
-each task's supported role, independent clean worktree and trust checks,
-verified leaf traces, aggregate integration checks, and a real interruption
-followed by resume without duplicate dispatch. Multi-task integration must
-preserve the executor's clean-worktree preflight and attempt receipts. Until
-that is shown, do not label this entry a complete external Flow workflow or
-claim native `$run-flow` parity.
+An approved throwaway two-task implementation exercise then started a new
+external run at `af0974ed0497747c7b805fcb1f4172be20a17111`. Its
+`run.started` event preceded the leaf calls. The `specifier` and
+`flow-splitter` both had verified Sol/medium traces; their accepted outputs
+passed the existing schemas and mapped the two sourced requests to two
+independent `executor` tasks. After Stage 1, the orchestrator reloaded the
+checkpoint and validated its saved ProblemSpec, emitted `run.resumed`, and
+skipped a second `specifier` call. This was an intentional pause, not a
+transport interruption.
+
+Each executor used its own clean linked worktree with independently verified
+profile, effective trust, role binding, and attempt receipt. Both accepted
+attempts had verified Sol/medium traces and passed their scope/profile checks.
+The first Task A handoff ambiguously said not to retain its throwaway change,
+so the leaf restored its files before independent inspection. One corrected
+handoff reran the same task and left a reviewable diff; Task B needed no retry.
+The orchestrator inspected both diffs, independently ran 7 and 18 focused
+tests, then applied the saved patches to a third disposable worktree. All 25
+focused tests and `git diff --check` passed there. The three worktrees were
+removed after their evidence was saved outside the repository; nothing was
+committed, merged, or pushed from the throwaway exercise.
+
+That run is recorded as `partial`: task and stage status was emitted, but live
+`agent.started` / `agent.finished` records were not. A real transport
+interruption with resume was also not exercised. The next bounded validation
+should cover those two lifecycle points without creating a second
+orchestration engine. Other native Flow roles and flags remain outside this
+entry. Do not label this a complete external Flow workflow or claim native
+`$run-flow` parity.
