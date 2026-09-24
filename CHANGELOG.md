@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-09-24
+
+### Added
+
+- Added experimental external Codex leaf dispatch for bounded implementation, inspection, planning, testing, diagnosis, and ad hoc review. External callers remain responsible for orchestration, acceptance, and role selection; this does not provide full native `run-*` parity.
+- Added opt-in executor attempt receipts and same-ID replay for interrupted writable dispatches, plus verified external-root evidence in Flow agent status without labeling it as a native child trace.
+- Added a support-tree `--check` mode and documented bounded external Simple and Flow usage and their observed limits.
+
+### Fixed
+
+- Aligned linked-worktree trust detection with Codex effective project configuration while retaining independent worktree profile and fail-closed trust checks.
+- Preserved external dispatch startup and changed-worktree provenance across failed or interrupted attempts, including supported Windows profile-directory lookup.
+
 ## [0.39.1] - 2026-09-23
 
 ### Changed
