@@ -1,18 +1,74 @@
-# External Flow planning feasibility
+# External Flow feasibility (experimental)
 
-This is an experimental planning-stage bridge, not a completed external
-`$run-flow` workflow. An external orchestrator can now dispatch the registered
-read-only `specifier`, `flow-splitter`, and `doc-writer` leaves through
+This is an experimental bounded external Flow bridge, not a completed external
+`$run-flow` workflow. An external orchestrator can dispatch the registered
+read-only `specifier`, `flow-splitter`, and `doc-writer` leaves, plus atomic
+`executor` tasks and an optional ad hoc `reviewer`, through
 `tools/codex-external-role.py`. The dispatcher resolves each role from the
 target workspace profile and verifies the observed Codex root trace. The
 orchestrator still owns requirement authority, schema validation, status,
-resume decisions, and any implementation handoff.
+resume decisions, separate worktrees, integration, and final acceptance.
 
 Use the agents_pipeline support root separately from the target repository,
 as described in [external Simple orchestration](external-simple-orchestration.md).
 The target workspace profile does not install support tools. Keep task files,
 leaf results, and experimental run status outside the repository unless the
 user requested normal Flow output there.
+
+## Portable bounded invocation prompt
+
+Use this only with an MCP/Runner that can read the local target and support
+root, run local commands, and observe a dispatch through completion. Replace
+the placeholders; the support root and target workspace may be different
+repositories.
+
+```text
+Run a bounded external Flow experiment for <original user request> in
+<target workspace>. The agents_pipeline support root is <support root>.
+
+You are the orchestrator. Read the target AGENTS.md, the support root's
+skills/run-flow/SKILL.md and relevant protocols, and the effective installed
+orchestrator-flow definition. Keep orchestration, source authority, status,
+resume decisions, integration, and final acceptance in this conversation.
+Do not launch a second Codex main orchestrator. Use the support root's
+tools/codex-external-role.py only for bounded supported leaves.
+
+Before leaves, record the exact HEAD and Git status; query the target profile
+and trust. Emit run.started through the existing status-event.js into a new
+run directory outside the repository. Dispatch specifier and flow-splitter
+with their real task intents/signals, require status=verified and matching
+observed model/effort, validate each result against its existing schema, and
+reconcile every blocking criterion with the original user request or a
+pre-existing contract. Persist accepted artifacts and stage events. Limit the
+FlowTaskList to five atomic tasks and derive review mode from its risk fields.
+
+Do not change an unsupported assigned role into executor. This entry supports
+atomic executor writes, read-only doc-writer artifacts, and an optional ad hoc
+reviewer; stop when a task needs peon, generalist, executor-strong, formal
+assurance, capability recovery, or another unsupported native Flow control.
+For each executor, create a separate clean disposable worktree at the same
+baseline. Verify that worktree's own profile, effective trust, roles_dir, and
+saved binding. Dispatch with --allow-write and a fresh attempt UUID. Leave
+its edits in place until you independently inspect its diff and run focused
+checks. Save the patch outside the repository; the orchestrator discards the
+worktree only after evidence is captured. On uncertain transport, replay the
+same attempt ID and inspect the workspace before any new dispatch.
+
+Emit task and agent lifecycle status as the work occurs, with the complete
+ReasoningDecision and observed trace evidence when those fields are required.
+If a status event cannot be emitted accurately, report a partial external
+run; do not backfill invented live events. On resume, validate the checkpoint
+and saved FlowTaskList before skipping completed stages. Never repeat a
+completed leaf or reset a consumed retry/recovery counter.
+
+Integrate independent patches in a separate clean disposable worktree with
+git apply --check, then run the aggregate focused tests and inspect the
+combined diff. Apply the risk-derived ad hoc reviewer gate when required;
+its result is not Pipeline assurance. This bounded entry has no commit,
+merge, or push helper; stop and report if the task requires one. Remove only
+disposable worktrees you created after saving evidence. Report any missing
+native Flow role, flag, status, or interruption proof explicitly.
+```
 
 ## Bounded planning calls
 

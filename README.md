@@ -14,6 +14,7 @@ Codex-first multi-agent workflow assets with a runtime-neutral source core and b
 - [GPT-6 routing guidance](docs/codex-gpt6-routing-guidance.md)
 - [Experimental external leaf dispatch](docs/codex-external-role-dispatch.md)
 - [External Simple orchestration](docs/external-simple-orchestration.md)
+- [Experimental external Flow feasibility](docs/external-flow-planning-feasibility.md)
 - [Compatibility matrix](COMPATIBILITY.md#runtime-profile-manager-compatibility)
 - [Explicit full workspace materialization](docs/developer-install.md#explicit-workspace-materialization-compatibility)
 

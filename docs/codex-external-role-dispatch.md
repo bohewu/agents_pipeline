@@ -51,7 +51,7 @@ eight `flow_constraints` strings. Its output is limited to five tasks and
 cannot select `executor-strong` without the required first-attempt evidence.
 These leaf results must still pass the existing ProblemSpec and FlowTaskList
 schema validators before any status registration or task dispatch. See
-[external Flow planning feasibility](external-flow-planning-feasibility.md).
+[external Flow feasibility](external-flow-planning-feasibility.md).
 For a Flow documentation task, `doc-writer` accepts design intent, signals, a
 bounded `task_id` and `task`, `primary_output` (`design`, `plan`, `spec`,
 `checklist`, or `analysis`), and one to eight `acceptance_criteria`. It runs
