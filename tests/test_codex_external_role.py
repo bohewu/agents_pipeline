@@ -478,6 +478,23 @@ class ExternalRoleTests(unittest.TestCase):
                 result = external.dispatch_role(home, "executor", task_file, 30, home, allow_write=True)
             self.assertFalse(result["scope_compliant"])
             self.assertEqual(result["status"], "unverified")
+            self.assertEqual(result["execution_started"], "yes")
+            self.assertTrue(result["outcome_uncertain"])
+
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external, "_clean_worktree_head", return_value="baseline"), \
+                 mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")), \
+                 mock.patch.object(external, "_changed_paths", return_value=["target.py"]), \
+                 mock.patch.object(external, "_git_output", return_value=b"baseline\n"), \
+                 mock.patch.object(external, "_find_trace", return_value=home / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value={
+                     **evidence, "verification_status": "mismatched",
+                 }), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                result = external.dispatch_role(home, "executor", task_file, 30, home, allow_write=True)
+            self.assertEqual(result["status"], "unverified")
+            self.assertEqual(result["execution_started"], "yes")
+            self.assertTrue(result["outcome_uncertain"])
 
             changed_resolution = {**resolution, "requested_effort": "high"}
             with mock.patch.object(external, "resolve_role", side_effect=[resolution, changed_resolution]), \
@@ -515,9 +532,97 @@ class ExternalRoleTests(unittest.TestCase):
             with self.assertRaisesRegex(external.EvidenceError, "clean Git worktree"):
                 external._clean_worktree_head(workspace)
 
+    def test_executor_dirty_preflight_reports_no_launch_and_unknown_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+            target = workspace / "target.py"
+            target.write_text("original\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(workspace), "add", "target.py"], check=True)
+            subprocess.run([
+                "git", "-C", str(workspace), "-c", "user.name=Test",
+                "-c", "user.email=test@example.invalid", "commit", "-qm", "baseline",
+            ], check=True)
+            target.write_text("existing change\n", encoding="utf-8")
+            task_file = root / "task.json"
+            task_file.write_text(json.dumps({
+                "task_id": "atomic-1", "task_intent": "execute",
+                "reasoning_signals": ["local_scope"], "task": "Update target.py",
+                "allowed_paths": ["target.py"],
+                "acceptance_criteria": ["Target is updated"], "verification": [],
+            }), encoding="utf-8")
+            output = io.StringIO()
+            with mock.patch.object(external, "_limited_process") as run, redirect_stdout(output):
+                code = external.main([
+                    "dispatch-role", "--workspace", str(workspace), "--role", "executor",
+                    "--task-file", str(task_file), "--allow-write",
+                ])
+            result = json.loads(output.getvalue())
+            self.assertEqual(code, 2)
+            self.assertEqual(result["status"], "error")
+            self.assertEqual(result["phase"], "preflight")
+            self.assertEqual(result["execution_started"], "no")
+            self.assertTrue(result["outcome_uncertain"])
+            self.assertIn("unknown provenance", result["error"])
+            run.assert_not_called()
+
+    def test_executor_partial_write_then_error_reports_started(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+            target = workspace / "target.py"
+            target.write_text("original\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(workspace), "add", "target.py"], check=True)
+            subprocess.run([
+                "git", "-C", str(workspace), "-c", "user.name=Test",
+                "-c", "user.email=test@example.invalid", "commit", "-qm", "baseline",
+            ], check=True)
+            task_file = root / "task.json"
+            task_file.write_text(json.dumps({
+                "task_id": "atomic-1", "task_intent": "execute",
+                "reasoning_signals": ["local_scope"], "task": "Update target.py",
+                "allowed_paths": ["target.py"],
+                "acceptance_criteria": ["Target is updated"], "verification": [],
+            }), encoding="utf-8")
+            role_file = root / "executor.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(workspace), "role_config": str(role_file),
+                "requested_model": "gpt-6-sol", "requested_effort": "high",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+
+            def partial_write(*_args: object, on_started: object) -> None:
+                on_started()
+                target.write_text("partial change\n", encoding="utf-8")
+                raise external.EvidenceError("Codex execution timed out")
+
+            output = io.StringIO()
+            with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"), \
+                 mock.patch.object(external, "_limited_process", side_effect=partial_write), \
+                 redirect_stdout(output):
+                code = external.main([
+                    "dispatch-role", "--workspace", str(workspace), "--role", "executor",
+                    "--task-file", str(task_file), "--allow-write", "--codex-home", str(root),
+                ])
+            result = json.loads(output.getvalue())
+            self.assertEqual(code, 2)
+            self.assertEqual(result["status"], "error")
+            self.assertEqual(result["phase"], "execution")
+            self.assertEqual(result["execution_started"], "yes")
+            self.assertTrue(result["outcome_uncertain"])
+            self.assertEqual(target.read_text(encoding="utf-8"), "partial change\n")
+
     def test_timeout_terminates_descendant_process(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             marker = Path(temporary) / "descendant-survived"
+            started = []
             child = (
                 "import pathlib,time; time.sleep(1.5); "
                 f"pathlib.Path({str(marker)!r}).write_text('alive')"
@@ -530,7 +635,9 @@ class ExternalRoleTests(unittest.TestCase):
             with self.assertRaisesRegex(external.EvidenceError, "timed out"):
                 external._limited_process(
                     [sys.executable, "-c", parent, child], "", Path(temporary), 1, os.environ.copy(),
+                    on_started=lambda: started.append(True),
                 )
+            self.assertEqual(started, [True])
             time.sleep(2)
             self.assertFalse(marker.exists())
 

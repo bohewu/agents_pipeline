@@ -129,6 +129,14 @@ launched process group or Windows process tree and reports uncertain cleanup
 if that fails. Inspect the worktree for
 partial changes before retrying.
 
+Executor responses include `execution_started: no|yes|unknown` and
+`outcome_uncertain`. A dirty-worktree preflight error means this invocation did
+not start a child, but existing edits may belong to another or interrupted
+invocation, so their provenance is uncertain. An error after launch can leave
+partial edits even without `status: verified`; inspect the worktree and session
+trace before retrying. If the dispatcher process or its transport ends before
+returning JSON, no response can certify whether its child started or wrote.
+
 This local entry point does not change `$run-*`, workspace routing, reviewer
 gates, capability recovery, or installation output. On Windows, invoke the
 same Python script with the available Python 3.11+ launcher.

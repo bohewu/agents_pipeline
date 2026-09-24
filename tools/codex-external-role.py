@@ -22,7 +22,7 @@ import threading
 import time
 import tomllib
 from pathlib import Path, PureWindowsPath
-from typing import Any
+from typing import Any, Callable
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -78,6 +78,22 @@ class EvidenceError(Exception):
 
 class ResolutionConflict(EvidenceError):
     pass
+
+
+class DirtyWorktreeError(EvidenceError):
+    pass
+
+
+class DispatchFailure(EvidenceError):
+    def __init__(
+        self, message: str, phase: str, execution_started: str,
+        outcome_uncertain: bool, conflicted: bool,
+    ):
+        super().__init__(message)
+        self.phase = phase
+        self.execution_started = execution_started
+        self.outcome_uncertain = outcome_uncertain
+        self.conflicted = conflicted
 
 
 def _json_command(argv: list[str], accepted_codes: tuple[int, ...] = (0,)) -> dict[str, Any]:
@@ -416,7 +432,7 @@ def _clean_worktree_head(workspace: Path) -> str:
     if Path(os.fsdecode(_git_output(workspace, "rev-parse", "--show-toplevel")).strip()).resolve() != workspace:
         raise EvidenceError("Executor workspace must be the Git worktree root")
     if _git_output(workspace, "status", "--porcelain=v1", "--untracked-files=all", "-z"):
-        raise EvidenceError("Executor requires a clean Git worktree")
+        raise DirtyWorktreeError("Executor requires a clean Git worktree")
     return _git_output(workspace, "rev-parse", "HEAD").decode("ascii").strip()
 
 
@@ -427,13 +443,18 @@ def _changed_paths(workspace: Path, baseline_head: str) -> list[str]:
     return sorted({os.fsdecode(path) for path in (tracked + staged + untracked).split(b"\0") if path})
 
 
-def _limited_process(argv: list[str], prompt: str, workspace: Path, timeout_sec: int, env: dict[str, str]) -> tuple[int, bytes, bytes]:
+def _limited_process(
+    argv: list[str], prompt: str, workspace: Path, timeout_sec: int, env: dict[str, str],
+    on_started: Callable[[], None] | None = None,
+) -> tuple[int, bytes, bytes]:
     process = subprocess.Popen(
         argv, cwd=workspace, env=env, stdin=subprocess.PIPE,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         start_new_session=os.name != "nt",
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
+    if on_started is not None:
+        on_started()
     buffers = [bytearray(), bytearray()]
     overflow = threading.Event()
     cleanup_failed = threading.Event()
@@ -611,9 +632,9 @@ def _find_trace(codex_home: Path, thread_id: str) -> Path:
         time.sleep(0.1)
 
 
-def dispatch_role(
+def _dispatch_role(
     workspace: Path, role: str, task_file: Path, timeout_sec: int, codex_home: Path,
-    allow_write: bool = False,
+    allow_write: bool, state: dict[str, Any],
 ) -> dict[str, Any]:
     if not 10 <= timeout_sec <= 300:
         raise EvidenceError("Timeout must be between 10 and 300 seconds")
@@ -700,9 +721,17 @@ def dispatch_role(
             }[role]), encoding="utf-8")
             argv.extend(("--output-schema", str(schema)))
         argv.append("-")
+        state["phase"] = "execution"
+
+        def mark_started() -> None:
+            state["execution_started"] = "yes"
+
         code, stdout, _stderr = _limited_process(
             argv, prompt, Path(resolution["workspace"]), timeout_sec, env,
+            on_started=mark_started,
         )
+        state["execution_started"] = "yes"
+    state["phase"] = "post_execution"
     changed_paths = []
     head_unchanged = True
     paths_safe = True
@@ -760,7 +789,36 @@ def dispatch_role(
         })
         if not scope_compliant or not profile_stable:
             result["status"] = "unverified"
+    if role == "executor":
+        result.update({
+            "execution_started": "yes",
+            "outcome_uncertain": result["status"] != "verified",
+        })
     return result
+
+
+def dispatch_role(
+    workspace: Path, role: str, task_file: Path, timeout_sec: int, codex_home: Path,
+    allow_write: bool = False,
+) -> dict[str, Any]:
+    state: dict[str, Any] = {"phase": "preflight", "execution_started": "no"}
+    try:
+        return _dispatch_role(workspace, role, task_file, timeout_sec, codex_home, allow_write, state)
+    except (EvidenceError, OSError, KeyError, TypeError, ValueError) as exc:
+        if role != "executor":
+            raise
+        phase = state["phase"]
+        started = state["execution_started"]
+        if phase == "execution" and started == "no":
+            started = "unknown"
+        message = str(exc)
+        if isinstance(exc, DirtyWorktreeError):
+            message += "; this invocation did not start a child; existing edits have unknown provenance"
+        raise DispatchFailure(
+            message, phase, started,
+            phase != "preflight" or isinstance(exc, DirtyWorktreeError),
+            isinstance(exc, ResolutionConflict),
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -802,14 +860,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if result["verification_status"] == "matched" else 3
         return 0 if result["status"] == "verified" else 3
     except (EvidenceError, OSError, KeyError, TypeError, ValueError) as exc:
-        conflicted = isinstance(exc, ResolutionConflict)
-        print(json.dumps({
+        conflicted = isinstance(exc, ResolutionConflict) or (
+            isinstance(exc, DispatchFailure) and exc.conflicted
+        )
+        error_result = {
             "schema_version": 1,
             "surface": "independent_codex_exec_root",
             "action": args.action,
             "status": "conflicted" if conflicted else "error",
             "error": str(exc)[:500],
-        }, sort_keys=True))
+        }
+        if isinstance(exc, DispatchFailure):
+            error_result.update({
+                "phase": exc.phase,
+                "execution_started": exc.execution_started,
+                "outcome_uncertain": exc.outcome_uncertain,
+            })
+        print(json.dumps(error_result, sort_keys=True))
         return 3 if conflicted else 2
 
 
