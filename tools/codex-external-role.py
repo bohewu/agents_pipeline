@@ -30,6 +30,7 @@ UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 MAX_TASK_BYTES = 8192
 MAX_STDOUT_BYTES = 2 * 1024 * 1024
 MAX_STDERR_BYTES = 64 * 1024
+MAX_RECEIPT_BYTES = 4 * 1024 * 1024
 REPO_SCOUT_FIELDS = (
     "entry_points", "key_files", "relevant_patterns",
     "constraints_found", "risk_notes", "open_questions",
@@ -246,7 +247,10 @@ def _is_link_or_reparse(entry: os.stat_result) -> bool:
     )
 
 
-def inspect_exec(trace_file: Path, thread_id: str, resolution: dict[str, Any], codex_home: Path) -> dict[str, Any]:
+def inspect_exec(
+    trace_file: Path, thread_id: str, resolution: dict[str, Any], codex_home: Path,
+    attempt_id: str | None = None,
+) -> dict[str, Any]:
     if not UUID.fullmatch(thread_id):
         raise EvidenceError("Thread ID must be a UUID")
     trace_file = _plain_trace_path(trace_file, codex_home)
@@ -263,6 +267,7 @@ def inspect_exec(trace_file: Path, thread_id: str, resolution: dict[str, Any], c
     started_turns: list[str] = []
     completed_turns: list[str] = []
     context_count = 0
+    matching_attempt_turns: list[str | None] = []
     with trace_file.open(encoding="utf-8") as stream:
         for line in stream:
             try:
@@ -284,6 +289,17 @@ def inspect_exec(trace_file: Path, thread_id: str, resolution: dict[str, Any], c
                     turn_id = payload.get("internal_chat_message_metadata_passthrough", {}).get("turn_id")
                     if isinstance(turn_id, str):
                         role_instructions_turns.add(turn_id)
+            elif record.get("type") == "response_item" and payload.get("role") == "user" and attempt_id:
+                marker = f'"attempt_id": "{attempt_id}"'
+                count = sum(
+                    item.get("text", "").count(marker)
+                    for item in payload.get("content", []) if isinstance(item, dict)
+                    and item.get("type") == "input_text" and isinstance(item.get("text"), str)
+                )
+                if count:
+                    matching_attempt_turns.extend([
+                        payload.get("internal_chat_message_metadata_passthrough", {}).get("turn_id")
+                    ] * count)
             elif record.get("type") == "event_msg":
                 turn_id = payload.get("turn_id")
                 if payload.get("type") == "task_started" and isinstance(turn_id, str):
@@ -313,6 +329,8 @@ def inspect_exec(trace_file: Path, thread_id: str, resolution: dict[str, Any], c
     }
     sandbox = "workspace-write" if resolution["role"] == "executor" else "read-only"
     checks["sandbox_policy"] = context.get("sandbox_policy", {}).get("type") == sandbox
+    if attempt_id is not None:
+        checks["attempt_id"] = matching_attempt_turns == [turn_id]
     return {
         "schema_version": 1,
         "surface": "independent_codex_exec_root",
@@ -326,11 +344,18 @@ def inspect_exec(trace_file: Path, thread_id: str, resolution: dict[str, Any], c
     }
 
 
-def _read_task(file: Path, role: str = "repo-scout") -> dict[str, Any]:
+def _task_bytes(file: Path) -> bytes:
     if file.is_symlink() or not file.is_file() or file.stat().st_size > MAX_TASK_BYTES:
         raise EvidenceError("Task must be a regular JSON file of at most 8192 bytes")
+    raw = file.read_bytes()
+    if len(raw) > MAX_TASK_BYTES:
+        raise EvidenceError("Task must be a regular JSON file of at most 8192 bytes")
+    return raw
+
+
+def _read_task(file: Path, role: str = "repo-scout", raw: bytes | None = None) -> dict[str, Any]:
     try:
-        task = json.loads(file.read_text(encoding="utf-8"))
+        task = json.loads((raw if raw is not None else _task_bytes(file)).decode("utf-8"))
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise EvidenceError("Task must contain valid UTF-8 JSON") from exc
     if not isinstance(task, dict):
@@ -436,6 +461,230 @@ def _clean_worktree_head(workspace: Path) -> str:
     return _git_output(workspace, "rev-parse", "HEAD").decode("ascii").strip()
 
 
+def _worktree_common_dir(workspace: Path) -> str:
+    if Path(os.fsdecode(_git_output(workspace, "rev-parse", "--show-toplevel")).strip()).resolve(strict=True) != workspace:
+        raise EvidenceError("Executor workspace must be the Git worktree root")
+    value = Path(os.fsdecode(_git_output(workspace, "rev-parse", "--git-common-dir")).strip())
+    canonical = (workspace / value).resolve(strict=True) if not value.is_absolute() else value.resolve(strict=True)
+    return os.path.normcase(str(canonical))
+
+
+def _account_home() -> Path:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        try:
+            current_token = ctypes.windll.kernel32.GetCurrentProcessToken
+            profile_dir = ctypes.windll.userenv.GetUserProfileDirectoryW
+        except (AttributeError, OSError) as exc:
+            raise EvidenceError("OS account profile directory is unavailable") from exc
+        current_token.argtypes = ()
+        current_token.restype = wintypes.HANDLE
+        profile_dir.argtypes = (wintypes.HANDLE, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
+        profile_dir.restype = wintypes.BOOL
+        size = wintypes.DWORD(0)
+        profile_dir(current_token(), None, ctypes.byref(size))
+        if not 1 <= size.value <= 32768:
+            raise EvidenceError("OS account profile directory is unavailable")
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not profile_dir(current_token(), buffer, ctypes.byref(size)):
+            raise EvidenceError("OS account profile directory is unavailable")
+        home = buffer.value
+    else:
+        import pwd
+
+        try:
+            home = pwd.getpwuid(os.getuid()).pw_dir
+        except KeyError as exc:
+            raise EvidenceError("OS account profile directory is unavailable") from exc
+    if not home:
+        raise EvidenceError("OS account profile directory is unavailable")
+    return Path(home).resolve(strict=True)
+
+
+def _attempt_state_root() -> Path:
+    return _account_home() / ".agents-pipeline" / "external-dispatch"
+
+
+def _private_directory(path: Path) -> None:
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    entry = path.lstat()
+    if _is_link_or_reparse(entry) or not stat.S_ISDIR(entry.st_mode):
+        raise EvidenceError("Attempt state directory is not a plain directory")
+    if os.name != "nt" and (entry.st_uid != os.getuid() or entry.st_mode & 0o077):
+        raise EvidenceError("Attempt state directory is not private")
+
+
+def _attempt_directory(workspace: Path) -> Path:
+    root = _attempt_state_root()
+    if root == workspace or workspace in root.parents:
+        raise EvidenceError("Attempt state must be outside the executor worktree")
+    _private_directory(root.parent)
+    _private_directory(root)
+    directory = root / hashlib.sha256(os.fsencode(os.path.normcase(str(workspace)))).hexdigest()
+    _private_directory(directory)
+    return directory
+
+
+def _sync_directory(directory: Path) -> None:
+    if os.name != "nt":
+        descriptor = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+def _read_receipt(path: Path) -> dict[str, Any]:
+    entry = path.lstat()
+    if (_is_link_or_reparse(entry) or not stat.S_ISREG(entry.st_mode)
+            or entry.st_size > MAX_RECEIPT_BYTES or (os.name != "nt" and
+            (entry.st_uid != os.getuid() or entry.st_mode & 0o077))):
+        raise EvidenceError("Attempt state file is unsafe")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise EvidenceError("Attempt state file is malformed")
+    return value
+
+
+def _write_receipt(path: Path, value: dict[str, Any]) -> None:
+    encoded = json.dumps(value, sort_keys=True).encode("utf-8")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise EvidenceError("Attempt receipt exceeds the bounded limit")
+    descriptor, temporary = tempfile.mkstemp(prefix=".receipt-", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.exists() or path.is_symlink():
+            _read_receipt(path)
+        os.replace(temporary, path)
+        _sync_directory(path.parent)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _create_receipt(path: Path, value: dict[str, Any]) -> bool:
+    encoded = json.dumps(value, sort_keys=True).encode("utf-8")
+    if len(encoded) > MAX_RECEIPT_BYTES:
+        raise EvidenceError("Attempt receipt exceeds the bounded limit")
+    try:
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(encoded)
+        stream.flush()
+        os.fsync(stream.fileno())
+    _sync_directory(path.parent)
+    return True
+
+
+class ExecutorAttempt:
+    """Durable, fail-closed reservation for cooperating writable callers."""
+
+    def __init__(self, workspace: Path, attempt_id: str, binding: dict[str, str]):
+        self.attempt_id = attempt_id.lower()
+        self.directory = _attempt_directory(workspace)
+        self.receipt_path = self.directory / f"{self.attempt_id}.json"
+        self.active_path = self.directory / "active.json"
+        identity_path = self.directory / "identity.json"
+        identity = {"workspace": os.path.normcase(str(workspace)), "git_common_dir": binding["git_common_dir"]}
+        if not _create_receipt(identity_path, identity):
+            if _read_receipt(identity_path) != identity:
+                raise ResolutionConflict("Worktree identity differs from recorded attempt state")
+        self.binding = binding
+
+    def replay(self) -> dict[str, Any] | None:
+        if not self.receipt_path.exists() and not self.receipt_path.is_symlink():
+            return None
+        receipt = _read_receipt(self.receipt_path)
+        if receipt.get("attempt_id") != self.attempt_id or receipt.get("binding") != self.binding:
+            raise ResolutionConflict("Attempt ID was reused with different inputs")
+        result = receipt.get("result")
+        if isinstance(result, dict):
+            if (receipt.get("state") not in {"verified", "unverified"}
+                    or result.get("status") != receipt["state"]
+                    or result.get("attempt_id") != self.attempt_id
+                    or result.get("role") != "executor"
+                    or not isinstance(result.get("evidence"), dict)
+                    or not isinstance(result.get("thread_id"), str)):
+                raise EvidenceError("Attempt result receipt is incomplete")
+            return {**result, "replayed": True}
+        if receipt.get("state") not in {"claimed", "started", "uncertain"}:
+            raise EvidenceError("Attempt receipt state is incomplete")
+        return {
+            "schema_version": 1, "surface": "independent_codex_exec_root",
+            "role": "executor", "status": receipt["state"],
+            "attempt_id": self.attempt_id,
+            "replayed": True,
+            "execution_started": receipt.get("execution_started", "unknown"),
+            "outcome_uncertain": True,
+            "process_id": receipt.get("process_id", "unknown"),
+            "thread_id": receipt.get("thread_id", "unknown"),
+            "changed_paths": receipt.get("changed_paths", []),
+            "error": receipt.get("error", ""),
+            "note": "Existing attempt; no child was launched by this call",
+        }
+
+    def ensure_available(self) -> None:
+        if self.active_path.exists() or self.active_path.is_symlink():
+            active = _read_receipt(self.active_path)
+            raise ResolutionConflict(f"Worktree already reserved by attempt {active.get('attempt_id', 'unknown')}")
+        for path in self.directory.iterdir():
+            if path.name == "identity.json":
+                continue
+            if not path.name.endswith(".json") or not UUID.fullmatch(path.stem):
+                raise EvidenceError("Attempt state directory contains incomplete state")
+            receipt = _read_receipt(path)
+            if receipt.get("attempt_id") != path.stem or receipt.get("state") != "verified":
+                raise ResolutionConflict("Worktree has an unresolved executor attempt")
+
+    def claim(self) -> None:
+        try:
+            descriptor = os.open(self.active_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError as exc:
+            active = _read_receipt(self.active_path)
+            raise ResolutionConflict(f"Worktree already reserved by attempt {active.get('attempt_id', 'unknown')}") from exc
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump({"attempt_id": self.attempt_id}, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _sync_directory(self.directory)
+        if self.receipt_path.exists() or self.receipt_path.is_symlink():
+            raise ResolutionConflict("Attempt receipt already exists")
+        self.record("claimed", "unknown")
+
+    def record(self, status: str, execution_started: str, **details: Any) -> None:
+        receipt = {
+            "attempt_id": self.attempt_id, "binding": self.binding,
+            "state": status, "execution_started": execution_started,
+            "updated_at_unix": time.time(), **details,
+        }
+        _write_receipt(self.receipt_path, receipt)
+
+    def finish(self, result: dict[str, Any]) -> None:
+        previous = _read_receipt(self.receipt_path)
+        self.record(
+            result["status"], "yes", result=result,
+            process_id=previous.get("process_id", "unknown"),
+            thread_id=result["thread_id"],
+            changed_paths=result.get("changed_paths", []),
+        )
+        if result["status"] == "verified":
+            active = _read_receipt(self.active_path)
+            if active.get("attempt_id") != self.attempt_id:
+                raise EvidenceError("Attempt reservation changed before release")
+            self.active_path.unlink()
+            _sync_directory(self.directory)
+
+
 def _changed_paths(workspace: Path, baseline_head: str) -> list[str]:
     tracked = _git_output(workspace, "diff", "--no-renames", "--name-only", "-z", baseline_head)
     staged = _git_output(workspace, "diff", "--cached", "--no-renames", "--name-only", "-z", baseline_head)
@@ -445,7 +694,7 @@ def _changed_paths(workspace: Path, baseline_head: str) -> list[str]:
 
 def _limited_process(
     argv: list[str], prompt: str, workspace: Path, timeout_sec: int, env: dict[str, str],
-    on_started: Callable[[], None] | None = None,
+    on_started: Callable[[int], None] | None = None,
 ) -> tuple[int, bytes, bytes]:
     process = subprocess.Popen(
         argv, cwd=workspace, env=env, stdin=subprocess.PIPE,
@@ -454,7 +703,7 @@ def _limited_process(
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
     if on_started is not None:
-        on_started()
+        on_started(process.pid)
     buffers = [bytearray(), bytearray()]
     overflow = threading.Event()
     cleanup_failed = threading.Event()
@@ -634,21 +883,29 @@ def _find_trace(codex_home: Path, thread_id: str) -> Path:
 
 def _dispatch_role(
     workspace: Path, role: str, task_file: Path, timeout_sec: int, codex_home: Path,
-    allow_write: bool, state: dict[str, Any],
+    allow_write: bool, state: dict[str, Any], attempt_id: str | None = None,
 ) -> dict[str, Any]:
     if not 10 <= timeout_sec <= 300:
         raise EvidenceError("Timeout must be between 10 and 300 seconds")
-    task = _read_task(task_file, role)
+    if attempt_id is not None:
+        workspace = workspace.resolve(strict=True)
+    raw_task = _task_bytes(task_file) if attempt_id is not None else None
+    task = _read_task(task_file, role, raw_task)
     baseline_head = None
     if role == "reviewer":
         _verify_repo_paths(workspace, task["targets"])
     elif role == "executor":
         if not allow_write:
             raise EvidenceError("Executor dispatch requires explicit --allow-write")
-        _verify_repo_paths(workspace, task["allowed_paths"], allow_new=True)
-        baseline_head = _clean_worktree_head(workspace)
+        if attempt_id is None:
+            _verify_repo_paths(workspace, task["allowed_paths"], allow_new=True)
+            baseline_head = _clean_worktree_head(workspace)
+        elif not UUID.fullmatch(attempt_id):
+            raise EvidenceError("Attempt ID must be a UUID")
     elif allow_write:
         raise EvidenceError("--allow-write applies only to executor dispatch")
+    if attempt_id is not None and role != "executor":
+        raise EvidenceError("--attempt-id applies only to writable executor dispatch")
     context = "ad-hoc-review" if role == "reviewer" else None
     resolution = resolve_role(workspace, role, task["reasoning_signals"], task.get("task_intent", "inspect"), context)
     if not resolution["dispatch_supported"]:
@@ -657,6 +914,30 @@ def _dispatch_role(
     instructions = role_config["developer_instructions"]
     if hashlib.sha256(instructions.encode()).hexdigest() != resolution["role_instructions_sha256"]:
         raise EvidenceError("Role instructions changed after resolution")
+    attempt = None
+    if attempt_id is not None:
+        assert raw_task is not None
+        binding = {
+            "workspace": os.path.normcase(str(workspace)),
+            "git_common_dir": _worktree_common_dir(workspace),
+            "baseline_head": _git_output(workspace, "rev-parse", "HEAD").decode("ascii").strip(),
+            "task_sha256": hashlib.sha256(raw_task).hexdigest(),
+            "role": role,
+            "model": resolution["requested_model"],
+            "effort": resolution["requested_effort"],
+            "role_instructions_sha256": resolution["role_instructions_sha256"],
+        }
+        attempt = ExecutorAttempt(workspace, attempt_id, binding)
+        state["attempt"] = attempt
+        replay = attempt.replay()
+        if replay is not None:
+            return replay
+        attempt.ensure_available()
+        _verify_repo_paths(workspace, task["allowed_paths"], allow_new=True)
+        baseline_head = _clean_worktree_head(workspace)
+        if baseline_head != binding["baseline_head"]:
+            raise EvidenceError("Worktree HEAD changed during attempt preflight")
+        state["baseline_head"] = baseline_head
     executable = shutil.which("codex")
     if not executable:
         raise EvidenceError("Codex executable was not found")
@@ -692,6 +973,8 @@ def _dispatch_role(
             "definition_of_done": task["acceptance_criteria"],
             "verification": task["verification"],
         }
+        if attempt is not None:
+            input_payload["attempt_id"] = attempt.attempt_id
     write_scope = (
         "Modify only allowed_paths. " if role == "executor" else "Work read-only. "
     )
@@ -723,9 +1006,17 @@ def _dispatch_role(
         argv.append("-")
         state["phase"] = "execution"
 
-        def mark_started() -> None:
+        def mark_started(process_id: int | None = None) -> None:
+            if attempt is not None:
+                state["process_id"] = process_id or "unknown"
+                attempt.record("started", "yes", process_id=process_id or "unknown")
             state["execution_started"] = "yes"
 
+        if attempt is not None:
+            if _task_bytes(task_file) != raw_task:
+                raise ResolutionConflict("Task file changed during attempt preflight")
+            attempt.claim()
+            state["attempt_claimed"] = True
         code, stdout, _stderr = _limited_process(
             argv, prompt, Path(resolution["workspace"]), timeout_sec, env,
             on_started=mark_started,
@@ -739,6 +1030,7 @@ def _dispatch_role(
     if role == "executor":
         assert baseline_head is not None
         changed_paths = _changed_paths(Path(resolution["workspace"]), baseline_head)
+        state["changed_paths"] = changed_paths
         head_unchanged = _git_output(Path(resolution["workspace"]), "rev-parse", "HEAD").decode("ascii").strip() == baseline_head
         try:
             _verify_repo_paths(Path(resolution["workspace"]), task["allowed_paths"], allow_new=True)
@@ -757,10 +1049,14 @@ def _dispatch_role(
     if code:
         raise EvidenceError(f"Codex execution exited {code}; inspect workspace changes: {changed_paths}")
     thread_id, usage, output = _parse_events(stdout, role)
+    if attempt is not None:
+        state["thread_id"] = thread_id
     if role == "executor" and output["task_id"] != task["task_id"]:
         raise EvidenceError("Executor result task_id differs from the requested task")
     trace = _find_trace(codex_home, thread_id)
-    evidence = inspect_exec(trace, thread_id, resolution, codex_home)
+    evidence = inspect_exec(trace, thread_id, resolution, codex_home) if attempt is None else inspect_exec(
+        trace, thread_id, resolution, codex_home, attempt.attempt_id,
+    )
     result = {
         "schema_version": 1,
         "surface": "independent_codex_exec_root",
@@ -794,19 +1090,34 @@ def _dispatch_role(
             "execution_started": "yes",
             "outcome_uncertain": result["status"] != "verified",
         })
+    if attempt is not None:
+        result["attempt_id"] = attempt.attempt_id
+        result["replayed"] = False
+        attempt.finish(result)
     return result
 
 
 def dispatch_role(
     workspace: Path, role: str, task_file: Path, timeout_sec: int, codex_home: Path,
-    allow_write: bool = False,
+    allow_write: bool = False, attempt_id: str | None = None,
 ) -> dict[str, Any]:
     state: dict[str, Any] = {"phase": "preflight", "execution_started": "no"}
     try:
-        return _dispatch_role(workspace, role, task_file, timeout_sec, codex_home, allow_write, state)
+        return _dispatch_role(workspace, role, task_file, timeout_sec, codex_home, allow_write, state, attempt_id)
     except (EvidenceError, OSError, KeyError, TypeError, ValueError) as exc:
         if role != "executor":
             raise
+        if state.get("attempt_claimed"):
+            try:
+                state["attempt"].record(
+                    "uncertain", state["execution_started"],
+                    error=str(exc)[:500], phase=state["phase"],
+                    process_id=state.get("process_id", "unknown"),
+                    thread_id=state.get("thread_id", "unknown"),
+                    changed_paths=state.get("changed_paths", []),
+                )
+            except (EvidenceError, OSError, ValueError, TypeError):
+                pass  # The durable claimed record and reservation remain fail closed.
         phase = state["phase"]
         started = state["execution_started"]
         if phase == "execution" and started == "no":
@@ -816,7 +1127,8 @@ def dispatch_role(
             message += "; this invocation did not start a child; existing edits have unknown provenance"
         raise DispatchFailure(
             message, phase, started,
-            phase != "preflight" or isinstance(exc, DirtyWorktreeError),
+            phase != "preflight" or isinstance(exc, DirtyWorktreeError)
+            or state.get("attempt") is not None,
             isinstance(exc, ResolutionConflict),
         ) from exc
 
@@ -840,11 +1152,15 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--task-file", type=Path, required=True)
             command.add_argument("--timeout-sec", type=int, default=120)
             command.add_argument("--allow-write", action="store_true")
+            command.add_argument("--attempt-id")
             command.add_argument("--codex-home", type=Path, default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")))
     args = parser.parse_args(argv)
     try:
         if args.action == "dispatch-role":
-            result = dispatch_role(args.workspace, args.role, args.task_file, args.timeout_sec, args.codex_home, args.allow_write)
+            result = dispatch_role(
+                args.workspace, args.role, args.task_file, args.timeout_sec,
+                args.codex_home, args.allow_write, args.attempt_id,
+            )
         else:
             task_intent = args.task_intent or ("inspect" if args.role == "repo-scout" else None)
             if task_intent is None:
@@ -876,6 +1192,8 @@ def main(argv: list[str] | None = None) -> int:
                 "execution_started": exc.execution_started,
                 "outcome_uncertain": exc.outcome_uncertain,
             })
+        if args.action == "dispatch-role" and args.attempt_id is not None and UUID.fullmatch(args.attempt_id):
+            error_result["attempt_id"] = args.attempt_id.lower()
         print(json.dumps(error_result, sort_keys=True))
         return 3 if conflicted else 2
 

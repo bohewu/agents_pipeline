@@ -136,6 +136,14 @@ invocation, so their provenance is uncertain. An error after launch can leave
 partial edits even without `status: verified`; inspect the worktree and session
 trace before retrying. If the dispatcher process or its transport ends before
 returning JSON, no response can certify whether its child started or wrote.
+Writable executor calls can opt in to the
+[interruption contract](codex-external-dispatch-interruption-contract.md) with
+`--attempt-id <uuid>`. The dispatcher stores a durable receipt and reserves the
+worktree before launching Codex. Reusing the same ID reads the recorded state
+without another launch, including when the first attempt dirtied the worktree.
+Unresolved attempts retain the reservation; use a new clean worktree after
+investigating an uncertain result. Calls without `--attempt-id` keep the
+one-shot behavior described above.
 
 This local entry point does not change `$run-*`, workspace routing, reviewer
 gates, capability recovery, or installation output. On Windows, invoke the

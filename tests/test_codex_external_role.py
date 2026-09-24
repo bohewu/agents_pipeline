@@ -7,8 +7,10 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -22,6 +24,46 @@ SPEC.loader.exec_module(external)
 
 THREAD = "01a0cd95-4be4-7862-981a-7011b9d331a7"
 INSTRUCTIONS = "# ROLE\nRead only.\n"
+ATTEMPT = "00000000-0000-4000-8000-000000000001"
+OTHER_ATTEMPT = "00000000-0000-4000-8000-000000000002"
+
+
+def executor_fixture(root: Path) -> tuple[Path, Path, dict[str, object], bytes]:
+    workspace = root / "workspace"
+    workspace.mkdir()
+    subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+    (workspace / "target.py").write_text("original\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(workspace), "add", "target.py"], check=True)
+    subprocess.run([
+        "git", "-C", str(workspace), "-c", "user.name=Test",
+        "-c", "user.email=test@example.invalid", "commit", "-qm", "baseline",
+    ], check=True)
+    task_file = root / "task.json"
+    task_file.write_text(json.dumps({
+        "task_id": "atomic-1", "task_intent": "execute",
+        "reasoning_signals": ["local_scope"], "task": "Update target.py",
+        "allowed_paths": ["target.py"],
+        "acceptance_criteria": ["Target is updated"], "verification": [],
+    }), encoding="utf-8")
+    role_file = root / "executor.toml"
+    role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+    resolution: dict[str, object] = {
+        "workspace": str(workspace), "role_config": str(role_file),
+        "requested_model": "gpt-6-sol", "requested_effort": "medium",
+        "dispatch_supported": True,
+        "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+    }
+    output = {
+        "task_id": "atomic-1", "status": "done", "changes": ["target.py updated"],
+        "evidence": [], "operational_retries_used": 0, "repair_attempts_used": 0,
+        "last_failure_signature": "", "notes": "", "followups": [],
+    }
+    raw = "\n".join(json.dumps(event) for event in (
+        {"type": "thread.started", "thread_id": THREAD},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(output)}},
+        {"type": "turn.completed", "usage": {"input_tokens": 10}},
+    )).encode()
+    return workspace, task_file, resolution, raw
 
 
 class ExternalRoleTests(unittest.TestCase):
@@ -619,6 +661,244 @@ class ExternalRoleTests(unittest.TestCase):
             self.assertTrue(result["outcome_uncertain"])
             self.assertEqual(target.read_text(encoding="utf-8"), "partial change\n")
 
+    def test_opt_in_attempt_replay_and_single_writer(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, task_file, resolution, raw = executor_fixture(root)
+            started = threading.Event()
+            release = threading.Event()
+            launches: list[str] = []
+
+            def run(_argv: object, prompt: str, *_args: object, on_started: object) -> tuple[int, bytes, bytes]:
+                launches.append(prompt)
+                on_started(12345)
+                (workspace / "target.py").write_text("updated\n", encoding="utf-8")
+                started.set()
+                self.assertTrue(release.wait(5))
+                return 0, raw, b""
+
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-sol",
+                        "observed_effort": "medium", "checks": {"attempt_id": True}}
+            with mock.patch.object(external, "_attempt_state_root", return_value=root / "state" / "dispatch"), \
+                 mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"), \
+                 mock.patch.object(external, "_limited_process", side_effect=run), \
+                 mock.patch.object(external, "_find_trace", return_value=root / "trace.jsonl"), \
+                 mock.patch.object(external, "inspect_exec", return_value=evidence) as inspect:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    first = pool.submit(external.dispatch_role, workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                    self.assertTrue(started.wait(5))
+                    replay = external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                    self.assertEqual(replay["status"], "started")
+                    self.assertEqual(replay["process_id"], 12345)
+                    with self.assertRaises(external.DispatchFailure) as conflict:
+                        external.dispatch_role(workspace, "executor", task_file, 30, root, True, OTHER_ATTEMPT)
+                    self.assertTrue(conflict.exception.conflicted)
+                    self.assertTrue(conflict.exception.outcome_uncertain)
+                    release.set()
+                    result = first.result(timeout=5)
+                self.assertEqual(result["status"], "verified")
+                self.assertEqual(result["attempt_id"], ATTEMPT)
+                self.assertEqual(inspect.call_args.args[-1], ATTEMPT)
+                self.assertIn(f'"attempt_id": "{ATTEMPT}"', launches[0])
+                self.assertEqual(
+                    external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT),
+                    {**result, "replayed": True},
+                )
+                self.assertEqual(len(launches), 1)
+
+    def test_opt_in_uncertain_replay_never_relaunches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, task_file, resolution, _raw = executor_fixture(root)
+            launches = []
+
+            def partial(_argv: object, _prompt: str, *_args: object, on_started: object) -> None:
+                launches.append(True)
+                on_started(45678)
+                (workspace / "target.py").write_text("partial\n", encoding="utf-8")
+                raise external.EvidenceError("transport lost")
+
+            with mock.patch.object(external, "_attempt_state_root", return_value=root / "state" / "dispatch"), \
+                 mock.patch.object(external, "resolve_role", return_value=resolution), \
+                 mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"), \
+                 mock.patch.object(external, "_limited_process", side_effect=partial):
+                with self.assertRaises(external.DispatchFailure) as failed:
+                    external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                self.assertEqual(failed.exception.execution_started, "yes")
+                replay = external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                self.assertEqual(replay["status"], "uncertain")
+                self.assertEqual(replay["process_id"], 45678)
+                self.assertEqual(replay["error"], "transport lost")
+                with self.assertRaises(external.DispatchFailure) as conflict:
+                    external.dispatch_role(workspace, "executor", task_file, 30, root, True, OTHER_ATTEMPT)
+                self.assertTrue(conflict.exception.conflicted)
+                self.assertTrue(conflict.exception.outcome_uncertain)
+                self.assertEqual(len(launches), 1)
+
+    def test_attempt_receipt_rejects_drift_corruption_and_worktree_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, task_file, resolution, _raw = executor_fixture(root)
+            binding = {
+                "workspace": str(workspace),
+                "git_common_dir": external._worktree_common_dir(workspace),
+                "baseline_head": external._clean_worktree_head(workspace),
+                "task_sha256": external.hashlib.sha256(task_file.read_bytes()).hexdigest(),
+                "role": "executor", "model": resolution["requested_model"],
+                "effort": resolution["requested_effort"],
+                "role_instructions_sha256": resolution["role_instructions_sha256"],
+            }
+            with mock.patch.object(external, "_attempt_state_root", return_value=root / "state" / "dispatch"):
+                attempt = external.ExecutorAttempt(workspace, ATTEMPT, binding)
+                attempt.claim()
+                self.assertEqual(attempt.replay()["status"], "claimed")
+                with self.assertRaises(external.ResolutionConflict):
+                    external.ExecutorAttempt(workspace, ATTEMPT, {**binding, "task_sha256": "changed"}).replay()
+                with self.assertRaises(external.ResolutionConflict):
+                    external.ExecutorAttempt(workspace, ATTEMPT, {**binding, "git_common_dir": "other"})
+                attempt.receipt_path.write_text("{", encoding="utf-8")
+                with self.assertRaises((external.EvidenceError, ValueError)):
+                    attempt.replay()
+                with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                     mock.patch.object(external, "_limited_process") as run:
+                    with self.assertRaises(external.DispatchFailure) as corrupted:
+                        external.dispatch_role(workspace, "executor", task_file, 30, root, True, ATTEMPT)
+                self.assertTrue(corrupted.exception.outcome_uncertain)
+                run.assert_not_called()
+                attempt.receipt_path.write_text(json.dumps({
+                    "attempt_id": ATTEMPT, "binding": binding,
+                    "state": "verified", "result": {"status": "verified"},
+                }), encoding="utf-8")
+                with self.assertRaisesRegex(external.EvidenceError, "incomplete"):
+                    attempt.replay()
+                attempt.receipt_path.unlink()
+                self.assertIsNone(attempt.replay())
+                with self.assertRaises(external.ResolutionConflict):
+                    attempt.claim()
+
+    def test_attempt_trace_requires_one_matching_user_message(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            trace = home / "sessions" / f"rollout-{THREAD}.jsonl"
+            trace.parent.mkdir()
+            role = home / "executor.toml"
+            role.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "role": "executor", "workspace": "/work/repo",
+                "requested_model": "gpt-6-sol", "requested_effort": "medium",
+                "role_config": str(role),
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            records = [
+                {"type": "session_meta", "payload": {"id": THREAD, "source": "exec", "cwd": "/work/repo", "model_provider": "openai"}},
+                {"type": "event_msg", "payload": {"type": "task_started", "turn_id": "turn-1"}},
+                {"type": "turn_context", "payload": {"turn_id": "turn-1", "cwd": "/work/repo", "model": "gpt-6-sol", "effort": "medium", "sandbox_policy": {"type": "workspace-write"}, "approval_policy": "never"}},
+                {"type": "response_item", "payload": {"role": "developer", "content": [{"type": "input_text", "text": INSTRUCTIONS}], "internal_chat_message_metadata_passthrough": {"turn_id": "turn-1"}}},
+                {"type": "response_item", "payload": {"role": "user", "content": [{"type": "input_text", "text": f'"attempt_id": "{ATTEMPT}"'}], "internal_chat_message_metadata_passthrough": {"turn_id": "turn-1"}}},
+                {"type": "event_msg", "payload": {"type": "task_complete", "turn_id": "turn-1"}},
+            ]
+            trace.write_text("\n".join(map(json.dumps, records)) + "\n", encoding="utf-8")
+            self.assertTrue(external.inspect_exec(trace, THREAD, resolution, home, ATTEMPT)["checks"]["attempt_id"])
+            records[4]["payload"]["content"].append({"type": "input_text", "text": f'"attempt_id": "{ATTEMPT}"'})
+            trace.write_text("\n".join(map(json.dumps, records)) + "\n", encoding="utf-8")
+            self.assertFalse(external.inspect_exec(trace, THREAD, resolution, home, ATTEMPT)["checks"]["attempt_id"])
+            records.pop(4)
+            trace.write_text("\n".join(map(json.dumps, records)) + "\n", encoding="utf-8")
+            self.assertFalse(external.inspect_exec(trace, THREAD, resolution, home, ATTEMPT)["checks"]["attempt_id"])
+
+    def test_attempt_state_root_rejects_symlink_redirection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            parent = root / "state"
+            parent.mkdir(mode=0o700)
+            outside = root / "outside"
+            outside.mkdir()
+            link = parent / "dispatch"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+            except OSError:
+                if os.name == "nt":
+                    self.skipTest("Windows symlink creation is unavailable")
+                raise
+            workspace = root / "workspace"
+            workspace.mkdir()
+            with mock.patch.object(external, "_attempt_state_root", return_value=link):
+                with self.assertRaisesRegex(external.EvidenceError, "plain directory"):
+                    external._attempt_directory(workspace)
+
+    def test_attempt_state_root_uses_os_account_not_process_home(self) -> None:
+        expected = external._attempt_state_root()
+        with tempfile.TemporaryDirectory() as temporary:
+            other_home = Path(temporary) / "other-home"
+            other_profile = Path(temporary) / "other-profile"
+            other_home.mkdir()
+            other_profile.mkdir()
+            with mock.patch.dict(os.environ, {
+                "HOME": str(other_home),
+                "USERPROFILE": str(other_profile),
+            }):
+                self.assertEqual(external._attempt_state_root(), expected)
+
+    def test_attempt_state_must_be_outside_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            state_root = workspace / ".agents-pipeline" / "external-dispatch"
+            with mock.patch.object(external, "_attempt_state_root", return_value=state_root):
+                with self.assertRaisesRegex(external.EvidenceError, "outside"):
+                    external._attempt_directory(workspace)
+            self.assertFalse(state_root.parent.exists())
+
+    def test_killed_dispatcher_leaves_started_reservation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, task_file, resolution, _raw = executor_fixture(root)
+            binding = {
+                "workspace": str(workspace),
+                "git_common_dir": external._worktree_common_dir(workspace),
+                "baseline_head": external._clean_worktree_head(workspace),
+                "task_sha256": external.hashlib.sha256(task_file.read_bytes()).hexdigest(),
+                "role": "executor", "model": resolution["requested_model"],
+                "effort": resolution["requested_effort"],
+                "role_instructions_sha256": resolution["role_instructions_sha256"],
+            }
+            state_root = root / "state" / "dispatch"
+            marker = root / "started"
+            script = "\n".join((
+                "import importlib.util, json, os, sys, time",
+                "from pathlib import Path",
+                "spec = importlib.util.spec_from_file_location('external', sys.argv[1])",
+                "module = importlib.util.module_from_spec(spec)",
+                "spec.loader.exec_module(module)",
+                "module._attempt_state_root = lambda: Path(sys.argv[2])",
+                "attempt = module.ExecutorAttempt(Path(sys.argv[3]), sys.argv[4], json.loads(sys.argv[5]))",
+                "attempt.claim()",
+                "attempt.record('started', 'yes', process_id=os.getpid())",
+                "Path(sys.argv[6]).write_text('started')",
+                "time.sleep(30)",
+            ))
+            process = subprocess.Popen([
+                sys.executable, "-c", script, str(TOOL), str(state_root),
+                str(workspace), ATTEMPT, json.dumps(binding), str(marker),
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                deadline = time.monotonic() + 5
+                while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(marker.exists(), process.stderr.read().decode() if process.poll() is not None else "no receipt")
+                process.kill()
+                process.communicate(timeout=5)
+                with mock.patch.object(external, "_attempt_state_root", return_value=state_root):
+                    attempt = external.ExecutorAttempt(workspace, ATTEMPT, binding)
+                    self.assertEqual(attempt.replay()["status"], "started")
+                    self.assertEqual(attempt.replay()["execution_started"], "yes")
+                    with self.assertRaises(external.ResolutionConflict):
+                        external.ExecutorAttempt(workspace, OTHER_ATTEMPT, binding).claim()
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate(timeout=5)
+
     def test_timeout_terminates_descendant_process(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             marker = Path(temporary) / "descendant-survived"
@@ -635,7 +915,7 @@ class ExternalRoleTests(unittest.TestCase):
             with self.assertRaisesRegex(external.EvidenceError, "timed out"):
                 external._limited_process(
                     [sys.executable, "-c", parent, child], "", Path(temporary), 1, os.environ.copy(),
-                    on_started=lambda: started.append(True),
+                    on_started=lambda _pid: started.append(True),
                 )
             self.assertEqual(started, [True])
             time.sleep(2)
