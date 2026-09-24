@@ -148,6 +148,33 @@ class ExternalRoleTests(unittest.TestCase):
                 resolved = external.resolve_role(workspace, "reviewer", ["formal_accept_reject"], "review", "ad-hoc-review")
             self.assertFalse(resolved["dispatch_supported"])
 
+            for role, intent, model, tier, classification in (
+                ("test-runner", "inspect", "gpt-6-luna", "mini", "routine"),
+                ("debugger", "diagnose", "gpt-6-astra", "strong", "deep"),
+            ):
+                (source / f"{role}.md").write_text(
+                    f"---\nname: {role}\nkind: subagent\n---\n", encoding="utf-8",
+                )
+                (roles / f"{role}.toml").write_text(
+                    f'name = "{role}"\nmodel = "{model}"\n'
+                    'developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8",
+                )
+                status["resolved_configurations"][role] = {
+                    **config,
+                    "role_binding": {"role": role, "model": model, "model_tier": tier},
+                }
+                with mock.patch.object(external, "_json_command", side_effect=[
+                    status, {**decision, "effective_class": classification},
+                ]):
+                    resolved = external.resolve_role(workspace, role, ["local_scope"], intent)
+                self.assertTrue(resolved["dispatch_supported"])
+                wrong_class = "deliberative" if role == "test-runner" else "assurance"
+                with mock.patch.object(external, "_json_command", side_effect=[
+                    status, {**decision, "effective_class": wrong_class},
+                ]):
+                    resolved = external.resolve_role(workspace, role, ["local_scope"], intent)
+                self.assertFalse(resolved["dispatch_supported"])
+
     def test_resolution_rejects_unhealthy_profile_and_other_roles(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
@@ -464,6 +491,76 @@ class ExternalRoleTests(unittest.TestCase):
             self.assertEqual(result["result"], output)
             self.assertEqual(result["review_kind"], "ad_hoc")
             self.assertFalse(result["formal_assurance"])
+
+    def test_read_only_simple_helpers_validate_task_output_and_sandbox(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            (workspace / "target.py").write_text("x = 1\n", encoding="utf-8")
+            role_file = workspace / "role.toml"
+            role_file.write_text('developer_instructions = "# ROLE\\nRead only.\\n"\n', encoding="utf-8")
+            resolution = {
+                "workspace": str(workspace), "role_config": str(role_file),
+                "requested_model": "gpt-6-luna", "requested_effort": "high",
+                "dispatch_supported": True,
+                "role_instructions_sha256": external.hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
+            }
+            evidence = {"verification_status": "matched", "observed_model": "gpt-6-luna",
+                        "observed_effort": "high", "checks": {"model": True}}
+            cases = (
+                ("test-runner", {
+                    "task_intent": "inspect", "reasoning_signals": ["local_scope"],
+                    "checks": ["python3 -B -m unittest tests.test_example -q"],
+                }, {
+                    "related_tasks": [], "status": "pass", "commands_executed": ["python3 -B -m unittest tests.test_example -q"],
+                    "evidence": ["one test passed"], "failures": [], "notes": "", "recommended_followups": [],
+                }),
+                ("debugger", {
+                    "task_intent": "diagnose", "reasoning_signals": ["ambiguous_root_cause"],
+                    "question": "Explain the observed failure", "evidence": ["test exits 1"],
+                    "targets": ["target.py"],
+                }, {
+                    "status": "inconclusive", "observed_failure": "test exits 1", "evidence": [],
+                    "established_causes": [], "hypotheses": ["unknown input"],
+                    "relevant_locations": ["target.py"], "minimal_repair_recommendation": "",
+                    "minimal_verification_recommendation": "Inspect input", "uncertainty": "Cause unknown", "notes": "",
+                }),
+            )
+            for role, task, result_payload in cases:
+                with self.subTest(role=role):
+                    task_file = workspace / "task.json"
+                    task_file.write_text(json.dumps(task), encoding="utf-8")
+                    self.assertEqual(external._read_task(task_file, role), task)
+                    raw = "\n".join(json.dumps(event) for event in (
+                        {"type": "thread.started", "thread_id": THREAD},
+                        {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(result_payload)}},
+                        {"type": "turn.completed", "usage": {}},
+                    )).encode()
+                    with mock.patch.object(external, "resolve_role", return_value=resolution), \
+                         mock.patch.object(external, "_limited_process", return_value=(0, raw, b"")) as run, \
+                         mock.patch.object(external, "_find_trace", return_value=workspace / "trace.jsonl"), \
+                         mock.patch.object(external, "inspect_exec", return_value=evidence), \
+                         mock.patch.object(external.shutil, "which", return_value="/usr/bin/codex"):
+                        result = external.dispatch_role(workspace, role, task_file, 30, workspace)
+                    self.assertEqual(result["status"], "verified")
+                    self.assertEqual(result["result"], result_payload)
+                    self.assertIn("read-only", run.call_args.args[0])
+                    self.assertIn("--output-schema", run.call_args.args[0])
+                    self.assertNotIn("--allow-write", run.call_args.args[0])
+
+            bad_debugger = {**cases[1][1], "targets": ["../outside.py"]}
+            task_file.write_text(json.dumps(bad_debugger), encoding="utf-8")
+            with mock.patch.object(external, "_limited_process") as run:
+                with self.assertRaisesRegex(external.EvidenceError, "traversal"):
+                    external.dispatch_role(workspace, "debugger", task_file, 30, workspace)
+            run.assert_not_called()
+            malformed = dict(cases[0][2])
+            malformed.pop("notes")
+            with self.assertRaises((external.EvidenceError, KeyError)):
+                external._parse_events(raw.replace(json.dumps(cases[1][2]).encode(), json.dumps(malformed).encode()), "test-runner")
+            contradictory = {**cases[0][2], "failures": ["the check failed"]}
+            contradictory_raw = raw.replace(json.dumps(cases[1][2]).encode(), json.dumps(contradictory).encode())
+            with self.assertRaisesRegex(external.EvidenceError, "test-runner result shape"):
+                external._parse_events(contradictory_raw, "test-runner")
 
     def test_executor_requires_explicit_write_and_checks_scope(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

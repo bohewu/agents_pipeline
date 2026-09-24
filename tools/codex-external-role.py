@@ -2,7 +2,8 @@
 """Resolve managed leaf roles and run bounded external roles.
 
 Only executor dispatch may write, with explicit opt-in and scoped result checks.
-Dispatch does not claim native subagent role selection.
+The other supported roles run read-only. Dispatch does not claim native
+subagent role selection.
 """
 
 from __future__ import annotations
@@ -50,6 +51,41 @@ REVIEWER_SCHEMA = {
           for field in REVIEWER_FIELDS[1:]},
     },
     "required": list(REVIEWER_FIELDS),
+    "additionalProperties": False,
+}
+TEST_RUNNER_FIELDS = (
+    "related_tasks", "status", "commands_executed", "evidence", "failures",
+    "notes", "recommended_followups",
+)
+TEST_RUNNER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "related_tasks": {"type": "array", "items": {"type": "string"}},
+        "status": {"type": "string", "enum": ["pass", "fail", "partial"]},
+        **{field: {"type": "array", "items": {"type": "string"}}
+          for field in ("commands_executed", "evidence", "failures", "recommended_followups")},
+        "notes": {"type": "string"},
+    },
+    "required": list(TEST_RUNNER_FIELDS),
+    "additionalProperties": False,
+}
+DEBUGGER_FIELDS = (
+    "status", "observed_failure", "evidence", "established_causes",
+    "hypotheses", "relevant_locations", "minimal_repair_recommendation",
+    "minimal_verification_recommendation", "uncertainty", "notes",
+)
+DEBUGGER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "status": {"type": "string", "enum": ["diagnosed", "inconclusive", "blocked"]},
+        **{field: {"type": "array", "items": {"type": "string"}}
+          for field in ("evidence", "established_causes", "hypotheses", "relevant_locations")},
+        **{field: {"type": "string"} for field in (
+            "observed_failure", "minimal_repair_recommendation",
+            "minimal_verification_recommendation", "uncertainty", "notes",
+        )},
+    },
+    "required": list(DEBUGGER_FIELDS),
     "additionalProperties": False,
 }
 EXECUTOR_FIELDS = (
@@ -202,6 +238,10 @@ def resolve_role(
                 and dispatch_context == "ad-hoc-review" and decision["effective_class"] == "deep")
             or (role == "executor" and task_intent == "execute" and dispatch_context is None
                 and decision["effective_class"] in {"routine", "deliberative", "deep"})
+            or (role == "test-runner" and task_intent == "inspect" and dispatch_context is None
+                and decision["effective_class"] == "routine")
+            or (role == "debugger" and task_intent == "diagnose" and dispatch_context is None
+                and decision["effective_class"] == "deep")
         ),
         "workspace": str(workspace),
         "profile": status["profile"],
@@ -388,6 +428,26 @@ def _read_task(file: Path, role: str = "repo-scout", raw: bytes | None = None) -
             isinstance(criterion, str) and 1 <= len(criterion) <= 500 for criterion in task["criteria"]
         ):
             raise EvidenceError("Reviewer criteria must be 1 to 8 bounded strings")
+    elif role == "test-runner":
+        if set(task) != {"task_intent", "reasoning_signals", "checks"} or task["task_intent"] != "inspect":
+            raise EvidenceError("Test-runner task requires inspect intent, signals, and checks")
+        if not isinstance(task["checks"], list) or not 1 <= len(task["checks"]) <= 4 or not all(
+            isinstance(check, str) and 1 <= len(check) <= 240 for check in task["checks"]
+        ):
+            raise EvidenceError("Test-runner checks must be 1 to 4 bounded commands")
+    elif role == "debugger":
+        if set(task) != {"task_intent", "reasoning_signals", "question", "evidence", "targets"} or task["task_intent"] != "diagnose":
+            raise EvidenceError("Debugger task requires diagnose intent, question, evidence, and targets")
+        if not isinstance(task["question"], str) or not 1 <= len(task["question"]) <= 2000:
+            raise EvidenceError("Debugger question must contain 1 to 2000 characters")
+        if not isinstance(task["evidence"], list) or not 1 <= len(task["evidence"]) <= 8 or not all(
+            isinstance(item, str) and 1 <= len(item) <= 500 for item in task["evidence"]
+        ):
+            raise EvidenceError("Debugger evidence must be 1 to 8 bounded strings")
+        if not isinstance(task["targets"], list) or not 1 <= len(task["targets"]) <= 12 or not all(
+            isinstance(target, str) and 1 <= len(target) <= 240 for target in task["targets"]
+        ):
+            raise EvidenceError("Debugger targets must be 1 to 12 bounded paths")
     elif role == "executor":
         if set(task) != {"task_id", "task_intent", "reasoning_signals", "task", "allowed_paths", "acceptance_criteria", "verification"}:
             raise EvidenceError("Executor task requires an atomic task, paths, criteria, and verification")
@@ -861,6 +921,28 @@ def _parse_events(raw: bytes, role: str = "repo-scout") -> tuple[str, dict[str, 
                     item.startswith(("[artifact]", "[evidence]", "[logic]"))
                     for field in ("issues", "required_followups") for item in output[field]
                 )
+    elif role == "test-runner":
+        valid = (
+            isinstance(output, dict) and set(output) == set(TEST_RUNNER_FIELDS)
+            and output["status"] in {"pass", "fail", "partial"}
+            and all(isinstance(output[field], list)
+                    and all(isinstance(item, str) for item in output[field])
+                    for field in TEST_RUNNER_FIELDS if field not in {"status", "notes"})
+            and isinstance(output["notes"], str)
+        )
+        if valid and output["status"] == "pass":
+            valid = bool(output["commands_executed"]) and not output["failures"]
+    elif role == "debugger":
+        valid = (
+            isinstance(output, dict) and set(output) == set(DEBUGGER_FIELDS)
+            and output["status"] in {"diagnosed", "inconclusive", "blocked"}
+            and all(isinstance(output[field], list)
+                    and all(isinstance(item, str) for item in output[field])
+                    for field in ("evidence", "established_causes", "hypotheses", "relevant_locations"))
+            and all(isinstance(output[field], str)
+                    for field in DEBUGGER_FIELDS
+                    if field not in {"status", "evidence", "established_causes", "hypotheses", "relevant_locations"})
+        )
     elif role == "executor":
         valid = (
             isinstance(output, dict) and set(output) == set(EXECUTOR_FIELDS)
@@ -922,6 +1004,8 @@ def _dispatch_role(
     task = _read_task(task_file, role, raw_task)
     baseline_head = None
     if role == "reviewer":
+        _verify_repo_paths(workspace, task["targets"])
+    elif role == "debugger":
         _verify_repo_paths(workspace, task["targets"])
     elif role == "executor":
         if not allow_write:
@@ -993,6 +1077,18 @@ def _dispatch_role(
             "Inspect the explicit targets. Return only the reviewer role's JSON result."
         )
         input_payload = {"mode": "ad_hoc", "targets": task["targets"], "criteria": task["criteria"]}
+    elif role == "test-runner":
+        output_contract = (
+            "Run only these focused checks, classify any failure, and return only "
+            "the test-runner role's JSON result. Do not edit repository files."
+        )
+        input_payload = {"checks": task["checks"]}
+    elif role == "debugger":
+        output_contract = (
+            "Diagnose only the bounded failure using the supplied evidence and targets. "
+            "Separate established causes from hypotheses. Return only the debugger role's JSON result."
+        )
+        input_payload = {"question": task["question"], "evidence": task["evidence"], "targets": task["targets"]}
     else:
         output_contract = "Execute exactly one atomic task. Return only the executor role's JSON result."
         input_payload = {
@@ -1024,12 +1120,14 @@ def _dispatch_role(
             "-c", "agents.enabled=false",
             "-c", f"developer_instructions={json.dumps(instructions)}",
         ]
-        if role in {"repo-scout", "reviewer", "executor"}:
+        if role in {"repo-scout", "reviewer", "executor", "test-runner", "debugger"}:
             schema = Path(temporary) / f"{role}-schema.json"
             schema.write_text(json.dumps({
                 "repo-scout": REPO_SCOUT_SCHEMA,
                 "reviewer": REVIEWER_SCHEMA,
                 "executor": EXECUTOR_SCHEMA,
+                "test-runner": TEST_RUNNER_SCHEMA,
+                "debugger": DEBUGGER_SCHEMA,
             }[role]), encoding="utf-8")
             argv.extend(("--output-schema", str(schema)))
         argv.append("-")

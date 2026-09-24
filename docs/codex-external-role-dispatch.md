@@ -1,12 +1,21 @@
 # External managed leaf dispatch (experimental)
 
+For a bounded externally orchestrated Simple task using these leaves, see
+[External Simple orchestration](external-simple-orchestration.md). That entry is
+distinct from the native `$run-simple` workflow.
+
 `tools/codex-external-role.py` lets an external orchestrator resolve a registered
 Codex leaf role without an LLM call. It can execute `repo-scout`, `planner`,
-and a bounded ad hoc `reviewer` as fresh, read-only `codex exec` roots. It can
-also execute one atomic `executor` task with explicit write opt-in. The current
+`test-runner`, `debugger`, and a bounded ad hoc `reviewer` as fresh, read-only
+`codex exec` roots. It can also execute one atomic `executor` task with explicit
+write opt-in. The current
 workspace must have a healthy, eligible, current OpenAI profile. The tool reads its saved role
 binding and calls the existing reasoning resolver; callers do not supply a
 model or effort.
+For a target repository other than agents_pipeline, invoke the script from the
+installed support tree if it contains this version, or from a trusted
+agents_pipeline source checkout. Always pass the target repository via
+`--workspace`; its workspace profile does not copy this script into the target.
 
 ```bash
 python3 tools/codex-external-role.py resolve-role \
@@ -27,6 +36,17 @@ path. A repo-scout task contains `task` and `reasoning_signals`; its intent is
 A reviewer task uses `task_intent: review`, `review_kind: ad_hoc`, explicit
 repo-relative file `targets`, `criteria`, and `reasoning_signals`. Targets must
 be existing regular files within the workspace, without symlink traversal.
+For `test-runner`, supply `task_intent: inspect`, `reasoning_signals`, and one
+to four focused `checks` commands. It is fixed to routine reasoning and the
+read-only sandbox; a check that requires repository writes may fail and should
+be run independently by the orchestrator under the task's normal validation
+rules. For `debugger`, supply `task_intent: diagnose`, `reasoning_signals`, a
+bounded `question`, one to eight evidence strings, and one to twelve existing
+repo-relative file `targets`. Its diagnosis is read-only and cannot admit a
+repair or restart a stopped task.
+The dispatcher's verified status attests the selected role, model, effort, and
+trace, not the truth of a helper's reported check or diagnosis. Inspect the
+reported commands and evidence; rerun an important check independently.
 
 ```json
 {
@@ -62,6 +82,27 @@ For a bounded ad hoc review, use a separate task file:
 ```bash
 python3 tools/codex-external-role.py dispatch-role \
   --workspace . --role reviewer --task-file /tmp/reviewer-task.json
+```
+
+Read-only Simple helpers use the same dispatch command with their role and
+task file, without `--allow-write`:
+
+```json
+{
+  "task_intent": "inspect",
+  "reasoning_signals": ["fully_specified", "local_scope"],
+  "checks": ["python3 -B -m unittest tests.test_example -q"]
+}
+```
+
+```json
+{
+  "task_intent": "diagnose",
+  "reasoning_signals": ["ambiguous_root_cause"],
+  "question": "Explain the observed failed check without modifying files",
+  "evidence": ["Focused test exits 1 with an assertion mismatch"],
+  "targets": ["scripts/example.py", "tests/test_example.py"]
+}
 ```
 
 Reviewer resolution uses the existing `ad-hoc-review` context. The wrapper
@@ -119,7 +160,7 @@ the independent root used the requested model and effort and received the exact
 generated role instructions. `native_managed_child: false` remains explicit;
 native child role identity and selector causality are separate guarantees.
 
-`repo-scout`, `reviewer`, and `executor` use Codex's output schema. `planner` returns its existing
+`repo-scout`, `reviewer`, `test-runner`, `debugger`, and `executor` use Codex's output schema. `planner` returns its existing
 PlanOutline JSON shape, checked locally because the repository schema's
 optional and dynamic fields are incompatible with Codex's strict output-schema
 format. Errors and resolver conflicts return JSON with exit codes 2 and 3,
