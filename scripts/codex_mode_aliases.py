@@ -46,11 +46,11 @@ MODE_ALIAS_AUTHORIZATION_GUARD_LINE = (
     "`spawn_agent` authorization."
 )
 MANAGED_CHILD_DISPATCH_TEMPLATE = (
-    "Before any managed child dispatch, read `{reasoning_policy}` and follow its "
-    "profile/tier, shared-resolver, native-selector, no-full-history, saved-configuration, "
-    "trace, and result-label rules. Exported subagent roles are leaf workers and must "
-    "not spawn another agent. Never claim workspace routing, selector application, a "
-    "verified model, or effective effort without the evidence that protocol requires."
+    "Before managed role or Web session agent Job dispatch, read `{reasoning_policy}` "
+    "and follow its profile/tier, shared-resolver, saved-configuration, dispatch-surface "
+    "evidence, and result-label rules. Exported roles are leaf workers and must not "
+    "dispatch another agent. Never claim native managed-role identity, workspace routing, "
+    "a verified model, or effective effort without the evidence that protocol requires."
 )
 AD_HOC_MANAGED_ROLE_DISPATCH_TEMPLATE = (
     "For an explicit request to dispatch a registered managed role outside a `$run-*` "

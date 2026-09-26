@@ -345,7 +345,7 @@ profile status and reread canonical plus in-memory task history immediately
 before spawn. Initial strong execution is a normal first attempt, not recovery,
 and changes no recovery, retry, or repair counter.
 
-In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
+For native managed dispatch in `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
 and apply it without passing a model. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
@@ -360,7 +360,7 @@ and does not change the selected model. Conflicts block the spawn. Deep
 It never permits assurance or model routing outside the bounded capability recovery below.
 
 Include the complete decision and exact saved `resolved_configuration` in each
-`agent.started` status payload. On local Codex, after every spawn returns its identifier, run
+`agent.started` status payload. For native managed dispatch on local Codex, after every spawn returns its identifier, run
 `node tools/codex-child-trace.js` with V2 `--task-name` or legacy `--agent-id`,
 the expected role and, when non-null, expected `dispatch_effort`; rerun the
 resolver with the reported
@@ -374,6 +374,15 @@ trace evidence. Matching effort enforces the policy contract;
 selector and inheritance.
 Only matching adaptive role, model, and effort trace evidence permits an
 `enforced` result; `shadow` and `inherit` observations remain unapplied.
+
+For a Web session agent Job, follow the separate surface in
+`protocols/REASONING_POLICY.md`. Keep the saved configuration and pre-dispatch
+reasoning decision in AgentStatus, reference bounded Job evidence through
+`evidence_refs`, and observe the same Job to terminal before accepting the
+role output and task checks. Do not feed a Job ID to the native trace helper or
+claim native `enforced` status. Exact-effort, formal-assurance, and native
+trace-gated recovery paths stop on this surface; this does not change Pipeline
+review, retry, cleanup, or resume contracts.
 
 ## BOUNDED DEBUGGER DELEGATION
 

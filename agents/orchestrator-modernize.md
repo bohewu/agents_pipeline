@@ -170,8 +170,7 @@ Before every modernization-planning child spawn, invoke
 actual `task_intent` plus matching intent-baseline/source metadata,
 legacy-compatible class, and bounded signals for task-bearing work. The
 effective profile/runtime selects the actual role model/tier; the resolver
-validates capability and selects child effort only. Never pass a raw model,
-dynamically route a model, or apply a child selector to the current/main agent.
+validates capability and selects child effort only. For native managed dispatch, never pass a raw model. A Web session agent Job selects only the saved role model under `protocols/REASONING_POLICY.md`. Never dynamically route a model or apply a child selector to the current/main agent.
 During an execution transition, adopt Pipeline's same resolver contract rather
 than creating a modernization-specific effort map.
 For an eligible workspace profile, retain the exact role

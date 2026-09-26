@@ -432,10 +432,8 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         for text in (adaptive, simple, flow, pipeline):
             self.assertIn("reasoning_effort = max", text)
             self.assertNotIn(removed_spawn_key, text)
-            self.assertRegex(
-                text,
-                r"without passing a model|while omitting `model`|no dispatch passes a model",
-            )
+            self.assertIn("native managed", text.lower())
+            self.assertIn("Web session agent Job", text)
         self.assertIn("No non-review role receives this override", flow)
         self.assertIn("No executor, test runner, or other role receives this override", pipeline)
         self.assertIn("review_reasoning_effort = max", adaptive)
@@ -460,10 +458,8 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
                 self.assertRegex(direct_skill, r"exact .*reviewer-only effort")
                 self.assertIn("inherit conflicts", direct_skill)
                 self.assertNotIn(removed_spawn_key, direct_skill)
-                self.assertRegex(
-                    direct_skill,
-                    r"without passing a model|passing a model override|model routing",
-                )
+                self.assertIn("Native managed dispatch", direct_skill)
+                self.assertIn("Web session agent Job", direct_skill)
                 self.assertIn("non-review role", direct_skill)
 
 

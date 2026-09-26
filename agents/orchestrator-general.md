@@ -108,9 +108,7 @@ Before every child spawn, invoke `node tools/reasoning-policy.js` under
 intent-baseline/source metadata, legacy-compatible `reasoning_class`, and
 bounded signals; stage-scoped calls use the intent that describes their actual
 work. The effective profile/runtime selects the actual role model/tier; the
-resolver validates capability and selects child effort only. Never pass a raw
-model, dynamically route a model, or apply a child selector to the current/main
-agent. A resolver conflict blocks that spawn; do not lower a class or discard
+resolver validates capability and selects child effort only. For native managed dispatch, never pass a raw model. A Web session agent Job selects only the saved role model under `protocols/REASONING_POLICY.md`. Never dynamically route a model or apply a child selector to the current/main agent. A resolver conflict blocks that spawn; do not lower a class or discard
 signals to fit a role.
 For an eligible workspace profile, retain the exact role
 `resolved_configuration` and configuration identity from preflight; pass that

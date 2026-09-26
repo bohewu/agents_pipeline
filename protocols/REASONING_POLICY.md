@@ -438,8 +438,9 @@ request and the parent's effort could have received an explicit same-value
 selector or inherited the parent, and those paths are observationally
 indistinguishable.
 
-In adaptive mode, request a non-null `dispatch_effort` through the native
-per-spawn effort selector. Normally omit `model`. The only exception is an
+In adaptive mode, request a non-null `dispatch_effort` through the selected
+dispatch surface's explicit effort setting. For native managed dispatch,
+normally omit `model`. The only native exception is an
 `auto` CapabilityRecoveryDecision whose requested tier was resolved by the
 active profile's read-only `resolve-recovery` action. On Codex multi-agent V2,
 pass the registered role as `agent_type`, pass `dispatch_effort` as
@@ -448,6 +449,57 @@ model only for the eligible recovery spawn. On a legacy spawn surface, use the
 equivalent no-history `fork_context = false`. Include the complete
 ReasoningDecision in Flow/Pipeline agent lifecycle status. Selector presence
 and a successful spawn prove only `requested`, not `enforced`.
+
+### Web session agent Jobs
+
+A ChatGPT Web current/main session may perform the selected `$run-*` workflow
+itself and dispatch a registered role as a separate Codex agent Job when its
+WebCodex Runner supports process execution but not native managed dispatch.
+This is a second dispatch surface, not a native `agent_type` spawn. It does not
+require the removed `codex-external-role.py` wrapper. The existing Codex
+executable is the agent runtime; WebCodex provides Job lifecycle observation.
+
+Before each Job, apply the same workspace profile health, catalog, trust,
+saved-configuration, task classification, and shared-resolver checks. A Job
+requires a proven role model from the effective configuration; if no such
+binding exists, stop this surface rather than guessing from a model name. Read
+the registered role definition and give that exact role contract and bounded task
+to the Codex process. Because a separate process does not inherit native role
+routing, explicitly select the saved role model through a supported Codex
+setting. In `adaptive`, also select the resolver's non-null `dispatch_effort`
+through a supported effort setting. In `inherit` and `shadow`, omit that effort
+setting as the resolver requires; observed effort is diagnostic and cannot
+become an applied-selector claim. Reject an unavailable or unrecognized
+required setting; do not silently fall back to the main session's model or,
+in `adaptive`, effort. Preserve the workflow's sandbox, workspace, and task
+scope rules.
+
+Track one launched process through its terminal response. If WebCodex promotes
+that process into a Job, observe only the returned Job ID until terminal;
+promotion is not another dispatch. Record the Job ID when issued, Codex thread
+ID, terminal state and exit code, selected configuration, observed model and
+effort telemetry, role-contract reference, output-contract
+validation, and relevant workspace/diff/test evidence. Keep process logs and
+prompts out of tracked status artifacts. Recheck observed effort against the
+resolver and workspace ceiling. A missing terminal result, nonzero exit,
+mismatched model, `adaptive` effort mismatch, invalid role output, or
+unverified worktree state blocks acceptance and downstream dispatch. Do not
+retry an uncertain Job as a new process merely because observation timed out.
+
+This evidence supports a **role-directed Job result**, not native managed-role
+identity. Runtime model and effort telemetry do not prove that `agent_type` was
+applied or that the role prompt was obeyed; the orchestrator must check the
+role's output contract and task result. Do not run `codex-child-trace.js` on a
+Job ID or claim native `role_matches`. Existing Flow/Pipeline AgentStatus
+`enforced` records remain native-trace-only. For a Job, retain the pre-dispatch
+reasoning decision (`requested`, `inherited`, or `shadow` as applicable) in
+canonical status and use `evidence_refs` to point to bounded run-local Job
+evidence. Clearly report the observed model and
+effort separately from the unverified native-role identity. Exact effort
+overrides, formal assurance, trace-gated recovery, and any gate whose schema
+requires native `enforced` evidence stop on this surface until a separate
+validated evidence contract supports them. Ordinary non-strict workflow work
+may continue after the Job result and required task checks pass.
 
 ### Ad-hoc managed-role dispatch
 
@@ -474,8 +526,9 @@ profile proves it; otherwise expose only the helper's bounded observed model and
 do not claim profile routing. This preflight creates no workflow artifacts,
 decomposition, status records, retry loop, or recovery behavior.
 
-On local Codex, before accepting the terminal child result, inspect the child
-trace using the identifier returned by the active spawn surface. V2 returns a
+For native managed dispatch on local Codex, before accepting the terminal
+child result, inspect the child trace using the identifier returned by the
+active spawn surface. V2 returns a
 task path:
 
 ```text
@@ -541,8 +594,8 @@ for persistence.
 - `exceptions` is an explicit user choice to suppress normal lines independent
   of client UI capability while retaining every exceptional line or warning.
 
-A result is normal only when trace evidence matches the registered role and
-expected model, supplies an effective effort matching the dispatched effort,
+A native managed result is normal only when trace evidence matches the
+registered role and expected model, supplies an effective effort matching the dispatched effort,
 and the decision is neither degraded nor conflicted and used no recovery
 attempt. Inherit and shadow decisions are not silently treated as enforced.
 The Desktop UI's model label is not evidence of effective effort. Presentation

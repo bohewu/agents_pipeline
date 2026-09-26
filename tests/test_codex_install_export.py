@@ -149,13 +149,13 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
         )
-        self.assertIn("Before any managed child dispatch", managed_block)
+        self.assertIn("Before managed role or Web session agent Job dispatch", managed_block)
         self.assertIn(
             f"{self.DEFAULT_SUPPORT_ROOT}/protocols/REASONING_POLICY.md",
             managed_block,
         )
-        self.assertIn("Exported subagent roles are leaf workers", managed_block)
-        self.assertIn("Never claim workspace routing", managed_block)
+        self.assertIn("Exported roles are leaf workers", managed_block)
+        self.assertIn("Never claim native managed-role identity", managed_block)
         self.assertIn("`Ad-hoc managed-role dispatch` section", managed_block)
         self.assertIn("outside a `$run-*` workflow", managed_block)
         self.assertIn("Keep this path adaptive", managed_block)
@@ -368,7 +368,7 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_AUTHORIZATION_GUARD_LINE,
             managed_block,
         )
-        self.assertIn("Before any managed child dispatch", managed_block)
+        self.assertIn("Before managed role or Web session agent Job dispatch", managed_block)
         self.assertIn("REASONING_POLICY.md", managed_block)
         self.assertIn("For every child result shown to the user", managed_block)
         self.assertIn(
@@ -509,7 +509,7 @@ class CodexInstallExportTest(unittest.TestCase):
             self.MODE_ALIAS_SUBAGENT_SENTENCE,
             merged,
         )
-        self.assertIn("Before any managed child dispatch", merged)
+        self.assertIn("Before managed role or Web session agent Job dispatch", merged)
         self.assertIn("REASONING_POLICY.md", merged)
         self.assertIn(self.MODE_ALIAS_OBEY_DEFINITION_SENTENCE, merged)
         self.assertIn(self.MODE_ALIAS_NO_BYPASS_SENTENCE, merged)

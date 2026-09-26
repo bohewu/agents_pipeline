@@ -91,7 +91,9 @@ create a TaskList or status artifact. Call `node tools/reasoning-policy.js`
 with the registered role, effective `reasoning_mode`, proven selected logical
 model tier or `unknown`, selector capability, and that in-memory classification.
 A conflict blocks that spawn. The profile/runtime selects the actual role
-model; the resolver selects only child effort and no dispatch passes a model.
+model; the resolver selects only child effort. Native managed dispatch does not
+pass a model; a Web session agent Job selects only the saved role model under
+`protocols/REASONING_POLICY.md`.
 For a healthy eligible workspace profile, retain the exact preflight
 `resolved_configuration` and configuration identity for the selected role; use
 that envelope in each resolver call and trace expectation. Simple keeps this
@@ -129,7 +131,7 @@ the prior attempt's `effective_class` as the next in-memory
 performs model recovery, and an automatic Goal continuation must use this one
 narrow repair path rather than re-enter `$run-adaptive` from the beginning.
 
-In `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
+For native managed dispatch in `adaptive`, pass a non-null `dispatch_effort` through the native per-spawn
 selector while omitting `model`. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
 selector and continue without claiming enforcement; strict/exact cases conflict
@@ -142,7 +144,7 @@ uses the centrally projected effort for its saved reviewer configuration. Only e
 reviewer reasoning recovery may request `max`; generic risk alone does not.
 Reviewer models never uplift.
 `--review=max` passes `explicit_effort = max` only for that reviewer, stays deep, and
-does not certify the review. On local Codex, after every spawn returns
+does not certify the review. For native managed dispatch on local Codex, after every spawn returns
 its identifier, run `node tools/codex-child-trace.js` with V2 `--task-name` or
 legacy `--agent-id`, the expected role and, when non-null, expected
 `dispatch_effort`; rerun the resolver with the reported
@@ -156,6 +158,14 @@ indeterminate between a same-value selector and inheritance.
 Adaptive enforcement requires matching role, model, and effort evidence from
 that saved envelope. `shadow` and `inherit` retain their decision but do not
 claim that the selector was applied.
+
+For a Web session agent Job, use the separate surface in
+`protocols/REASONING_POLICY.md`: select the profile-resolved model, apply
+effort only in adaptive mode, observe the one launch through its terminal
+result, and validate its role output and workspace result. Report its
+model/effort telemetry without claiming native
+managed-role identity or native trace enforcement. Exact-effort and assurance
+gates remain blocked on this surface.
 
 # DISPATCH POLICY
 

@@ -265,8 +265,10 @@ For task attempts, pass `task_intent`, `intent_baseline_class`,
 `classification_source`, legacy-compatible `reasoning_class`, and
 `reasoning_signals` from the task. The effective profile/runtime selects the
 actual role model/tier; the resolver validates that capability and selects only
-child effort. Never pass a raw model or attempt dynamic model routing except for the
-one trace-verified child recovery permitted below.
+child effort. Native managed dispatch does not pass a raw model except for the
+one trace-verified child recovery permitted below. A Web session agent Job
+selects only the saved role model under `protocols/REASONING_POLICY.md`; neither
+surface permits dynamic model routing.
 For a healthy eligible workspace profile, freeze the current profile identity,
 model mapping, projection identity, and exact per-role `resolved_configuration`
 at run start. Include that saved configuration in each resolver call, every
@@ -299,7 +301,7 @@ CLI, or tool failures. A reasoning failure raises routine to deliberative or
 deliberative to deep; deep gets a max recovery boost and never becomes
 assurance.
 
-In `adaptive`, use a non-null `dispatch_effort` as the native per-spawn
+For native managed dispatch in `adaptive`, use a non-null `dispatch_effort` as the native per-spawn
 `reasoning_effort`, select the registered role without a full-history fork,
 and apply it without passing a model. If selector unavailability produces a
 non-strict, non-exact `degraded` decision with null `dispatch_effort`, omit the
@@ -310,7 +312,7 @@ fully computes requested effort but omits the selector; strict assurance
 conflicts. An ordinary review-max request remains deep and does not certify or
 change the selected model.
 Before a spawn, include the complete decision and exact saved
-`resolved_configuration` in the `agent.started` status payload. On local Codex, after every spawn returns its identifier,
+`resolved_configuration` in the `agent.started` status payload. For native managed dispatch on local Codex, after every spawn returns its identifier,
 run `node tools/codex-child-trace.js` with V2 `--task-name` or legacy
 `--agent-id`, the expected role and, when non-null, expected `dispatch_effort`;
 rerun the resolver with the reported
@@ -326,6 +328,14 @@ causality. Conflicts block the spawn. Deep
 It never permits assurance or changes the model outside capability recovery.
 Only matching adaptive role, model, and effort trace evidence permits an
 `enforced` result; `shadow` and `inherit` observations remain unapplied.
+
+For a Web session agent Job, follow the separate surface in
+`protocols/REASONING_POLICY.md`. Keep the saved configuration and pre-dispatch
+reasoning decision in AgentStatus, reference bounded Job evidence through
+`evidence_refs`, and observe the same Job to terminal before accepting the
+role output and task checks. Do not feed a Job ID to the native trace helper or
+claim native `enforced` status. Exact-effort, formal-assurance, and native
+trace-gated recovery paths stop on this surface.
 
 ## MATERIALITY AND CAPABILITY RECOVERY
 
