@@ -459,6 +459,36 @@ This is a second dispatch surface, not a native `agent_type` spawn. It does not
 require the removed `codex-external-role.py` wrapper. The existing Codex
 executable is the agent runtime; WebCodex provides Job lifecycle observation.
 
+For a disposable detached worktree, first create or re-observe the repo-external
+worktree Project, then run workspace profile `status --json` for that worktree.
+An initial `health = ok`, `catalog_state = inherit`,
+`profile_eligibility = not_configured`, `project_trust = unknown` result with no
+local `.codex/agents/*.toml` is normal pre-materialization state, not a profile
+or tool failure. If the task requires the source profile, take its profile and
+model-set from a verified source profile snapshot and run workspace `set` only
+in the disposable worktree; never modify the source checkout's `.codex` profile.
+Recheck worktree status after `set`: require `health = ok`,
+`catalog_state = current`, `profile_eligibility = eligible`,
+`project_trust = trusted`, and `configuration_compatibility = current` before
+reading worktree-local role TOML or resolved configurations. Guard optional
+file probes with `test -f` or equivalent so expected absence exits normally.
+
+Keep Project Sessions scoped to their Project. The source Project Session holds
+source observation and cleanup evidence only. Do not pass its
+`recording_session_id` to `work_on_project(mode=worktree)`. After bootstrap,
+use the returned new Project and Session ID for worktree profile, Job,
+validation, review, and closeout. If bootstrap returns a mismatch, timeout, or
+unknown outcome while the Project might exist, list and re-observe that exact
+Project and reuse it; do not create a replacement worktree. Retain the
+`session_project_mismatch` fail-closed check.
+
+Use `run_process` for one native executable with literal argv. Use `run_shell`
+or an appropriate script surface for pipes, redirects, command substitution,
+conditionals, here-docs, `&&`, and other shell syntax. Never pass `bash -lc` or
+`sh -c` as a shell command mode to `run_process`. A tool interface rejection
+before command start is not an agent Job dispatch and does not justify a
+replacement Job.
+
 Before each Job, apply the same workspace profile health, catalog, trust,
 saved-configuration, task classification, and shared-resolver checks. A Job
 requires a proven role model from the effective configuration; if no such
@@ -500,6 +530,28 @@ overrides, formal assurance, trace-gated recovery, and any gate whose schema
 requires native `enforced` evidence stop on this surface until a separate
 validated evidence contract supports them. Ordinary non-strict workflow work
 may continue after the Job result and required task checks pass.
+
+For focused validation of a new file, require
+`git status --porcelain=v1 --untracked-files=all` to match exactly the expected
+changed paths, then independently compare exact bytes and the final newline.
+Ordinary `git diff --check` checks tracked or index-aware changes; it does not
+cover a purely untracked file. Check each expected untracked new file with
+`git diff --no-index --check -- /dev/null <file>`. Its exit 1 can mean the
+expected content difference: accept exit 0 or 1 only when whitespace
+diagnostics are empty, and keep exact-content and bounded-diff checks separate.
+Explain these no-index exit semantics in the reviewer handoff.
+
+While the disposable worktree still exists, complete focused validation,
+review, bounded diff/evidence preservation, and its Session closeout
+observation. A single expected untracked delivery file is a known delivery
+state or hygiene warning, not unknown workspace contamination. Classify a
+real actionable tool failure separately from an expected, correctly handled
+probe or diff exit. Only then clean up from the source/coordinator scope.
+After cleanup, do not call Git-backed `show_changes` or finish closeout on the
+deleted worktree Project. Verify only the source HEAD and status, restoration
+of the original worktree list, and retained repo-external evidence from the
+source Project Session; a post-cleanup inspection of a deleted Git path is an
+invalid observation, not a new Job or profile failure.
 
 ### Ad-hoc managed-role dispatch
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,84 @@ RUN_SKILLS = tuple(sorted((REPO_ROOT / "skills").glob("run-*/SKILL.md")))
 
 
 class RunAdaptiveSkillContractTest(unittest.TestCase):
+    def test_web_job_disposable_worktree_caller_contract(self) -> None:
+        protocol = (REPO_ROOT / "protocols" / "REASONING_POLICY.md").read_text(
+            encoding="utf-8"
+        )
+        compatibility = (REPO_ROOT / "COMPATIBILITY.md").read_text(
+            encoding="utf-8"
+        )
+        section = protocol.split("### Web session agent Jobs", 1)[1].split(
+            "### Ad-hoc managed-role dispatch", 1
+        )[0]
+
+        self.assertLess(section.index("`status --json`"), section.index("workspace `set`"))
+        self.assertLess(section.index("workspace `set`"), section.index("Recheck worktree status"))
+        self.assertLess(section.index("Recheck worktree status"), section.index("reading worktree-local role TOML"))
+        for expected in (
+            "`health = ok`", "`catalog_state = inherit`",
+            "`profile_eligibility = not_configured`", "`project_trust = unknown`",
+            "verified source profile snapshot", "`catalog_state = current`",
+            "`profile_eligibility = eligible`", "`project_trust = trusted`",
+            "`configuration_compatibility = current`", "`test -f`",
+            "never modify the source checkout's `.codex` profile",
+            "Do not pass its\n`recording_session_id` to `work_on_project(mode=worktree)`",
+            "returned new Project and Session ID", "re-observe that exact\nProject",
+            "do not create a replacement worktree", "`session_project_mismatch` fail-closed",
+            "`run_process` for one native executable with literal argv",
+            "`run_shell`", "`bash -lc`", "`sh -c`",
+            "before command start is not an agent Job dispatch",
+            "`git status --porcelain=v1 --untracked-files=all`",
+            "exact bytes and the final newline", "does not\ncover a purely untracked file",
+            "`git diff --no-index --check -- /dev/null <file>`",
+            "accept exit 0 or 1 only when whitespace\ndiagnostics are empty",
+            "Explain these no-index exit semantics in the reviewer handoff",
+            "Session closeout\nobservation", "known delivery\nstate or hygiene warning",
+            "do not call Git-backed `show_changes` or finish closeout",
+            "source HEAD and status", "original worktree list",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, section)
+        self.assertIn("normal initial state", compatibility)
+        self.assertIn("Project/session mismatch remains fail-closed", compatibility)
+        self.assertIn("A pre-start interface rejection is not a Job dispatch", compatibility)
+        self.assertIn("not a native `agent_type` spawn", section)
+        self.assertIn("native-trace-only", section)
+
+    def test_no_index_whitespace_exit_is_not_a_plain_diff_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            clean = repo / "clean.txt"
+            clean.write_bytes(b"clean\n")
+            self.assertEqual(clean.read_bytes(), b"clean\n")
+            self.assertTrue(clean.read_bytes().endswith(b"\n"))
+            ordinary = subprocess.run(
+                ["git", "diff", "--check"], cwd=repo, capture_output=True, text=True
+            )
+            no_index = subprocess.run(
+                ["git", "diff", "--no-index", "--check", "--", "/dev/null", str(clean)],
+                cwd=repo, capture_output=True, text=True,
+            )
+            self.assertEqual((ordinary.returncode, ordinary.stdout, ordinary.stderr), (0, "", ""))
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+                    cwd=repo, capture_output=True, text=True, check=True,
+                ).stdout,
+                "?? clean.txt\n",
+            )
+            self.assertEqual(no_index.returncode, 1)
+            self.assertEqual((no_index.stdout, no_index.stderr), ("", ""))
+            dirty = repo / "dirty.txt"
+            dirty.write_bytes(b"trailing space \n")
+            whitespace = subprocess.run(
+                ["git", "diff", "--no-index", "--check", "--", "/dev/null", str(dirty)],
+                cwd=repo, capture_output=True, text=True,
+            )
+            self.assertNotIn(whitespace.returncode, (0, 1))
+            self.assertIn("trailing whitespace", whitespace.stdout + whitespace.stderr)
+
     def test_every_run_entry_uses_saved_versioned_configuration_and_formal_resolver(self) -> None:
         self.assertEqual(len(RUN_SKILLS), 11)
         for skill in RUN_SKILLS:
