@@ -275,11 +275,6 @@ jobs:
       - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
         with:
           python-version: "3.12"
-      - name: Validate external Codex role dispatch on Windows
-        shell: pwsh
-        run: |
-          python tools/codex-external-role.py --help > $null
-          python -m unittest tests.test_codex_external_role -q
       - name: Validate Codex child trace on Windows
         shell: pwsh
         run: |

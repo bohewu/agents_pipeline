@@ -338,8 +338,7 @@ class StatusRuntime {
       outcome: agent.status,
       wall_time_ms: wallTimeMs,
       reasoning: agent.reasoning,
-      trace_evidence: agent.trace_evidence,
-      external_dispatch_evidence: agent.external_dispatch_evidence
+      trace_evidence: agent.trace_evidence
     });
   }
 

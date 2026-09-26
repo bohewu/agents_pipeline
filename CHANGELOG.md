@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the experimental external Codex role dispatcher and its Simple/Flow documentation, tests, and CI entry. Native `run-*` workflows remain available.
+
 ## [0.40.0] - 2026-09-24
 
 ### Added

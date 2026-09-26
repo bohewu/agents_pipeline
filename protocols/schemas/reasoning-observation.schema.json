@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ReasoningObservation",
-  "description": "Local-only, content-free observation emitted for a terminal managed role attempt, including a verified independent external root when applicable. The strict allowlist intentionally excludes prompts, results, paths, commands, reasons, and conflict text.",
+  "description": "Local-only, content-free observation emitted for a terminal managed role attempt. The strict allowlist intentionally excludes prompts, results, paths, commands, reasons, and conflict text.",
   "type": "object",
   "required": [
     "schema_version",
@@ -68,13 +68,9 @@
     },
     "trace_evidence": {
       "$ref": "codex-child-trace.schema.json"
-    },
-    "external_dispatch_evidence": {
-      "$ref": "external-dispatch-evidence.schema.json"
     }
   },
   "allOf": [
-    { "not": { "required": ["trace_evidence", "external_dispatch_evidence"] } },
     {
       "if": {
         "required": ["schema_version"],
@@ -129,10 +125,7 @@
         }
       },
       "then": {
-        "oneOf": [
-          { "required": ["trace_evidence"] },
-          { "required": ["external_dispatch_evidence"] }
-        ],
+        "required": ["trace_evidence"],
         "properties": {
           "trace_evidence": {
             "required": ["trace_found", "role_matches", "model_matches", "effort_matches"],
