@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-09-26
+
+### Added
+
+- Added the Web session agent Job contract for role-directed `run-*` work, including disposable detached worktree profile setup, Project/Session binding, native process argument boundaries, and focused validation and cleanup of untracked delivery files.
+
 ### Removed
 
 - Removed the experimental external Codex role dispatcher and its Simple/Flow documentation, tests, and CI entry. Native `run-*` workflows remain available.
