@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-09-28
+
+### Added
+
+- Added copy-ready ChatGPT Web / WebCodex custom instructions for current-session `$run-*` orchestration and role-directed Codex Jobs.
+- Added bounded current-session role emulation after a classified dispatch failure, while uncertain or active executions remain fail-closed.
+
+### Changed
+
+- Clarified that emulated reviewer work is self-review and cannot satisfy independent-review, formal-assurance, exact-review, or native-trace gates; role emulation does not prove Job identity, saved model, or resolver effort.
+
 ## [0.41.0] - 2026-09-26
 
 ### Added
