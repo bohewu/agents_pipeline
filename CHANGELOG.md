@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-09-28
+
+### Fixed
+
+- Included the ChatGPT Web / WebCodex custom-instructions template in the release bundle so the README link works after extraction.
+
 ## [0.42.0] - 2026-09-28
 
 ### Added
