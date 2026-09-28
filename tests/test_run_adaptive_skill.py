@@ -23,6 +23,9 @@ SPLITTER = REPO_ROOT / "agents" / "flow-splitter.md"
 FLOW_WORKERS = ("executor", "peon", "generalist", "doc-writer")
 DIRECT_RUN_SKILLS = ("run-simple", "run-flow", "run-pipeline")
 RUN_SKILLS = tuple(sorted((REPO_ROOT / "skills").glob("run-*/SKILL.md")))
+CHATGPT_WEBCODEX_INSTRUCTIONS = (
+    REPO_ROOT / "docs" / "chatgpt-webcodex-custom-instructions.md"
+)
 
 
 class RunAdaptiveSkillContractTest(unittest.TestCase):
@@ -69,6 +72,64 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
         self.assertIn("A pre-start interface rejection is not a Job dispatch", compatibility)
         self.assertIn("not a native `agent_type` spawn", section)
         self.assertIn("native-trace-only", section)
+
+    def test_chatgpt_webcodex_template_and_role_emulation_fallback(self) -> None:
+        protocol = (REPO_ROOT / "protocols" / "REASONING_POLICY.md").read_text(
+            encoding="utf-8"
+        )
+        template = CHATGPT_WEBCODEX_INSTRUCTIONS.read_text(encoding="utf-8")
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        mapping = (REPO_ROOT / "docs" / "codex-mapping.md").read_text(
+            encoding="utf-8"
+        )
+        fallback = protocol.split(
+            "#### Current-session role emulation after dispatch failure", 1
+        )[1].split("For focused validation of a new file", 1)[0]
+        fallback_text = " ".join(fallback.split())
+        template_text = " ".join(template.split())
+
+        for expected in (
+            "pre-start interface rejection that launched no process or Job",
+            "known terminal failure",
+            "platform-capability limitation",
+            "determine whether a process or Job exists",
+            "observe that same Job to terminal",
+            "do not launch a replacement and do not emulate the role",
+            "Only when no active or uncertain execution remains",
+            "current-session role emulation",
+            "not native managed dispatch, a role-directed Job result",
+            "Reviewer emulation must be labeled `self-review`",
+            "cannot satisfy an independent-review, formal-assurance, exact-review, or native-trace gate",
+            "must not bypass safety or platform policy",
+            "resumable handoff",
+        ):
+            with self.subTest(policy=expected):
+                self.assertIn(expected, fallback_text)
+        self.assertLess(
+            fallback_text.index("determine whether a process or Job exists"),
+            fallback_text.index("Only when no active or uncertain execution remains"),
+        )
+
+        for expected in (
+            "When I explicitly invoke `$run-*`",
+            "missing `coding_agent_runs`",
+            "same execution and the same Job through terminal state",
+            "in `inherit` or `shadow`, preserve the policy's omission rules",
+            "current-session role emulation",
+            "Reviewer emulation is `self-review`",
+            "Never use role emulation to bypass safety or platform policy",
+            "completion summary or resumable handoff",
+        ):
+            with self.subTest(template=expected):
+                self.assertIn(expected, template_text)
+        self.assertIn(
+            "[copy-ready ChatGPT Web / WebCodex custom-instructions template](docs/chatgpt-webcodex-custom-instructions.md)",
+            readme,
+        )
+        self.assertIn(
+            "[ChatGPT Web / WebCodex custom-instructions template](chatgpt-webcodex-custom-instructions.md)",
+            mapping,
+        )
 
     def test_no_index_whitespace_exit_is_not_a_plain_diff_check(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

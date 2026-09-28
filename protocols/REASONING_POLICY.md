@@ -531,6 +531,48 @@ requires native `enforced` evidence stop on this surface until a separate
 validated evidence contract supports them. Ordinary non-strict workflow work
 may continue after the Job result and required task checks pass.
 
+#### Current-session role emulation after dispatch failure
+
+A Web current/main session may adopt a registered role's bounded task contract
+itself only as a degraded execution fallback after the dispatch failure is
+classified. Eligible cases are a pre-start interface rejection that launched no
+process or Job, a launched process or Job with a known terminal failure, or a
+transport, environment, or platform-capability limitation that blocks the
+dispatch surface while leaving the requested task itself authorized. A
+substantive safety or platform-policy refusal, missing user authority, an
+unsupported external effect, or a workflow gate that requires independent
+identity or assurance is not eligible.
+
+Before emulation, determine whether a process or Job exists. When a Job ID was
+issued, observe that same Job to terminal. If its outcome is timeout, unknown,
+lost, or may still be active, do not launch a replacement and do not emulate the
+role; continue observing the same execution or stop with a resumable handoff.
+Only when no active or uncertain execution remains may the current/main session
+read the canonical registered role definition and carry out the bounded task
+under that role's constraints and output contract. This fallback is the
+contract-authorized substitute for that failed dispatch only; it does not
+authorize unrelated inline work. Do not mint a synthetic Job or agent ID, and
+do not reuse Job telemetry as evidence for the emulated work.
+
+This is **current-session role emulation**, not native managed dispatch, a
+role-directed Job result, or proof that the saved role model or resolver effort
+ran. Preserve orchestrator control plus the workflow's task scope, sandbox,
+materiality, validation, cleanup, and output requirements. Record the dispatch
+failure classification and canonical role-contract reference. Label the result
+`current-session role emulation` and make no role model, effort, native identity,
+or Job-telemetry claim for it. Reviewer emulation must be labeled `self-review`:
+it may find defects, but it cannot satisfy an independent-review,
+formal-assurance, exact-review, or native-trace gate. Keep every such gate
+unmet or degraded and report it explicitly.
+
+Role emulation must not bypass safety or platform policy, user approval,
+repository authority, credential or access boundaries, or unsupported external
+effects. If the blocked action itself remains prohibited or unavailable, stop.
+Whether the bounded task succeeds or remains blocked, the final user-facing
+result must include the dispatch failure, emulated role and scope, work
+completed, validation and evidence, unmet gates and remaining risks, repository
+state, and a resumable handoff.
+
 For focused validation of a new file, require
 `git status --porcelain=v1 --untracked-files=all` to match exactly the expected
 changed paths, then independently compare exact bytes and the final newline.
