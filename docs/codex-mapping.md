@@ -79,7 +79,7 @@ Project/workspace `AGENTS.md` files may further refine behavior for a specific r
 
 Explicit fully materialized workspace installs under `<workspace>/.codex` can still emit the equivalent managed workspace `AGENTS.md` block. Normal workspace profiles do not duplicate that block or the global support tree; they add only their selected local role definitions and continue to use globally installed guidance and support assets.
 
-ChatGPT Web custom instructions are separate from this Codex global AGENTS snippet. Use the [ChatGPT Web / WebCodex custom-instructions template](chatgpt-webcodex-custom-instructions.md) for a copy-ready Web-session orchestrator prompt and its controlled role-emulation fallback after a classified dispatch failure.
+ChatGPT Web custom instructions are separate from this Codex global AGENTS snippet. Use the [ChatGPT Web / WebCodex custom-instructions template](chatgpt-webcodex-custom-instructions.md) for a copy-ready Web-session orchestrator prompt and its controlled role-emulation fallback after a classified dispatch failure. Its optional external-effects / Computer Use companion covers visible actions and stopping new activity when the user interrupts or questions it.
 
 ## Frontmatter Mapping
 

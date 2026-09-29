@@ -131,6 +131,81 @@ class RunAdaptiveSkillContractTest(unittest.TestCase):
             mapping,
         )
 
+    def test_chatgpt_webcodex_external_effects_companion(self) -> None:
+        template = CHATGPT_WEBCODEX_INSTRUCTIONS.read_text(encoding="utf-8")
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        mapping = (REPO_ROOT / "docs" / "codex-mapping.md").read_text(
+            encoding="utf-8"
+        )
+        main = template.split("## Copy-ready custom instructions", 1)[1].split(
+            "## Optional external-effects companion instructions", 1
+        )[0]
+        companion = template.split(
+            "## Optional external-effects companion instructions", 1
+        )[1].split("## Contract notes", 1)[0]
+        notes = template.split("## Contract notes", 1)[1].split(
+            "## Validated runtime observation", 1
+        )[0]
+        observation = template.split("## Validated runtime observation", 1)[1]
+        companion_text = " ".join(companion.split())
+        notes_text = " ".join(notes.split())
+        observation_text = " ".join(observation.split())
+
+        self.assertIn("```text", companion)
+        self.assertLess(
+            template.index("## Copy-ready custom instructions"),
+            template.index("## Optional external-effects companion instructions"),
+        )
+        for backend_name in ("node_repl", "@oai/sky", "Calculator"):
+            self.assertNotIn(backend_name, main)
+        for expected in (
+            "visible or external effects",
+            "read-only discovery first",
+            "one bounded end-to-end attempt",
+            "question what is happening, express concern",
+            "stop starting new actions, retries, replacement Jobs",
+            "application launches",
+            "exact active process, Job, and relevant UI state",
+            "Do not continue, reopen an application, or repeat a visible test",
+            "until the interruption is resolved",
+            "fresh evidence proves the requested acceptance condition",
+            "terminal success",
+            "redundant proof",
+            "installed Computer Use skill",
+            "ordinary tool execution",
+            "not managed-role dispatch or a role-directed Job result",
+            "timeout, lost observation, or missing output does not prove",
+            "Close only the application or window",
+            "explicitly asked you to close",
+        ):
+            with self.subTest(companion=expected):
+                self.assertIn(expected, companion_text)
+        for expected in (
+            "freezes new external actions, retries, replacement Jobs",
+            "Fresh evidence satisfying the requested acceptance condition is terminal",
+            "installed Computer Use skill remains authoritative",
+            "timeout, lost observation, or missing output does not prove",
+        ):
+            with self.subTest(note=expected):
+                self.assertIn(expected, notes_text)
+        for expected in (
+            "2026-09-29",
+            "WebCodex",
+            "`codex exec`",
+            "one Calculator window",
+            "refreshed and activated",
+            "`12 + 34`",
+            "verified `46` from a fresh screenshot",
+            "closed that exact window",
+            "dated runtime observation, not a permanent backend contract",
+        ):
+            with self.subTest(observation=expected):
+                self.assertIn(expected, observation_text)
+        self.assertIn("optional companion", readme)
+        self.assertIn("visible external effects and Computer Use", readme)
+        self.assertIn("optional external-effects / Computer Use companion", mapping)
+        self.assertIn("stopping new activity when the user interrupts", mapping)
+
     def test_no_index_whitespace_exit_is_not_a_plain_diff_check(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)

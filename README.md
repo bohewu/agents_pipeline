@@ -230,7 +230,7 @@ Profiles map roles to `mini`, `standard`, and `strong`; runtime catalogs map tho
 
 ### ChatGPT Web / WebCodex
 
-For explicit `$run-*` entry from ChatGPT Web, use the [copy-ready ChatGPT Web / WebCodex custom-instructions template](docs/chatgpt-webcodex-custom-instructions.md). It keeps the current Web session as orchestrator, preserves the role-directed Job evidence boundary, and permits only controlled current-session role emulation after dispatch failure is known and no active or uncertain execution remains.
+For explicit `$run-*` entry from ChatGPT Web, use the [copy-ready ChatGPT Web / WebCodex custom-instructions template](docs/chatgpt-webcodex-custom-instructions.md). It keeps the current Web session as orchestrator, preserves the role-directed Job evidence boundary, and permits only controlled current-session role emulation after dispatch failure is known and no active or uncertain execution remains. An optional companion in the same document covers visible external effects and Computer Use: one bounded attempt, interruption handling, and stopping once fresh evidence proves success.
 
 ## Modes
 
