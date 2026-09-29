@@ -28,6 +28,10 @@ Identify the surface or journey, primary task, primary user, device priority, im
 
 Keep one dominant focus and primary task per screen. Use the smallest conceptual layout that supports the task, keep critical information inline, and cover relevant empty, loading, error/recovery, confirmation, and success states. Describe hierarchy, density, theme posture, progressive disclosure, and adaptation conceptually without inventing final tokens or implementation details.
 
+Make direction specific enough to visualize: name the dominant region, reading order, relative panel emphasis, useful information density, and what should remain visually quiet. "Modern" or a style label alone is insufficient. A data-entry or comparison tool should prioritize records and controls; an editor should prioritize its canvas; an editorial page may prioritize a headline and media. These are conceptual choices, not pixel layouts or new required sections.
+
+Use supplied references at their actual fidelity: preserve approved structure and content priority, identify transferable choices, and mark inaccessible references as uninspected. Include affected locale/long-content considerations. Do not require a moodboard, generated image, paid kit, new framework, or renewed approval for an already bounded direction.
+
 Cover only devices explicitly requested or already required by the product's established support scope. A desktop-only concept does not acquire tablet or mobile deliverables; responsive or mobile work must describe requested adaptations clearly enough for review.
 
 Finish when the bounded question is answered, the main action and relevant states are clear, device scope is respected, assumptions are visible, and optional follow-on work has not been treated as authorized.

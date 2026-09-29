@@ -1,10 +1,41 @@
 # Layout and Style Playbook
 
-Use this reference after the skill activates. Pick one layout archetype and one visual style. For existing UI cleanup, choose one polish-first correction strategy first, then still choose the closest layout archetype and visual style profile. Do not combine many archetypes without a clear reason.
+Use the relevant part of this reference when a visual decision is unresolved. Existing approved systems and references take precedence. For a local fix, retain the established archetype and style; do not repeat a style-selection exercise. For an authorized new surface or refresh, choose a coherent direction and translate it into the concrete decisions below.
+
+## From Direction To Visible Decisions
+
+Start with the user's task, not a component gallery. Define only choices affected by the request:
+
+| Decision | What to decide | How to inspect it |
+| --- | --- | --- |
+| Composition | Dominant region, reading order, content width, panel proportions | Does the first viewport put the task ahead of decorative chrome? |
+| Density | Reading, comparison, or manipulation; comfortable or compact | Can the user see the needed rows, fields, or canvas without unnecessary scrolling? |
+| Typography | Heading, body, label, value, and control roles | Do size, weight, line height, and wrapping separate levels without tiny secondary text? |
+| Rhythm | Shared alignment edges, small within-group gaps, larger between-group gaps | Are related controls grouped and section transitions deliberate? |
+| Surfaces | Background, content, selection, overlays, semantic status | Is emphasis purposeful without nesting a card around every region? |
+| Character | A domain-appropriate type, media, accent, or interaction treatment | Does it reinforce the product instead of competing with the task? |
+
+A reference is useful when its structure or craft solves the same problem. Extract the transferable choice and note what does not transfer. Do not collage unrelated brands, require browsing for every task, or claim to have seen an inaccessible reference. Prefer existing project examples and free official design-system guidance over paid kits.
+
+### Worked Directions, Not Universal Templates
+
+- **University administration / records:** let the task title, scoped filters, record count, table, and contextual action form the hierarchy. Align labels and text columns consistently; align comparable numbers to the end and use tabular numerals where suitable. Preserve useful row density and full localized labels. A giant greeting hero and unrelated KPI cards steal space from the task.
+- **Canvas editor:** give the document/canvas the dominant area; use quieter rails and a consistent inspector label/value grid. Set toolbar/control typography separately from zoomable canvas text. Inspect initial fit, pan/zoom, persisted selection, focus, and which panel owns scrolling. Enlarging the hero title or shrinking the whole interface does not repair a crowded inspector.
+- **Operational dashboard:** organize existing status, anomalies, evidence, and recovery actions by urgency. Use color for meaningful state and stable neutral surfaces for normal operation. Keep the relevant failure and next action together; do not invent counters or turn every metric into an equally loud card.
+- **Marketing / editorial:** use the real product promise, one focal composition, useful media, and deliberate headline/body contrast. Vary section rhythm when the requested page has multiple sections, while reusing alignment and type roles. Do not manufacture proof, testimonials, badges, or extra sections to make a template look complete.
+
+### Starting Values When No System Exists
+
+These are optional local design heuristics, not accessibility standards or defaults that override the brief. Adapt to the actual font, content, input method, viewport, and density; encode chosen values in reusable tokens rather than scattered magic numbers.
+
+- A compact product surface might start with 14-16 CSS px body/control text, clearly separated 20-28 px page headings, and restrained 12-14 px secondary text only where readable. Marketing display type belongs to a different scale; do not apply it to inspector controls.
+- Start with a small spacing rhythm such as 4/8/12/16/24/32 CSS px. Within-group spacing should usually be smaller than between-group spacing. Optical alignment can justify a small exception.
+- Choose compatible control heights, paddings, and icon sizes as one family. Do not force all controls to grow or all text to shrink merely to fit a layout. Pointer targets and focus requirements still apply independently of visual density.
+- Select surface and text roles first, then a restrained accent and semantic states. Adjust based on measured contrast, not a screenshot impression. Dark mode and rounded cards are choices, not quality requirements.
 
 ## Polish-First Selection
 
-When the task is an existing UI cleanup instead of a greenfield build, choose a correction strategy before choosing the layout archetype and visual style profile.
+For an existing UI cleanup, choose the needed correction strategy and retain the established layout/style unless the authorized change calls for revisiting it.
 
 ### Preserve And Clarify
 
@@ -145,6 +176,21 @@ Structure:
 Avoid:
 - equal visual weight between list and detail
 - losing context after an action
+
+### Canvas / Editor Workspace
+
+Best for: visual editors, diagrams, timelines, and creation tools.
+
+Structure:
+- dominant working canvas/document with stable tool rails
+- contextual inspector with consistent label/value alignment
+- explicit selected, focused, disabled, and active-tool states
+- intentional panel scroll ownership and initial fit/zoom
+
+Avoid:
+- marketing headers consuming the working area
+- scaling app chrome with the document
+- nested scroll regions or floating controls that obscure the task
 
 ### Wizard / Stepper
 
@@ -299,8 +345,8 @@ Avoid:
 
 ## Pattern Pairing Examples
 
-- Agent pipeline dashboard: workflow command center + developer tool + quiet SaaS.
-- Marketing homepage for a dev tool: split hero + developer tool + quiet SaaS.
+- Agent pipeline dashboard: workflow command center + developer tool styling.
+- Marketing homepage for a dev tool: split hero + quiet SaaS styling.
 - Internal admin users page: table workspace + dense enterprise.
 - Product analytics: dashboard shell + quiet SaaS or data command center.
 - API documentation: docs layout + developer tool.
@@ -308,3 +354,10 @@ Avoid:
 - Existing dashboard cleanup: preserve and clarify + dashboard shell + quiet SaaS or dense enterprise.
 - Existing landing page cleanup: selective modernize + split hero or full-bleed narrative hero + one restrained style profile.
 - Existing workflow UI cleanup: preserve and clarify + workflow command center + developer tool.
+
+## Official Reference Anchors
+
+These explain specific decisions, not mandatory component dependencies. Consult only what the task needs; no full-site research requirement.
+
+- Carbon data table usage: https://carbondesignsystem.com/components/data-table/usage/ — task-oriented table anatomy, coordinated density, and usable content space.
+- W3C WCAG quick reference: https://www.w3.org/WAI/WCAG22/quickref/ — verify applicable accessibility criteria and exceptions rather than treating a visual heuristic as compliance.

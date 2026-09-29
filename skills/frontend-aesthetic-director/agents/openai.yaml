@@ -1,4 +1,4 @@
 interface:
   display_name: "Frontend Aesthetic Director"
-  short_description: "Implement and verify a bounded UI change"
-  default_prompt: "Use $frontend-aesthetic-director to implement and verify this bounded visible frontend UI change."
+  short_description: "Refine UI craft and compare the actual render"
+  default_prompt: "Use $frontend-aesthetic-director to refine this bounded frontend UI with deliberate hierarchy, typography, and density, preserve the approved direction, and inspect the actual rendered result."

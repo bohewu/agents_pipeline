@@ -17,6 +17,12 @@ Design the conversation before designing the screen. Explain UI problems through
 
 These pairings are descriptive. Do not automatically invoke another skill, workflow, or agent.
 
+## Communication Without Visual Clutter
+
+Use the shortest wording that preserves the task, affected object, consequence, and recovery. Do not stack an eyebrow, heading, subtitle, helper paragraph, badge, and tooltip to repeat the same message. Keep necessary labels and risk information; visual simplicity is not permission to remove meaning. Distinguish global actions, selected-item actions, and field feedback in the supplied structure rather than adding explanatory panels by default.
+
+For affected localized UI, preserve terminology, translation keys, and supported locale intent. Note long-label or wrapping risks as inference unless observed. Do not solve layout by hardcoding shorter English copy, inventing status/metrics, or claiming a rewrite has been visually verified.
+
 ## Choose the Depth
 
 ### Compact or copy only

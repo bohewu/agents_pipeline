@@ -2,7 +2,15 @@
 
 Use this rubric as a scoped review aid before finalizing frontend UI work. Assess categories that the change or an existing product contract affects; distinguish not applicable from unverified. The rubric does not authorize a redesign, new states, broader device support, or additional polish. A score below 4 requires another iteration only when concrete evidence shows that an affected critical category is broken by the change or blocks the requested result.
 
-Scoring:
+## Evidence Before Scores
+
+Prefer a compact critique of the affected surface: observation, reference or intended visual decision, task impact, and smallest correction. Numeric scoring is optional and ordinal, not a calibrated beauty metric. Do not average missing evidence into a total or invent a passing threshold. A source review, build, or saved-but-unviewed screenshot cannot support a rendered visual score.
+
+Keep four judgments separate: reference fidelity (when supplied), visual craft, behavior/accessibility, and implementation checks. Attractive output can be unfaithful; faithful output can preserve an accessibility defect. Resolve concrete conflicts within authority and report limitations rather than letting one category cancel another.
+
+An explicit aesthetic-improvement request makes demonstrated composition, typography, proportion, density, and fidelity defects relevant even when no functional bug exists. State what changed in the observed render. Without a usable baseline, do not claim measured before/after improvement; without image inspection, mark visual quality/fidelity `unverified`. Keep repairs bounded to the requested result, not an endless search for a 5/5.
+
+Scoring, only when useful and supported:
 - 5: strong, intentional, production-ready
 - 4: good, minor refinements only
 - 3: acceptable but generic or risky
@@ -14,7 +22,7 @@ Scoring:
 Questions:
 - Does the first viewport have a clear focal point?
 - Can the user identify what product or surface this is within a few seconds?
-- Would the UI still feel distinct if the logo/nav were removed?
+- Does the visual character suit this product without sacrificing familiar interaction patterns? Distinctiveness is not a novelty requirement for an internal tool.
 - Is the style intentional rather than a collection of defaults?
 
 Common failures:
@@ -57,6 +65,7 @@ Questions:
 - Are headings, body, metadata, and code visually distinct?
 - Is line length readable?
 - Are labels and values easy to scan?
+- Are app chrome and content type roles both deliberate, including supported CJK/Latin text and real font fallback?
 
 Common failures:
 - no hierarchy beyond browser defaults
@@ -91,6 +100,8 @@ Common failures:
 - missing focus, disabled, or loading states
 - tables without sorting/filter feedback
 - cards used as decoration only
+- mismatched icon weight/alignment or control geometry across the same family
+- editor chrome scaling with canvas content or unintended nested scroll regions
 
 ## 7. Responsiveness
 
@@ -158,4 +169,4 @@ Do not ship without fixing or explicitly reporting these:
 - broken loading/error/empty states in the core flow
 - UI cannot be built or rendered
 
-Static rubric review is not rendered evidence. When rendered QA is unavailable, report the affected visual claims and interactions that remain unverified.
+Static rubric review is not rendered evidence. When rendered QA is unavailable, report the affected visual claims and interactions that remain unverified. Compare inspected screenshots at matching viewport/state/locale/theme/zoom when practical, identify material deviations, and reinspect after correction. Neither a functional test pass nor a subjective score replaces that comparison.

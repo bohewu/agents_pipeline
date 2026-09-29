@@ -75,10 +75,10 @@ For each scored viewport:
 3. Execute the same target journey using normal-user inputs.
 4. Record friction under discoverability, clarity, efficiency, confidence, and recovery.
 5. Capture console or network evidence when it explains behavior.
-6. Capture a screenshot only when visual layout, hierarchy, clipping, contrast, or state appearance is material.
+6. When visual layout, hierarchy, clipping, contrast, or state appearance is material, capture and actually inspect a screenshot at readable scale. A file path or semantic snapshot alone is not visual evidence.
 7. Summarize the viewport before moving on.
 
-Prefer semantic snapshots for routine inspection and screenshots for genuinely visual claims. Do not reuse stale evidence after navigation or a meaningful state change.
+Prefer semantic snapshots for routine inspection and screenshots for genuinely visual claims. Do not reuse stale evidence after navigation or a meaningful state change. For before/after or reference comparison, keep viewport, locale, theme, data, selected state, and zoom comparable; wait for fonts/assets to settle. Record mismatches and unavailable evidence rather than inventing visual scores. These comparison notes do not grant product-repair authority.
 
 When a finding occurs only at one viewport, state that scope. Keep desktop-primary findings separate from compatibility-only mobile findings.
 
@@ -93,6 +93,7 @@ For each material observation, record:
 - evidence type: snapshot, screenshot, console, network, or interaction outcome
 - severity or task impact
 - confidence and any limitation
+- for visual claims, the screenshot actually viewed, relevant region, and comparison conditions; label visual claims unverified if image inspection is unavailable
 
 Do not claim a console, network, accessibility, or responsive result that was not actually checked.
 
