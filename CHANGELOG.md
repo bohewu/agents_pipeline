@@ -6,6 +6,17 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-09-29
+
+### Added
+
+- Added optional ChatGPT Web / WebCodex instructions for visible external effects and Computer Use, covering bounded attempts, user interruption, terminal success, and ordinary-tool evidence boundaries.
+- Added focused contract tests for the companion instructions and their documentation entry points.
+
+### Changed
+
+- Strengthened UI skills with concrete composition, typography, density, reference-fidelity, and inspected-render guidance while retaining bounded scope and accessibility distinctions.
+
 ## [0.42.1] - 2026-09-28
 
 ### Fixed
