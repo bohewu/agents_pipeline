@@ -390,7 +390,7 @@ function validateProjectionRegistry(registry) {
       "Reasoning projection"
     );
     assert(PROJECTION_IDS.includes(projection.id), `Unsupported reasoning projection: ${projection.id}`);
-    assert(projection.version === "1" && projection.policy_version === "3", "Active reasoning projection identity is unsupported");
+    assert(projection.version === "2" && projection.policy_version === "3", "Active reasoning projection identity is unsupported");
     assert(!seen.has(projection.id), `Reasoning projection ${projection.id} must be unique`);
     seen.add(projection.id);
     assert(typeof projection.version === "string" && SAFE_POLICY_VERSION.test(projection.version), `Projection ${projection.id} version must be bounded`);
@@ -434,10 +434,10 @@ function validateProjectionRegistry(registry) {
     const modelSetIds = new Set();
     for (const modelSet of projection.model_sets) {
       validateModelSetBinding(modelSet, projection);
-      assert(modelSet.id === "openai" && modelSet.version === "4", "Active model set identity is unsupported");
+      assert(modelSet.id === "openai" && modelSet.version === "5", "Active model set identity is unsupported");
       assert(
         modelSet.tiers.mini === "gpt-6-luna" &&
-          modelSet.tiers.standard === "gpt-6-sol" &&
+          modelSet.tiers.standard === "gpt-6.1-sol" &&
           modelSet.tiers.strong === "gpt-6-astra",
         "Active model tiers are unsupported"
       );

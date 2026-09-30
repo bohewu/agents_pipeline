@@ -132,7 +132,7 @@ before the workflow stops and reports the blocker.
 
 The `lsa-qualified-execution-v2@2` strategy applies only when all normal trust,
 health, profile ceiling, selector, budget, and materiality checks pass and the
-saved configuration exactly verifies `openai-gpt6-v1@1`. The workflow must
+saved configuration exactly verifies `openai@5` / `openai-gpt6-v1@2`. The workflow must
 be Flow, Pipeline, or Adaptive routed to one of them, with reasoning `adaptive`
 and capability recovery `auto`. The role must be `executor` or `generalist`.
 

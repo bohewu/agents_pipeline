@@ -377,7 +377,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             )
             expected_balanced_models = {
                 "peon": "gpt-6-luna",
-                "generalist": "gpt-6-sol",
+                "generalist": "gpt-6.1-sol",
                 "reviewer": "gpt-6-astra",
             }
             for role_name, expected_model in expected_balanced_models.items():
@@ -455,7 +455,9 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
             status = self.workspace_status(wrapper, workspace, env=env)
             self.assertEqual(status["health"], "ok")
             self.assertEqual(status["catalog_state"], "current")
-            self.assertEqual(status["configuration_identity"]["model_set"]["version"], "4")
+            self.assertEqual(status["configuration_identity"]["model_set"]["version"], "5")
+            self.assertEqual(status["configuration_identity"]["reasoning_projection"]["version"], "2")
+            self.assertEqual(status["resolved_configurations"]["executor"]["role_binding"]["model"], "gpt-6.1-sol")
             self.assertEqual(status["configuration_identity"]["reasoning_projection"]["id"], "openai-gpt6-v1")
             self.assertEqual(status["resolved_configurations"]["reviewer"]["role_binding"]["model"], "gpt-6-astra")
             manifest = workspace / ".codex" / PROJECT_PROFILE_MANIFEST
@@ -472,6 +474,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
 
     def test_retired_v3_manifests_are_diagnostic_and_require_explicit_refresh(self) -> None:
         for model_set, projection_id in (
+            ("openai", "openai-gpt6-v1"),
             ("openai", "openai-reviewer-v1"),
             ("openai-luna-sol-astra", "lsa-efficiency-v1"),
             ("openai-luna-sol-astra", "lsa-efficiency-v2"),
@@ -502,6 +505,9 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 refreshed = self.workspace_status(wrapper, workspace, env=env)
                 self.assertEqual(refreshed["catalog_state"], "current")
                 self.assertEqual(refreshed["configuration_identity"]["reasoning_projection"]["id"], "openai-gpt6-v1")
+                self.assertEqual(refreshed["configuration_identity"]["model_set"]["version"], "5")
+                self.assertEqual(refreshed["configuration_identity"]["reasoning_projection"]["version"], "2")
+                self.assertEqual(refreshed["resolved_configurations"]["executor"]["role_binding"]["model"], "gpt-6.1-sol")
                 self.run_profile(wrapper, "clear", workspace, env=env)
                 self.assertEqual(self.workspace_status(wrapper, workspace, env=env)["catalog_state"], "inherit")
 
@@ -585,7 +591,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                 {
                     "role": "executor",
                     "model_tier": "standard",
-                    "model": "gpt-6-sol",
+                    "model": "gpt-6.1-sol",
                     "mapping_digest": manifest["model_mapping"]["mapping_digest"],
                 },
             )
@@ -598,7 +604,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                     encoding="utf-8"
                 )
             )
-            self.assertEqual(executor_role["model"], "gpt-6-sol")
+            self.assertEqual(executor_role["model"], "gpt-6.1-sol")
 
             status = self.run_command(
                 [
@@ -1234,7 +1240,7 @@ class CodexWorkspaceProfileOverlayTests(unittest.TestCase):
                     "role": "executor",
                     "model_tier": "strong",
                     "model": "gpt-6-astra",
-                    "mapping_digest": "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8",
+                    "mapping_digest": "sha256:9b28023fbf9a2b79dc3d6caf72d094dbb81c9a0106816bdfbf4b7255dc7b9474",
                 },
             )
             self.assertEqual(

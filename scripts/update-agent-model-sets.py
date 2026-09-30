@@ -91,11 +91,11 @@ def build_codex_openai(_data: object | None, _path: Path) -> dict:
     return {
         **_build_codex_catalog(
             name="openai",
-            version="4",
-            description="OpenAI GPT-6 Luna/Sol/Astra model set.",
+            version="5",
+            description="OpenAI GPT-6 Luna / GPT-6.1 Sol / GPT-6 Astra model set.",
             tiers={
             "mini": {"model": "gpt-6-luna", "model_provider": "openai"},
-            "standard": {"model": "gpt-6-sol", "model_provider": "openai"},
+            "standard": {"model": "gpt-6.1-sol", "model_provider": "openai"},
             "strong": {"model": "gpt-6-astra", "model_provider": "openai"},
             },
             projection_id="openai-gpt6-v1",

@@ -45,12 +45,13 @@ class UpdateAgentModelSetsTest(unittest.TestCase):
         directory = REPO_ROOT / "runtimes/codex/model-sets"
         self.assertEqual([path.name for path in directory.glob("*.json")], ["openai.json"])
         catalog = read_json(directory / "openai.json")
-        self.assertEqual(catalog["version"], "4")
+        self.assertEqual(catalog["version"], "5")
         self.assertEqual(catalog["reasoning_projection"]["id"], "openai-gpt6-v1")
+        self.assertEqual(catalog["reasoning_projection"]["version"], "2")
         self.assertEqual(catalog["role_overrides"], {})
         self.assertEqual(
             {tier: value["model"] for tier, value in catalog["tiers"].items()},
-            {"mini": "gpt-6-luna", "standard": "gpt-6-sol", "strong": "gpt-6-astra"},
+            {"mini": "gpt-6-luna", "standard": "gpt-6.1-sol", "strong": "gpt-6-astra"},
         )
         self.assertEqual({v["model_provider"] for v in catalog["tiers"].values()}, {"openai"})
 

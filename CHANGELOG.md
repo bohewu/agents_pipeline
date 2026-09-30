@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-09-30
+
+### Changed
+
+- Updated the Codex `openai` standard tier to `gpt-6.1-sol` in catalog `openai@5` with projection `openai-gpt6-v1@2`; Luna/Astra routing, effort policy, reviewer requirements, and recovery semantics are unchanged.
+- Retired the previous `openai@4` binding for new dispatch; an approved support update and explicit workspace profile refresh are required. Added old/mixed-identity rejection and migration regression coverage.
+
 ## [0.43.0] - 2026-09-29
 
 ### Added

@@ -93,7 +93,9 @@ Workspace `set` uses the globally installed exporter, neutral agent sources, sel
 
 ### Versioned Codex model sets
 
-Codex has one active built-in catalog: `openai@4`, with `gpt-6-luna` at mini, `gpt-6-sol` at standard, and `gpt-6-astra` at strong. Its `openai-gpt6-v1@1` projection preserves the LSA v2 normal effort matrix: Luna routine `high` and deliberative `xhigh`; Sol routine/deliberative `medium` and deep `high`; Astra routine/deliberative `low`, deep `high`, and formal assurance `max` with strict enforcement. Deep still requires at least standard tier. The central resolver owns effort; provider remains inherited from the parent session.
+Codex has one active built-in catalog: `openai@5`, with `gpt-6-luna` at mini, `gpt-6.1-sol` at standard, and `gpt-6-astra` at strong. Its `openai-gpt6-v1@2` projection preserves the LSA v2 normal effort matrix: Luna routine `high` and deliberative `xhigh`; Sol routine/deliberative `medium` and deep `high`; Astra routine/deliberative `low`, deep `high`, and formal assurance `max` with strict enforcement. Deep still requires at least standard tier. The central resolver owns effort; provider remains inherited from the parent session.
+
+The Sol 6.1 update advances the catalog and projection revision because their immutable digests include model bindings. The projection family id stays `openai-gpt6-v1`: effort semantics, Luna/Astra tiers, reviewer requirements, and recovery budgets did not change. See the dated [Sol 6.1 migration note](codex-gpt6-routing-guidance.md#sol-61-catalog-update-2026-09-30) for model availability and validation limits.
 
 The workspace profile does not choose the already-running current/main model. For the current operational recommendation, staged tuning order, and controlled comparison rules for GPT-6, see [Codex GPT-6 routing guidance](codex-gpt6-routing-guidance.md). That guidance does not change the catalog or projection above.
 
@@ -106,13 +108,13 @@ bash "$profile_tool" set balanced --runtime codex --scope workspace --workspace 
 bash "$profile_tool" status --runtime codex --scope workspace --workspace /path/to/project --json
 ```
 
-Replace `balanced` with that workspace's existing `frugal`, `balanced`, or `premium` selection. With the sole built-in catalog, a named Codex profile may omit `--model-set`; an explicit `--model-set openai` remains supported. The old `openai-luna-sol-astra` and `openai-legacy` names cannot be selected. A saved `openai@3` manifest is also retired despite sharing the current name. `status` reports a complete retired overlay as `catalog_state: pinned` and `configuration_compatibility: retired`; new dispatch and recovery require `current`. `clear` returns to inheritance, not to another catalog. A refreshed profile takes effect in a new session/run, never by hot-reloading a running one.
+Replace `balanced` with that workspace's existing `frugal`, `balanced`, or `premium` selection. With the sole built-in catalog, a named Codex profile may omit `--model-set`; an explicit `--model-set openai` remains supported. The old `openai-luna-sol-astra` and `openai-legacy` names cannot be selected. Saved `openai@4` / `openai-gpt6-v1@1` and `openai@3` manifests are also retired despite sharing the current catalog name. `status` reports a complete retired overlay as `catalog_state: pinned` and `configuration_compatibility: retired`; new dispatch and recovery require `current`. `clear` returns to inheritance, not to another catalog. A refreshed profile takes effect in a new session/run, never by hot-reloading a running one.
 
 ### Initial strong implementation routing
 
 `executor-strong` is a model-neutral execution role for a genuinely difficult
 new implementation attempt. Its source does not name Astra or another runtime
-model. Under an exact current `openai@4` workspace configuration, balanced or premium
+model. Under an exact current `openai@5` workspace configuration, balanced or premium
 may expose a saved `executor-strong` binding at the neutral `strong` tier. The
 workflow may select that role automatically only when all conditions in
 `protocols/INITIAL_STRONG_ROUTING.md` are proved: healthy eligible current
@@ -171,7 +173,7 @@ bash "$HOME/.codex/agents-pipeline/scripts/agent-profile.sh" resolve-recovery \
 
 This action is read-only. It accepts only `executor` or `generalist`, requires a tier above that role's normal tier and no higher than its profile ceiling, and returns the raw model solely from the installed model set. Uniform, inherited, unhealthy, ineligible, or pinned-catalog profiles are rejected; rerun workspace `set` before recovering from an older pinned catalog.
 
-For the LSA v2 recovery algorithm, the shared decision requires an exact saved `openai@4` / `openai-gpt6-v1@1` identity and role bindings, a verified Sol deep/high-or-higher trace, and canonical evidence that the same material reasoning failure repeated without meaningful progress. It may then use the one approved uplift for Astra deep/medium and continue on that same binding through high and max within the existing retry budget. A first isolated Sol high failure does not qualify; unqualified legal recovery retains the effort-first path. Reviewer, security, judge, native-Astra, Simple, ordinary ad-hoc, explicit pin, strict, assurance, off, and inherit behavior is unchanged. Shadow computes a candidate only.
+For the LSA v2 recovery algorithm, the shared decision requires an exact saved `openai@5` / `openai-gpt6-v1@2` identity and role bindings, a verified Sol deep/high-or-higher trace, and canonical evidence that the same material reasoning failure repeated without meaningful progress. It may then use the one approved uplift for Astra deep/medium and continue on that same binding through high and max within the existing retry budget. A first isolated Sol high failure does not qualify; unqualified legal recovery retains the effort-first path. Reviewer, security, judge, native-Astra, Simple, ordinary ad-hoc, explicit pin, strict, assurance, off, and inherit behavior is unchanged. Shadow computes a candidate only.
 
 ### Deployment and live verification
 
@@ -198,7 +200,7 @@ The managed `use <mode>` forms remain compatibility aliases for manifest-backed 
 
 ### Manual GPT-6 smoke and comparison guidance
 
-Do not run a live Astra smoke until the support bundle is deployed, the account confirms model availability, and a fresh test workspace and new session/run are ready. Under a current healthy eligible `openai@4` profile, verify representative mini, standard, and strong bindings independently; for example, a balanced profile can use a mini helper, ordinary standard executor, and strong reviewer. A deep reviewer must stay deep; do not lower its class merely to exercise a cheaper effort or model.
+Do not run a live Astra smoke until the support bundle is deployed, the account confirms model availability, and a fresh test workspace and new session/run are ready. Under a current healthy eligible `openai@5` profile, verify representative mini, standard, and strong bindings independently; for example, a balanced profile can use a mini helper, ordinary standard executor, and strong reviewer. A deep reviewer must stay deep; do not lower its class merely to exercise a cheaper effort or model.
 
 Treat a missing model entitlement, quota, selector capability, or mismatched trace as a failed or unverified smoke. Do not substitute Sol and report an Astra success. Status is configuration evidence only; an adaptive projection is applied only when the real child trace matches the resolved role, model, and effective effort.
 

@@ -61,6 +61,7 @@ SUPPORTED_SUPPORT_MARKER_VERSIONS = (1, 2, 3)
 # Read-only identities for previously issued overlays. These do not make a
 # retired catalog selectable or eligible for a new dispatch.
 RETIRED_CODEX_IDENTITIES = frozenset({
+    ("openai", "4", "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8", "openai-gpt6-v1", "1", "3", "sha256:b7834fdb8dd7112a506691e4b40a2b5cc0e534c27b5d35958d1376e50f8ac6aa"),
     ("openai", "3", "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f", "openai-reviewer-v1", "1", "3", "sha256:35c72783f0670fe227ff2db8c53af77995c4532cfdd7983b6efc7f6db99f07c7"),
     ("openai-luna-sol-astra", "1", "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9", "lsa-efficiency-v1", "1", "3", "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"),
     ("openai-luna-sol-astra", "2", "sha256:42d92bba0b5555a69625b06048b3e36074d21aced14722479be4359cad05cec0", "lsa-efficiency-v2", "2", "3", "sha256:f7ad11c79cdc68d1e826c8b3667c69d3f7f90a4bcdcc774ea13b901d12c47c0e"),

@@ -2,24 +2,32 @@
 
 This document records the repository's current operating recommendation for GPT-6 on Codex and the evidence required before changing model routing. It is guidance for operators and maintainers, not a new runtime policy. The canonical child mappings remain the versioned model set and reasoning projection under `runtimes/codex/model-sets/` and `protocols/reasoning-projections.json`.
 
+## Sol 6.1 catalog update (2026-09-30)
+
+The active standard binding is now `gpt-6.1-sol`, verified against OpenAI's [model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-sol). The catalog is `openai@5`; the existing projection family advances to `openai-gpt6-v1@2` because its digest includes that model binding. This is a model-version update, not an effort recalibration or a benchmark-backed change to role tiers. Luna, Astra, reviewer requirements, and qualified recovery semantics stay unchanged.
+
+After an approved support deployment, explicitly refresh chosen workspace profiles and begin a new session/run. An old `openai@4` / `openai-gpt6-v1@1` overlay must not silently resume with Sol 6.1. Confirm that the runtime actually serving the session advertises `gpt-6.1-sol` and the required efforts; the dated CLI recommendation below does not by itself prove Sol 6.1 availability. A cached model listing is not a successful live inference or child trace. This update does not establish a performance or subscription-usage improvement.
+
+Preserve the repository's explicit Sol `medium` routine/deliberative and `high` deep projection rather than inheriting a changed client default. Ultra remains outside the leaf-worker effort contract.
+
 ## Current baseline
 
 As of 2026-09-23, use Codex CLI 0.156.1 or newer as the recommended baseline when evaluating current GPT-6 Sol/Luna workflows. The repository's older Codex 0.145.0 minimum still describes the managed multi-agent V2 and per-spawn reasoning feature floor; the recommended GPT-6 baseline does not silently raise that historical minimum.
 
 For long-lived orchestration, start the current/main Codex session on:
 
-- model: `gpt-6-sol`
+- model: `gpt-6.1-sol`
 - reasoning effort: `medium`
 - Codex speed: Standard
 
 This is an operator recommendation, not a workspace-profile setting. The reasoning policy applies only to child dispatches and never changes the already-running current/main model or effort. Fast mode may be useful when latency matters, but it consumes more Codex credits than Standard and is not the default for cost-sensitive orchestration.
 
-For child routing, keep the current `openai@4` mapping unless the operator explicitly selects another supported profile:
+For child routing, keep the current `openai@5` mapping unless the operator explicitly selects another supported profile:
 
 | Neutral tier | OpenAI model |
 |---|---|
 | mini | GPT-6 Luna |
-| standard | GPT-6 Sol |
+| standard | GPT-6.1 Sol |
 | strong | GPT-6 Astra |
 
 `balanced` remains the normal starting workspace profile for general repository work. This document does not modify `balanced`, the GPT-6 reasoning projection, reviewer requirements, initial strong routing, or capability recovery.
@@ -55,7 +63,7 @@ The goal is not to minimize strong-model calls at any cost. The goal is to minim
 ### Phase 1: operational baseline
 
 1. Use Sol/medium on Standard speed as the normal current/main orchestration starting point.
-2. Keep `openai@4`, `openai-gpt6-v1@1`, and the selected workspace profile unchanged.
+2. Keep the current `openai@5`, `openai-gpt6-v1@2`, and the selected workspace profile unchanged during measurements.
 3. Use Codex CLI 0.156.1 or newer for current GPT-6 routing measurements.
 4. Before managed dispatch in each checkout or worktree, verify workspace profile status, health, trust eligibility, catalog state, and saved bindings.
 5. After a Codex upgrade, verify the runtime actually serving the session and run one representative managed child trace. Spawn success alone does not prove role/model/effort selection.

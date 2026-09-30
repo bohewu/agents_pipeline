@@ -1674,6 +1674,39 @@ test("active projection calibrates Astra review and rejects retired configuratio
   }), /model set|digest|binding/i);
 });
 
+test("Sol 6.1 accepts only the new identity and rejects old or mixed bindings", () => {
+  const current = versionedConfiguration({
+    projectionId: "openai-gpt6-v1", modelSetId: "openai", role: "executor", modelTier: "standard"
+  });
+  assert.equal(current.role_binding.model, "gpt-6.1-sol");
+  assert.equal(current.model_set.version, "5");
+  assert.equal(current.reasoning_projection.version, "2");
+  const input = {
+    role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
+    resolved_configuration: current
+  };
+  assert.equal(resolveReasoning(input).dispatch_effort, "medium");
+  const registry = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/retired-reasoning-projections.json"), "utf8"));
+  const previous = registry.projections.find((entry) => entry.id === "openai-gpt6-v1");
+  const mapping = previous.model_sets[0];
+  const old = structuredClone(current);
+  old.model_set = { id: mapping.id, version: mapping.version, mapping_digest: mapping.mapping_digest };
+  old.reasoning_projection = {
+    id: previous.id, version: previous.version, policy_version: previous.policy_version, digest: previous.digest
+  };
+  old.role_binding.model = mapping.tiers.standard;
+  old.role_binding.mapping_digest = mapping.mapping_digest;
+  const oldModel = structuredClone(current);
+  oldModel.role_binding.model = "gpt-6-sol";
+  const oldProjection = structuredClone(current);
+  oldProjection.reasoning_projection = old.reasoning_projection;
+  const oldMapping = structuredClone(current);
+  oldMapping.model_set.version = "4";
+  for (const configuration of [old, oldModel, oldProjection, oldMapping]) {
+    assert.throws(() => resolveReasoning({ ...input, resolved_configuration: configuration }), /unknown reasoning projection|projection metadata|model set|role binding|digest/i);
+  }
+});
+
 test("lsa v3 uses the approved Luna, Sol, and Astra effort matrix", () => {
   const cases = [
     ["mini routine", "executor", "mini", "execute", [], "high"],

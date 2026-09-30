@@ -208,7 +208,13 @@ semantics; they never infer a projection from a model name.
 
 | Projection | Applicable binding | Routine | Deliberative | Deep | Assurance |
 |---|---|---|---|---|---|
-| `openai-gpt6-v1` | GPT-6 Luna mini / Sol standard / Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
+| `openai-gpt6-v1` | GPT-6 Luna mini / GPT-6.1 Sol standard / GPT-6 Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
+
+The active identity is `openai@5` / `openai-gpt6-v1@2`. Revision 2 changes
+only the Sol model binding and immutable identity/digests; the effort matrix,
+reviewer calibration, and qualified LSA v2 recovery strategy remain unchanged.
+The previous `openai@4` / `openai-gpt6-v1@1` identity requires an explicit
+workspace refresh after an approved support update, never an in-place resume.
 
 Only v3 projection decisions accept `low`. They carry the selected
 `reasoning_projection` and model-set identity. Callers with no saved

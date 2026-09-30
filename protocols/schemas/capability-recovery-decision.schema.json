@@ -354,7 +354,7 @@
           "required": ["id", "version", "mapping_digest"],
           "properties": {
             "id": { "const": "openai" },
-            "version": { "const": "4" },
+            "version": { "const": "5" },
             "mapping_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
           },
           "additionalProperties": false
@@ -364,7 +364,7 @@
           "required": ["id", "version", "policy_version", "digest"],
           "properties": {
             "id": { "const": "openai-gpt6-v1" },
-            "version": { "const": "1" },
+            "version": { "const": "2" },
             "policy_version": { "const": "3" },
             "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
           },

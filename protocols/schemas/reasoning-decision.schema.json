@@ -1135,7 +1135,11 @@
           "else": {
             "if": { "properties": { "id": { "const": "lsa-efficiency-v2" } } },
             "then": { "properties": { "version": { "const": "2" }, "policy_version": { "const": "3" } } },
-            "else": { "properties": { "version": { "const": "1" }, "policy_version": { "const": "3" } } }
+            "else": {
+              "if": { "properties": { "id": { "const": "openai-gpt6-v1" } } },
+              "then": { "properties": { "version": { "enum": ["1", "2"] }, "policy_version": { "const": "3" } } },
+              "else": { "properties": { "version": { "const": "1" }, "policy_version": { "const": "3" } } }
+            }
           }
         }
       ],
