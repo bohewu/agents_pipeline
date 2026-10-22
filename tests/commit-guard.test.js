@@ -190,6 +190,63 @@ test("UNC paths produce a warning without disclosing the matched value", () => {
   const result = detect("doc.txt", { mode: "100644", type: "blob" }, Buffer.from(value), detectorContext("/opt/fixture-root", null));
   assert.ok(result.some(v => v.rule === "PATH_UNC"));
 });
+test("source escape and regex literals are not silently reinterpreted as UNC shares", t => {
+  const snippets = [
+    'assert!(text.contains("\\\\u{1b}[31m\\\\u{9b}\\\\u{202e}"));',
+    'const asset = /\\/__yetlet_wasm\\/[0-9]+\\/tasks.js/.exec(entry)?.[0];',
+    "const ids = readFile('/proc/123/task/123/children').trim().split(/\\s+/).filter(Boolean);"
+  ];
+  const ctx = detectorContext("/opt/fixture-root", null);
+  for (const snippet of snippets) {
+    const result = detect("source.txt", { mode: "100644", type: "blob" }, Buffer.from(snippet), ctx);
+    assert.equal(result.some(v => v.rule === "PATH_UNC"), false, "source syntax must not turn into a network path");
+  }
+  const f = fixture(t);
+  f.write("src/snippets.txt", snippets.join("\n") + "\n");
+  f.stage("src/snippets.txt");
+  const report = f.scan("strict");
+  assert.equal(report.exit, 0);
+  assert.equal(rules(report).includes("PATH_UNC"), false);
+});
+test("literal Windows UNC and slash UNC paths retain warnings and redaction", t => {
+  const samples = [
+    ["", "", "fixture-host", "share", "file"].join("\\"),
+    ["", "", "fixture-host", "share", "file"].join("\\\\"),
+    ["", "", "fixture-host", "share", "file"].join("/"),
+    ["", "", "10.0.4.5", "shared"].join("/"),
+    ["", "", "?", "UNC", "fixture-host", "share"].join("\\"),
+  ];
+  for (const source of samples) {
+    const result = detect("source.txt", { mode: "100644", type: "blob" }, Buffer.from(source), detectorContext("/opt/fixture-root", null));
+    assert.ok(result.some(v => v.rule === "PATH_UNC"), "genuine UNC reference must remain visible");
+  }
+  const f = fixture(t);
+  f.write("doc.txt", samples[0]);
+  f.stage("doc.txt");
+  const report = f.scan("strict");
+  assert.equal(report.exit, 0);
+  assert.ok(rules(report).includes("PATH_UNC"));
+  assertRedacted(report, [samples[0]]);
+});
+test("existing generic drive warnings and blocking personal paths remain distinct", t => {
+  const f = fixture(t);
+  f.write("README.md", [
+    "& $Yetlet new sampleapp --parent C:\\ProtectedApps",
+    "& $Yetlet build --manifest-path C:\\ProtectedApps\\sampleapp\\Cargo.toml",
+    "& $Yetlet run --manifest-path C:\\ProtectedApps\\sampleapp\\Cargo.toml",
+  ].join("\n") + "\n");
+  f.stage("README.md");
+  const report = f.scan("strict");
+  assert.equal(report.exit, 0);
+  assert.equal(rules(report).filter(v => v === "PATH_ABSOLUTE_DRIVE").length, 3);
+  assert.equal(rules(report).includes("PATH_UNC"), false);
+  f.write("source.txt", ["C:", "Users", "fixture-person", "source"].join("\\"));
+  f.stage("source.txt");
+  const privateReport = f.scan("strict");
+  assert.equal(privateReport.exit, 1);
+  assert.ok(rules(privateReport).includes("PATH_PERSONAL"));
+});
+
 test("sensitive filename policy blocks binary PFX and dotenv but allows empty templates", t => {
   const f = fixture(t); f.write(".env.example", "# no actual values\n"); f.stage(".env.example"); assert.equal(f.scan().exit, 0);
   f.write(".env", "# intentionally empty\n"); f.stage(".env"); assert.equal(f.scan().exit, 1);
