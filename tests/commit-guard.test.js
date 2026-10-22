@@ -228,6 +228,37 @@ test("literal Windows UNC and slash UNC paths retain warnings and redaction", t 
   assert.ok(rules(report).includes("PATH_UNC"));
   assertRedacted(report, [samples[0]]);
 });
+test("JSON-escaped forward-slash UNC paths retain warnings and redaction", t => {
+  const value = ["", "", "fixture-host", "share", "file"].join("/");
+  const source = JSON.stringify({ path: value }).replace(/\//g, "\\/");
+  assert.equal(JSON.parse(source).path, value);
+  const result = detect("config.json", { mode: "100644", type: "blob" }, Buffer.from(source), detectorContext("/opt/fixture-root", null));
+  assert.ok(result.some(v => v.rule === "PATH_UNC" && v.severity === "warning"));
+  const f = fixture(t);
+  f.write("config.json", source);
+  f.stage("config.json");
+  const report = f.scan("strict");
+  assert.equal(report.exit, 0);
+  assert.equal(rules(report).filter(v => v === "PATH_UNC").length, 1);
+  assertRedacted(report, [source, value]);
+});
+test("WebDAV UNC authorities retain warnings and redaction", t => {
+  const sources = ["fixture-host@SSL", "fixture-host@SSL@443"].flatMap(authority => {
+    const value = ["", "", authority, "DavWWWRoot", "file"].join("\\");
+    return [value, JSON.stringify(value)];
+  });
+  for (const source of sources) {
+    const result = detect("paths.txt", { mode: "100644", type: "blob" }, Buffer.from(source), detectorContext("/opt/fixture-root", null));
+    assert.ok(result.some(v => v.rule === "PATH_UNC" && v.severity === "warning"));
+  }
+  const f = fixture(t);
+  f.write("paths.txt", sources.join("\n") + "\n");
+  f.stage("paths.txt");
+  const report = f.scan("strict");
+  assert.equal(report.exit, 0);
+  assert.equal(rules(report).filter(v => v === "PATH_UNC").length, sources.length);
+  assertRedacted(report, sources);
+});
 test("existing generic drive warnings and blocking personal paths remain distinct", t => {
   const f = fixture(t);
   f.write("README.md", [

@@ -87,11 +87,12 @@ function detect(file, entry, buffer, context) {
     }
     // Match UNC separators in the raw source: translating escaped regex/language
     // backslashes into forward slashes invents network paths that never existed.
-    const unc = /(?:^|[\s"'(])((?:\\{2,}|\/{2})([^\\/\s"']+)(?:\\+|\/+)([^\\/\s"']+))/g;
+    const unc = /(?:^|[\s"'(])((?:\\{2,}|\/{2}|(?:\\\/){2})([^\\/\s"']+)(?:\\\/|\\+|\/+)([^\\/\s"']+))/g;
     for (const m of line.matchAll(unc)) {
       // A server name is a hostname, NetBIOS name, IP literal, or extended UNC
-      // prefix; Unicode/regex escape syntax (e.g. \\u{1b}) is not a host.
-      if (!/^(?:[\p{L}\p{N}._$-]+|\[[0-9a-f:]+\]|\?)$/iu.test(m[2])) continue;
+      // prefix, optionally with a WebDAV @SSL authority suffix; Unicode/regex
+      // escape syntax (e.g. \\u{1b}) is not a host.
+      if (!/^(?:(?:[\p{L}\p{N}._$-]+|\[[0-9a-f:]+\])(?:@SSL(?:@[0-9]+)?)?|\?)$/iu.test(m[2])) continue;
       add("PATH_UNC", index + 1, m[1], "warning");
     }
     for (const m of normalized.matchAll(/\b[A-Za-z]:\/(?!Users\/|Windows(?:\/|\b)|Program Files(?:\/|\b))[^\s"'<>`]+/g)) add("PATH_ABSOLUTE_DRIVE", index + 1, m[0], "warning");

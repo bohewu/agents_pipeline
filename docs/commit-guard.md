@@ -159,7 +159,9 @@ outside v1. No scanner result authorizes a commit the user prohibited.
 Path findings are a first-screen signal, not evidence that a credential leaked.
 `PATH_UNC` recognizes literal network-path separators (for example,
 `\\\\server\\share` or `//server/share`) without rewriting programming-language
-escapes or regular-expression slash syntax into synthetic paths. The generic
+escapes or regular-expression slash syntax into synthetic paths.
+JSON-escaped forward slashes and WebDAV authorities with `@SSL` or `@SSL@port`
+also retain UNC warnings. The generic
 `PATH_ABSOLUTE_DRIVE` warning intentionally still applies to drive-qualified
 examples such as `C:\\ProtectedApps` in a README: it is low-confidence and
 non-blocking, unlike an actual personal or current-machine path finding.
