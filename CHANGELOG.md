@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-10-22
+
+### Fixed
+
+- Avoided false Commit Guard UNC warnings for Rust Unicode escapes and JavaScript regular-expression/procfs syntax by matching network-path separators directly in source.
+- Preserved UNC warnings and redacted output for JSON-escaped forward-slash paths and Windows WebDAV `@SSL` / `@SSL@port` authorities, while retaining personal/current-machine path blocking, credential rules, and generic Windows drive-path warnings.
+
 ## [0.43.1] - 2026-09-30
 
 ### Changed
