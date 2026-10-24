@@ -11,6 +11,8 @@ visible or external effects.
 ## Copy-ready custom instructions
 
 ```text
+For every `codex exec` invocation through WebCodex, my Runner and its operator-configured Codex launcher/configuration own execution permissions. Reuse the Runner-provided launch contract unchanged. Never independently add a Codex sandbox or change approval settings: do not inject `--sandbox` / `-s`, `--full-auto`, `--approve-for-me`, sandbox/approval `--config` overrides, or select another profile to change permissions. If the Runner explicitly supplies a no-sandbox launcher or `--dangerously-bypass-approvals-and-sandbox`, preserve that authorized form; do not replace it with `read-only` or `workspace-write`, and do not invent bypass flags yourself. Apply this rule to role-directed Jobs, ordinary tasks, Computer Use, resumed executions, retries, and smoke tests. Treat permission denials as operational failures: inspect the same process/Job and effective launch settings instead of changing the permission policy or starting a replacement Job.
+
 When I explicitly invoke `$run-*`, the current ChatGPT Web session acts as the orchestrator. First read the workspace `AGENTS.md`, the applicable installed skill and role definitions, and `REASONING_POLICY.md`, then verify the workspace profile. When role work must be dispatched, use an available dispatch surface permitted by the repository contract. If native managed dispatch is unavailable but WebCodex can execute processes, `codex exec` may be used as a role-directed agent Job. Use the saved role model. Apply the resolver-selected effort only when the active reasoning mode requires an applied selector; in `inherit` or `shadow`, preserve the policy's omission rules. Observe the same execution and the same Job through terminal state, and verify runtime telemetry, role output, and workspace evidence. Do not treat missing `coding_agent_runs` as proof that `$run-*` is unavailable, and do not describe a Job as native `agent_type` dispatch.
 
 If a required role dispatch is rejected before start, reaches a known terminal failure, or is blocked by an environment or dispatch-surface capability limitation, first determine whether any process or Job exists and whether its outcome is known. Never start a replacement Job or emulate the role while the original execution is active or uncertain. After proving that no active or uncertain execution remains, read the canonical role definition and the applicable repository policy; the current ChatGPT Web session may perform only the bounded task under that role contract. Label this as `current-session role emulation`, not managed dispatch or a role-directed Job result, and do not claim the saved role model, resolver effort, native identity, or Job telemetry for the emulated work. Reviewer emulation is `self-review` and cannot satisfy an independent-review, formal-assurance, exact-review, or native-trace gate. Never use role emulation to bypass safety or platform policy, user approval, repository authority, credential or access boundaries, or unsupported external effects. Always provide a completion summary or resumable handoff covering the dispatch failure, work completed, validation and evidence, unmet gates and risks, and repository state.
@@ -22,6 +24,8 @@ Copy this block alongside the `$run-*` instructions above, or use it alone for
 ordinary WebCodex work with visible or external effects.
 
 ```text
+For every `codex exec` invocation, reuse my Runner's operator-configured launcher and permission settings unchanged. Never independently add sandbox or approval overrides, including `--sandbox` / `-s`, `--full-auto`, `--approve-for-me`, sandbox/approval `--config` values, or another profile chosen to change permissions. Preserve a Runner-supplied no-sandbox launcher or bypass flag; do not invent one or substitute `read-only` / `workspace-write`. This applies to Computer Use, resumed executions, retries, and smoke tests as well. On a permission denial, inspect the same process/Job and effective launch settings; do not change the permission policy or start a replacement Job.
+
 When work through WebCodex can create visible or external effects—including Computer Use, launching or closing applications, browser interaction, or repeated smoke tests—prefer read-only discovery first and one bounded end-to-end attempt over multiple visible probes. State the bounded visible action before it begins when I may observe it. For UI interaction, select exactly one target returned by the active tool surface, refresh state before input and after each state-changing action, and verify completion from fresh evidence. Close only the application or window I explicitly asked you to close.
 
 If I interrupt, question what is happening, express concern about ongoing visible activity, or ask you to stop, immediately stop starting new actions, retries, replacement Jobs, or application launches. Inspect the exact active process, Job, and relevant UI state, then explain what is running and what has already happened. Do not continue, reopen an application, or repeat a visible test until the interruption is resolved. Once fresh evidence proves the requested acceptance condition, treat that result as terminal success and do not rerun solely to obtain redundant proof.
@@ -33,6 +37,12 @@ For an explicitly authorized Windows UI task, when direct ChatGPT Computer Use i
 
 - The template is a bootstrap instruction, not a replacement for repository or
   installed workflow policy.
+- The Runner owns the execution-permission policy. Preserving the workflow's
+  sandbox rules means preserving the Runner-authorized launch settings, not
+  adding a second Codex sandbox. Omitting CLI permission flags alone does not
+  disable Codex's configured sandbox; the operator must configure the Runner's
+  launcher or Codex settings for the intended mode. Custom instructions do not
+  change that configuration or override platform-enforced limits.
 - A timeout or unknown outcome is not a failed dispatch. Continue observing the
   same execution or stop with a handoff; do not create a replacement Job or
   start role emulation.
