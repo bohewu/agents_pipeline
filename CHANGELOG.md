@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-28
+
+### Added
+
+- Added explicit Commit Guard `retire-remote-tag`, requiring the exact consumed-record SHA-256 and `--ack-retire-used`. It accepts only valid repository-bound `used` state under the actual strict/builtin policy and initializes the builtin engine before retirement.
+- Archive the intact private binding with exclusive locking and collision refusal, preserving its bytes and consumption history before ordinary pre-push screening resumes. Retirement grants no Push authority or renewed history acceptance; pending, changed or unsafe state remains blocked. See [explicit consumed-binding retirement](docs/commit-guard.md#one-new-tag-at-an-explicitly-accepted-remote-branch-tip).
+
+Preparing this source version does not create a tag, publish release assets, install tools or retire an actual binding. Hook templates and workspace profile inputs are unchanged.
+
 ## [0.44.0] - 2026-10-28
 
 ### Added
