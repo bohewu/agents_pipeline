@@ -55,6 +55,58 @@ safe reason to bypass: audit a deliberate boundary and plan adoption separately.
 Existing hooksPath, foreign hooks, path redirections, or linked/shared worktrees
 are refused; use explicit checks or intentional manual hook composition there.
 
+## One new tag at an explicitly accepted remote branch tip
+
+Use this optional scope only after the owner accepts the named existing remote
+history. Ordinary checks remain offline and keep their existing new-ref
+full-ancestry behavior. This path alone performs bounded, noninteractive Git
+remote reads; it neither remediates historical findings nor certifies a release.
+The initial path requires POSIX metadata permissions and refuses Windows.
+
+Before the tag exists, assess the plan from the target repository:
+
+```sh
+node "$GUARD" prepare-remote-tag --remote "$REMOTE_NAME" --endpoint "$APPROVED_ENDPOINT" --accepted-ref refs/heads/main --commit "$SOURCE_COMMIT" --tag refs/tags/v1.0.0 --profile strict --engine builtin --format json
+```
+
+These are example arguments, not a release instruction. Set `SOURCE_COMMIT` to
+the actual reviewed full Git commit OID; the variable name is not literal input
+and a shortened SHA is rejected. Set `REMOTE_NAME` and `APPROVED_ENDPOINT` to
+the reviewed remote and its exact single effective credential-free HTTPS or SSH
+push URL. Replace the branch/tag with the explicitly accepted full refs. Fetch
+URLs, local tracking refs, inferred baselines and multiple push endpoints do not
+satisfy this binding. SSH requires the `ssh://USER@HOST/PATH` URL form; SCP
+shorthand, ambiguous routing and custom SSH commands are refused.
+
+Without `--accept-existing-history`, the command is read-only and reports
+`new-tag-plan`; it cannot arm or consume a record. Once that exact history and
+binding are explicitly accepted, repeat the same preparation arguments with
+`--accept-existing-history`. Only a complete strict/builtin PASS writes the one-use
+private record under `.git/commit-guard-remote-tag/`. It binds this clone, endpoint,
+accepted branch/OID, exact tag/raw commit and policy. Preparation requires both
+local and remote tag absence, accepted live branch equality, valid local history
+and initialized strict/builtin engine even though zero outgoing commits are
+scanned. It never creates a tag or performs a push.
+
+The separately reviewed managed hook must receive Git's real remote arguments
+and actual stdin. For the exact single new lightweight tag update it freshly
+rechecks the raw local tag, zero remote OID, live branch/tag state, endpoint,
+policy and record, then atomically consumes once only at full PASS. Direct checks
+never consume; direct `check --pre-push` fails closed while this scope is selected.
+Other refs, multi-ref pushes, annotated tags, moved branches,
+present tags, changed/missing/used selected records and failed remote reads stop;
+selection never silently falls back to a wider scan. A transport failure after
+consumption leaves the record used. Do not automatically retry or rearm it.
+
+Updating source does not update installed tools or hooks. Existing installations
+retain their old behavior until an explicitly reviewed installation upgrade;
+review and qualify that actual native path separately. Preparation and direct
+scanner input are not evidence that Git invoked the hook or a push succeeded.
+No preparation result grants tag, push, install or hosted-operation authority.
+Hook input cannot reveal force options, and fresh remote reads retain a race
+window and trust local/remote administrators. The protocol describes these
+boundaries; they are not solved by the private record.
+
 ## New GitHub repository
 
 For a clone already reviewed as suitable for strict mode:

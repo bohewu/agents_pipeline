@@ -6,6 +6,15 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-28
+
+### Added
+
+- Added opt-in Commit Guard `prepare-remote-tag` for one new lightweight tag at an explicitly accepted existing remote branch tip. Read-only `new-tag-plan` reports the proposed scope; explicit `--accept-existing-history` arms a one-use record only after strict/builtin PASS, binding the exact destination, full refs, and commit OID.
+- Required fresh checks through the native managed pre-push hook and atomic one-time consumption for the exact tag update. The initial path is POSIX-only and accepts conservative credential-free HTTPS and `ssh://` endpoints; ordinary strict/builtin checks and default full-history new-ref scans remain unchanged. See [the accepted remote branch tip scope](docs/commit-guard.md#one-new-tag-at-an-explicitly-accepted-remote-branch-tip).
+
+Source preparation does not publish a tag or release bundle, and installed tools and hooks require a separate reviewed upgrade.
+
 ## [0.43.2] - 2026-10-22
 
 ### Fixed

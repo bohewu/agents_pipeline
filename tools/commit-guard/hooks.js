@@ -13,7 +13,7 @@ function quote(value) {
 function hooksFor(node, entry) {
   const executable = quote(process.platform === "win32" ? node.replace(/\\/g, "/") : node);
   const script = quote(process.platform === "win32" ? entry.replace(/\\/g, "/") : entry);
-  const make = scope => `#!/bin/sh\n# agents_pipeline commit-guard v1 (managed; do not edit)\nexec ${executable} ${script} check ${scope}${scope === "--staged" ? " --consume-policy-ack" : ""}\n`;
+  const make = scope => `#!/bin/sh\n# agents_pipeline commit-guard v1 (managed; do not edit)\nexec ${executable} ${script} check ${scope}${scope === "--staged" ? " --consume-policy-ack" : ' --native-pre-push --remote-name "$1" --remote-location "$2"'}\n`;
   return { "pre-commit": make("--staged"), "pre-push": make("--pre-push") };
 }
 function noLinks(file) {

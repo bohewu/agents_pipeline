@@ -519,3 +519,227 @@ test("required scanner metadata-only contract detects findings without writing m
     assert.equal(r.exit, 1); assert.ok(rules(r).includes("GITLEAKS_synthetic")); assertRedacted(r, ["ordinary"]);
   } finally { if (previous === undefined) delete process.env.GITLEAKS_CONFIG; else process.env.GITLEAKS_CONFIG = previous; }
 });
+
+// These new cases alone can run with --test-name-pattern='^remote-tag baseline'.
+// The PATH-local SSH stub speaks to disposable bare Git repositories only. It
+// proves Git/hook integration, never real SSH authentication or peer identity.
+function remoteTagFixture(t) {
+  const f = fixture(t);
+  f.write("old.txt", credential(SECRET_A)); f.stage("old.txt"); f.commit();
+  f.git(["rm", "old.txt"]); f.clean();
+  const commit = f.git(["rev-parse", "HEAD"]);
+  const bare = path.join(f.directory, "remote.git");
+  f.git(["-c", "init.templateDir=", "init", "--bare", "-q", bare]);
+  f.git(["push", "-q", bare, `${commit}:refs/heads/accepted`]);
+  const bin = path.join(f.directory, "bin"); fs.mkdirSync(bin);
+  const control = path.join(f.directory, "transport.json");
+  const log = path.join(f.directory, "transport.log");
+  fs.writeFileSync(control, "{}");
+  fs.writeFileSync(path.join(bin, "ssh"), `#!${process.execPath}
+const fs=require('node:fs'),cp=require('node:child_process');
+const args=process.argv.slice(2), c=JSON.parse(fs.readFileSync(${JSON.stringify(control)},'utf8'));
+if(args.includes('-G')) { process.stdout.write('hostname remote.example.test\\nuser git\\nport 22\\nstricthostkeychecking yes\\ncanonicalizehostname false\\n'); process.exit(0); }
+const service=args[args.length-1];
+fs.appendFileSync(${JSON.stringify(log)},service+'\\n');
+if(service.startsWith('git-upload-pack ')) {
+ if(c.mutate) { const r=cp.spawnSync('git',c.mutate,{cwd:${JSON.stringify(f.cwd)},encoding:'utf8'}); if(r.status!==0)process.exit(12); }
+ if(c.recordWrite) fs.writeFileSync(${JSON.stringify(path.join(f.cwd, ".git", "commit-guard-remote-tag", "acceptance.json"))},c.recordWrite);
+ if(c.deny) { process.stderr.write(${JSON.stringify(SECRET_B)}); process.exit(1); }
+ if(c.output!==undefined) { process.stdout.write(c.output); process.exit(0); }
+} else if(!service.startsWith('git-receive-pack ')) process.exit(11);
+const r=cp.spawnSync(service.startsWith('git-upload-pack ')?'git-upload-pack':'git-receive-pack',[${JSON.stringify(bare)}],{stdio:'inherit'});
+process.exit(r.status===null?1:r.status);
+`, { mode: 0o755 });
+  const oldPath = process.env.PATH;
+  process.env.PATH = bin + path.delimiter + oldPath;
+  t.after(() => { process.env.PATH = oldPath; });
+  const remote = "accepted-fixture";
+  const endpoint = "ssh://git@remote.example.test/fixture/repo.git";
+  const tag = "refs/tags/fixture-source";
+  f.git(["remote", "add", remote, endpoint]);
+  f.git(["config", "commitguard.profile", "strict"]);
+  f.git(["config", "commitguard.engine", "builtin"]);
+  const recordPath = path.join(f.cwd, ".git", "commit-guard-remote-tag", "acceptance.json");
+  const planArgs = ["prepare-remote-tag", "--remote", remote, "--endpoint", endpoint, "--accepted-ref", "refs/heads/accepted", "--commit", commit, "--tag", tag];
+  const prepare = (arm = false, extra = []) => f.cli([...planArgs, ...(arm ? ["--accept-existing-history"] : []), ...extra]);
+  const hookArgs = ["check", "--pre-push", "--native-pre-push", "--remote-name", remote, "--remote-location", endpoint];
+  const row = `${tag} ${commit} ${tag} ${ZERO}\n`;
+  const hook = (input = row, args = hookArgs) => f.cli(args, input);
+  const tagLocal = () => f.git(["update-ref", tag, commit]);
+  const mode = value => fs.writeFileSync(control, JSON.stringify(value));
+  const record = () => JSON.parse(fs.readFileSync(recordPath, "utf8"));
+  return { ...f, commit, bare, remote, endpoint, tag, recordPath, planArgs, prepare, hookArgs, row, hook, tagLocal, mode, record, log };
+}
+
+test("remote-tag baseline read-only planning, explicit arming and default historical debt", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  const p = f.prepare(); assert.equal(p.exit, 0, p.output);
+  assert.equal(p.result.scope, "new-tag-plan"); assert.equal(p.result.outgoing_commits, 0);
+  assert.equal(p.result.binding_state, "unarmed"); assert.equal(p.result.binding_written, false);
+  assert.equal(fs.existsSync(f.recordPath), false); assert.equal(f.git(["tag", "--list"]), "");
+  const defaultCheck = f.cli(["check", "--pre-push", "--profile", "strict", "--engine", "builtin"], f.row);
+  assert.equal(defaultCheck.exit, 1); assert.equal(defaultCheck.result.checked_commits, 2);
+  assert.ok(rules(defaultCheck).includes("SEC_CREDENTIAL_LITERAL"));
+  assert.equal(f.prepare(true).result.binding_written, true);
+  assert.equal(f.record().state, "pending");
+  assert.equal(fs.statSync(f.recordPath).mode & 0o777, 0o600);
+  assert.equal(f.prepare().result.binding_state, "pending");
+  assert.notEqual(f.prepare(true).exit, 0);
+  assert.notEqual(f.cli(["check", "--pre-push"], f.row).exit, 0);
+  assert.equal(f.record().state, "pending");
+});
+
+test("remote-tag baseline native Git push forwards destination, refreshes and consumes once", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.cli(["install", "--profile", "strict", "--engine", "builtin", "--local-only"]).exit, 0);
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  const before = fs.readFileSync(f.log, "utf8").split("\n").length;
+  f.git(["-c", "push.gpgSign=false", "push", f.remote, `${f.tag}:${f.tag}`], [0], true);
+  assert.equal(f.record().state, "used");
+  assert.ok(fs.readFileSync(f.log, "utf8").split("\n").length >= before + 2);
+  assert.equal(f.git(["--git-dir", f.bare, "rev-parse", f.tag]), f.commit);
+  assert.notEqual(f.hook().exit, 0); assert.notEqual(f.prepare(true).exit, 0);
+});
+
+test("remote-tag baseline rejects wrong rows, destinations, raw types and changed local refs", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t); assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  for (const row of [f.row + f.row, f.row.replace(f.commit, "a".repeat(40)), f.row.replace(ZERO, f.commit), f.row.replace(f.tag, "refs/tags/other"), f.row.replaceAll(f.tag, "refs/heads/fixture")]) assert.notEqual(f.hook(row).exit, 0);
+  assert.notEqual(f.hook(f.row, [...f.hookArgs.slice(0, -1), "ssh://git@other.example.test/fixture/repo.git"]).exit, 0);
+  f.git(["update-ref", "-d", f.tag]);
+  f.git(["-c", "tag.gpgSign=false", "tag", "-a", "fixture-source", "-m", "fixture annotation", f.commit]);
+  assert.notEqual(f.hook().exit, 0);
+  f.git(["update-ref", f.tag, f.git(["rev-parse", `${f.commit}^`])]);
+  assert.notEqual(f.hook().exit, 0); assert.equal(f.record().state, "pending");
+});
+
+test("remote-tag baseline remote reads fail closed and suppress unsafe diagnostics", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  for (const mode of [{ deny: true }, { output: "" }, { output: `broken ${SECRET_B}\n` },
+    { output: `${"a".repeat(40)}\trefs/heads/accepted\n` },
+    { output: `${f.commit}\trefs/heads/accepted\n${f.commit}\t${f.tag}\n` },
+    { output: `${f.commit}\trefs/heads/accepted\n${f.commit}\trefs/heads/accepted\n` },
+    { output: `${f.commit}\trefs/heads/accepted` }]) {
+    f.mode(mode); const r = f.prepare(true); assert.notEqual(r.exit, 0); assertRedacted(r);
+    assert.equal(fs.existsSync(f.recordPath), false);
+  }
+  f.mode({}); assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  f.mode({ deny: true }); assert.notEqual(f.hook().exit, 0); assert.equal(f.record().state, "pending");
+});
+
+test("remote-tag baseline effective push identity, unsafe endpoint and multiple push URLs", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  f.git(["remote", "set-url", f.remote, "https://fetch.example.test/another/repo.git"]);
+  f.git(["config", `remote.${f.remote}.pushurl`, f.endpoint]);
+  assert.equal(f.prepare().exit, 0);
+  f.git(["config", "--add", `remote.${f.remote}.pushurl`, f.endpoint]);
+  assert.notEqual(f.prepare(true).exit, 0);
+  f.git(["config", "--unset-all", `remote.${f.remote}.pushurl`]);
+  assert.notEqual(f.prepare(true).exit, 0);
+  for (const value of [`https://user:${SECRET_A}@remote.example.test/repo.git`, "file:///tmp/fixture.git", "git@remote.example.test:fixture/repo.git", "ssh://git@remote.example.test/fixture/../repo.git"]) {
+    const args = [...f.planArgs]; args[args.indexOf("--endpoint") + 1] = value;
+    const r = f.cli(args); assert.notEqual(r.exit, 0); assertRedacted(r);
+  }
+  assert.equal(fs.existsSync(f.recordPath), false);
+});
+
+test("remote-tag baseline policy and complete raw local history are required with zero commits", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  for (const [key, value] of [["commitguard.profile", "audit"], ["commitguard.engine", "gitleaks-required"]]) {
+    f.git(["config", key, value]); assert.notEqual(f.prepare(true).exit, 0);
+    f.git(["config", key, key.endsWith("profile") ? "strict" : "builtin"]);
+  }
+  f.git(["replace", f.commit, `${f.commit}^`]); assert.notEqual(f.prepare(true).exit, 0);
+  f.git(["replace", "-d", f.commit]);
+  fs.writeFileSync(path.join(f.cwd, ".git", "shallow"), f.commit + "\n");
+  assert.notEqual(f.prepare(true).exit, 0); fs.unlinkSync(path.join(f.cwd, ".git", "shallow"));
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  f.git(["config", "commitguard.engine", "gitleaks-required"]);
+  assert.notEqual(f.hook().exit, 0); assert.equal(f.record().state, "pending");
+});
+
+test("remote-tag baseline missing, changed, symlink and copied records cannot grant", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t); assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  const original = fs.readFileSync(f.recordPath, "utf8");
+  fs.unlinkSync(f.recordPath); assert.notEqual(f.hook().exit, 0);
+  fs.writeFileSync(f.recordPath, original, { mode: 0o600 });
+  const r = f.record(); r.extra = true; fs.writeFileSync(f.recordPath, JSON.stringify(r)); assert.notEqual(f.hook().exit, 0);
+  delete r.extra; r.repository = "a".repeat(64); fs.writeFileSync(f.recordPath, JSON.stringify(r)); assert.notEqual(f.hook().exit, 0);
+  const other = path.join(f.directory, "other-record"); fs.writeFileSync(other, original, { mode: 0o600 });
+  fs.unlinkSync(f.recordPath); fs.symlinkSync(other, f.recordPath); assert.notEqual(f.hook().exit, 0);
+  fs.unlinkSync(f.recordPath); fs.writeFileSync(f.recordPath, original, { mode: 0o600 });
+  f.mode({ recordWrite: JSON.stringify({ ...JSON.parse(original), state: "used" }) });
+  assert.notEqual(f.hook().exit, 0);
+});
+
+test("remote-tag baseline changes during the live query stop before consumption", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t); assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  f.mode({ mutate: ["update-ref", f.tag, `${f.commit}^`] });
+  assert.notEqual(f.hook().exit, 0); assert.equal(f.record().state, "pending");
+  f.tagLocal(); f.mode({ mutate: ["config", "commitguard.profile", "audit"] });
+  assert.notEqual(f.hook().exit, 0); assert.equal(f.record().state, "pending");
+});
+
+test("remote-tag baseline concurrent hook assessments consume at most once", { skip: process.platform === "win32" }, async t => {
+  const f = remoteTagFixture(t); assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  const { spawn } = require("node:child_process");
+  const run = () => new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [ENTRY, ...f.hookArgs, "--format", "json"], { cwd: f.cwd, stdio: ["pipe", "pipe", "pipe"], timeout: 15000 });
+    let output = ""; child.stdout.on("data", v => { output += v; });
+    child.on("error", reject); child.on("close", code => resolve({ code, output })); child.stdin.end(f.row);
+  });
+  const results = await Promise.all([run(), run()]);
+  assert.equal(results.filter(r => r.code === 0).length, 1, JSON.stringify(results));
+  assert.equal(f.record().state, "used");
+});
+
+test("remote-tag baseline full hook PASS stays used after remote transport rejection", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.cli(["install", "--profile", "strict", "--engine", "builtin", "--local-only"]).exit, 0);
+  fs.mkdirSync(path.join(f.bare, "hooks"), { recursive: true });
+  fs.writeFileSync(path.join(f.bare, "hooks", "pre-receive"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  f.git(["-c", "push.gpgSign=false", "push", f.remote, `${f.tag}:${f.tag}`], [1], true);
+  assert.equal(f.record().state, "used");
+  assert.equal(f.git(["--git-dir", f.bare, "tag", "--list"]), "");
+  assert.notEqual(f.hook().exit, 0); assert.notEqual(f.prepare(true).exit, 0);
+});
+
+
+test("remote-tag baseline broken local ref cannot establish tag absence", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  fs.writeFileSync(path.join(f.cwd, ".git", f.tag), "not-an-object\n");
+  const r = f.prepare(true);
+  assert.notEqual(r.exit, 0); assert.equal(fs.existsSync(f.recordPath), false);
+});
+
+test("remote-tag baseline text output identifies accepted boundary and binding transitions", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.cli(["install", "--profile", "strict", "--engine", "builtin", "--local-only"]).exit, 0);
+  const textPlan = arm => {
+    let output = "";
+    const exit = runCli([...f.planArgs, ...(arm ? ["--accept-existing-history"] : [])], {
+      cwd: f.cwd, stdout: { write(value) { output += value; } }
+    });
+    assert.equal(exit, 0, output);
+    return output;
+  };
+  const unarmed = textPlan(false);
+  assert.equal(fs.existsSync(f.recordPath), false);
+  const pending = textPlan(true);
+  assert.equal(f.record().state, "pending");
+  f.tagLocal();
+  const used = f.git(["-c", "push.gpgSign=false", "push", f.remote, `${f.tag}:${f.tag}`], [0], true);
+  assert.equal(f.record().state, "used");
+  assert.equal(f.git(["--git-dir", f.bare, "rev-parse", f.tag]), f.commit);
+  for (const output of [unarmed, pending, used]) {
+    assert.ok(output.includes(`Accepted remote history: refs/heads/accepted ${f.commit}`), output);
+    assert.ok(output.includes(`Tag: ${f.tag} ${f.commit}`), output);
+    assert.match(output, /Outgoing commits: 0/);
+    assert.match(output, /profiles=strict; engines=builtin/);
+    assertRedacted({ output }, [SECRET_A, SECRET_B, f.endpoint, f.cwd]);
+  }
+  assert.match(unarmed, /Binding: unarmed; written: false/);
+  assert.match(pending, /Binding: pending; written: true/);
+  assert.match(used, /Binding: used; written: false/);
+  assert.equal(new Set([unarmed, pending, used]).size, 3);
+});

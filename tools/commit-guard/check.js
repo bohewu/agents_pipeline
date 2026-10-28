@@ -2,6 +2,7 @@
 
 const { POLICY_FILE, LIMITS, fail, git, gitText, repository, head, isOid, resolveCommit, tree, blob, parsePolicy, policyAckRecord, writePolicyAck, consumePolicyAck, policy } = require("./common");
 const { detectorContext, detect } = require("./detectors");
+const remoteTag = require("./remote-tag");
 const { Gitleaks } = require("./gitleaks");
 
 function parseRange(cwd, value) {
@@ -52,6 +53,10 @@ function safeReportFile(file, redactions) {
 }
 function check(cwd, opts, input = "") {
   cwd = repository(cwd);
+  if (opts.prePush && remoteTag.selected(cwd)) {
+    if (!opts.nativePrePush) fail(3, "Selected remote-tag acceptance requires the native hook; direct checks cannot consume it.");
+    return remoteTag.nativeCheck(cwd, opts, input);
+  }
   const initialHead = head(cwd);
   const initialTree = opts.staged ? gitText(cwd, ["write-tree"]) : null;
   const report = {

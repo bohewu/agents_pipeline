@@ -1,8 +1,9 @@
 # Commit Guard
 
-Commit Guard is a deterministic, offline first-screen for accidental credential,
-personal-path, and sensitive-file commits. It is not full SAST, a proof of secret
-absence, or a new agent role. Normal checks use no model tokens and never verify
+Commit Guard is a deterministic first-screen for accidental credential,
+personal-path, and sensitive-file commits. Ordinary checks are offline; only the
+explicit existing-remote tag path below performs bounded Git remote reads. It is
+not full SAST, a proof of secret absence, or a new agent role. Normal checks use no model tokens and never verify
 credentials against a provider API.
 
 ## Commit-capable workflow contract
@@ -50,6 +51,7 @@ node tools/commit-guard.js check --staged --profile legacy-ratchet --format json
 node tools/commit-guard.js check --range BASE..TIP --profile strict
 node tools/commit-guard.js check --range EMPTY..TIP --profile audit
 node tools/commit-guard.js check --pre-push --profile legacy-ratchet < ref-input.txt
+node tools/commit-guard.js prepare-remote-tag --help
 node tools/commit-guard.js install --profile legacy-ratchet --local-only
 node tools/commit-guard.js doctor --format json
 ```
@@ -98,6 +100,67 @@ push. For legacy adoption on a new remote branch, an operator must plan the
 explicit audited boundary; the tool does not infer trust or silently exclude
 local outgoing branches. Missing remote objects and shallow history fail closed
 instead of scanning an incomplete range.
+
+## Explicit acceptance of existing remote history for one tag
+
+This opt-in path accepts existing remote history for exactly one new lightweight
+tag at the live accepted branch tip. It does not fix or ignore historical findings,
+change detectors, or certify full history clean. Without selection of this path,
+the ordinary pre-push rules above, including new-ref full ancestry, are unchanged.
+This initial path requires POSIX private-metadata permissions; Windows is refused.
+
+Before creating the tag, use `prepare-remote-tag` with `--remote NAME`,
+`--endpoint CANONICAL_URL`, `--accepted-ref refs/heads/BRANCH`, `--commit FULL_OID`
+and `--tag refs/tags/TAG`. Require effective `strict` / `builtin`; explicit
+`--profile strict --engine builtin` is supported. The commit must be a full Git
+object ID, not a short SHA or floating ref. Omit `--accept-existing-history` for a
+read-only `new-tag-plan` assessment. Only explicit `--accept-existing-history`
+plus a complete PASS arms the private binding; assessment alone never arms or
+consumes it. Preparation creates no tag, push, policy change or hook installation.
+
+Preparation binds the normal local repository metadata identity, the actual
+single effective push endpoint, accepted full branch ref/OID, exact new tag ref
+and raw commit OID, and strict/builtin policy. The explicitly approved endpoint
+must match Git's effective push destination, including pushurl and URL rewrites;
+a remote alias or fetch URL alone is insufficient. Supported endpoint forms are
+HTTPS URLs without userinfo and SSH URLs of the form `ssh://USER@HOST/PATH`,
+without embedded secrets. SCP shorthand, percent escapes, query/fragment, ambiguous
+paths, redirected HTTPS, custom SSH commands, proxy/alias routing and insecure
+TLS/SSH verification are refused. Unsupported or ambiguous destinations and
+multiple push endpoints stop. Bounded, noninteractive `git ls-remote` reads must return exactly the
+accepted branch at that OID and no exact target tag. Failed, malformed or ambiguous
+reads never prove absence. Local tracking refs are not remote evidence.
+
+The repository-private `.git/commit-guard-remote-tag/` directory selects this
+narrow path; its versioned `acceptance.json` binds pending/used state, and an
+exclusive `consume.lock` serializes consumption. Missing, malformed, changed,
+used or mismatched selected state stops rather than falling back. Records are
+private and repository-bound; unsupported shared/linked layouts and unsafe paths
+are refused. Preparation does not overwrite a pending record or automatically
+rearm a used one.
+
+The managed native pre-push hook forwards Git's actual remote name/location and
+untouched stdin through `check --pre-push --native-pre-push --remote-name NAME
+--remote-location URL`. Native mode rejects policy overrides.
+It accepts exactly one new lightweight tag row with equal exact local/remote tag
+refs, the accepted commit OID and a zero remote OID. It freshly verifies the raw
+local tag object is that commit, live accepted branch OID, remote tag absence,
+endpoint, local identity/history, policy and binding stability. Strict/builtin
+engine initialization remains required even for zero outgoing commits. Only a
+complete native PASS atomically consumes the exact binding once. Direct
+`check --pre-push` calls never consume and fail closed while this path is selected;
+hook-only switches are not an operator shortcut. Selected-scope failures stop without a broader fallback.
+
+Results identify `new-tag-plan` or `pre-push`, `binding_state`
+(`unarmed`, `pending` or `used`), `binding_written`, accepted/tag refs and OIDs,
+and zero `outgoing_commits` / `checked_commits`. Coverage is
+`operator-accepted-remote-history-first-screen`, not historical remediation,
+full-history cleanliness or release qualification. A later transport failure leaves the binding used; inspect remote
+state before any separately authorized new preparation. No automatic retry,
+rearming, push or downstream build follows. Force options are not observable in
+hook input; the separately authorized invocation must be reviewed. Fresh reads
+retain a time-of-check/time-of-use window and trust local/remote administrators.
+This path does not solve those limits or make local hooks unbypassable.
 
 ## Policy and local hooks
 
