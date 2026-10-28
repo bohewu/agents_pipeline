@@ -52,6 +52,7 @@ node tools/commit-guard.js check --range BASE..TIP --profile strict
 node tools/commit-guard.js check --range EMPTY..TIP --profile audit
 node tools/commit-guard.js check --pre-push --profile legacy-ratchet < ref-input.txt
 node tools/commit-guard.js prepare-remote-tag --help
+node tools/commit-guard.js retire-remote-tag --binding-sha256 SHA256 --ack-retire-used
 node tools/commit-guard.js install --profile legacy-ratchet --local-only
 node tools/commit-guard.js doctor --format json
 ```
@@ -161,6 +162,38 @@ rearming, push or downstream build follows. Force options are not observable in
 hook input; the separately authorized invocation must be reviewed. Fresh reads
 retain a time-of-check/time-of-use window and trust local/remote administrators.
 This path does not solve those limits or make local hooks unbypassable.
+
+### Explicit retirement of consumed acceptance
+
+An operator may retire a **used** record with `retire-remote-tag
+--binding-sha256 HASH --ack-retire-used`. HASH is the lowercase SHA-256 of the
+exact reviewed `acceptance.json` bytes, including whitespace and its trailing
+newline. This is an explicit metadata transition, not a push check or renewed
+history acceptance. The command accepts only these arguments and `--format`;
+policy overrides are refused. The current automatic policy at HEAD must be
+strict/builtin, and the builtin engine must initialize successfully.
+
+Retirement uses the same standalone repository identity, private-path validation
+and exclusive `consume.lock` as consumption. It refuses pending, missing,
+malformed, changed, foreign, unsafe, shared, symlinked or locked state, incorrect
+fingerprints, unexpected active files and archive collisions without removing
+selection or changing the acceptance payload. It exclusively reserves a private
+directory at `.git/commit-guard-remote-tag-retired/HASH/`, then atomically renames
+the active directory to its `binding/` child. The archived `acceptance.json`
+remains byte-identical and retains `state: used`; the digest supports inspection.
+Successful retirement removes the active selection marker by that same rename,
+so subsequent pushes receive ordinary full pre-push screening. A failed attempt
+may leave an empty private archive root, but never silently deselects acceptance.
+
+The result reports `binding_state: retired`, `archived_state: used`, the digest
+and `metadata-only-no-push-approval` coverage, without endpoint or private paths.
+It makes no remote calls, changes no refs or hooks, and does not verify push
+success or remote tag absence. There is no automatic retirement, retry, replay
+or rearming. Any fresh preparation still needs its own explicit acceptance and
+all preparation checks. Retirement does not install or permanently enforce a
+policy: ordinary checks retain their existing policy resolution and limits.
+Private metadata still trusts the local administrator; a hash is an operator
+assertion of reviewed bytes, not a signature against that administrator.
 
 ## Policy and local hooks
 

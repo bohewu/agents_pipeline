@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { fail, command, utf8, git, gitText, gitConfig, gitDir, repository, policy, LIMITS } = require("./common");
+const { fail, command, utf8, git, gitText, gitConfig, gitDir, repository, head, policy, LIMITS } = require("./common");
 const { detectorContext } = require("./detectors");
 const { layout } = require("./hooks");
 const DIRECTORY = "commit-guard-remote-tag";
@@ -75,11 +75,12 @@ function readRecord(loc) {
   const before = privateStat(file);
   if (before.size > 8192) error();
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-  let raw;
+  let raw, bytes;
   try {
     const actual = fs.fstatSync(fd);
     if (actual.ino !== before.ino || actual.dev !== before.dev) error();
-    raw = fs.readFileSync(fd, "utf8");
+    bytes = fs.readFileSync(fd);
+    raw = bytes.toString("utf8");
   } finally { fs.closeSync(fd); }
   let record;
   try { record = JSON.parse(raw); } catch { error(); }
@@ -87,7 +88,7 @@ function readRecord(loc) {
       record.version !== 1 || record.repository !== loc.identity || record.profile !== "strict" || record.engine !== "builtin" ||
       !["pending", "used"].includes(record.state) || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(record.remote) || endpoint(record.endpoint) !== record.endpoint) error();
   validRef(loc.cwd, record.accepted_ref, "refs/heads/"); validRef(loc.cwd, record.tag, "refs/tags/");
-  return { record, raw, identity: `${directoryStat.dev}:${directoryStat.ino}:${before.dev}:${before.ino}` };
+  return { record, raw, bytes, identity: `${directoryStat.dev}:${directoryStat.ino}:${before.dev}:${before.ino}` };
 }
 function configState(cwd) {
   // Only a digest leaves process memory; authentication/configuration values never do.
@@ -204,4 +205,58 @@ function nativeCheck(cwd, opts, input) {
   } finally { fs.closeSync(fd); fs.unlinkSync(lock); }
   return report(r, p, "pre-push", "used", false);
 }
-module.exports = { prepare, nativeCheck, selected };
+function retire(cwd, opts) {
+  const loc = location(repository(cwd));
+  const original = readRecord(loc);
+  const r = original.record;
+  const digest = hash(original.bytes);
+  const format = gitText(loc.cwd, ["rev-parse", "--show-object-format"]);
+  const length = format === "sha1" ? 40 : format === "sha256" ? 64 : 0;
+  utf8(original.bytes); // Refuse invalid encoding rather than fingerprinting replacement text.
+  if (!opts.ackRetireUsed || digest !== opts.bindingSha256 || r.state !== "used" ||
+      typeof r.remote !== "string" || typeof r.commit !== "string" || !length || !new RegExp(`^[a-f0-9]{${length}}$`).test(r.commit)) error();
+  const initialConfig = configState(loc.cwd);
+  const initialHead = head(loc.cwd);
+  // Retirement must return to the actual automatic policy, never a CLI override.
+  const p = policy(loc.cwd, {}, initialHead);
+  if (p.profile !== "strict" || p.engine !== "builtin") fail(3, "Remote-tag retirement requires automatic effective strict/builtin policy.");
+  detectorContext(loc.cwd, null);
+  const archive = path.join(loc.dir, DIRECTORY + "-retired");
+  const slot = path.join(archive, digest);
+  const target = path.join(slot, "binding");
+  let lock = path.join(loc.selected, "consume.lock");
+  let fd;
+  try { fd = fs.openSync(lock, "wx", 0o600); }
+  catch { fail(2, "Remote-tag acceptance is locked; nothing was retired."); }
+  let reserved = false, moved = false;
+  try {
+    try { fs.mkdirSync(archive, { mode: 0o700 }); }
+    catch (e) { if (e.code !== "EEXIST") throw e; }
+    const archiveStat = privateStat(archive, true);
+    // Exclusive reservation refuses even an empty existing digest directory.
+    fs.mkdirSync(slot, { mode: 0o700 });
+    reserved = true;
+    const slotStat = privateStat(slot, true);
+    if (configState(loc.cwd) !== initialConfig || head(loc.cwd) !== initialHead || location(loc.cwd).identity !== loc.identity ||
+        JSON.stringify(policy(loc.cwd, {}, initialHead)) !== JSON.stringify(p)) fail(2, "Repository or policy changed during remote-tag retirement.");
+    const current = readRecord(loc);
+    if (!current.bytes.equals(original.bytes) || current.identity !== original.identity ||
+        fs.readdirSync(loc.selected).sort().join() !== "acceptance.json,consume.lock") error();
+    const currentArchive = privateStat(archive, true), currentSlot = privateStat(slot, true);
+    if (currentArchive.dev !== archiveStat.dev || currentArchive.ino !== archiveStat.ino ||
+        currentSlot.dev !== slotStat.dev || currentSlot.ino !== slotStat.ino || fs.readdirSync(slot).length) error();
+    // One rename both archives the untouched payload and removes selection.
+    // The reserved private parent prevents replacement of an earlier archive.
+    fs.renameSync(loc.selected, target);
+    moved = true;
+    lock = path.join(target, "consume.lock");
+  } finally {
+    fs.closeSync(fd);
+    fs.unlinkSync(lock);
+    if (reserved && !moved) fs.rmdirSync(slot);
+  }
+  return { status: "pass", operation: "retire-remote-tag", profile: p.profile, engine: p.engine, policy_source: p.source,
+    binding_state: "retired", archived_state: "used", binding_sha256: digest, binding_written: false,
+    coverage: "metadata-only-no-push-approval" };
+}
+module.exports = { prepare, nativeCheck, selected, retire };

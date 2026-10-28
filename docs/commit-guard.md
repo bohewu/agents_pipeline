@@ -98,6 +98,34 @@ present tags, changed/missing/used selected records and failed remote reads stop
 selection never silently falls back to a wider scan. A transport failure after
 consumption leaves the record used. Do not automatically retry or rearm it.
 
+To restore ordinary pre-push screening after consumption, explicitly retire the
+reviewed **used** record. First inspect its local private metadata and obtain the
+SHA-256 of the exact file bytes (do not copy its endpoint or payload into reports):
+
+```sh
+sha256sum .git/commit-guard-remote-tag/acceptance.json
+node "$GUARD" retire-remote-tag --binding-sha256 "$REVIEWED_BINDING_SHA256" --ack-retire-used --format json
+```
+
+Set `REVIEWED_BINDING_SHA256` to that reviewed lowercase 64-character digest.
+Retirement requires actual automatic strict/builtin policy at HEAD and successful
+engine initialization; it accepts no policy overrides. It exclusively locks the
+record, checks its repository identity and exact digest, then atomically moves
+the intact active directory into the private sibling archive
+`.git/commit-guard-remote-tag-retired/HASH/binding/`. Its `acceptance.json` bytes
+and `used` state are preserved. Existing archive slots are never overwritten.
+Pending, missing, changed, malformed, unsafe, symlinked, shared or locked records
+are refused and remain selected. The command cannot retry a tag push, confirm
+remote state or grant a push; its PASS covers metadata retirement only.
+
+After retirement, the ordinary native pre-push hook scans outgoing commits again,
+including new credentials and normal new-ref ancestry. No acceptance is renewed:
+a separate new plan must still pass every preparation check and receive explicit
+`--accept-existing-history`. Retirement makes no remote calls and changes no
+refs, policy or hooks. Keep automatic policy strict/builtin for later checks;
+retirement does not pin or install policy. The archive and fingerprint support
+inspection, while continuing to trust the local metadata owner.
+
 Updating source does not update installed tools or hooks. Existing installations
 retain their old behavior until an explicitly reviewed installation upgrade;
 review and qualify that actual native path separately. Preparation and direct

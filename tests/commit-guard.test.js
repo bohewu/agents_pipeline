@@ -743,3 +743,134 @@ test("remote-tag baseline text output identifies accepted boundary and binding t
   assert.match(used, /Binding: used; written: false/);
   assert.equal(new Set([unarmed, pending, used]).size, 3);
 });
+
+// Focused lifecycle verification: --test-name-pattern='^remote-tag retirement'.
+function retirementArgs(bytes) {
+  return ["retire-remote-tag", "--binding-sha256", crypto.createHash("sha256").update(bytes).digest("hex"), "--ack-retire-used"];
+}
+
+test("remote-tag retirement preserves consumed bytes and restores native strict screening", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.cli(["install", "--profile", "strict", "--engine", "builtin", "--local-only"]).exit, 0);
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  f.git(["-c", "push.gpgSign=false", "push", f.remote, `${f.tag}:${f.tag}`], [0], true);
+  const original = fs.readFileSync(f.recordPath);
+  const args = retirementArgs(original);
+  f.write("next.txt", "clean new commit\n"); f.stage("next.txt");
+  f.git(["commit", "-qm", "fixture"]);
+  const cleanTip = f.git(["rev-parse", "HEAD"]);
+  f.git(["push", f.remote, "HEAD:refs/heads/accepted"], [1], true);
+  assert.deepEqual(fs.readFileSync(f.recordPath), original);
+  assert.notEqual(f.prepare(true).exit, 0);
+  const refs = f.git(["show-ref"]), index = f.git(["write-tree"]), transport = fs.readFileSync(f.log);
+  const retired = f.cli(args);
+  assert.equal(retired.exit, 0, retired.output);
+  assert.equal(retired.result.binding_state, "retired"); assert.equal(retired.result.archived_state, "used");
+  assert.equal(retired.result.coverage, "metadata-only-no-push-approval");
+  assertRedacted(retired, [f.endpoint, f.cwd, JSON.parse(original).repository]);
+  const archive = path.join(f.cwd, ".git", "commit-guard-remote-tag-retired", args[2], "binding", "acceptance.json");
+  assert.deepEqual(fs.readFileSync(archive), original);
+  assert.equal(fs.statSync(archive).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(path.dirname(path.dirname(archive))).mode & 0o777, 0o700);
+  assert.equal(fs.existsSync(path.dirname(f.recordPath)), false);
+  assert.deepEqual(fs.readFileSync(f.log), transport);
+  assert.equal(f.git(["show-ref"]), refs); assert.equal(f.git(["write-tree"]), index);
+  assert.notEqual(f.cli(args).exit, 0); // No replay, reset or automatic rearm.
+  f.git(["push", f.remote, "HEAD:refs/heads/accepted"], [0], true);
+  assert.equal(f.git(["--git-dir", f.bare, "rev-parse", "refs/heads/accepted"]), cleanTip);
+  f.write("new.txt", credential(SECRET_B)); f.stage("new.txt");
+  f.git(["commit", "-qm", "fixture"]);
+  const secretTip = f.git(["rev-parse", "HEAD"]);
+  const blocked = f.hook(`refs/heads/main ${secretTip} refs/heads/accepted ${cleanTip}\n`);
+  assert.equal(blocked.exit, 1); assert.equal(blocked.result.checked_commits, 1);
+  assert.deepEqual(blocked.result.profiles, ["strict"]); assert.deepEqual(blocked.result.engines, ["builtin"]);
+  assert.ok(rules(blocked).includes("SEC_CREDENTIAL_LITERAL")); assertRedacted(blocked);
+  f.git(["push", f.remote, "HEAD:refs/heads/accepted"], [1], true);
+  assert.equal(f.git(["--git-dir", f.bare, "rev-parse", "refs/heads/accepted"]), cleanTip);
+  // A separate new plan still requires separate explicit history acceptance.
+  const fresh = f.planArgs.map(v => v === f.commit ? cleanTip : v === f.tag ? "refs/tags/fresh-fixture" : v);
+  assert.equal(f.cli(fresh).result.binding_state, "unarmed");
+  assert.equal(fs.existsSync(f.recordPath), false);
+  assert.equal(f.cli([...fresh, "--accept-existing-history"]).result.binding_state, "pending");
+  assert.notEqual(f.hook().exit, 0);
+  assert.deepEqual(fs.readFileSync(archive), original);
+});
+
+test("remote-tag retirement requires intent, exact fingerprint and a valid consumed binding", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.notEqual(f.cli(retirementArgs(Buffer.from("missing"))).exit, 0);
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal();
+  const pending = fs.readFileSync(f.recordPath);
+  assert.notEqual(f.cli(retirementArgs(pending)).exit, 0);
+  assert.deepEqual(fs.readFileSync(f.recordPath), pending);
+  assert.equal(f.hook().exit, 0);
+  const original = fs.readFileSync(f.recordPath), args = retirementArgs(original);
+  for (const bad of [args.slice(0, -1), [args[0], args[3]], [args[0], args[1], "a".repeat(64), args[3]],
+    [...args, "--profile", "strict"], [...args, "--engine", "builtin"], [...args, "--policy-source", "auto"],
+    [...args, "--ack-retire-used"], [...args, "--accept-existing-history"], ["doctor", ...args.slice(1)]]) {
+    assert.notEqual(f.cli(bad).exit, 0);
+    assert.deepEqual(fs.readFileSync(f.recordPath), original);
+  }
+  const record = JSON.parse(original);
+  for (const changed of [Buffer.from("broken"), Buffer.from(JSON.stringify({ ...record, repository: "b".repeat(64) })),
+    Buffer.from(JSON.stringify({ ...record, commit: "short" })), Buffer.from(JSON.stringify({ ...record, extra: true })),
+    Buffer.from(JSON.stringify({ ...record, tag: "refs/tags/tampered" }))]) {
+    fs.writeFileSync(f.recordPath, changed);
+    assert.notEqual(f.cli(args).exit, 0);
+    assert.deepEqual(fs.readFileSync(f.recordPath), changed);
+    assert.notEqual(f.hook().exit, 0); // Selected corruption never falls back.
+  }
+  fs.writeFileSync(f.recordPath, JSON.stringify({ ...record, commit: "short" }));
+  assert.notEqual(f.cli(retirementArgs(fs.readFileSync(f.recordPath))).exit, 0);
+  fs.unlinkSync(f.recordPath);
+  assert.notEqual(f.cli(args).exit, 0); assert.notEqual(f.hook().exit, 0);
+  assert.equal(fs.existsSync(path.dirname(f.recordPath)), true);
+  assert.equal(fs.existsSync(f.recordPath), false);
+});
+
+test("remote-tag retirement refuses unsafe paths, shared layouts, locks and archive collisions", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal(); assert.equal(f.hook().exit, 0);
+  const original = fs.readFileSync(f.recordPath), args = retirementArgs(original);
+  const active = path.dirname(f.recordPath), archive = active + "-retired", lock = path.join(active, "consume.lock");
+  const refuse = () => {
+    const result = f.cli(args); assert.notEqual(result.exit, 0, result.output);
+    assert.deepEqual(fs.readFileSync(f.recordPath), original); assert.equal(fs.existsSync(active), true);
+    assertRedacted(result, [f.cwd, f.endpoint]);
+  };
+  fs.writeFileSync(lock, "held\n", { mode: 0o600 }); refuse();
+  assert.equal(fs.readFileSync(lock, "utf8"), "held\n"); fs.unlinkSync(lock);
+  fs.chmodSync(f.recordPath, 0o644); refuse(); fs.chmodSync(f.recordPath, 0o600);
+  fs.chmodSync(active, 0o755); refuse(); fs.chmodSync(active, 0o700);
+  const saved = path.join(f.directory, "saved-record"); fs.renameSync(f.recordPath, saved);
+  fs.symlinkSync(saved, f.recordPath); refuse(); fs.unlinkSync(f.recordPath);
+  fs.linkSync(saved, f.recordPath); refuse(); fs.unlinkSync(f.recordPath); fs.renameSync(saved, f.recordPath);
+  const savedActive = path.join(f.directory, "saved-active"); fs.renameSync(active, savedActive);
+  fs.symlinkSync(savedActive, active); refuse(); fs.unlinkSync(active); fs.renameSync(savedActive, active);
+  fs.symlinkSync(path.join(f.directory, "absent"), archive); refuse(); fs.unlinkSync(archive);
+  fs.mkdirSync(archive, { mode: 0o755 }); refuse(); fs.chmodSync(archive, 0o700);
+  const collision = path.join(archive, args[2]); fs.mkdirSync(collision, { mode: 0o700 });
+  refuse(); assert.deepEqual(fs.readdirSync(collision), []); fs.rmdirSync(collision);
+  const extra = path.join(active, "used.tmp"); fs.writeFileSync(extra, "interrupted", { mode: 0o600 });
+  refuse(); assert.equal(fs.readFileSync(extra, "utf8"), "interrupted"); fs.unlinkSync(extra);
+  const worktree = path.join(f.directory, "linked"); f.git(["worktree", "add", "--detach", worktree, "HEAD"]);
+  refuse(); f.git(["worktree", "remove", worktree]);
+  assert.equal(f.cli(args).exit, 0);
+});
+
+test("remote-tag retirement requires automatic strict builtin policy and engine initialization", { skip: process.platform === "win32" }, t => {
+  const f = remoteTagFixture(t);
+  assert.equal(f.prepare(true).exit, 0); f.tagLocal(); assert.equal(f.hook().exit, 0);
+  const original = fs.readFileSync(f.recordPath), args = retirementArgs(original);
+  for (const [key, value, restore] of [["commitguard.profile", "audit", "strict"], ["commitguard.engine", "gitleaks-required", "builtin"]]) {
+    f.git(["config", key, value]);
+    assert.notEqual(f.cli(args).exit, 0); assert.deepEqual(fs.readFileSync(f.recordPath), original);
+    f.git(["config", key, restore]);
+  }
+  const randomBytes = crypto.randomBytes;
+  try {
+    crypto.randomBytes = () => { throw new Error("fixture engine initialization failure"); };
+    assert.equal(f.cli(args).exit, 2); assert.deepEqual(fs.readFileSync(f.recordPath), original);
+  } finally { crypto.randomBytes = randomBytes; }
+  assert.equal(f.cli(args).exit, 0);
+});

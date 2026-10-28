@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const { GuardError, fail, PROFILES, ENGINES, repository, head, policy } = require("./commit-guard/common");
 const { check } = require("./commit-guard/check");
-const { prepare } = require("./commit-guard/remote-tag");
+const { prepare, retire } = require("./commit-guard/remote-tag");
 const { install, doctor } = require("./commit-guard/hooks");
 
 const HELP = `Commit Guard: local deterministic first-screen (Node.js 18+, Git).
@@ -14,6 +14,7 @@ const HELP = `Commit Guard: local deterministic first-screen (Node.js 18+, Git).
   node tools/commit-guard.js check --pre-push [--profile PROFILE] < ref-input
   node tools/commit-guard.js prepare-remote-tag --remote NAME --endpoint URL --accepted-ref REF --commit OID --tag REF
       [--accept-existing-history] [--profile strict --engine builtin]
+  node tools/commit-guard.js retire-remote-tag --binding-sha256 HASH --ack-retire-used
   node tools/commit-guard.js install --profile PROFILE --local-only
   node tools/commit-guard.js doctor
 
@@ -29,10 +30,12 @@ No command commits, stages, pushes, downloads engines, or changes global setting
 function parse(args) {
   if (!args.length || args.includes("--help") || args.includes("-h")) return { help: true };
   const command = args[0];
-  if (!["check", "prepare-remote-tag", "install", "doctor"].includes(command)) fail(3, "Unknown Commit Guard command.");
+  if (!["check", "prepare-remote-tag", "retire-remote-tag", "install", "doctor"].includes(command)) fail(3, "Unknown Commit Guard command.");
   const opts = { command, format: "text", policySource: "auto" };
   const values = { "--format": "format", "--profile": "profile", "--engine": "engine", "--range": "range", "--policy-source": "policySource", "--gitleaks-path": "gitleaksPath", "--remote": "remote", "--endpoint": "endpoint", "--accepted-ref": "acceptedRef", "--commit": "commit", "--tag": "tag", "--remote-name": "remoteName", "--remote-location": "remoteLocation" };
   const flags = { "--staged": "staged", "--pre-push": "prePush", "--local-only": "localOnly", "--ack-policy-change": "ackPolicyChange", "--consume-policy-ack": "consumePolicyAck", "--accept-existing-history": "acceptExistingHistory", "--native-pre-push": "nativePrePush" };
+  values["--binding-sha256"] = "bindingSha256";
+  flags["--ack-retire-used"] = "ackRetireUsed";
   const seen = new Set();
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -45,6 +48,9 @@ function parse(args) {
     else fail(3, "Unknown Commit Guard option.");
   }
   if (!["text", "json"].includes(opts.format) || (opts.profile && !PROFILES.includes(opts.profile)) || (opts.engine && !ENGINES.includes(opts.engine)) || !["auto", "cli"].includes(opts.policySource)) fail(3, "Invalid Commit Guard option value.");
+  if (command === "retire-remote-tag") {
+    if (!opts.ackRetireUsed || !/^[a-f0-9]{64}$/.test(opts.bindingSha256 || "") || [...seen].some(a => !["--format", "--binding-sha256", "--ack-retire-used"].includes(a))) fail(3, "Retirement requires the exact binding SHA-256 and --ack-retire-used; policy overrides are unsupported.");
+  } else if (opts.bindingSha256 !== undefined || opts.ackRetireUsed) fail(3, "Retirement options require retire-remote-tag.");
   const prepareKeys = ["remote", "endpoint", "acceptedRef", "commit", "tag", "acceptExistingHistory"];
   if (command !== "prepare-remote-tag" && prepareKeys.some(k => opts[k] !== undefined)) fail(3, "Preparation options require prepare-remote-tag.");
   if (command === "prepare-remote-tag" && (prepareKeys.slice(0, 5).some(k => !opts[k]) || opts.staged || opts.prePush || opts.range || opts.localOnly || opts.ackPolicyChange || opts.consumePolicyAck || opts.nativePrePush || opts.remoteName || opts.remoteLocation || opts.gitleaksPath || opts.policySource !== "auto")) fail(3, "Preparation requires an explicit supported remote, endpoint, branch, commit and tag.");
@@ -84,6 +90,7 @@ function runCli(args, options = {}) {
       const input = opts.prePush ? (options.stdin !== undefined ? options.stdin : fs.readFileSync(0, "utf8")) : "";
       result = check(cwd, opts, input);
     } else if (opts.command === "prepare-remote-tag") result = prepare(cwd, opts);
+    else if (opts.command === "retire-remote-tag") result = retire(cwd, opts);
     else if (opts.command === "install") result = install(cwd, opts, __filename);
     else {
       result = doctor(cwd);
