@@ -148,25 +148,30 @@ Workflow entry skills are documented under [Modes](#modes). The additional globa
 
 All 17 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
 
-`$decide` additionally needs a dedicated API key on the execution host. It is an
-explicitly invoked capability, not a managed role or provider override. From a
-source clone, run `python3 scripts/decide.py setup --env-file .env.local` yourself
-in an interactive terminal to enter the key without echo. On Windows use
-`py -3 scripts/decide.py setup --env-file .env.local`. No key belongs in chat or
-command arguments. The script uses a private plaintext env file with POSIX
-permissions or a Windows ACL; installation never provisions credentials.
+`$decide` is optional and configured through its own standalone entrypoint.
+From a source clone, run either command in your terminal:
 
-Fixed entrypoints are `bash scripts/decide.sh` and
-`pwsh -NoProfile -File scripts/decide.ps1`. After key setup, run
-`bind --env-file .env.local` once to save only the credential location in
-`~/.agents-pipeline/decide.json`, outside the installation tree. Thereafter use
-`status` and `run --input request.json --dry-run` without `--env-file` from any
-workspace. `clear` removes only the location binding. An explicit `--env-file`
-overrides one call; an invalid saved location never falls back to another key.
-Omit `--dry-run` only for an authorized live API request. Updates preserve the
-external metadata and credential file; the launcher rereads them each time. Existing
-secret-manager injection through process-local `OPENAI_API_KEY` also works with
-`node tools/decisions.js --input request.json`. See the
+```bash
+bash scripts/decide.sh
+```
+
+```powershell
+pwsh -NoProfile -File scripts/decide.ps1
+```
+
+Both open the same numbered `set / status / clear` menu, like the workspace
+profile manager. Choose `set` to select a credential location, use an existing
+key or enter one with echo disabled, and save its location in one flow. No
+manual env-file creation or separate binding command is required. The main
+installer and workspace profile never launch this optional setup or provision
+API keys. No key belongs in chat or command arguments.
+
+After setup, `run --input request.json --dry-run` validates locally without
+credentials or network; omit `--dry-run` only for an authorized live request.
+Only the selected path is stored in `~/.agents-pipeline/decide.json`, outside the
+installation tree. Updates preserve it and the private credential file. `clear`
+removes only the path setting. Existing secret-manager injection through
+process-local `OPENAI_API_KEY` remains supported. See the
 [setup and rotation guide](skills/decide/references/setup.md) for replacement and
 the [skill](skills/decide/SKILL.md) for request examples and limits.
 

@@ -71,9 +71,12 @@ commands. Without a saved binding or `--env-file`, `run` preserves the existing
 process-environment mode. Dry-run never reads binding metadata or credentials.
 
 For first-time manual setup, local status, replacement and Windows notes, read
-[the setup reference](references/setup.md). A setup command is for the human's
-interactive terminal: never automate secret entry or pass a key as an argument.
-Installation and updates do not create keys or modify credential files.
+[the setup reference](references/setup.md). The optional standalone entrypoint
+opens a `set / status / clear` menu when run without arguments in the human's
+terminal; `set` completes key-file setup and location binding together. Never
+automate secret entry or pass a key as an argument. Unrelated tasks, the main
+installer and workspace profile must not launch this optional setup. Installation
+and updates do not create keys or modify credential files.
 
 ## Interpret and stop
 

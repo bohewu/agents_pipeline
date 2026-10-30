@@ -205,7 +205,7 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 self.assertEqual(json.loads(smoke.stdout)["status"], "dry_run")
             binding = home / ".agents-pipeline" / "decide.json"
             entrypoint = ["bash", str(support / "scripts" / "decide.sh"), "--config-file", str(binding)]
-            bound = subprocess.run(entrypoint + ["bind", "--env-file", str(credential_file)], cwd=home,
+            bound = subprocess.run(entrypoint + ["set", "--env-file", str(credential_file)], cwd=home,
                                    capture_output=True, text=True, check=False)
             self.assertEqual(bound.returncode, 0, bound.stderr)
             saved_binding = binding.read_bytes()

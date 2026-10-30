@@ -22,6 +22,11 @@ KEY = "-".join(("sk", "synthetic", "launcher", "fixture"))
 NEW_KEY = KEY + "-replacement"
 
 
+class TerminalStringIO(io.StringIO):
+    def isatty(self):
+        return True
+
+
 class DecideLauncherTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -46,6 +51,83 @@ class DecideLauncherTest(unittest.TestCase):
             code = MODULE.main(args)
         self.assertNotIn(KEY, out.getvalue() + err.getvalue())
         return code, out.getvalue(), err.getvalue()
+
+    def run_terminal(self, args, answers, keys=()):
+        out, err = TerminalStringIO(), io.StringIO()
+        with mock.patch.object(MODULE.sys, "stdin", TerminalStringIO(answers)), mock.patch.object(MODULE.sys, "stdout", out), contextlib.redirect_stderr(err), mock.patch.object(MODULE.getpass, "getpass", side_effect=keys) as hidden:
+            code = MODULE.main(args)
+        self.assertNotIn(KEY, out.getvalue() + err.getvalue())
+        self.assertNotIn(NEW_KEY, out.getvalue() + err.getvalue())
+        return code, out.getvalue(), err.getvalue(), hidden.call_count
+
+    def test_no_action_menu_completes_fresh_setup_and_binding(self):
+        with mock.patch.object(MODULE.Path, "home", return_value=self.root):
+            code, out, err, prompts = self.run_terminal([], "\n\nyes\n", (KEY, KEY))
+        self.assertEqual(code, 0, err)
+        target = MODULE.read_binding(self.config)
+        self.assertIsNotNone(target)
+        self.assertEqual(MODULE.load_key(target), KEY)
+        self.assertEqual(prompts, 2)
+        self.assertIn("Configured.", out)
+        self.assertTrue(json.loads(self.run_main(["status"])[1])["configured"])
+
+    def test_menu_reuses_bound_key_without_prompting_for_it(self):
+        MODULE.save_key(self.target, KEY, replace=False)
+        self.assertEqual(self.run_main(["bind", "--env-file", str(self.target)])[0], 0)
+        before = self.target.read_bytes()
+        code, _, err, prompts = self.run_terminal([], "1\n\n\n")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(prompts, 0)
+        self.assertEqual(self.target.read_bytes(), before)
+        self.assertEqual(MODULE.read_binding(self.config), self.target)
+
+    def test_set_replaces_key_and_binds_in_one_operation(self):
+        MODULE.save_key(self.target, KEY, replace=False)
+        code, _, err, prompts = self.run_terminal(["set", "--env-file", str(self.target)], "2\nyes\n", (NEW_KEY, NEW_KEY))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(prompts, 2)
+        self.assertEqual(MODULE.load_key(self.target), NEW_KEY)
+        self.assertEqual(MODULE.read_binding(self.config), self.target)
+
+    def test_menu_key_mismatch_or_cancellation_leaves_no_binding(self):
+        for answers, keys in ((f"1\n{self.target}\nyes\n", (KEY, NEW_KEY)),
+                              (f"1\n{self.target}\nno\n", ())):
+            self.assertEqual(self.run_terminal([], answers, keys)[0], 2)
+            self.assertFalse(self.target.exists())
+            self.assertFalse(self.config.exists())
+
+    def test_set_rejects_metadata_as_credential_before_secret_entry(self):
+        MODULE.save_key(self.target, KEY, replace=False)
+        self.assertEqual(self.run_main(["bind", "--env-file", str(self.target)])[0], 0)
+        before = self.config.read_bytes()
+        code, _, _, prompts = self.run_terminal(["set", "--env-file", str(self.config), "--replace"], "")
+        self.assertEqual(code, 2)
+        self.assertEqual(prompts, 0)
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertEqual(MODULE.load_key(self.target), KEY)
+
+    def test_menu_does_not_echo_a_key_pasted_as_a_path(self):
+        code, _, _, prompts = self.run_terminal([], f"1\n{KEY}\n")
+        self.assertEqual(code, 2)
+        self.assertEqual(prompts, 0)
+        self.assertFalse(self.config.exists())
+
+    def test_menu_status_clear_and_eof_do_not_enter_a_key(self):
+        MODULE.save_key(self.target, KEY, replace=False)
+        self.assertEqual(self.run_main(["bind", "--env-file", str(self.target)])[0], 0)
+        self.assertEqual(self.run_terminal([], "invalid\n2\n")[0], 0)
+        self.assertEqual(self.run_terminal([], "3\n")[0], 0)
+        self.assertFalse(self.config.exists())
+        self.assertEqual(MODULE.load_key(self.target), KEY)
+        self.assertEqual(self.run_terminal([], "")[0], 2)
+
+    def test_no_action_or_new_key_refuses_noninteractive_input(self):
+        with mock.patch.object(MODULE.sys.stdin, "isatty", return_value=False), mock.patch.object(MODULE.getpass, "getpass") as hidden:
+            self.assertEqual(self.run_main([])[0], 2)
+            self.assertEqual(self.run_main(["set", "--env-file", str(self.target)])[0], 2)
+            hidden.assert_not_called()
+        self.assertFalse(self.target.exists())
+        self.assertFalse(self.config.exists())
 
     def test_new_setup_is_private_and_requires_explicit_replacement(self):
         MODULE.save_key(self.target, KEY, replace=False)
@@ -305,7 +387,10 @@ class DecideLauncherTest(unittest.TestCase):
             with self.subTest(wrapper=command[0]):
                 config = self.root / "settings with spaces" / "decide.json"
                 prefix = command + ["--config-file", str(config)]
-                bound = subprocess.run(prefix + ["bind", "--env-file", str(target)], cwd=self.root, capture_output=True, text=True, check=False)
+                no_action = subprocess.run(prefix, cwd=self.root, capture_output=True, text=True, check=False)
+                self.assertEqual(no_action.returncode, 2)
+                self.assertFalse(config.exists())
+                bound = subprocess.run(prefix + ["set", "--env-file", str(target)], cwd=self.root, capture_output=True, text=True, check=False)
                 self.assertEqual(bound.returncode, 0, bound.stderr)
                 self.assertNotIn(KEY, bound.stdout + bound.stderr)
                 status = subprocess.run(prefix + ["status"], cwd=self.root, capture_output=True, text=True, check=False)

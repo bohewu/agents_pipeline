@@ -250,7 +250,7 @@ def read_binding(config: Path) -> Path | None:
     return Path(value["env_file"])
 
 
-def bind(config: Path, target: Path) -> None:
+def bind(config: Path, target: Path, *, report: bool = True) -> None:
     # Validate without modifying or copying the selected credential.
     require_ignored(target)
     load_key(target)
@@ -260,10 +260,11 @@ def bind(config: Path, target: Path) -> None:
     read_binding(config)  # Never overwrite an unrelated existing file.
     config.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     write_private_file(config, (json.dumps({"version": 1, "env_file": str(target)}) + "\n").encode("utf-8"))
-    print(json.dumps({"bound": True, "binding_file": str(config), "env_file": str(target), "live_verified": False}))
+    if report:
+        print(json.dumps({"bound": True, "binding_file": str(config), "env_file": str(target), "live_verified": False}))
 
 
-def setup(target: Path, *, replace: bool) -> None:
+def setup(target: Path, *, replace: bool, report: bool = True) -> None:
     require_ignored(target)
     if target.exists():
         _, matches = read_env(target)
@@ -284,27 +285,91 @@ def setup(target: Path, *, replace: bool) -> None:
     if key != repeated:
         raise SetupError("The entries do not match; no key was saved.")
     save_key(target, key, replace=replace)
-    print(json.dumps({"configured": True, "env_file": str(target), "live_verified": False}))
+    if report:
+        print(json.dumps({"configured": True, "env_file": str(target), "live_verified": False}))
+
+
+def interactive_terminal() -> bool:
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except (AttributeError, OSError):
+        return False
+
+
+def choose_numbered(title: str, choices: tuple[str, ...]) -> str:
+    print(title)
+    for index, choice in enumerate(choices, start=1):
+        print(f"  {index}) {choice}")
+    while True:
+        answer = input(f"Select [1-{len(choices)}] (default 1): ").strip()
+        if not answer:
+            return choices[0]
+        if answer.isdigit() and 1 <= int(answer) <= len(choices):
+            return choices[int(answer) - 1]
+        print("Invalid selection; enter one of the displayed numbers.")
+
+
+def configure(config: Path, env_file: str | None, *, replace: bool) -> None:
+    """One optional setup flow: choose a location, prepare its key, then bind it."""
+    interactive = interactive_terminal()
+    config = checked_target(str(config), require_parent=False)
+    selected = read_binding(config)
+    if env_file is None:
+        if not interactive:
+            raise SetupError("Pass --env-file outside an interactive terminal, or run the entrypoint in a terminal for guided setup.")
+        default = selected or Path.home() / ".agents-pipeline-decide.env"
+        env_file = input(f"Credential file [{default}]: ").strip() or str(default)
+        if env_file.startswith("sk-"):
+            raise SetupError("Enter a file path here; keys belong only in the hidden key prompt.")
+    target = checked_target(env_file)
+    if config.resolve() == target.resolve():
+        raise SetupError("The binding metadata and credential must be separate files.")
+    require_ignored(target)
+    _, matches = read_env(target) if target.exists() else ([], [])
+    if matches and interactive and not replace:
+        replace = choose_numbered("Key already configured", ("Use existing key", "Replace key")) == "Replace key"
+    if replace or not matches:
+        if not interactive:
+            raise SetupError("Run set in an interactive terminal to enter a key safely.")
+        print("Create a dedicated project API key in OpenAI Platform if needed; enter it only at the hidden prompt below.")
+        setup(target, replace=replace, report=False)
+    bind(config, target, report=not interactive)
+    if interactive:
+        print(f"Configured. Credential file: {target}")
+        print(f"Saved location: {config}")
+        print("No API request was made.")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = SafeParser(description=__doc__)
+    parser = SafeParser(description="Optional Decisions tool. Run without an action in a terminal for the set/status/clear menu.")
     parser.add_argument("--config-file", help="Override the per-user credential-location binding file (before the command)")
-    commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("bind", "clear", "setup", "status", "run"):
-        child = commands.add_parser(command)
+    commands = parser.add_subparsers(dest="command", metavar="{set,status,clear,run}")
+    public_help = {"set": "Guide credential setup and remember its location.", "status": "Show local configuration status.",
+                   "clear": "Remove only the saved location.", "run": "Evaluate a selected request."}
+    # Keep the original lower-level commands compatible, outside the normal menu/help.
+    for command in (*public_help, "setup", "bind"):
+        child = commands.add_parser(command, **({"help": public_help[command]} if command in public_help else {}))
         if command != "clear":
             child.add_argument("--env-file", required=command == "bind", help="Explicit private env file; overrides the saved location for this call")
-        if command == "setup":
-            child.add_argument("--replace", action="store_true", help="Intentionally replace the local binding; does not revoke any key")
+        if command in ("set", "setup"):
+            child.add_argument("--replace", action="store_true", help="Enter a replacement key locally; does not revoke any Platform key")
         elif command == "run":
             child.add_argument("--input", required=True, help="Request JSON file, or - for stdin")
             child.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     try:
+        if args.command is None:
+            if not interactive_terminal():
+                raise SetupError("Choose set, status, clear or run explicitly outside an interactive terminal.")
+            print("Decide (optional)")
+            action = choose_numbered("Choose an action", ("set", "status", "clear"))
+            args = parser.parse_args((["--config-file", args.config_file] if args.config_file else []) + [action])
         # Dry-run does not touch credential files or inspect the key environment.
         if args.command == "run" and args.dry_run:
             return subprocess.run(["node", str(TOOL), "--input", args.input, "--dry-run"], check=False).returncode
+        if args.command == "set":
+            configure(Path(args.config_file) if args.config_file else default_binding_path(), args.env_file, replace=args.replace)
+            return 0
         if args.command in ("bind", "clear"):
             config = Path(args.config_file) if args.config_file else default_binding_path()
             if args.command == "bind":
