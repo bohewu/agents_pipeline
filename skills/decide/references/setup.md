@@ -63,7 +63,10 @@ run --input request.json --dry-run
 run --input request.json
 ```
 
-`run` without `--dry-run` is a live request and needs separate authorization.
+An explicit `$decide` request authorizes one bounded live call using its valid
+saved credential binding; do not ask reuse-versus-new again for ordinary use.
+Setting up a credential alone does not authorize automatic workflow calls.
+Direct `run` without `--dry-run` is a live request and needs authorization.
 `status` shows only configuration and paths; it does not verify API access or
 credit. `clear` removes only the saved location, leaving the credential intact.
 

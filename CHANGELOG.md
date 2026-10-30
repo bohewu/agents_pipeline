@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.46.2] - 2026-10-30
+
+### Fixed
+
+- Clarified that an explicit `$decide` invocation reuses the operator's valid saved credential binding without repeating the reuse-versus-new question, including in a new conversation. Credential setup and changes still require confirmation; arbitrary env-file discovery, fallback and implicit workflow calls remain unauthorized.
+
 ## [0.46.1] - 2026-10-30
 
 ### Fixed

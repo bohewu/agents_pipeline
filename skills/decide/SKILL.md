@@ -12,9 +12,22 @@ profile routing or user approval. Do not dispatch another agent to use it.
 
 ## Prepare
 
-1. Apply the host's API credential setup policy before implementation, configuration
-   or a live request. Never read Codex OAuth tokens or change the parent runtime's
-   provider, login, permissions, sandbox or approval settings.
+1. For an explicit `$decide` request, reuse the operator's existing Decide
+   credential binding. Check it with the installed launcher's `status` command
+   without displaying secret values. A successful `configured: true` means the
+   operator has already selected this tool's credential; the explicit request
+   authorizes its reuse for this bounded call. Do not repeat the generic
+   reuse-versus-new question or reopen credential setup for ordinary use,
+   including in a new conversation. Merely finding an environment variable or
+   an arbitrary env file is not a saved credential choice.
+   If the binding is absent, invalid or rejected, stop and report the specific
+   setup/access problem without selecting another key. Apply the host's API
+   credential setup policy when the user requests initial setup, a new key,
+   replacement or a different credential destination. Those changes still need
+   confirmation. Never read Codex OAuth tokens or change the parent runtime's
+   provider, login, permissions, sandbox or approval settings. A configured
+   binding does not authorize implicit workflow calls, retries or broader data
+   collection.
 2. Establish the question and evidence. Use only supplied text/JSON or files the
    user explicitly selected. Show a concise evidence scope before transmission.
    Do not collect the repository, conversation or private settings automatically.
