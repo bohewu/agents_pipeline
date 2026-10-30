@@ -30,7 +30,7 @@ Tier 2 is intentionally bounded: the adapters preserve useful prompt behavior an
 
 - Canonical sources moved from the runtime-named tree to `agents/`, `protocols/`, `skills/`, and `tools/`.
 - `modes.json` replaced runtime command files as the mode-routing source of truth.
-- Eleven formal `run-*` skills provide the primary Codex workflow entry points. Five additional capability skills cover asset briefing, browser UX evidence, frontend polish, UI communication, and conceptual UI/UX handoff. `$run-adaptive` is a skill-only Simple/Flow/Pipeline router; natural-language `use <mode>` forms remain compatibility aliases for manifest-backed modes.
+- Eleven formal `run-*` skills provide the primary Codex workflow entry points. Six additional capability skills cover bounded API decisions, asset briefing, browser UX evidence, frontend polish, UI communication, and conceptual UI/UX handoff. `$run-adaptive` is a skill-only Simple/Flow/Pipeline router; natural-language `use <mode>` forms remain compatibility aliases for manifest-backed modes.
 - Codex installs mirror the marker-owned neutral support tree under `.codex/agents-pipeline`, including the scripts and runtime catalogs needed to run the installed profile manager.
 - Status/checkpoint writing is a portable Node CLI instead of a runtime plugin.
 - A runtime-neutral profile manager provides interactive or scripted `set`/`status`/`clear`/`list` flows. Runtime assets and model-free Codex roles are installed globally once; Codex workspace profiles materialize only profile-specific role TOML plus a managed config block and manifest, without copying skills, scripts, protocols, or the support tree.
@@ -48,7 +48,7 @@ modes.json                      mode names, aliases, orchestrator targets
 protocols/                      contracts, schemas, and fixtures
 skills/                         portable repo-managed skills
 skills/run-*/                   formal Codex workflow entry skills
-skills/<capability>/            reusable design and audit capability skills
+skills/<capability>/            reusable decision, design and audit skills
 tools/status-event.js           runtime-neutral status/checkpoint CLI
 tools/codex-child-trace.js      local Codex child model/role/effort verifier
 tools/status-runtime/           reusable status projection core
@@ -129,7 +129,7 @@ The normal global layout is:
 | Claude Code | `~/.claude/agents/` and `~/.claude/CLAUDE.md` | `~/.claude/agents-pipeline/` |
 | GitHub Copilot | `~/.copilot/agents/` | `~/.copilot/agents-pipeline/` |
 
-For the default `~/.codex` target, the official Codex user-skill root remains `~/.agents/skills`; the global installer publishes all 16 managed skills there: eleven workflow skills and five capability skills. A custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each installed skill has a versioned ownership marker and content digest, but every existing real directory at a managed name—including `run-*`—is treated as opaque stale state, transactionally backed up, and replaced without requiring a marker or migration flag. Links, junctions/reparse points, and non-directory targets remain rejected. Modified managed copies are likewise preserved in the sibling backup area before restoration.
+For the default `~/.codex` target, the official Codex user-skill root remains `~/.agents/skills`; the global installer publishes all 17 managed skills there: eleven workflow skills and six capability skills. A custom Codex home requires an explicit `--user-skills-root` / `-UserSkillsRoot`. Each installed skill has a versioned ownership marker and content digest, but every existing real directory at a managed name—including `run-*`—is treated as opaque stale state, transactionally backed up, and replaced without requiring a marker or migration flag. Links, junctions/reparse points, and non-directory targets remain rejected. Modified managed copies are likewise preserved in the sibling backup area before restoration.
 
 `--migrate-legacy-skills` on Bash and `-MigrateLegacySkills` on PowerShell remain accepted compatibility options, but are no longer required. An existing real `~/.codex/agents-pipeline` support root is also transactionally replaced when its marker is absent or unreadable. Installation validates that its resulting files are immediately readable, including the Windows ACL reset and validation path.
 
@@ -139,13 +139,32 @@ Workflow entry skills are documented under [Modes](#modes). The additional globa
 
 | Skill | Use |
 |---|---|
+| [`$decide`](skills/decide/SKILL.md) | Explicit, advisory Decisions API predicates, choices and rubric scores |
 | [`$artgen-scaffold`](skills/artgen-scaffold/SKILL.md) | Versioned 2D asset briefs and copy-ready generation prompts |
 | [`$devtools-ux-audit`](skills/devtools-ux-audit/SKILL.md) | Viewport-specific browser UX evidence |
 | [`$frontend-aesthetic-director`](skills/frontend-aesthetic-director/SKILL.md) | Visible frontend implementation, polish, accessibility states, and rendered QA |
 | [`$ui-communication-designer`](skills/ui-communication-designer/SKILL.md) | Task-flow, screen, and microcopy clarification |
 | [`$ui-ux-workflow`](skills/ui-ux-workflow/SKILL.md) | Bounded conceptual UI/UX handoffs |
 
-All 16 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
+All 17 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
+
+`$decide` additionally needs a dedicated API key on the execution host. It is an
+explicitly invoked capability, not a managed role or provider override. From a
+source clone, run `python3 scripts/decide.py setup --env-file .env.local` yourself
+in an interactive terminal to enter the key without echo. On Windows use
+`py -3 scripts/decide.py setup --env-file .env.local`. No key belongs in chat or
+command arguments. The script uses a private plaintext env file with POSIX
+permissions or a Windows ACL; installation never provisions credentials.
+
+Use `status --env-file .env.local` to check local configuration, and
+`run --env-file .env.local --input request.json --dry-run` to validate a request
+without credentials or network. Omit `--dry-run` only for an authorized live API
+request. Updates preserve credentials stored outside the installed support tree;
+the launcher loads the explicitly selected file anew for each call. Existing
+secret-manager injection through process-local `OPENAI_API_KEY` also works with
+`node tools/decisions.js --input request.json`. See the
+[setup and rotation guide](skills/decide/references/setup.md) for replacement and
+the [skill](skills/decide/SKILL.md) for request examples and limits.
 
 Capability skills are selected for the requested deliverable and scope; referencing one does not authorize another workflow or downstream implementation. Bounded frontend work can proceed from an approved design and verifies the affected surfaces, while an explicit full-responsive request retains its complete device and state coverage. Art-generation scaffolding remains docs-only: an explicit prompt-only request returns one usable prompt, while the default full handoff keeps its seven-section versioned contract. Compact UI/copy guidance, durable UI/UX bundles, and formal browser-backed UX audits are distinct delivery depths; durable schema and formal evidence/gate requirements remain unchanged.
 

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Decide"
+  short_description: "Ask bounded questions with the Decisions API"
+  default_prompt: "Use $decide to evaluate the explicitly supplied evidence and return an advisory predicate, choice or rubric score."
+policy:
+  allow_implicit_invocation: false

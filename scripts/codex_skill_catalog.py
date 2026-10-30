@@ -26,6 +26,7 @@ WORKFLOW_SKILL_NAMES = (
 
 CAPABILITY_SKILL_NAMES = (
     "artgen-scaffold",
+    "decide",
     "devtools-ux-audit",
     "frontend-aesthetic-director",
     "ui-communication-designer",

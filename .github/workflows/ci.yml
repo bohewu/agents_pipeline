@@ -258,7 +258,8 @@ jobs:
           node --check tools/reasoning-vocabulary.js
           node --check tools/codex-child-trace.js
           node --check tools/commit-guard.js
-          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js tests/commit-guard.test.js
+          node --check tools/decisions.js
+          node --test tests/status-runtime.test.js tests/reasoning-policy.test.js tests/capability-recovery.test.js tests/codex-child-trace.test.js tests/commit-guard.test.js tests/decisions.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
       - name: Validate local-preview lifecycle
@@ -282,7 +283,9 @@ jobs:
           node --test --test-name-pattern="symlink or Windows junction ancestor" tests/codex-child-trace.test.js
       - name: Validate Commit Guard on Windows
         shell: pwsh
-        run: node --test tests/commit-guard.test.js
+        run: |
+          node --test tests/commit-guard.test.js tests/decisions.test.js
+          python -m unittest discover -s tests -p 'test_decide_launcher.py'
       - name: Validate PowerShell runtime installers
         shell: pwsh
         run: |
@@ -374,7 +377,7 @@ jobs:
           assert not (workspace / ".codex" / "agents-pipeline").exists()
           PY
           test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d -name 'run-*' | wc -l | tr -d ' ')" -eq 11
-          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')" -eq 16
+          test "$(find "${HOME}/.agents/skills" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | wc -l | tr -d ' ')" -eq 17
           test -f "${HOME}/.agents/skills/run-adaptive/SKILL.md"
           test -f "${HOME}/.agents/skills/ui-ux-workflow/SKILL.md"
           test ! -e "${HOME}/.codex/agents/orchestrator-adaptive.toml"
@@ -402,7 +405,7 @@ jobs:
           python3 -m pip install jsonschema
           python3 -m compileall -q scripts tools
           python3 -m unittest discover -s tests -p 'test_*.py'
-          node --test tests/status-runtime.test.js tests/commit-guard.test.js
+          node --test tests/status-runtime.test.js tests/commit-guard.test.js tests/decisions.test.js
           node scripts/validate-status-runtime-smoke.cjs
 
   validate-release-bundle:

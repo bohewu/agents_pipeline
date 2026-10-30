@@ -44,7 +44,7 @@ exit /b 0
 "@ | Set-Content -Path $python3Shim -Encoding Ascii
 
         Mock Get-Command { $null } -ParameterFilter { $Name -eq "py" }
-        Mock Get-Command { [pscustomobject]@{ Source = "C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe" } } -ParameterFilter { $Name -eq "python" }
+        Mock Get-Command { [pscustomobject]@{ Source = (Join-Path $TestDrive 'Microsoft\WindowsApps\python.exe') } } -ParameterFilter { $Name -eq "python" }
         Mock Get-Command { [pscustomobject]@{ Source = $python3Shim } } -ParameterFilter { $Name -eq "python3" }
 
         & $scriptPath -Target ".\.tmp-codex-install" -DryRun | Out-Null
@@ -100,8 +100,8 @@ exit /b 0
     It "fails clearly when only WindowsApps aliases are available" {
         $scriptPath = Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath "scripts/install-codex.ps1"
         Mock Get-Command { $null } -ParameterFilter { $Name -eq "py" }
-        Mock Get-Command { [pscustomobject]@{ Source = "C:\Users\test\AppData\Local\Microsoft\WindowsApps\python.exe" } } -ParameterFilter { $Name -eq "python" }
-        Mock Get-Command { [pscustomobject]@{ Source = "C:\Users\test\AppData\Local\Microsoft\WindowsApps\python3.exe" } } -ParameterFilter { $Name -eq "python3" }
+        Mock Get-Command { [pscustomobject]@{ Source = (Join-Path $TestDrive 'Microsoft\WindowsApps\python.exe') } } -ParameterFilter { $Name -eq "python" }
+        Mock Get-Command { [pscustomobject]@{ Source = (Join-Path $TestDrive 'Microsoft\WindowsApps\python3.exe') } } -ParameterFilter { $Name -eq "python3" }
 
         try {
             & $scriptPath -Target ".\.tmp-codex-install" -DryRun | Out-Null
@@ -230,6 +230,7 @@ Describe "install-codex.ps1 managed mode skills" {
             "run-ux",
             "run-committee",
             "artgen-scaffold",
+            "decide",
             "devtools-ux-audit",
             "frontend-aesthetic-director",
             "ui-communication-designer",
@@ -386,7 +387,7 @@ Describe "install-codex.ps1 workspace profile overlay" {
             @(Get-ChildItem -LiteralPath $userSkillsRoot -Directory -Filter "run-*").Count |
                 Should -Be 11
             @(Get-ChildItem -LiteralPath $userSkillsRoot -Directory | Where-Object { -not $_.Name.StartsWith(".") }).Count |
-                Should -Be 16
+                Should -Be 17
 
             & $profileTool clear -Runtime codex -Scope workspace -Workspace $workspace | Out-Null
             $LASTEXITCODE | Should -Be 0

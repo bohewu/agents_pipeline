@@ -404,7 +404,7 @@ if ($globalAgentsMergePath) {
 }
 if ($installUserSkills) {
     Write-Host 'Formal workflow entry points: `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
-    Write-Host 'Managed capability skills: `$artgen-scaffold`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
+    Write-Host 'Managed capability skills: `$artgen-scaffold`, `$decide`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
     Write-Host 'For the full workflow, prefer `$run-pipeline <task>`. `use pipeline` and `使用 pipeline` remain compatibility aliases.'
 } else {
     Write-Host 'This target did not modify the Codex user skill root. Formal entry points are the `$run-*` skills once installed globally.'

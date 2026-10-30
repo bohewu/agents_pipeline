@@ -516,7 +516,7 @@ else
 fi
 if [[ ${INSTALL_USER_SKILLS} -eq 1 ]]; then
   echo 'Formal workflow entry points: `$run-adaptive`, `$run-simple`, `$run-flow`, `$run-pipeline`, `$run-general`, `$run-spec`, `$run-ci`, `$run-modernize`, `$run-analysis`, `$run-ux`, and `$run-committee`.'
-  echo 'Managed capability skills: `$artgen-scaffold`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
+  echo 'Managed capability skills: `$artgen-scaffold`, `$decide`, `$devtools-ux-audit`, `$frontend-aesthetic-director`, `$ui-communication-designer`, and `$ui-ux-workflow`.'
   echo 'For the full workflow, prefer `$run-pipeline <task>`. `use pipeline` and `使用 pipeline` remain compatibility aliases.'
 else
   echo 'This target did not modify the Codex user skill root. Formal entry points are the `$run-*` skills once installed globally.'

@@ -26,6 +26,7 @@ WORKFLOW_SKILLS = (
 )
 CAPABILITY_SKILLS = (
     "artgen-scaffold",
+    "decide",
     "devtools-ux-audit",
     "frontend-aesthetic-director",
     "ui-communication-designer",
@@ -62,6 +63,10 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 skill_root = user_skills_root / name
                 self.assertTrue((skill_root / "SKILL.md").is_file())
                 skill_text = (skill_root / "SKILL.md").read_text(encoding="utf-8")
+                if name == "decide":
+                    self.assertTrue((skill_root / "references" / "setup.md").is_file())
+                    self.assertIn("decisions.js", skill_text)
+                    self.assertIn("decide.py", skill_text)
                 if name == "artgen-scaffold":
                     full_handoff = (
                         skill_root / "references" / "full-handoff.md"
@@ -148,6 +153,11 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw_temp:
             home = Path(raw_temp) / "home"
 
+            home.mkdir(parents=True)
+            credential_file = home / ".env.local"
+            credential_contents = "OPENAI_API_KEY=" + "-".join(("sk", "synthetic", "install", "fixture")) + "\n"
+            credential_file.write_text(credential_contents, encoding="utf-8")
+
             result = self.run_installer(home, "--no-backup")
 
             self.assert_managed_collection(home / ".agents" / "skills")
@@ -174,6 +184,21 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 installed_ui_skill,
             )
             self.assertNotIn("../../protocols/", installed_ui_skill)
+            support = home / ".codex" / "agents-pipeline"
+            installed_decide = (home / ".agents" / "skills" / "decide" / "SKILL.md").read_text(encoding="utf-8")
+            self.assertIn((support / "tools" / "decisions.js").as_posix(), installed_decide)
+            self.assertIn((support / "scripts" / "decide.py").as_posix(), installed_decide)
+            request = json.dumps({"input": "fixture", "questions": [
+                {"type": "predicate", "name": "q", "instructions": "Question"}
+            ]})
+            for command in (["node", str(support / "tools" / "decisions.js")],
+                            [sys.executable, str(support / "scripts" / "decide.py"), "run"]):
+                smoke = subprocess.run(command + ["--input", "-", "--dry-run"], input=request,
+                                       cwd=home, capture_output=True, text=True, check=False)
+                self.assertEqual(smoke.returncode, 0, smoke.stderr)
+                self.assertEqual(json.loads(smoke.stdout)["status"], "dry_run")
+            self.run_installer(home, "--no-backup")
+            self.assertEqual(credential_file.read_text(encoding="utf-8"), credential_contents)
             installed_art_director = (
                 home / ".codex" / "agents" / "art-director.toml"
             ).read_text(encoding="utf-8")
