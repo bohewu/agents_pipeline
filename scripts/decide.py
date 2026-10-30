@@ -46,11 +46,11 @@ $allowed = @($sid.Value, 'S-1-5-18', 'S-1-5-32-544')
 $file = $env:AGENTS_PIPELINE_DECIDE_FILE
 """
     script = common + ("""
-$acl = New-Object Security.AccessControl.FileSecurity
+$acl = [System.Security.AccessControl.FileSecurity]::new()
 $acl.SetAccessRuleProtection($true, $false)
 foreach ($id in $allowed) {
-    $identity = New-Object Security.Principal.SecurityIdentifier($id)
-    $rule = New-Object Security.AccessControl.FileSystemAccessRule($identity, 'FullControl', 'Allow')
+    $identity = [System.Security.Principal.SecurityIdentifier]::new($id)
+    $rule = [System.Security.AccessControl.FileSystemAccessRule]::new($identity, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow)
     $acl.AddAccessRule($rule)
 }
 Set-Acl -LiteralPath $file -AclObject $acl
@@ -118,8 +118,10 @@ def require_ignored(target: Path) -> None:
             if any((parent / ".git").exists() for parent in target.parents):
                 raise SetupError("Unable to establish credential target Git safety.")
             return
-        root = Path(os.fsdecode(root_result.stdout).strip())
-        relative = target.relative_to(root).as_posix()
+        root = Path(os.fsdecode(root_result.stdout).strip()).resolve()
+        # Windows Git may expand an 8.3 path from TEMP to its long spelling.
+        # Canonicalize only after checked_target has rejected link traversal.
+        relative = (target.parent.resolve() / target.name).relative_to(root).as_posix()
         tracked = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", relative],
             capture_output=True, check=False, timeout=10,

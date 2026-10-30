@@ -114,6 +114,29 @@ class DecideLauncherTest(unittest.TestCase):
             MODULE.save_key(self.target, NEW_KEY, replace=True)
         self.assertEqual(MODULE.load_key(self.target), KEY)
 
+    def test_git_root_comparison_accepts_a_canonicalized_short_parent(self):
+        short_parent = self.root / "SHORT~1"
+        long_parent = self.root / "long-parent"
+        original_resolve = Path.resolve
+
+        def resolve(path, *args, **kwargs):
+            return long_parent if path == short_parent else original_resolve(path, *args, **kwargs)
+
+        results = [subprocess.CompletedProcess([], 0, os.fsencode(str(long_parent)) + b"\n"),
+                   subprocess.CompletedProcess([], 1), subprocess.CompletedProcess([], 0)]
+        with mock.patch.object(MODULE.Path, "resolve", autospec=True, side_effect=resolve), mock.patch.object(MODULE.subprocess, "run", side_effect=results) as git:
+            MODULE.require_ignored(short_parent / ".env.local")
+        self.assertEqual(git.call_args_list[-1].args[0][-1], ".env.local")
+
+    @unittest.skipUnless(os.name == "nt", "Windows ACL contract")
+    def test_windows_acl_roundtrip_rejects_a_broad_reader(self):
+        MODULE.save_key(self.target, KEY, replace=False)
+        MODULE.check_private(self.target)
+        result = subprocess.run(["icacls", str(self.target), "/grant", "*S-1-1-0:R"], capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, "Unable to add the synthetic broad-reader ACE")
+        with self.assertRaises(MODULE.SetupError):
+            MODULE.load_key(self.target)
+
     def test_unignored_staging_is_rejected_before_any_secret_is_written(self):
         subprocess.run(["git", "init", "--quiet", str(self.root)], check=True)
         (self.root / ".gitignore").write_text(".env.local\n", encoding="utf-8")
