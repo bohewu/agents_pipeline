@@ -196,6 +196,14 @@ class DecideLauncherTest(unittest.TestCase):
         self.assertFalse(self.target.exists())
         self.assertEqual(list(self.root.glob(".env.decide-*")), [])
 
+    def test_native_acl_failure_diagnostics_never_echo_untrusted_stderr(self):
+        native = subprocess.CompletedProcess([], 40, b"", ("System.ArgumentException|" + KEY + " private path").encode())
+        with mock.patch.object(MODULE.subprocess, "run", return_value=native):
+            with self.assertRaises(MODULE.SetupError) as caught:
+                MODULE.windows_acl(self.target, protect=False)
+        self.assertNotIn(KEY, str(caught.exception))
+        self.assertNotIn("private path", str(caught.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

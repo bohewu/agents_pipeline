@@ -58,16 +58,19 @@ $info = [System.IO.FileInfo]::new($file)
 $info.SetAccessControl($acl)
 """ if protect else """
 $acl = Get-Acl -LiteralPath $file
-if (-not $acl.AreAccessRulesProtected) { exit 1 }
+if (-not $acl.AreAccessRulesProtected) { exit 10 }
 $canRead = $false
 foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
     if ($rule.AccessControlType -eq 'Allow') {
-        if ($allowed -notcontains $rule.IdentityReference.Value) { exit 1 }
+        if ($allowed -notcontains $rule.IdentityReference.Value) { exit 11 }
         if ($rule.IdentityReference.Value -eq $sid.Value -and ($rule.FileSystemRights -band 1)) { $canRead = $true }
     }
 }
-if (-not $canRead) { exit 1 }
+if (-not $canRead) { exit 12 }
 """)
+    script = "try {\n" + script + "\nexit 0\n} catch {\n" + (
+        "[Console]::Error.WriteLine($_.Exception.GetType().FullName + '|' + $_.FullyQualifiedErrorId)\nexit 40\n}"
+    )
     try:
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand",
@@ -78,7 +81,13 @@ if (-not $canRead) { exit 1 }
     except (OSError, subprocess.TimeoutExpired) as from_error:
         raise SetupError("Unable to configure or verify the Windows credential ACL.") from from_error
     if result.returncode:
-        raise SetupError("Credential ACL must allow only the current account, SYSTEM and Administrators.")
+        reasons = {10: "inheritance is enabled", 11: "an unexpected account has access", 12: "current-account read access is missing"}
+        reason = reasons.get(result.returncode, "application or inspection failed")
+        # Only framework type/error identifiers are eligible diagnostics, never messages or paths.
+        native_id = result.stderr.decode("utf-8", errors="replace").strip()
+        if result.returncode == 40 and re.fullmatch(r"System\.[A-Za-z.]+Exception\|[A-Za-z][A-Za-z0-9_.,]{0,180}", native_id):
+            reason += ": " + native_id
+        raise SetupError("Windows credential ACL rejected: " + reason + ".")
 
 
 def checked_target(raw: str) -> Path:
