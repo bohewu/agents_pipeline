@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-30
+
+### Added
+
+- Added optional `$decide` for explicitly selected text or JSON, returning predicates, fixed choices or rubric scores through the OpenAI Decisions API. Results remain advisory and do not replace independent review, deterministic guards or user approval.
+- Added standalone Bash and PowerShell entrypoints with the same interactive `set / status / clear` menu. `set` prepares a private credential file and remembers its location in one flow; updates preserve external credentials and path-only settings.
+- Added local dry-run validation, bounded one-shot requests and redacted errors. Credential setup uses hidden input and POSIX permissions or Windows ACLs; it never provisions Platform keys or sends an API request.
+
+The main installer and workspace profile never launch optional Decide setup. Publishing this version does not update installed tools, configure credentials or modify Git hooks.
+
 ## [0.45.0] - 2026-10-28
 
 ### Added
