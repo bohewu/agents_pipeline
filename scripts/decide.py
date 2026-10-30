@@ -57,7 +57,9 @@ foreach ($id in $allowed) {
 $info = [System.IO.FileInfo]::new($file)
 $info.SetAccessControl($acl)
 """ if protect else """
-$acl = Get-Acl -LiteralPath $file
+# Avoid cmdlet autoloading across PowerShell 7 / Windows PowerShell environments.
+$info = [System.IO.FileInfo]::new($file)
+$acl = $info.GetAccessControl()
 if (-not $acl.AreAccessRulesProtected) { exit 10 }
 $canRead = $false
 foreach ($rule in $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])) {
