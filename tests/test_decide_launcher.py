@@ -116,7 +116,7 @@ class DecideLauncherTest(unittest.TestCase):
 
     def test_git_root_comparison_accepts_a_canonicalized_short_parent(self):
         short_parent = self.root / "SHORT~1"
-        long_parent = self.root / "long-parent"
+        long_parent = (self.root / "long-parent").resolve()
         original_resolve = Path.resolve
 
         def resolve(path, *args, **kwargs):

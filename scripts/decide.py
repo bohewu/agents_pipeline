@@ -53,7 +53,9 @@ foreach ($id in $allowed) {
     $rule = [System.Security.AccessControl.FileSystemAccessRule]::new($identity, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow)
     $acl.AddAccessRule($rule)
 }
-Set-Acl -LiteralPath $file -AclObject $acl
+# Persist only the DACL we changed; leave owner/group/audit state alone.
+$info = [System.IO.FileInfo]::new($file)
+$info.SetAccessControl($acl)
 """ if protect else """
 $acl = Get-Acl -LiteralPath $file
 if (-not $acl.AreAccessRulesProtected) { exit 1 }
