@@ -92,7 +92,7 @@ if (-not $canRead) { exit 12 }
         raise SetupError("Windows credential ACL rejected: " + reason + ".")
 
 
-def checked_target(raw: str) -> Path:
+def checked_target(raw: str, *, require_parent: bool = True) -> Path:
     # Keep lexical parents for traversal checks; resolve() would hide symlinks.
     target = Path(os.path.abspath(os.path.expanduser(raw)))
     for part in (*reversed(target.parents), target):
@@ -103,7 +103,7 @@ def checked_target(raw: str) -> Path:
         attributes = getattr(info, "st_file_attributes", 0)
         if stat.S_ISLNK(info.st_mode) or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
             raise SetupError("Credential paths must not traverse symlinks, junctions or reparse points.")
-    if not target.parent.is_dir():
+    if require_parent and not target.parent.is_dir():
         raise SetupError("Create the credential file's parent directory first.")
     if target.exists():
         info = target.stat()
@@ -195,6 +195,16 @@ def save_key(target: Path, key: str, *, replace: bool) -> None:
     data = "".join(lines).encode("utf-8")
     if len(data) > MAX_ENV_BYTES:
         raise SetupError("Updated credential file would exceed 64 KiB.")
+    write_private_file(target, data)
+
+
+def write_private_file(target: Path, data: bytes) -> None:
+    """Publish a private file without exposing data or following link targets."""
+    target = checked_target(str(target))
+    require_ignored(target)
+    existed = target.exists()
+    if existed:
+        check_private(target)
     descriptor, temporary = tempfile.mkstemp(prefix=".env.decide-", dir=target.parent)
     temporary_path = Path(temporary)
     try:
@@ -215,6 +225,42 @@ def save_key(target: Path, key: str, *, replace: bool) -> None:
             os.link(temporary_path, target)
     finally:
         temporary_path.unlink(missing_ok=True)
+
+
+def default_binding_path() -> Path:
+    return Path.home() / ".agents-pipeline" / "decide.json"
+
+
+def read_binding(config: Path) -> Path | None:
+    config = checked_target(str(config), require_parent=False)
+    if not config.exists():
+        return None
+    check_private(config)
+    with config.open("rb") as handle:
+        data = handle.read(MAX_ENV_BYTES + 1)
+    try:
+        value = json.loads(data) if len(data) <= MAX_ENV_BYTES else None
+    except (ValueError, UnicodeError):
+        value = None
+    if (not isinstance(value, dict) or set(value) != {"version", "env_file"}
+            or type(value["version"]) is not int or value["version"] != 1
+            or not isinstance(value["env_file"], str) or "\0" in value["env_file"]
+            or not Path(value["env_file"]).is_absolute()):
+        raise SetupError("Invalid credential-location binding; no alternate credential was selected.")
+    return Path(value["env_file"])
+
+
+def bind(config: Path, target: Path) -> None:
+    # Validate without modifying or copying the selected credential.
+    require_ignored(target)
+    load_key(target)
+    config = checked_target(str(config), require_parent=False)
+    if config.resolve() == target.resolve():
+        raise SetupError("The binding metadata and credential must be separate files.")
+    read_binding(config)  # Never overwrite an unrelated existing file.
+    config.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    write_private_file(config, (json.dumps({"version": 1, "env_file": str(target)}) + "\n").encode("utf-8"))
+    print(json.dumps({"bound": True, "binding_file": str(config), "env_file": str(target), "live_verified": False}))
 
 
 def setup(target: Path, *, replace: bool) -> None:
@@ -243,10 +289,12 @@ def setup(target: Path, *, replace: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = SafeParser(description=__doc__)
+    parser.add_argument("--config-file", help="Override the per-user credential-location binding file (before the command)")
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("setup", "status", "run"):
+    for command in ("bind", "clear", "setup", "status", "run"):
         child = commands.add_parser(command)
-        child.add_argument("--env-file", required=command != "run", help="Explicit private env file; never discovered automatically")
+        if command != "clear":
+            child.add_argument("--env-file", required=command == "bind", help="Explicit private env file; overrides the saved location for this call")
         if command == "setup":
             child.add_argument("--replace", action="store_true", help="Intentionally replace the local binding; does not revoke any key")
         elif command == "run":
@@ -257,15 +305,31 @@ def main(argv: list[str] | None = None) -> int:
         # Dry-run does not touch credential files or inspect the key environment.
         if args.command == "run" and args.dry_run:
             return subprocess.run(["node", str(TOOL), "--input", args.input, "--dry-run"], check=False).returncode
+        if args.command in ("bind", "clear"):
+            config = Path(args.config_file) if args.config_file else default_binding_path()
+            if args.command == "bind":
+                bind(config, checked_target(args.env_file))
+            else:
+                config = checked_target(str(config), require_parent=False)
+                if read_binding(config) is not None:
+                    config.unlink()
+                print(json.dumps({"bound": False, "binding_file": str(config)}))
+            return 0
         target = checked_target(args.env_file) if args.env_file else None
+        if target is None:
+            config = Path(args.config_file) if args.config_file else default_binding_path()
+            selected = read_binding(config)
+            target = checked_target(str(selected)) if selected is not None else None
         if args.command == "setup":
+            if target is None:
+                raise SetupError("Choose --env-file or use bind --env-file before setup.")
             setup(target, replace=args.replace)
         elif args.command == "status":
             configured = False
-            if target.exists():
+            if target is not None and target.exists():
                 load_key(target)
                 configured = True
-            print(json.dumps({"configured": configured, "env_file": str(target), "live_verified": False}))
+            print(json.dumps({"configured": configured, "env_file": str(target) if target is not None else None, "live_verified": False}))
         else:
             child_env = dict(os.environ)
             if target is not None:

@@ -82,6 +82,13 @@ The marker-owned synchronized support tree contains `AGENTS.md`, `agents/`, `mod
 
 Because the tree also carries the runtime catalogs and wrappers, its installed `scripts/agent-profile.sh` or `scripts/agent-profile.ps1` supports `set`, `status`, `clear`, and `list` without the original source clone. `install` remains a deprecated compatibility alias for `set`.
 
+The installed `scripts/decide.sh` / `scripts/decide.ps1` likewise resolves its
+Python helper from the support tree. `bind --env-file <private-file>` stores only
+the selected absolute credential location in `~/.agents-pipeline/decide.json`,
+outside that tree. Subsequent `status` and `run --input <request>` need no env-file
+argument. The installer never binds credentials; later updates preserve this
+external metadata and key file. See [Decide setup](../skills/decide/references/setup.md).
+
 The support tree is installer-owned through `.agents-pipeline-support.json` and is swapped through a staging directory. An existing real, unmarked or unreadable `<target>/agents-pipeline/` support target is transactionally replaced. Its sibling backup is deleted after commit; only a cleanup failure leaves it in place, and the installer reports its path. Links, junctions/reparse points, and non-directories are refused.
 
 The support-tree update is rollback-capable and uses atomic renames for each move; each installer-managed file replacement is also atomic. The two-move tree update and full multi-file install are not single filesystem transactions; if the process is interrupted between replacements, rerun the same command to converge the managed files to one version.

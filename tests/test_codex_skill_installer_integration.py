@@ -67,6 +67,8 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                     self.assertTrue((skill_root / "references" / "setup.md").is_file())
                     self.assertIn("decisions.js", skill_text)
                     self.assertIn("decide.py", skill_text)
+                    self.assertIn("decide.sh", skill_text)
+                    self.assertIn("decide.ps1", skill_text)
                 if name == "artgen-scaffold":
                     full_handoff = (
                         skill_root / "references" / "full-handoff.md"
@@ -157,6 +159,7 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             credential_file = home / ".env.local"
             credential_contents = "OPENAI_API_KEY=" + "-".join(("sk", "synthetic", "install", "fixture")) + "\n"
             credential_file.write_text(credential_contents, encoding="utf-8")
+            credential_file.chmod(0o600)
 
             result = self.run_installer(home, "--no-backup")
 
@@ -188,16 +191,29 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
             installed_decide = (home / ".agents" / "skills" / "decide" / "SKILL.md").read_text(encoding="utf-8")
             self.assertIn((support / "tools" / "decisions.js").as_posix(), installed_decide)
             self.assertIn((support / "scripts" / "decide.py").as_posix(), installed_decide)
+            self.assertIn((support / "scripts" / "decide.sh").as_posix(), installed_decide)
+            self.assertIn((support / "scripts" / "decide.ps1").as_posix(), installed_decide)
             request = json.dumps({"input": "fixture", "questions": [
                 {"type": "predicate", "name": "q", "instructions": "Question"}
             ]})
             for command in (["node", str(support / "tools" / "decisions.js")],
-                            [sys.executable, str(support / "scripts" / "decide.py"), "run"]):
+                            [sys.executable, str(support / "scripts" / "decide.py"), "run"],
+                            ["bash", str(support / "scripts" / "decide.sh"), "run"]):
                 smoke = subprocess.run(command + ["--input", "-", "--dry-run"], input=request,
                                        cwd=home, capture_output=True, text=True, check=False)
                 self.assertEqual(smoke.returncode, 0, smoke.stderr)
                 self.assertEqual(json.loads(smoke.stdout)["status"], "dry_run")
+            binding = home / ".agents-pipeline" / "decide.json"
+            entrypoint = ["bash", str(support / "scripts" / "decide.sh"), "--config-file", str(binding)]
+            bound = subprocess.run(entrypoint + ["bind", "--env-file", str(credential_file)], cwd=home,
+                                   capture_output=True, text=True, check=False)
+            self.assertEqual(bound.returncode, 0, bound.stderr)
+            saved_binding = binding.read_bytes()
             self.run_installer(home, "--no-backup")
+            after_update = subprocess.run(entrypoint + ["status"], cwd=home, capture_output=True, text=True, check=False)
+            self.assertEqual(after_update.returncode, 0, after_update.stderr)
+            self.assertTrue(json.loads(after_update.stdout)["configured"])
+            self.assertEqual(binding.read_bytes(), saved_binding)
             self.assertEqual(credential_file.read_text(encoding="utf-8"), credential_contents)
             installed_art_director = (
                 home / ".codex" / "agents" / "art-director.toml"

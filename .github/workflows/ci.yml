@@ -241,6 +241,7 @@ jobs:
           bash -n scripts/install-claude.sh
           bash -n scripts/install-copilot.sh
           bash -n scripts/agent-profile.sh
+          bash -n scripts/decide.sh
           bash -n scripts/bootstrap-install-codex.sh
           bash -n scripts/bootstrap-install-claude.sh
           bash -n scripts/bootstrap-install-copilot.sh
@@ -293,6 +294,7 @@ jobs:
           [void](Get-Command ./scripts/install-claude.ps1)
           [void](Get-Command ./scripts/install-copilot.ps1)
           [void](Get-Command ./scripts/agent-profile.ps1)
+          [void](Get-Command ./scripts/decide.ps1)
           [void](Get-Command ./scripts/bootstrap-install-codex.ps1)
           [void](Get-Command ./scripts/bootstrap-install-claude.ps1)
           [void](Get-Command ./scripts/bootstrap-install-copilot.ps1)

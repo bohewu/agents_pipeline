@@ -156,11 +156,15 @@ in an interactive terminal to enter the key without echo. On Windows use
 command arguments. The script uses a private plaintext env file with POSIX
 permissions or a Windows ACL; installation never provisions credentials.
 
-Use `status --env-file .env.local` to check local configuration, and
-`run --env-file .env.local --input request.json --dry-run` to validate a request
-without credentials or network. Omit `--dry-run` only for an authorized live API
-request. Updates preserve credentials stored outside the installed support tree;
-the launcher loads the explicitly selected file anew for each call. Existing
+Fixed entrypoints are `bash scripts/decide.sh` and
+`pwsh -NoProfile -File scripts/decide.ps1`. After key setup, run
+`bind --env-file .env.local` once to save only the credential location in
+`~/.agents-pipeline/decide.json`, outside the installation tree. Thereafter use
+`status` and `run --input request.json --dry-run` without `--env-file` from any
+workspace. `clear` removes only the location binding. An explicit `--env-file`
+overrides one call; an invalid saved location never falls back to another key.
+Omit `--dry-run` only for an authorized live API request. Updates preserve the
+external metadata and credential file; the launcher rereads them each time. Existing
 secret-manager injection through process-local `OPENAI_API_KEY` also works with
 `node tools/decisions.js --input request.json`. See the
 [setup and rotation guide](skills/decide/references/setup.md) for replacement and

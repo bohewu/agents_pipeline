@@ -49,16 +49,26 @@ Images, tools, streaming and arbitrary endpoints are outside this delivery.
 ## Invoke
 
 Resolve these paths relative to this skill file; installed copies are rewritten
-to the persistent support tree. Run with Node.js 18+ and Python 3.11+.
+to the persistent support tree. Run with Node.js 18+ and Python 3.11+;
+entrypoints use Bash on Linux/macOS or PowerShell 7+ on Windows.
 
 - Local validation: `node ../../tools/decisions.js --input request.json --dry-run`.
   No network or credential lookup occurs. Input may instead be `-` for stdin.
 - If the operator's existing secret manager supplies a dedicated process-local
   `OPENAI_API_KEY`, invoke `node ../../tools/decisions.js --input request.json`.
-- For an explicitly chosen private env file, invoke
-  `python3 ../../scripts/decide.py run --env-file <confirmed-file> --input request.json`.
-  On Windows use `py -3` instead of `python3`. The launcher parses only that file;
-  it does not execute shell code or export the credential to the parent session.
+- Once the operator has bound a private env file, invoke
+  `bash ../../scripts/decide.sh run --input request.json`, or on Windows
+  `pwsh -NoProfile -File ../../scripts/decide.ps1 run --input request.json`.
+  These fixed entrypoints work from any workspace and retain the caller's cwd
+  for request paths. They use the per-user saved credential location, not local
+  workspace discovery. An explicit `--env-file <confirmed-file>` overrides it
+  for one call without changing the binding. An invalid binding never falls
+  back to a different key. The launcher does not execute env-file contents or
+  export the credential to the parent session.
+
+The direct Python entry `python3 ../../scripts/decide.py` supports the same
+commands. Without a saved binding or `--env-file`, `run` preserves the existing
+process-environment mode. Dry-run never reads binding metadata or credentials.
 
 For first-time manual setup, local status, replacement and Windows notes, read
 [the setup reference](references/setup.md). A setup command is for the human's
