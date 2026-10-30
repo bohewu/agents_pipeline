@@ -383,9 +383,9 @@ class DecideLauncherTest(unittest.TestCase):
         MODULE.save_key(target, KEY, replace=False)
         before = target.read_bytes()
         request = json.dumps({"input": "fixture", "questions": [{"type": "predicate", "name": "q", "instructions": "Question"}]})
-        for command in commands:
+        for index, command in enumerate(commands):
             with self.subTest(wrapper=command[0]):
-                config = self.root / "settings with spaces" / "decide.json"
+                config = self.root / "settings with spaces" / f"decide-{index}.json"
                 prefix = command + ["--config-file", str(config)]
                 no_action = subprocess.run(prefix, cwd=self.root, capture_output=True, text=True, check=False)
                 self.assertEqual(no_action.returncode, 2)
