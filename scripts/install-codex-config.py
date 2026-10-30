@@ -798,7 +798,12 @@ def parse_manifest(path: Path) -> Optional[Dict[str, object]]:
             if (
                 not isinstance(raw_user_skills_root, str)
                 or not Path(raw_user_skills_root).is_absolute()
-                or raw_skill_names != sorted(MANAGED_SKILL_NAMES)
+                # Read the exact pre-Decide catalog for upgrades; new manifests
+                # still declare the full current catalog in write_manifest().
+                or raw_skill_names not in (
+                    sorted(MANAGED_SKILL_NAMES),
+                    sorted(name for name in MANAGED_SKILL_NAMES if name != "decide"),
+                )
                 or raw_marker_version != SKILL_MARKER_VERSION
                 or raw_sync_state
                 not in (SKILL_SYNC_STATE_PENDING, SKILL_SYNC_STATE_READY)

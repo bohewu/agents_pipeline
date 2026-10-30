@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -226,6 +227,32 @@ class CodexSkillInstallerIntegrationTest(unittest.TestCase):
                 "Treat the root read as mandatory in any requested or required execution evidence",
                 installed_art_director,
             )
+
+    def test_upgrade_from_pre_decide_manifest_preserves_settings_and_adds_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            home = Path(raw_temp) / "home"
+            self.run_installer(home, "--no-backup")
+            target = home / ".codex"
+            skills = home / ".agents" / "skills"
+            manifest_path = target / ".agents-pipeline-codex-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["managed_skill_names"].remove("decide")
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            shutil.rmtree(skills / "decide")
+            config_path = target / "config.toml"
+            before_config = config_path.read_bytes()
+            before_manifest = manifest_path.read_bytes()
+
+            self.run_installer(home, "--no-backup", "--dry-run")
+            self.assertEqual(manifest_path.read_bytes(), before_manifest)
+            self.assertEqual(config_path.read_bytes(), before_config)
+            self.assertFalse((skills / "decide").exists())
+            self.run_installer(home, "--no-backup")
+            updated = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(updated["managed_skill_names"], sorted(MANAGED_SKILLS))
+            self.assertEqual(updated["managed_skill_sync_state"], "ready")
+            self.assertEqual(config_path.read_bytes(), before_config)
+            self.assert_managed_collection(skills)
 
     def test_explicit_custom_global_target_requires_explicit_user_skill_root(
         self,

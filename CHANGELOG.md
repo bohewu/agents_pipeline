@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.46.1] - 2026-10-30
+
+### Fixed
+
+- Restored Codex installer upgrades from the exact pre-Decide 16-skill manifest. Upgrades still write the current 17-skill declaration and reject unknown, duplicate, incomplete or reordered catalogs; workspace profile integrity checks remain unchanged.
+- Added Bash and PowerShell upgrade regression coverage for preserving existing configuration, keeping dry-run read-only and installing the new Decide skill.
+
 ## [0.46.0] - 2026-10-30
 
 ### Added

@@ -78,13 +78,13 @@ Requires Codex CLI 0.145.0 or newer for managed multi-agent V2 dispatch and per-
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.46.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
+$tag = "v0.46.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-codex.ps1" -OutFile .\bootstrap-install-codex.ps1; pwsh -NoProfile -File .\bootstrap-install-codex.ps1 -Version $tag -Target "$HOME\.codex"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.46.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
+tag="v0.46.1" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-codex.sh" && bash ./bootstrap-install-codex.sh --version "${tag}" --target "$HOME/.codex"
 ```
 
 ### Claude Code (best effort)
@@ -92,13 +92,13 @@ tag="v0.46.0" && curl -fsSL -o ./bootstrap-install-codex.sh "https://raw.githubu
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.46.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
+$tag = "v0.46.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-claude.ps1" -OutFile .\bootstrap-install-claude.ps1; pwsh -NoProfile -File .\bootstrap-install-claude.ps1 -Version $tag -Target "$HOME\.claude\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.46.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
+tag="v0.46.1" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-claude.sh" && bash ./bootstrap-install-claude.sh --version "${tag}" --target "$HOME/.claude/agents"
 ```
 
 ### GitHub Copilot (best effort)
@@ -106,16 +106,16 @@ tag="v0.46.0" && curl -fsSL -o ./bootstrap-install-claude.sh "https://raw.github
 Windows (PowerShell):
 
 ```powershell
-$tag = "v0.46.0"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
+$tag = "v0.46.1"; Invoke-WebRequest "https://raw.githubusercontent.com/bohewu/agents_pipeline/$tag/scripts/bootstrap-install-copilot.ps1" -OutFile .\bootstrap-install-copilot.ps1; pwsh -NoProfile -File .\bootstrap-install-copilot.ps1 -Version $tag -Target "$HOME\.copilot\agents"
 ```
 
 macOS/Linux (Bash):
 
 ```bash
-tag="v0.46.0" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
+tag="v0.46.1" && curl -fsSL -o ./bootstrap-install-copilot.sh "https://raw.githubusercontent.com/bohewu/agents_pipeline/${tag}/scripts/bootstrap-install-copilot.sh" && bash ./bootstrap-install-copilot.sh --version "${tag}" --target "$HOME/.copilot/agents"
 ```
 
-Release invariant: `VERSION=0.46.0` must release as `v0.46.0`.
+Release invariant: `VERSION=0.46.1` must release as `v0.46.1`.
 
 <!-- END current-release -->
 
@@ -148,30 +148,68 @@ Workflow entry skills are documented under [Modes](#modes). The additional globa
 
 All 17 are installed globally once. Workspace profile setup does not copy or customize skills; it materializes only project-local role TOML and registrations for the selected resource profile.
 
-`$decide` is optional and configured through its own standalone entrypoint.
-From a source clone, run either command in your terminal:
+### Optional Decide setup
+
+Set this up once on each machine that will execute `$decide`. Have a dedicated
+OpenAI project API key ready. After the global Codex installation, open your own
+terminal and run the entrypoint for your platform:
 
 ```bash
-bash scripts/decide.sh
+bash "$HOME/.codex/agents-pipeline/scripts/decide.sh"
 ```
 
 ```powershell
-pwsh -NoProfile -File scripts/decide.ps1
+pwsh -NoProfile -File "$env:USERPROFILE\.codex\agents-pipeline\scripts\decide.ps1"
 ```
 
-Both open the same numbered `set / status / clear` menu, like the workspace
-profile manager. Choose `set` to select a credential location, use an existing
-key or enter one with echo disabled, and save its location in one flow. No
-manual env-file creation or separate binding command is required. The main
-installer and workspace profile never launch this optional setup or provision
-API keys. No key belongs in chat or command arguments.
+For a custom Codex home, substitute that installation's support path. From a
+source clone, use `bash scripts/decide.sh` or
+`pwsh -NoProfile -File scripts/decide.ps1` at the repo root instead.
 
-After setup, `run --input request.json --dry-run` validates locally without
-credentials or network; omit `--dry-run` only for an authorized live request.
-Only the selected path is stored in `~/.agents-pipeline/decide.json`, outside the
-installation tree. Updates preserve it and the private credential file. `clear`
-removes only the path setting. Existing secret-manager injection through
-process-local `OPENAI_API_KEY` remains supported. See the
+Both scripts open the same menu:
+
+```text
+Decide (optional)
+Choose an action
+  1) set
+  2) status
+  3) clear
+```
+
+1. Enter `1` (or press Enter) to choose `set`.
+2. At `Credential file [...]`, press Enter to use the suggested location. On
+   first use this is `~/.agents-pipeline-decide.env`, or
+   `$env:USERPROFILE\.agents-pipeline-decide.env` on Windows. To reuse another
+   private credential file, enter its absolute path instead.
+3. For a new key, check the displayed destination, type `yes`, then paste the
+   key twice at the hidden prompts. No characters are displayed while you type.
+   If that file already contains a key, choose `1) Use existing key` or
+   `2) Replace key` as appropriate.
+4. Wait for `Configured.`. The script creates the private file if needed and
+   remembers its location automatically. Setup makes no API request.
+
+Run the same script again and choose `2) status` to check local configuration.
+Choose `3) clear` to forget the saved location; the credential file is retained.
+Later `$decide` requests use the saved location, so you do not repeat setup or
+pass `--env-file` each time. Updates preserve the external credential file and
+path-only setting in `~/.agents-pipeline/decide.json`.
+
+To validate a prepared request yourself without network access or credentials:
+
+```bash
+bash "$HOME/.codex/agents-pipeline/scripts/decide.sh" run --input request.json --dry-run
+```
+
+```powershell
+pwsh -NoProfile -File "$env:USERPROFILE\.codex\agents-pipeline\scripts\decide.ps1" run --input request.json --dry-run
+```
+
+`request.json` is your request file; see the [skill examples](skills/decide/SKILL.md).
+Omitting `--dry-run` sends a live API request and may spend API credits.
+The main installer and workspace profile never launch this optional setup or
+create API keys. Enter keys only in the hidden terminal prompts. Existing
+secret-manager injection through process-local `OPENAI_API_KEY` remains supported.
+See the
 [setup and rotation guide](skills/decide/references/setup.md) for replacement and
 the [skill](skills/decide/SKILL.md) for request examples and limits.
 

@@ -262,6 +262,33 @@ Describe "install-codex.ps1 managed mode skills" {
         $output | Should -Match 'compatibility aliases'
     }
 
+    It "upgrades a pre-Decide manifest without changing existing configuration" {
+        $targetPath = Join-Path $TestDrive "upgrade-codex-home"
+        $userSkillsRoot = Join-Path $TestDrive "upgrade-user-skills"
+        & $scriptPath -Target $targetPath -UserSkillsRoot $userSkillsRoot -NoBackup | Out-Null
+        $LASTEXITCODE | Should -Be 0
+        $manifestPath = Join-Path $targetPath ".agents-pipeline-codex-manifest.json"
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $manifest.managed_skill_names = @($manifest.managed_skill_names | Where-Object { $_ -ne "decide" })
+        $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        Remove-Item -LiteralPath (Join-Path $userSkillsRoot "decide") -Recurse -Force
+        $configPath = Join-Path $targetPath "config.toml"
+        $beforeConfig = [System.IO.File]::ReadAllText($configPath)
+        $beforeManifest = [System.IO.File]::ReadAllText($manifestPath)
+
+        & $scriptPath -Target $targetPath -UserSkillsRoot $userSkillsRoot -NoBackup -DryRun | Out-Null
+        $LASTEXITCODE | Should -Be 0
+        [System.IO.File]::ReadAllText($manifestPath) | Should -BeExactly $beforeManifest
+        Test-Path -LiteralPath (Join-Path $userSkillsRoot "decide") | Should -BeFalse
+        & $scriptPath -Target $targetPath -UserSkillsRoot $userSkillsRoot -NoBackup | Out-Null
+        $LASTEXITCODE | Should -Be 0
+        $updated = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        ($updated.managed_skill_names -join ',') | Should -BeExactly (($managedSkillNames | Sort-Object) -join ',')
+        $updated.managed_skill_sync_state | Should -BeExactly "ready"
+        [System.IO.File]::ReadAllText($configPath) | Should -BeExactly $beforeConfig
+        Test-Path -LiteralPath (Join-Path $userSkillsRoot "decide/SKILL.md") | Should -BeTrue
+    }
+
     It "repairs Windows ACLs after replacing markerless managed roots" -Skip:($env:OS -ne "Windows_NT") {
         $targetPath = Join-Path $TestDrive "windows-codex-home"
         $userSkillsRoot = Join-Path $TestDrive "windows-user-skills"

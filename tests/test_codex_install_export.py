@@ -847,6 +847,42 @@ class CodexInstallExportTest(unittest.TestCase):
             )
             self.assertEqual(manifest_path.read_bytes(), first)
 
+    def test_manifest_accepts_only_current_or_pre_decide_skill_catalog(self) -> None:
+        legacy_names = sorted((
+            "run-adaptive", "run-simple", "run-flow", "run-pipeline",
+            "run-general", "run-spec", "run-ci", "run-modernize",
+            "run-analysis", "run-ux", "run-committee", "artgen-scaffold",
+            "devtools-ux-audit", "frontend-aesthetic-director",
+            "ui-communication-designer", "ui-ux-workflow",
+        ))
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            target = Path(temp_dir_name) / ".codex"
+            manifest_path = target / INSTALL_MODULE.MANIFEST_FILENAME
+            INSTALL_MODULE.write_manifest(
+                manifest_path, agent_names=["executor"],
+                agent_files=["agents/executor.toml"], profile=None, model_set=None,
+                uniform_model=None, source_agents_dir=REPO_ROOT / "agents",
+                target_dir=target, user_skills_root=Path(temp_dir_name) / "skills",
+            )
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for names in (sorted(INSTALL_MODULE.MANAGED_SKILL_NAMES), legacy_names):
+                with self.subTest(accepted=names):
+                    payload["managed_skill_names"] = names
+                    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+                    before = manifest_path.read_bytes()
+                    parsed = INSTALL_MODULE.parse_manifest(manifest_path)
+                    self.assertEqual(parsed["managed_skill_names"], names)
+                    self.assertEqual(manifest_path.read_bytes(), before)
+            for names in (legacy_names[:-1], sorted(legacy_names + ["unknown-skill"]),
+                          sorted(legacy_names + ["../outside"]),
+                          sorted(legacy_names + ["decide", "decide"]),
+                          list(reversed(legacy_names))):
+                with self.subTest(rejected=names):
+                    payload["managed_skill_names"] = names
+                    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "invalid managed user skill declaration"):
+                        INSTALL_MODULE.parse_manifest(manifest_path)
+
     def test_manifest_rejects_managed_files_outside_agents_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir_name:
             manifest_path = Path(temp_dir_name) / INSTALL_MODULE.MANIFEST_FILENAME
