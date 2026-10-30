@@ -9,14 +9,16 @@ if (-not [System.IO.File]::Exists($tool)) {
 
 $python = $null
 $pythonPrefix = @()
-$py = Get-Command -Name py -CommandType Application -ErrorAction SilentlyContinue
+$py = Get-Command -Name py -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($py) {
     $python = $py.Source
     $pythonPrefix = @("-3")
 } else {
     foreach ($name in @("python3", "python")) {
-        $candidate = Get-Command -Name $name -CommandType Application -ErrorAction SilentlyContinue
-        if ($candidate -and $candidate.Source -notlike "*\Microsoft\WindowsApps\python*.exe") {
+        $candidate = Get-Command -Name $name -CommandType Application -ErrorAction SilentlyContinue |
+            Where-Object { $_.Source -notlike "*\Microsoft\WindowsApps\python*.exe" } |
+            Select-Object -First 1
+        if ($candidate) {
             $python = $candidate.Source
             break
         }
