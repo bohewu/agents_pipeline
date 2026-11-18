@@ -6,10 +6,16 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-11-18
+
 ### Changed
 
 - Advanced the Codex OpenAI model catalog to `openai@6` and the immutable projection to `openai-gpt6-v1@3`: GPT-6 Luna remains mini, GPT-6.2 Sol becomes standard, and GPT-6.2 Astra becomes strong. Reasoning effort policy, review gates, and qualified LSA v2 recovery semantics are unchanged.
 - Marked the former `openai@5` / `openai-gpt6-v1@2` configuration retired. After a separately approved global support install, existing workspaces require an explicit profile refresh and a new session; this source change does not deploy or update other workspaces.
+
+### Fixed
+
+- Updated Reasoning Decision and Capability Recovery JSON Schemas to recognize `openai@6` / `openai-gpt6-v1@3`, resolving the post-migration CI validation failure without changing routing behavior.
 
 ## [0.46.2] - 2026-10-30
 
