@@ -128,9 +128,9 @@ class AgentModelProfilesTest(unittest.TestCase):
             "openai", REPO_ROOT / "runtimes/codex/model-sets", "codex"
         )
         expected = {
-            "frugal": ("standard", "gpt-6.1-sol"),
-            "balanced": ("strong", "gpt-6-astra"),
-            "premium": ("strong", "gpt-6-astra"),
+            "frugal": ("standard", "gpt-6.2-sol"),
+            "balanced": ("strong", "gpt-6.2-astra"),
+            "premium": ("strong", "gpt-6.2-astra"),
         }
         for name, (debugger_tier, debugger_model) in expected.items():
             with self.subTest(profile=name):
@@ -141,13 +141,13 @@ class AgentModelProfilesTest(unittest.TestCase):
                 )
                 self.assertEqual(configurations["debugger"]["role_binding"]["model_tier"], debugger_tier)
                 self.assertEqual(configurations["debugger"]["role_binding"]["model"], debugger_model)
-                self.assertEqual(configurations["executor-strong"]["role_binding"]["model"], "gpt-6-astra")
-                self.assertEqual(configurations["executor"]["role_binding"]["model"], "gpt-6.1-sol")
+                self.assertEqual(configurations["executor-strong"]["role_binding"]["model"], "gpt-6.2-astra")
+                self.assertEqual(configurations["executor"]["role_binding"]["model"], "gpt-6.2-sol")
                 self.assertEqual(configurations["peon"]["role_binding"]["model"], "gpt-6-luna")
-                self.assertEqual(configurations["reviewer"]["role_binding"]["model"], "gpt-6-astra")
+                self.assertEqual(configurations["reviewer"]["role_binding"]["model"], "gpt-6.2-astra")
                 self.assertEqual(configurations["reviewer"]["reasoning_projection"]["id"], "openai-gpt6-v1")
-                self.assertEqual(configurations["reviewer"]["model_set"]["version"], "5")
-                self.assertEqual(configurations["reviewer"]["reasoning_projection"]["version"], "2")
+                self.assertEqual(configurations["reviewer"]["model_set"]["version"], "6")
+                self.assertEqual(configurations["reviewer"]["reasoning_projection"]["version"], "3")
 
     def test_builtin_recovery_ceiling_mappings(self) -> None:
         profiles_dir = REPO_ROOT / "tools" / "agent-profiles"
@@ -165,7 +165,7 @@ class AgentModelProfilesTest(unittest.TestCase):
         registry = json.loads((REPO_ROOT / "protocols/reasoning-projections.json").read_text(encoding="utf-8"))
         self.assertEqual([p["id"] for p in registry["projections"]], ["openai-gpt6-v1"])
         projection = registry["projections"][0]
-        self.assertEqual(projection["version"], "2")
+        self.assertEqual(projection["version"], "3")
         self.assertEqual(projection["policy_version"], "3")
         self.assertEqual(projection["recovery_strategy"]["id"], "lsa-qualified-execution-v2")
         self.assertEqual(projection["recovery_strategy"]["next_efforts"], {"medium": "high", "high": "max", "max": None})
@@ -174,7 +174,7 @@ class AgentModelProfilesTest(unittest.TestCase):
         RESOLVER.validate_model_set_projection(model_set)
         self.assertEqual(projection["model_sets"], [RESOLVER.model_mapping_snapshot(model_set)])
 
-    def test_sol61_mapping_preserves_effort_and_recovery_policy(self) -> None:
+    def test_sol62_mapping_preserves_effort_and_recovery_policy(self) -> None:
         current = json.loads((REPO_ROOT / "protocols/reasoning-projections.json").read_text(encoding="utf-8"))["projections"][0]
         retired = json.loads((REPO_ROOT / "tests/fixtures/retired-reasoning-projections.json").read_text(encoding="utf-8"))
         previous = next(p for p in retired["projections"] if p["id"] == "openai-gpt6-v1")
@@ -236,8 +236,8 @@ class AgentModelProfilesTest(unittest.TestCase):
             self.assertEqual(
                 settings,
                 {
-                    "reviewer": {"model": "gpt-6-astra", "model_provider": "openai"},
-                    "executor": {"model": "gpt-6.1-sol", "model_provider": "openai"},
+                    "reviewer": {"model": "gpt-6.2-astra", "model_provider": "openai"},
+                    "executor": {"model": "gpt-6.2-sol", "model_provider": "openai"},
                 },
             )
 
@@ -253,7 +253,7 @@ class AgentModelProfilesTest(unittest.TestCase):
             )
             self.assertEqual(
                 RESOLVER.resolve_agent_model_settings(["executor"], profile, model_set),
-                {"executor": {"model": "gpt-6.1-sol", "model_provider": "openai"}},
+                {"executor": {"model": "gpt-6.2-sol", "model_provider": "openai"}},
             )
 
             invalid = model_set_payload("codex", codex_tiers())

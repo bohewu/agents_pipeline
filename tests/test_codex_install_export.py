@@ -1668,9 +1668,9 @@ class CodexInstallExportTest(unittest.TestCase):
                     / "openai.json"
                 ).read_text(encoding="utf-8")
             )
-            self.assertEqual(installed_lsa_catalog["version"], "5")
-            self.assertEqual(installed_lsa_catalog["reasoning_projection"]["version"], "2")
-            self.assertEqual(installed_lsa_catalog["tiers"]["standard"]["model"], "gpt-6.1-sol")
+            self.assertEqual(installed_lsa_catalog["version"], "6")
+            self.assertEqual(installed_lsa_catalog["reasoning_projection"]["version"], "3")
+            self.assertEqual(installed_lsa_catalog["tiers"]["standard"]["model"], "gpt-6.2-sol")
             self.assertEqual(
                 sorted(path.name for path in (support_root / "runtimes/codex/model-sets").glob("*.json")),
                 ["openai.json"],

@@ -311,7 +311,7 @@ test("qualified LSA v2 capability recovery reuses the shared Astra medium stage"
   assert.equal(requested.dispatch_model_tier, "strong");
   assert.equal(requested.recovery_stage.stage, "strong-medium");
   assert.equal(requested.recovery_stage.dispatch_effort, "medium");
-  assert.equal(requested.recovery_stage.target.role_binding.model, "gpt-6-astra");
+  assert.equal(requested.recovery_stage.target.role_binding.model, "gpt-6.2-astra");
   const fixture = JSON.parse(fs.readFileSync(
     path.resolve(__dirname, "..", "protocols", "examples", "capability-recovery-decision.lsa-v2.valid.json"),
     "utf8"

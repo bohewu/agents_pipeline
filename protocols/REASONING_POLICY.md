@@ -208,13 +208,15 @@ semantics; they never infer a projection from a model name.
 
 | Projection | Applicable binding | Routine | Deliberative | Deep | Assurance |
 |---|---|---|---|---|---|
-| `openai-gpt6-v1` | GPT-6 Luna mini / GPT-6.1 Sol standard / GPT-6 Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
+| `openai-gpt6-v1` | GPT-6 Luna mini / GPT-6.2 Sol standard / GPT-6.2 Astra strong | `high` / `medium` / `low` | `xhigh` / `medium` / `low` | conflict / `high` / `high` | strong `max`, strict |
 
-The active identity is `openai@5` / `openai-gpt6-v1@2`. Revision 2 changes
-only the Sol model binding and immutable identity/digests; the effort matrix,
-reviewer calibration, and qualified LSA v2 recovery strategy remain unchanged.
-The previous `openai@4` / `openai-gpt6-v1@1` identity requires an explicit
-workspace refresh after an approved support update, never an in-place resume.
+The active identity is `openai@6` / `openai-gpt6-v1@3`. Revision 3 changes
+only the standard and strong model bindings to GPT-6.2 Sol and Astra and their
+immutable identity/digests; the Luna tier, effort matrix, reviewer calibration,
+and qualified LSA v2 recovery strategy remain unchanged. The prior `openai@5` /
+`openai-gpt6-v1@2` and earlier `openai@4` / `openai-gpt6-v1@1` identities
+require an explicit workspace refresh after an approved support update, never
+an in-place resume.
 
 Only v3 projection decisions accept `low`. They carry the selected
 `reasoning_projection` and model-set identity. Callers with no saved
@@ -708,7 +710,7 @@ remain visible under all three preferences. When a selection line is required,
 print one compact adjacent line before the result summary:
 
 ```text
-reviewer · model=gpt-6-astra (verified) · effort=high (effective)
+reviewer · model=gpt-6.2-astra (verified) · effort=high (effective)
 ```
 
 Use the registered role name. Show `(verified)` only when `model_matches = true`;

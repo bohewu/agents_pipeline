@@ -108,7 +108,7 @@ function matchingLowTrace(agentId) {
     agent_id: agentId,
     trace_found: true,
     agent_role: "executor",
-    model: "gpt-6-astra",
+    model: "gpt-6.2-astra",
     model_matches: true,
     effective_effort: "low",
     role_matches: true,

@@ -1674,13 +1674,13 @@ test("active projection calibrates Astra review and rejects retired configuratio
   }), /model set|digest|binding/i);
 });
 
-test("Sol 6.1 accepts only the new identity and rejects old or mixed bindings", () => {
+test("Sol 6.2 accepts only the new identity and rejects old or mixed bindings", () => {
   const current = versionedConfiguration({
     projectionId: "openai-gpt6-v1", modelSetId: "openai", role: "executor", modelTier: "standard"
   });
-  assert.equal(current.role_binding.model, "gpt-6.1-sol");
-  assert.equal(current.model_set.version, "5");
-  assert.equal(current.reasoning_projection.version, "2");
+  assert.equal(current.role_binding.model, "gpt-6.2-sol");
+  assert.equal(current.model_set.version, "6");
+  assert.equal(current.reasoning_projection.version, "3");
   const input = {
     role: "executor", mode: "adaptive", task_intent: "execute", selector_available: true,
     resolved_configuration: current
@@ -1696,13 +1696,23 @@ test("Sol 6.1 accepts only the new identity and rejects old or mixed bindings", 
   };
   old.role_binding.model = mapping.tiers.standard;
   old.role_binding.mapping_digest = mapping.mapping_digest;
+  const former = registry.projections.find((entry) => entry.id === "openai-gpt6-v1" && entry.version === "2");
+  assert.ok(former, "the retired openai@5 projection must remain in test fixtures");
+  const formerMapping = former.model_sets[0];
+  const retiredV5 = structuredClone(current);
+  retiredV5.model_set = { id: formerMapping.id, version: formerMapping.version, mapping_digest: formerMapping.mapping_digest };
+  retiredV5.reasoning_projection = {
+    id: former.id, version: former.version, policy_version: former.policy_version, digest: former.digest
+  };
+  retiredV5.role_binding.model = formerMapping.tiers.standard;
+  retiredV5.role_binding.mapping_digest = formerMapping.mapping_digest;
   const oldModel = structuredClone(current);
   oldModel.role_binding.model = "gpt-6-sol";
   const oldProjection = structuredClone(current);
   oldProjection.reasoning_projection = old.reasoning_projection;
   const oldMapping = structuredClone(current);
   oldMapping.model_set.version = "4";
-  for (const configuration of [old, oldModel, oldProjection, oldMapping]) {
+  for (const configuration of [retiredV5, old, oldModel, oldProjection, oldMapping]) {
     assert.throws(() => resolveReasoning({ ...input, resolved_configuration: configuration }), /unknown reasoning projection|projection metadata|model set|role binding|digest/i);
   }
 });

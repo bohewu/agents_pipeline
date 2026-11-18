@@ -38,8 +38,8 @@ proved:
    work retain their existing roles.
 3. Current-workspace status is verified, `health = ok`,
    `profile_eligibility = eligible`, `catalog_state = current`, and the named
-   profile is `balanced` or `premium` under the installed `openai@5` /
-   `openai-gpt6-v1@2` configuration.
+   profile is `balanced` or `premium` under the installed `openai@6` /
+   `openai-gpt6-v1@3` configuration.
 4. The saved configuration contains an exact `executor-strong` role binding
    with `model_tier = strong`, workspace-profile provenance, and the same saved
    model-set mapping and reasoning-projection identities as the run.

@@ -1,14 +1,14 @@
 {
   "name": "openai",
-  "version": "5",
+  "version": "6",
   "runtime": "codex",
-  "description": "OpenAI GPT-6 Luna / GPT-6.1 Sol / GPT-6 Astra model set.",
-  "mapping_digest": "sha256:9b28023fbf9a2b79dc3d6caf72d094dbb81c9a0106816bdfbf4b7255dc7b9474",
+  "description": "OpenAI GPT-6 Luna / GPT-6.2 Sol / GPT-6.2 Astra model set.",
+  "mapping_digest": "sha256:178d913ca5473f3093eca7a9a005f4a5c6f04be248872455987d7e5d763ec326",
   "reasoning_projection": {
     "id": "openai-gpt6-v1",
-    "version": "2",
+    "version": "3",
     "policy_version": "3",
-    "digest": "sha256:152b4d5b65d6f979948be91d21ec7c547c134aa364b205ad5cd2f8f51e9c63ad"
+    "digest": "sha256:13a147b42cb713bd2efecc4a01df7bccd12140bd17afcc43a10d55a619486af9"
   },
   "tiers": {
     "mini": {
@@ -16,11 +16,11 @@
       "model_provider": "openai"
     },
     "standard": {
-      "model": "gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
       "model_provider": "openai"
     },
     "strong": {
-      "model": "gpt-6-astra",
+      "model": "gpt-6.2-astra",
       "model_provider": "openai"
     }
   },

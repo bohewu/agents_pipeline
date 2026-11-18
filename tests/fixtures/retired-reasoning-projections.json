@@ -46,6 +46,101 @@
       }
     },
     {
+      "id": "openai-gpt6-v1",
+      "version": "2",
+      "policy_version": "3",
+      "digest": "sha256:152b4d5b65d6f979948be91d21ec7c547c134aa364b205ad5cd2f8f51e9c63ad",
+      "effort_order": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "global_floor": "low",
+      "model_floors": {
+        "mini": "high",
+        "standard": "medium",
+        "strong": "low",
+        "unknown": "high"
+      },
+      "class_requirements": {
+        "routine": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {
+            "mini": "high",
+            "standard": "medium",
+            "strong": "low",
+            "unknown": "high"
+          }
+        },
+        "deliberative": {
+          "minimum_model_tier": "mini",
+          "effort_by_model_tier": {
+            "mini": "xhigh",
+            "standard": "medium",
+            "strong": "low",
+            "unknown": "xhigh"
+          }
+        },
+        "deep": {
+          "minimum_model_tier": "standard",
+          "effort_by_model_tier": {
+            "mini": "max",
+            "standard": "high",
+            "strong": "high",
+            "unknown": "max"
+          }
+        },
+        "assurance": {
+          "minimum_model_tier": "strong",
+          "effort_by_model_tier": {
+            "mini": "max",
+            "standard": "max",
+            "strong": "max",
+            "unknown": "max"
+          }
+        }
+      },
+      "role_effort_overrides": {},
+      "model_sets": [
+        {
+          "id": "openai",
+          "version": "5",
+          "tiers": {
+            "mini": "gpt-6-luna",
+            "standard": "gpt-6.1-sol",
+            "strong": "gpt-6-astra"
+          },
+          "role_overrides": {},
+          "mapping_digest": "sha256:9b28023fbf9a2b79dc3d6caf72d094dbb81c9a0106816bdfbf4b7255dc7b9474"
+        }
+      ],
+      "recovery_strategy": {
+        "id": "lsa-qualified-execution-v2",
+        "version": "2",
+        "eligible_roles": [
+          "executor",
+          "generalist"
+        ],
+        "source": {
+          "model_tier": "standard",
+          "reasoning_class": "deep",
+          "minimum_verified_effort": "high"
+        },
+        "target": {
+          "model_tier": "strong",
+          "reasoning_class": "deep",
+          "initial_effort": "medium"
+        },
+        "next_efforts": {
+          "medium": "high",
+          "high": "max",
+          "max": null
+        }
+      }
+    },
+    {
       "id": "legacy-v2",
       "version": "2",
       "policy_version": "2",

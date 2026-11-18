@@ -61,6 +61,7 @@ SUPPORTED_SUPPORT_MARKER_VERSIONS = (1, 2, 3)
 # Read-only identities for previously issued overlays. These do not make a
 # retired catalog selectable or eligible for a new dispatch.
 RETIRED_CODEX_IDENTITIES = frozenset({
+    ("openai", "5", "sha256:9b28023fbf9a2b79dc3d6caf72d094dbb81c9a0106816bdfbf4b7255dc7b9474", "openai-gpt6-v1", "2", "3", "sha256:152b4d5b65d6f979948be91d21ec7c547c134aa364b205ad5cd2f8f51e9c63ad"),
     ("openai", "4", "sha256:03205fc4f6ba34fa746c64f46fe8fa4e8a22667e8a8e0b28ca25af6ba58198c8", "openai-gpt6-v1", "1", "3", "sha256:b7834fdb8dd7112a506691e4b40a2b5cc0e534c27b5d35958d1376e50f8ac6aa"),
     ("openai", "3", "sha256:0e440f876a190b7289466d766e0272d7b599b65547027b205dba72e1f16ec26f", "openai-reviewer-v1", "1", "3", "sha256:35c72783f0670fe227ff2db8c53af77995c4532cfdd7983b6efc7f6db99f07c7"),
     ("openai-luna-sol-astra", "1", "sha256:d6e61678fc758f539ab4eef1668fdc1087dcbd426db9f20a5b1ba3f12e3c1ca9", "lsa-efficiency-v1", "1", "3", "sha256:22f6d1c020ce14134a81d5aea1ff415fa04c1010e78e21fe89dc07b83ac58690"),
@@ -2163,7 +2164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     and isinstance(identity.get("model_set"), dict)
                     and identity["model_set"].get("id") == "openai"
                 ):
-                    print("Reviewer model: gpt-6-astra when the named reviewer is strong.")
+                    print("Reviewer model: gpt-6.2-astra when the named reviewer is strong.")
         if args.action in ("set", "status") and result.get("configured", True):
             _print_eligibility_warning(result)
         return 0
