@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses SemVer tags (`vMA
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-11-24
+
+### Fixed
+
+- Codex profile preflight now accepts V2-only configs. The exporter emits `features.multi_agent_v2`, and the installer removes the deprecated `features.multi_agent` flag during upgrades. Existing workspace profiles need to be refreshed with their selected profile and model set after the exporter update changes the profile input digest.
+
 ## [0.47.0] - 2026-11-18
 
 ### Changed

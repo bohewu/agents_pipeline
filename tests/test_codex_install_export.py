@@ -1073,12 +1073,13 @@ class CodexInstallExportTest(unittest.TestCase):
         self.assertNotIn("max_threads", config)
         self.assertNotIn("max_concurrent_threads_per_session", config)
         self.assertNotIn("max_depth", config)
-        self.assertIn("multi_agent = true", config)
+        self.assertNotIn("multi_agent =", config)
         self.assertIn("multi_agent_v2 = true", config)
 
     def test_merge_preserves_inline_multi_agent_v2_configuration(self) -> None:
         merged = INSTALL_MODULE.merge_config_text(
             "[features]\n"
+            '"multi_agent" = true # Legacy V1 toggle\n'
             "multi_agent_v2 = { enabled = false, max_concurrent_threads_per_session = 3, default_wait_timeout_ms = 1200 }\n",
             {},
             previous_agent_names=[],
@@ -1087,6 +1088,7 @@ class CodexInstallExportTest(unittest.TestCase):
         )
 
         parsed = INSTALL_MODULE.tomllib.loads(merged)
+        self.assertNotIn("multi_agent", parsed["features"])
         self.assertTrue(parsed["features"]["multi_agent_v2"]["enabled"])
         self.assertEqual(
             parsed["features"]["multi_agent_v2"]
@@ -1363,7 +1365,7 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         parsed = INSTALL_MODULE.tomllib.loads(merged)
         self.assertIn("[agents.executor]\nmulti_agent = false", parsed["features"]["message"])
-        self.assertTrue(parsed["features"]["multi_agent"])
+        self.assertNotIn("multi_agent", parsed["features"])
         self.assertTrue(parsed["features"]["multi_agent_v2"])
         self.assertEqual(parsed["agents"]["executor"]["description"], "Execute work.")
 
@@ -1387,7 +1389,8 @@ class CodexInstallExportTest(unittest.TestCase):
 
     def test_merge_preserves_valid_root_dotted_configuration(self) -> None:
         merged = INSTALL_MODULE.merge_config_text(
-            'features.web_search = true\nagents.custom = { description = "Keep" }\n',
+            'features.web_search = true\nfeatures.multi_agent = true\n'
+            'agents.custom = { description = "Keep" }\n',
             {
                 "executor": INSTALL_MODULE.Block(
                     "table",
@@ -1401,7 +1404,7 @@ class CodexInstallExportTest(unittest.TestCase):
         )
         parsed = INSTALL_MODULE.tomllib.loads(merged)
         self.assertTrue(parsed["features"]["web_search"])
-        self.assertTrue(parsed["features"]["multi_agent"])
+        self.assertNotIn("multi_agent", parsed["features"])
         self.assertTrue(parsed["features"]["multi_agent_v2"])
         self.assertEqual(parsed["agents"]["custom"]["description"], "Keep")
         self.assertNotIn("max_threads", parsed["agents"])

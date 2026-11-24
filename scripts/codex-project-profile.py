@@ -329,9 +329,7 @@ def _validate_global_codex_registration(global_target: Path, names: Sequence[str
                 f"Global Codex agent {name} points outside its managed role file."
             )
     features = config.get("features")
-    if not isinstance(features, dict) or features.get("multi_agent") is not True:
-        raise ProjectProfileError("Global Codex config does not enable features.multi_agent.")
-    multi_agent_v2 = features.get("multi_agent_v2")
+    multi_agent_v2 = features.get("multi_agent_v2") if isinstance(features, dict) else None
     if not (
         multi_agent_v2 is True
         or (

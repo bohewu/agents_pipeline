@@ -727,7 +727,6 @@ def build_root_config(
         lines.extend(
             [
                 "[features]",
-                "multi_agent = true",
                 "multi_agent_v2 = true",
                 "",
             ]
@@ -900,7 +899,7 @@ def main() -> int:
         action="store_true",
         default=True,
         help=(
-            "Emit `[features] multi_agent = true` and `multi_agent_v2 = true` "
+            "Emit `[features] multi_agent_v2 = true` "
             "in generated config.toml (default: enabled)."
         ),
     )

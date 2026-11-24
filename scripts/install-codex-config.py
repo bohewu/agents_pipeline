@@ -1198,11 +1198,9 @@ def merge_config_text(
     preamble = blocks[0]
 
     features_idx = find_block_index(blocks, kind="table", path="features")
-    if features_idx is None and has_dotted_root_assignment(preamble, "features"):
-        upsert_dotted_root_assignment(preamble, "features", "multi_agent", "true")
-    else:
-        features_block = ensure_root_table(blocks, "features")
-        upsert_assignment(features_block, "multi_agent", "true")
+    if features_idx is not None:
+        remove_assignment_tree(blocks[features_idx], "multi_agent")
+    remove_dotted_assignment_tree(preamble, "features", "multi_agent")
     enable_multi_agent_v2_config(
         blocks,
         preamble,
@@ -1729,7 +1727,7 @@ def main() -> int:
                 support_tree_source, support_tree_target, dry_run=True
             )
             print(f"Dry run: would merge Codex config into {target_dir.as_posix()}")
-            print("- set features.multi_agent = true")
+            print("- remove deprecated features.multi_agent if present")
             print("- set features.multi_agent_v2 = true")
             if workspace_profile_target:
                 print(

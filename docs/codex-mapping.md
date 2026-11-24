@@ -94,7 +94,7 @@ ChatGPT Web custom instructions are separate from this Codex global AGENTS snipp
 
 The generator writes a root `config.toml` containing:
 
-- `[features] multi_agent = true` and `multi_agent_v2 = true` by default
+- `[features] multi_agent_v2 = true` by default
 - optional `[agents] job_max_runtime_seconds` only when explicitly requested
 - one `[agents.<name>]` table per source agent role
 
@@ -118,7 +118,7 @@ Use standalone exporter flags to adjust this output when needed:
 - `--job-max-runtime-seconds=<n>`
 - `--no-enable-feature-flag`
 
-Direct exporter output leaves agent limits absent. A normal full/global install ensures `agents.max_concurrent_threads_per_session = 8` and `agents.max_depth = 1`, preserves explicit new values, and removes the obsolete `agents.max_threads` key after migrating its numeric value when needed. Installs preserve boolean or object-form `features.multi_agent_v2` settings while forcing that feature enabled; an explicit feature-object concurrency value remains authoritative. Project profile overlays and direct workspace materializations leave these limits unset to inherit the effective global values, and exported subagent roles enforce the leaf-worker boundary that V2 does not derive from `max_depth`.
+Direct exporter output leaves agent limits absent. A normal full/global install ensures `agents.max_concurrent_threads_per_session = 8` and `agents.max_depth = 1`, preserves explicit new values, and removes the obsolete `agents.max_threads` key after migrating its numeric value when needed. Installs remove the deprecated `features.multi_agent` key and enable `features.multi_agent_v2` while preserving its boolean or object form. An explicit feature-object concurrency value remains authoritative. Project profile overlays and direct workspace materializations leave these limits unset to inherit the effective global values, and exported subagent roles enforce the leaf-worker boundary that V2 does not derive from `max_depth`.
 
 ## Role Config Generation
 

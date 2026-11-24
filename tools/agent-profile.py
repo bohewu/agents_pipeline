@@ -1113,8 +1113,6 @@ def _missing_codex_config_registration(target: Path, agent_names: Sequence[str])
         if candidate.resolve(strict=False) != (target / "agents" / f"{name}.toml").resolve():
             missing.append(f"config:agents.{name}.config_file")
     features = config.get("features")
-    if not isinstance(features, dict) or features.get("multi_agent") is not True:
-        missing.append("config:features.multi_agent")
     multi_agent_v2 = (
         features.get("multi_agent_v2") if isinstance(features, dict) else None
     )

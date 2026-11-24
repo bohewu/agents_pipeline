@@ -203,7 +203,7 @@ class RuntimeModelExporterTest(unittest.TestCase):
             self.assertNotIn("reasoning", role_content)
             self.assertNotIn("model =", root_config)
             self.assertNotIn("model_provider", root_config)
-            self.assertIn("multi_agent = true", root_config)
+            self.assertNotIn("multi_agent =", root_config)
             self.assertIn("multi_agent_v2 = true", root_config)
             self.assertNotIn("max_threads", root_config)
             self.assertNotIn("max_concurrent_threads_per_session", root_config)
